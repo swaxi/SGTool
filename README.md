@@ -16,4 +16,4 @@
    
 ![SGTools image](dialog.png)    
    
-
+Supports data geotiff, grd, ers formats

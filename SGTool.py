@@ -669,6 +669,8 @@ class SGTool:
 
         if(process):
             self.buffer=min(rows,cols)
+            if(self.buffer>500):
+                self.buffer=500
             self.processor = GeophysicalProcessor(self.dx, self.dy,self.buffer)
 
             if(self.DirClean):

@@ -519,6 +519,8 @@ class SGTool:
         self.suffix="_DC"
 
     def procRTP_E(self):
+        if(self.RTE_P_inc=="0" and self.RTE_P_dec=="0"):
+            self.iface.messageBar().pushMessage("You need to define Inc and Dec first", level=Qgis.Warning, duration=15)
         if(self.RTE_P_type=="Pole"):
             self.new_grid=self.processor.reduction_to_pole(self.raster_array, inclination=float(self.RTE_P_inc), declination=float(self.RTE_P_dec),buffer_size=self.buffer)
             self.suffix="_RTP"
@@ -560,6 +562,8 @@ class SGTool:
         self.suffix="_AGC"
 
     def procPGrav(self):
+        if(self.RTE_P_inc=="0" and self.RTE_P_dec=="0"):
+            self.iface.messageBar().pushMessage("You need to define Inc and Dec first", level=Qgis.Warning, duration=15)
         self.procRTP_E()
         self.new_grid=self.processor.vertical_integration(self.new_grid)
         self.suffix="_PG"
@@ -761,7 +765,7 @@ class SGTool:
                 self.diskGridPath=directory_path+"/"+filename_without_extension+".tif"
 
                 fn=self.diskGridPath
-                if(os.path.exists(self.diskGridPath)):
+                if(os.path.exists(self.diskGridPath) and not  self.is_layer_loaded(filename_without_extension+".tif")):
                     os.remove(self.diskGridPath)
                 driver=gdal.GetDriverByName('GTiff')
                 if(header["ordering"]==1):

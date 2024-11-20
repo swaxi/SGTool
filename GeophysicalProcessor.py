@@ -176,6 +176,9 @@ class GeophysicalProcessor:
         rtp_filter = 1.0 / theta_f
         rtp_filter[np.abs(rtp_filter) > 1e6] = 0  # Stabilize extreme values
 
+        # Apply max_wavenumber filtering based on cell size
+        rtp_filter[k > 1/(float(self.dx)*2)] = 0
+
         # Apply RTP filter in the Fourier domain
         data_fft = fft2(buffered_data)
         data_rtp_fft = data_fft * rtp_filter.T
@@ -204,6 +207,7 @@ class GeophysicalProcessor:
         kx, ky = np.meshgrid(kx, ky, indexing="ij")
         k = np.sqrt(kx**2 + ky**2) + 1e-10  # Avoid division by zero
 
+
         # Unit vectors for the geomagnetic field
         fe = np.sin(dec) * np.cos(inc)  # Easting component
         fn = np.cos(dec) * np.cos(inc)  # Northing component
@@ -213,17 +217,20 @@ class GeophysicalProcessor:
         theta_f = fz + 1j * (fe * kx + fn * ky) / k
 
         # RTP filter
-        rtp_filter = theta_f
-        rtp_filter[np.abs(rtp_filter) > 1e6] = 0  # Stabilize extreme values
+        rte_filter = theta_f
+        rte_filter[np.abs(rte_filter) > 1e6] = 0  # Stabilize extreme values
+
+        # Apply max_wavenumber filtering based on cell size
+        rte_filter[k > 1/(float(self.dx)*2)] = 0
 
         # Apply RTP filter in the Fourier domain
         data_fft = fft2(buffered_data)
-        data_rtp_fft = data_fft * rtp_filter.T
+        data_rte_fft = data_fft * rte_filter.T
 
-        data_rtp = np.real(ifft2(data_rtp_fft))
+        data_rte = np.real(ifft2(data_rte_fft))
 
         # Remove buffer and restore NaNs
-        filtered_data = self.remove_buffer(data_rtp, buffer_size)
+        filtered_data = self.remove_buffer(data_rte, buffer_size)
         return self.restore_nan(filtered_data, nan_mask)
     
 
@@ -242,7 +249,7 @@ class GeophysicalProcessor:
                 return k**order
             else:
                 raise ValueError("Invalid direction. Choose 'x', 'y', or 'z'.")
-
+    
         return self._apply_fourier_filter(data, filter_function, buffer_size, buffer_method)
 
     def tilt_derivative(self, data, buffer_size=10, buffer_method="mirror"):
@@ -522,7 +529,7 @@ class GeophysicalProcessor:
         ny, nx = buffered_data.shape
         kx, ky = self.create_wavenumber_grids(nx, ny)
         filter_array = filter_function(kx, ky)
-
+        
         # Apply filter
         filtered_fft = data_fft * filter_array
 

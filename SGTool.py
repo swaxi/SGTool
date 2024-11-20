@@ -761,7 +761,8 @@ class SGTool:
                 self.diskGridPath=directory_path+"/"+filename_without_extension+".tif"
 
                 fn=self.diskGridPath
-
+                if(os.path.exists(self.diskGridPath)):
+                    os.remove(self.diskGridPath)
                 driver=gdal.GetDriverByName('GTiff')
                 if(header["ordering"]==1):
                     ds = driver.Create(fn,xsize=header["shape_e"],ysize=header["shape_v"],bands=1,eType=Gdata_type)

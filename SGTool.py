@@ -664,6 +664,8 @@ class SGTool:
             if no_data_value is not None:
                 self.raster_array[self.raster_array == no_data_value] = np.nan
             process=True
+        # Plot results
+
 
         if(process):
             self.buffer=min(rows,cols)
@@ -773,7 +775,14 @@ class SGTool:
                 fn=self.diskGridPath
                 if(os.path.exists(self.diskGridPath) and not  self.is_layer_loaded(filename_without_extension+".tif")):
                     os.remove(self.diskGridPath)
-                driver=gdal.GetDriverByName('GTiff')
+
+                basename =os.path.basename(self.diskGridPath)
+                extension =os.path.splitext(basename)[1].lower()
+                if(extension=='ers'):
+                    driver=gdal.GetDriverByName('ERS')
+                else:
+                    driver=gdal.GetDriverByName('GTiff')
+
                 if(header["ordering"]==1):
                     ds = driver.Create(fn,xsize=header["shape_e"],ysize=header["shape_v"],bands=1,eType=Gdata_type)
                 else:

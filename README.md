@@ -1,5 +1,5 @@
 # SGTool
- Simple Potential Field Calcs   
+ Simple Potential Field Calcs to assist WAXI Structural Geophsyics Course https://waxi4.org 
     
 - Directional Band Pass
 - Band Pass   

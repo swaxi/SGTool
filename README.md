@@ -17,4 +17,17 @@
    
 ![SGTools image](dialog.png)    
    
-Supports data geotiff, grd, ers formats
+# Inputs   
+- Supports data geotiff, grd, ers formats
+   
+# Code development
+- Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin    
+- Calcs ChatGPT and Mark Jessell
+- IGRF calculation - https://github.com/klaundal/ppigrf  
+- GRD Mark Jessell & Loader Fatiando a Terra crew https://www.fatiando.org/
+
+# Tips
+- Simple Potentialfield calculations, mostly FFT-based
+- Adds suffix to input filename and stores results in same directory
+- If a layer with a given name already exists, no calc performed
+

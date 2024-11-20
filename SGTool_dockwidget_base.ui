@@ -944,6 +944,32 @@
       <string>0.1</string>
      </property>
     </widget>
+    <widget class="QLabel" name="label_37">
+     <property name="geometry">
+      <rect>
+       <x>230</x>
+       <y>430</y>
+       <width>81</width>
+       <height>16</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Max FFT Buffer</string>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="lineEdit_13_max_buffer">
+     <property name="geometry">
+      <rect>
+       <x>310</x>
+       <y>430</y>
+       <width>71</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>500</string>
+     </property>
+    </widget>
    </widget>
    <widget class="QGroupBox" name="groupBox_2">
     <property name="enabled">

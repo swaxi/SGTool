@@ -29,7 +29,7 @@
 - Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin    
 - Calcs ChatGPT and Mark Jessell
 - IGRF calculation - https://github.com/klaundal/ppigrf  
-- GRD Mark Jessell & Loader Fatiando a Terra crew https://www.fatiando.org/
+- GRD Loader Mark Jessell & Fatiando a Terra crew https://www.fatiando.org/
 
 
 

@@ -724,7 +724,7 @@ class SGTool:
             None,
             "Select Data File",
             ".",
-            "TIF (*.TIF;*.tif;*.TIFF;*.tiff);;GRD (*.grd;*GRD);;ERS (*.ERS;*.ers)",
+            "Grids (*.TIF;*.tif;*.TIFF;*.tiff;*.grd;*GRD;*.ERS;*.ers)",
         )
         suffix = self.diskGridPath.split(".")[-1].lower()
         epsg="4326"

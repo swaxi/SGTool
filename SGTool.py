@@ -241,6 +241,138 @@ class SGTool:
         # remove the toolbar
         del self.toolbar
 
+    def define_tips(self):
+        self.dlg.mMapLayerComboBox_selectGrid.setToolTip(
+            "Process previous loaded file"
+        )
+        self.dlg.pushButton_2_selectGrid.setToolTip(
+            "Load new file for processing"
+        )
+        self.dlg.checkBox_3_DirClean.setToolTip(
+            "Filter [DC} a specific direction and wavelength,\nUseful for filtering flight line noise"
+        )
+        self.dlg.label_2.setToolTip(
+            "Filter [DC} a specific direction and wavelength,\nUseful for filtering flight line noise"
+        )
+        self.dlg.lineEdit_3_azimuth.setToolTip(
+            "Azimuth of high frequency noise to be filtered (degrees clockwise from North)"
+        )
+        self.dlg.lineEdit_4_lineSpacing.setToolTip(
+            "Wavelength (Line spacing) of high frequency noise to be filtered [m or other length unit]"
+        )
+        self.dlg.checkBox_4_RTE_P.setToolTip(
+            "Reduction to pole or equator\nThe reduction to the pole (RTP) or to Equator (RTE) is a process in geophysics\nwhere magnetic data are transformed to look as though\n they were measured at the magnetic pole/equator\nCorrects the asymmetry of magnetic anomalies caused by\n the Earth's field, making them appear directly above their sources"
+        )
+        self.dlg.label_3.setToolTip(
+            "Reduction to pole or equator\nThe reduction to the pole (RTP) or to Equator (RTE) is a process in geophysics\nwhere magnetic data are transformed to look as though\n they were measured at the magnetic pole/equator\nCorrects the asymmetry of magnetic anomalies caused by\n the Earth's field, making them appear directly above their sources"
+        )
+        self.dlg.pushButton_4_calcIGRF.setToolTip(
+            "Calculate IGRF Inc & Dec based on centroid of selected grid and specified survey height and date"
+        )
+        self.dlg.comboBox_3_rte_p_list.setToolTip(
+            "Choose Pole(high mag latitudes)\n or Equator (low mag latitudes)"
+        )
+        self.dlg.lineEdit_6_inc.setToolTip(
+            "Manually define magnetic inclination [degrees from horizontal]"
+        )
+        self.dlg.lineEdit_5_dec.setToolTip(
+            "Manually define magnetic declination [degrees clockwise from North]"
+        )
+        self.dlg.lineEdit_7_height.setToolTip(
+            "Survey height [m or other length unit]"
+        )
+        self.dlg.dateEdit.setToolTip(
+            "Survey date"
+        )
+        self.dlg.checkBox_4_PGrav.setToolTip(
+            "Pseudo Gravity (PG): all reduction parameters from line above)\nConverts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing."
+        )
+        self.dlg.label_39.setToolTip(
+            "Pseudo Gravity (PG): all reduction parameters from line above)\nConverts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing."
+        )
+        self.dlg.checkBox_5_regional.setToolTip(
+            "Remove regional (RR) based on wavelenth"
+        )
+        self.dlg.label_4.setToolTip(
+            "Remove regional (RR) based on wavelenth"
+        )
+        self.dlg.lineEdit_9_removeReg_wavelength.setToolTip(
+            "Wavelength to define regional [m or other length unit]"
+        )
+        self.dlg.checkBox_6_derivative.setToolTip(
+            "Calculate derivate (d+power+direction) parallel to x, y or z\nHighlights near-surface/short-wavelength features"
+        )
+        self.dlg.label_5.setToolTip(
+            "Calculate derivate (d+power+direction) parallel to x, y or z\nHighlights near-surface/short-wavelength features"
+        )
+        self.dlg.comboBox_derivDirection.setToolTip(
+            "Select derivative direction"
+        )
+        self.dlg.lineEdit_9_derivePower.setToolTip(
+            "Power of derivative"
+        )
+        self.dlg.checkBox_7_tiltDerivative.setToolTip(
+            "Tilt Derivative (TD)\nIt is often applied to magnetic or gravity data to enhance edges and detect shallow sources\nTends to overconnect structural features"
+        )
+        self.dlg.label_6.setToolTip(
+            "Tilt Derivative (TD)\nIt is often applied to magnetic or gravity data to enhance edges and detect shallow sources\nTends to overconnect structural features"
+        )
+        self.dlg.checkBox_8_analyticSignal.setToolTip(
+            "Analytic Signal (AS)\nIt combines horizontal and vertical derivatives to highlight anomaly edges and amplitude variations, independent of direction"
+        )
+        self.dlg.label_7.setToolTip(
+            "Analytic Signal (AS)\nIt combines horizontal and vertical derivatives to highlight anomaly edges and amplitude variations, independent of direction"
+        )
+        self.dlg.checkBox_9_continuation.setToolTip(
+            "Upward or downward continuation\nUpward Continuation (UC) data by continuing it to a higher altitude, attenuating high-frequency noise and shallow features\nDownward Continuation (DC) enhances shallow or high-frequency anomalies by continuing the field to a lower altitude"
+        )
+        self.dlg.label_8.setToolTip(
+            "Upward or downward continuation\nUpward Continuation (UC) data by continuing it to a higher altitude, attenuating high-frequency noise and shallow features\nDownward Continuation (DC) enhances shallow or high-frequency anomalies by continuing the field to a lower altitude"
+        )
+        self.dlg.comboBox_2_continuationDirection.setToolTip(
+            "Select direction of continuation"
+        )
+        self.dlg.lineEdit_10_continuationHeight.setToolTip(
+            "Select amount of continuation [m or other length unit]"
+        )
+        self.dlg.checkBox_10_bandPass.setToolTip(
+            "Band pass filter (BP)\nIsolates specific wavelength features."
+        )
+        self.dlg.label_9.setToolTip(
+            "Band pass filter (BP)\nIsolates specific wavelength features."
+        )
+        self.dlg.lineEdit_12_bandPassLow.setToolTip(
+            "Low wavelength cutoff [m or other length unit]"
+        )
+        self.dlg.lineEdit_11_bandPassHigh.setToolTip(
+            "High wavelength cutoff [m or other length unit]"
+        )
+        self.dlg.checkBox_10_freqCut.setToolTip(
+            "High or Low pass filter\nIsolates specific short wavelength (HP) or long wavelength (LP) features."
+        )
+        self.dlg.label_33.setToolTip(
+            "High or Low pass filter\nIsolates specific short wavelength (HP) or long wavelength (LP) features."
+        )
+        self.dlg.comboBox_2_FreqCutType.setToolTip(
+            "Cut off type"
+        )
+        self.dlg.lineEdit_12_FreqPass.setToolTip(
+            "Cutoff wavelength [m or other length unit]"
+        )
+        self.dlg.checkBox_11_1vd_agc.setToolTip(
+            "Automatic Gain Control (AGC) or Amplitude Normalisation\nHighlights short wavelength/low amplitude features"
+        )
+        self.dlg.label_10.setToolTip(
+            "Automatic Gain Control (AGC) or Amplitude Normalisation\nHighlights short wavelength/low amplitude features"
+        )
+        self.dlg.lineEdit_13_agc_window.setToolTip(
+            "Window size for normalisation"
+        )
+        self.dlg.pushButton_3_applyProcessing.setToolTip(
+            "Apply selected processing steps in parallel to selected grid"
+        )
+
+
     def initParams(self):
         self.localGridName=""
         self.diskGridPath=""
@@ -273,6 +405,8 @@ class SGTool:
         self.FreqCut=False
         self.FreqCut_type="Low"
         self.FreqCut_cut=1000
+        self.PG=False
+
 
     def parseParams(self):
         self.localGridName=self.dlg.mMapLayerComboBox_selectGrid.currentText()
@@ -318,6 +452,9 @@ class SGTool:
         self.FreqCut=self.dlg.checkBox_10_freqCut.isChecked()
         self.FreqCut_type=self.dlg.comboBox_2_FreqCutType.currentText()
         self.FreqCut_cut=self.dlg.lineEdit_12_FreqPass.text()
+
+        self.PG=self.dlg.checkBox_4_PGrav.isChecked()
+
 
     def loadGrid(self):
         fileInfo = QFileInfo(self.diskGridPath)
@@ -421,6 +558,11 @@ class SGTool:
     def procAGC(self):
         self.new_grid=self.processor.automatic_gain_control(self.raster_array, window_size=float(self.agc_window))
         self.suffix="_AGC"
+
+    def procPGrav(self):
+        self.procRTP_E()
+        self.new_grid=self.processor.vertical_integration(self.new_grid)
+        self.suffix="_PG"
 
     def procFreqCut(self):
         if(self.FreqCut_type=="Low"):
@@ -552,6 +694,9 @@ class SGTool:
                 self.addNewGrid()
             if(self.AGC):
                 self.procAGC()
+                self.addNewGrid()
+            if(self.PG):
+                self.procPGrav()
                 self.addNewGrid()
 
     def is_layer_loaded(self,layer_name):
@@ -818,6 +963,7 @@ class SGTool:
             # TODO: fix to allow choice of dock location
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dlg)
             self.dlg.show()
+            self.define_tips()
 
             self.deriv_dir_list = []
             self.deriv_dir_list.append("z")

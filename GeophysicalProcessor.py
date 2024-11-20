@@ -83,6 +83,33 @@ class GeophysicalProcessor:
         """
         return self.low_pass_filter(data, cutoff_wavelength, buffer_size, buffer_method)
 
+    #vertical integration 
+    def vertical_integration(self, data, max_wavenumber=None, buffer_size=10, buffer_method="mirror"):
+        """
+        Perform vertical integration of a field in the frequency domain.
+
+        Parameters:
+            data (numpy.ndarray): 2D array of the field data.
+            max_wavenumber (float): Optional maximum wavenumber for filtering (to stabilize high-frequency noise).
+            buffer_size (int): Buffer size for edge handling.
+            buffer_method (str): Buffering method ('mirror' or 'zero').
+
+        Returns:
+            numpy.ndarray: Vertically integrated data.
+        """
+        def filter_function(kx, ky):
+            k = np.sqrt(kx**2 + ky**2) + 1e-10  # Avoid division by zero
+            vertical_integration_filter = 1 / k
+
+            # Apply max_wavenumber filtering if specified
+            if max_wavenumber:
+                vertical_integration_filter[k > max_wavenumber] = 0
+
+            return vertical_integration_filter
+
+        # Apply the Fourier filter
+        return self._apply_fourier_filter(data, filter_function, buffer_size, buffer_method)
+
     # --- Continuation ---
     def upward_continuation(self, data, height, buffer_size=10, buffer_method="mirror"):
         """

@@ -371,6 +371,10 @@ class SGTool:
         self.dlg.pushButton_3_applyProcessing.setToolTip(
             "Apply selected processing steps in parallel to selected grid"
         )
+        self.dlg.lineEdit_13_max_buffer.setToolTip(
+            "Maximum buffer to be applied to grid to reduce edge effects"
+        )
+        
 
 
     def initParams(self):

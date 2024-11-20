@@ -471,8 +471,8 @@ class SGTool:
     
     def processGeophysics(self):
         self.localGridName=self.dlg.mMapLayerComboBox_selectGrid.currentText()
-
-        if(os.path.exists(self.diskGridPath)):
+        process=False
+        if(os.path.exists(self.diskGridPath) and self.diskGridPath!=""):
             self.parseParams()
             self.loadGrid()
 
@@ -483,7 +483,9 @@ class SGTool:
             # Get raster dimensions
             cols = provider.xSize()  # Number of columns
             rows = provider.ySize()  # Number of rows
-        elif(self.localGridName):
+            process=True
+
+        elif(self.localGridName and self.localGridName!=""):
             self.parseParams()
             self.layer=QgsProject.instance().mapLayersByName(self.localGridName)[0]
             self.base_name = self.localGridName
@@ -515,40 +517,42 @@ class SGTool:
 
             if no_data_value is not None:
                 self.raster_array[self.raster_array == no_data_value] = np.nan
+            process=True
 
-        self.buffer=min(rows,cols)
-        self.processor = GeophysicalProcessor(self.dx, self.dy,self.buffer)
+        if(process):
+            self.buffer=min(rows,cols)
+            self.processor = GeophysicalProcessor(self.dx, self.dy,self.buffer)
 
-        if(self.DirClean):
-            self.procDirClean()
-            self.addNewGrid()
-        if(self.RTE_P):
-            self.procRTP_E()
-            self.addNewGrid()
-        if(self.RemRegional):
-            self.procRemRegional()
-            self.addNewGrid()
-        if(self.Derivative):
-            self.procDerivative()
-            self.addNewGrid()
-        if(self.TDR):
-            self.procTiltDerivative()
-            self.addNewGrid()
-        if(self.AS):
-            self.procAnalyticSignal()
-            self.addNewGrid()
-        if(self.Continuation):
-            self.procContinuation()
-            self.addNewGrid()
-        if(self.BandPass):
-            self.procBandPass()
-            self.addNewGrid()
-        if(self.FreqCut):
-            self.procFreqCut()
-            self.addNewGrid()
-        if(self.AGC):
-            self.procAGC()
-            self.addNewGrid()
+            if(self.DirClean):
+                self.procDirClean()
+                self.addNewGrid()
+            if(self.RTE_P):
+                self.procRTP_E()
+                self.addNewGrid()
+            if(self.RemRegional):
+                self.procRemRegional()
+                self.addNewGrid()
+            if(self.Derivative):
+                self.procDerivative()
+                self.addNewGrid()
+            if(self.TDR):
+                self.procTiltDerivative()
+                self.addNewGrid()
+            if(self.AS):
+                self.procAnalyticSignal()
+                self.addNewGrid()
+            if(self.Continuation):
+                self.procContinuation()
+                self.addNewGrid()
+            if(self.BandPass):
+                self.procBandPass()
+                self.addNewGrid()
+            if(self.FreqCut):
+                self.procFreqCut()
+                self.addNewGrid()
+            if(self.AGC):
+                self.procAGC()
+                self.addNewGrid()
 
     def is_layer_loaded(self,layer_name):
         """
@@ -575,7 +579,7 @@ class SGTool:
         )
         suffix = self.diskGridPath.split(".")[-1].lower()
         epsg="4326"
-        print(self.diskGridPath,suffix)
+
         if os.path.exists(self.diskGridPath) and self.diskGridPath != "":
             self.dlg.lineEdit_2_loadGridPath.setText(self.diskGridPath)
             self.dlg.pushButton_3_applyProcessing.setEnabled(True)
@@ -586,8 +590,15 @@ class SGTool:
                 self.iface.messageBar().pushMessage("No CRS found in XML, default to 4326", level=Qgis.Warning, duration=15)
             else:
                 self.iface.messageBar().pushMessage("CRS Read from XML as "+epsg, level=Qgis.Info, duration=15)
-        #self.dlg.mQgsProjectionSelectionWidget.setCrs(QgsCoordinateReferenceSystem('EPSG:'+str(epsg)))
-        self.save_a_grid(epsg)
+            #self.dlg.mQgsProjectionSelectionWidget.setCrs(QgsCoordinateReferenceSystem('EPSG:'+str(epsg)))
+            self.save_a_grid(epsg)
+        elif( suffix=="tif"):
+            basename =os.path.basename(self.diskGridPath)
+            filename_without_extension =os.path.splitext(basename)[0]
+
+            self.layer = QgsRasterLayer(self.diskGridPath, filename_without_extension)
+            if(not self.is_layer_loaded(self.diskGridPath)):
+                QgsProject.instance().addMapLayer(self.layer)
 
     #save grd file as geotiff
     def save_a_grid(self,epsg):

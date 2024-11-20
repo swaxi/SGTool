@@ -727,7 +727,7 @@ class SGTool:
             "Grids (*.TIF;*.tif;*.TIFF;*.tiff;*.grd;*GRD;*.ERS;*.ers)",
         )
         suffix = self.diskGridPath.split(".")[-1].lower()
-        epsg="4326"
+        epsg=4326
 
         if os.path.exists(self.diskGridPath) and self.diskGridPath != "":
             self.dlg.lineEdit_2_loadGridPath.setText(self.diskGridPath)
@@ -741,11 +741,17 @@ class SGTool:
                 self.iface.messageBar().pushMessage("CRS Read from XML as "+epsg, level=Qgis.Info, duration=15)
             #self.dlg.mQgsProjectionSelectionWidget.setCrs(QgsCoordinateReferenceSystem('EPSG:'+str(epsg)))
             self.save_a_grid(epsg)
-        elif( suffix=="tif"):
+        elif( suffix=="tif" or suffix=='ers'):
             basename =os.path.basename(self.diskGridPath)
             filename_without_extension =os.path.splitext(basename)[0]
-
             self.layer = QgsRasterLayer(self.diskGridPath, filename_without_extension)
+            try:
+                test_proj = self.layer.crs().authid().split(":")[1]
+            except:
+                # Define the new CRS (e.g., EPSG:4326 for WGS84)
+                    new_crs = QgsCoordinateReferenceSystem("EPSG:4326")
+                    # Set the CRS for the raster layer
+                    self.layer.setCrs(new_crs)
             if(not self.is_layer_loaded(self.diskGridPath)):
                 QgsProject.instance().addMapLayer(self.layer)
 

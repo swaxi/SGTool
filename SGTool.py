@@ -940,7 +940,17 @@ class SGTool:
         self.base_name = self.localGridName
 
     #--------------------------------------------------------------------------
-
+    def show_version(self):
+        metadata_path = os.path.dirname(os.path.realpath(__file__)) + "/metadata.txt"
+        
+        plugin_version_file = open(metadata_path)
+        metadata = plugin_version_file.readlines()
+        for line in metadata:
+            parts = line.split("=")
+            if len(parts) == 2 and parts[0] == "version":
+                plugin_version = parts[1]
+        return plugin_version
+    
     def run(self):
         """Run method that loads and starts the plugin"""
 
@@ -964,6 +974,8 @@ class SGTool:
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dlg)
             self.dlg.show()
             self.define_tips()
+
+            self.dlg.version_label.setText(self.show_version())
 
             self.deriv_dir_list = []
             self.deriv_dir_list.append("z")

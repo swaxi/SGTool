@@ -13,6 +13,7 @@
 - Remove Regional
 - Continuation
 - AGC
+- Pseudo Gravity
    
 ![SGTools image](dialog.png)    
    

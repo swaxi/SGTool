@@ -24,6 +24,7 @@
 - Simple Potential field calculations, mostly FFT-based
 - Adds suffix to input filename and stores results in same directory
 - If a layer with a given name already exists, no calc performed
+- Processing methods preceded by a dot should be performed on line-direction-filtered and reduced to pole/equator data   
 
 # Code development
 - Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin    

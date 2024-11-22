@@ -47,6 +47,7 @@ from qgis.PyQt.QtCore import (
     Qt,
 )
 from qgis.core import QgsRasterLayer, QgsRectangle
+from PyQt5.QtWidgets import QVBoxLayout, QDialog
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -55,7 +56,9 @@ import ntpath
 # Import the code for the DockWidget
 from .SGTool_dockwidget import SGToolDockWidget
 from .GeophysicalProcessor import GeophysicalProcessor
-from .geosoft_grid_parser import * 
+from .geosoft_grid_parser import *
+from .PSplot import PowerSpectrumDock
+
 
 import os.path
 import numpy as np
@@ -410,6 +413,7 @@ class SGTool:
         self.FreqCut_type="Low"
         self.FreqCut_cut=1000
         self.PG=False
+        self.THG=False
 
 
     def parseParams(self):
@@ -458,6 +462,7 @@ class SGTool:
         self.FreqCut_cut=self.dlg.lineEdit_12_FreqPass.text()
 
         self.PG=self.dlg.checkBox_4_PGrav.isChecked()
+        self.THG=self.dlg.checkBox_11_tot_hz_grad.isChecked()
 
 
     def loadGrid(self):
@@ -565,6 +570,10 @@ class SGTool:
         self.new_grid=self.processor.automatic_gain_control(self.raster_array, window_size=float(self.agc_window))
         self.suffix="_AGC"
 
+    def procTHG(self):
+        self.new_grid=self.processor.total_hz_grad(self.raster_array)
+        self.suffix="_THG"
+
     def procPGrav(self):
         if(self.RTE_P_inc=="0" and self.RTE_P_dec=="0"):
             self.iface.messageBar().pushMessage("You need to define Inc and Dec first", level=Qgis.Warning, duration=15)
@@ -618,6 +627,9 @@ class SGTool:
             con_raster_layer = QgsRasterLayer(self.diskNewGridPath, self.base_name+self.suffix)
             if con_raster_layer.isValid():
                 QgsProject.instance().addMapLayer(con_raster_layer)
+        else:
+            self.iface.messageBar().pushMessage(self.base_name+self.suffix+" already loaded, delete before reprocessing", level=Qgis.Warning, duration=15)
+
     
     def processGeophysics(self):
         self.localGridName=self.dlg.mMapLayerComboBox_selectGrid.currentText()
@@ -710,6 +722,10 @@ class SGTool:
             if(self.PG):
                 self.procPGrav()
                 self.addNewGrid()
+            if(self.THG):
+                self.procTHG()
+                self.addNewGrid()
+
 
     def is_layer_loaded(self,layer_name):
         """
@@ -853,7 +869,11 @@ class SGTool:
 
         # Check if the file already exists and remove it
         if os.path.exists(raster_path):
-            os.remove(raster_path)
+            try:
+                os.remove(raster_path)
+            except:
+                self.iface.messageBar().pushMessage(self.base_name+self.suffix+" may be open in another program? Loading existing file instead!", level=Qgis.Warning, duration=15)
+                return
 
         rows, cols = numpy_array.shape
         driver = gdal.GetDriverByName('GTiff')
@@ -958,7 +978,59 @@ class SGTool:
             """self.dlg.doubleSpinBox_mag_int.setValue(
                 self.forward_magneticField_intensity.item()
             )"""
-    
+
+
+    def extract_raster_to_numpy(self,raster_layer):
+        """
+        Extract the raster data from a QgsRasterLayer as a NumPy array.
+
+        Parameters:
+            raster_layer (QgsRasterLayer): The QGIS raster layer.
+
+        Returns:
+            numpy.ndarray: The raster data as a NumPy array.
+        """
+        # Get the raster data provider
+        # Access the raster data provider
+        provider = raster_layer.dataProvider()
+
+        # Get raster dimensions
+        cols = provider.xSize()  # Number of columns
+        rows = provider.ySize()  # Number of rows
+
+        # Read raster data as a block
+        band = 1  # Specify the band number (1-based index)
+        raster_block = provider.block(band, provider.extent(), cols, rows)
+
+        # Copy the block data into a NumPy array
+        extent = raster_layer.extent()    
+        rows, cols = raster_layer.height(), raster_layer.width()    
+        raster_block = provider.block(1, extent, cols, rows)  # !!!!!  
+        self.raster_array = np.zeros((rows, cols))    
+        for i in range(rows):    
+            for j in range(cols):    
+                self.raster_array[i,j] = raster_block.value(i,j)    
+
+        # Handle NoData values if needed
+        no_data_value = provider.sourceNoDataValue(1)  # Band 1
+
+        if no_data_value is not None:
+            self.raster_array[self.raster_array == no_data_value] = np.nan
+
+
+        return self.raster_array
+
+    def display_rad_power_spectrum(self):
+        self.pslayer=QgsProject.instance().mapLayersByName(self.localGridName)[0]
+
+        grid=self.extract_raster_to_numpy(self.pslayer)  # Your method to get NumPy array from raster
+
+        dx, dy = self.pslayer.rasterUnitsPerPixelX(), self.pslayer.rasterUnitsPerPixelY()
+
+        # Initialize the PowerSpectrumDock and display the plot
+        power_spectrum_dock = PowerSpectrumDock( grid,self.localGridName, dx, dy)
+        power_spectrum_dock.plot_grid_and_power_spectrum()
+
     def update_paths(self):
         self.localGridName=self.dlg.mMapLayerComboBox_selectGrid.currentText()
         self.dlg.lineEdit_2_loadGridPath.setText("")
@@ -1043,5 +1115,9 @@ class SGTool:
             self.dlg.mQgsProjectionSelectionWidget.setCrs(
                 QgsCoordinateReferenceSystem("EPSG:4326")
             )
+            self.dlg.pushButton_rad_power_spectrum.clicked.connect(
+                self.display_rad_power_spectrum
+            )
+            self.localGridName=self.dlg.mMapLayerComboBox_selectGrid.currentText()
 
 

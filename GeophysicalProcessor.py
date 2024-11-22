@@ -102,8 +102,8 @@ class GeophysicalProcessor:
             vertical_integration_filter = 1 / k
 
             # Apply max_wavenumber filtering if specified
-            if max_wavenumber:
-                vertical_integration_filter[k > max_wavenumber] = 0
+            #if max_wavenumber:
+            #    vertical_integration_filter[k > max_wavenumber] = 0
 
             return vertical_integration_filter
 
@@ -130,6 +130,39 @@ class GeophysicalProcessor:
             return np.exp(k * height)
 
         return self._apply_fourier_filter(data, filter_function, buffer_size, buffer_method)
+    
+    def total_hz_grad(self,data,buffer_size=10,buffer_method="mirror"):
+        """
+            Compute the total horizontal gradient (THG) of a 2D grid using Fourier filtering.
+
+            Parameters:
+                data (numpy.ndarray): Input 2D grid data.
+                buffer_size (int): Buffer size for edge handling.
+                buffer_method (str): Buffering method ('mirror' or 'zero').
+
+            Returns:
+                numpy.ndarray: Total horizontal gradient of the input data.
+            """
+        def filter_function_dx(kx, ky):
+            """
+            Fourier filter for the x-derivative.
+            """
+            return 1j * kx
+
+        def filter_function_dy(kx, ky):
+            """
+            Fourier filter for the y-derivative.
+            """
+            return 1j * ky
+
+        # Compute derivatives in x and y directions using the Fourier filter
+        dx = self._apply_fourier_filter(data, filter_function_dx, buffer_size, buffer_method)
+        dy = self._apply_fourier_filter(data, filter_function_dy, buffer_size, buffer_method)
+
+        # Compute the total horizontal gradient
+        thg = np.sqrt(dx**2 + dy**2)
+
+        return thg        
 
     # --- Reduction Methods ---
     def reduction_to_pole(self, data, inclination, declination, buffer_size=10, buffer_method="mirror"):
@@ -177,7 +210,7 @@ class GeophysicalProcessor:
         rtp_filter[np.abs(rtp_filter) > 1e6] = 0  # Stabilize extreme values
 
         # Apply max_wavenumber filtering based on cell size
-        rtp_filter[k > 1/(float(self.dx)*2)] = 0
+        #rtp_filter[k > 1/(float(self.dx)*2)] = 0
 
         # Apply RTP filter in the Fourier domain
         data_fft = fft2(buffered_data)
@@ -221,7 +254,7 @@ class GeophysicalProcessor:
         rte_filter[np.abs(rte_filter) > 1e6] = 0  # Stabilize extreme values
 
         # Apply max_wavenumber filtering based on cell size
-        rte_filter[k > 1/(float(self.dx)*2)] = 0
+        #rte_filter[k > 1/(float(self.dx)*2)] = 0
 
         # Apply RTP filter in the Fourier domain
         data_fft = fft2(buffered_data)
@@ -261,6 +294,7 @@ class GeophysicalProcessor:
         horizontal_gradient = np.sqrt(dfdx**2 + dfdy**2)
         dfdz = self.compute_derivative(data, "z", buffer_size=buffer_size, buffer_method=buffer_method)
         return np.arctan2(dfdz, horizontal_gradient)
+
 
     def analytic_signal(self, data, buffer_size=10, buffer_method="mirror"):
         """
@@ -508,7 +542,41 @@ class GeophysicalProcessor:
 
         window_2d = np.outer(wy, wx)
         return data * window_2d
-    
+
+
+    def total_horizontal_gradient(self, data, buffer_size=10, buffer_method="mirror"):
+        """
+        Compute the total horizontal gradient (THG) of a 2D grid using Fourier filtering.
+
+        Parameters:
+            data (numpy.ndarray): Input 2D grid data.
+            buffer_size (int): Buffer size for edge handling.
+            buffer_method (str): Buffering method ('mirror' or 'zero').
+
+        Returns:
+            numpy.ndarray: Total horizontal gradient of the input data.
+        """
+        def filter_function_dx(kx, ky):
+            """
+            Fourier filter for the x-derivative.
+            """
+            return 1j * kx
+
+        def filter_function_dy(kx, ky):
+            """
+            Fourier filter for the y-derivative.
+            """
+            return 1j * ky
+
+        # Compute derivatives in x and y directions using the Fourier filter
+        dx = self._apply_fourier_filter(data, filter_function_dx, buffer_size, buffer_method)
+        dy = self._apply_fourier_filter(data, filter_function_dy, buffer_size, buffer_method)
+
+        # Compute the total horizontal gradient
+        thg = np.sqrt(dx**2 + dy**2)
+
+        return thg
+
     # --- Internal Fourier Filter Application ---
     def _apply_fourier_filter(self, data, filter_function, buffer_size=10, buffer_method="mirror"):
         """

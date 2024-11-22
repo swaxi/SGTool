@@ -1,4 +1,4 @@
-# SGTool
+# SGTool v 0.2
  Simple Potential Field Calcs to assist WAXI Structural Geophsyics Course https://waxi4.org 
     
 - Directional Band Pass
@@ -6,7 +6,7 @@
 - RTP
 - RTE
 - Derivative
-- Analytic Signal
+- Analytic Signal   
 - Tilt Derivative
 - High Pass
 - Low Pass
@@ -14,6 +14,8 @@
 - Continuation
 - AGC
 - Pseudo Gravity
+- Total Horizontal Gradient
+- Can now display radially averaged power spectrum (but needs testing!)
    
 ![SGTools image](dialog.png)    
    

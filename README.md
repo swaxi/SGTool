@@ -1,5 +1,7 @@
 # SGTool v 0.2
- Simple Potential Field Calcs to assist WAXI/Agate Structural Geophysics Course https://waxi4.org https://agate-project.org   
+ Simple Potential Field Calcs to assist WAXI/Agate Structural Geophysics Course    
+ https://waxi4.org   
+ https://agate-project.org    
     
 - Directional Band Pass
 - Band Pass   

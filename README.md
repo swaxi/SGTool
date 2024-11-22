@@ -3,13 +3,13 @@
  https://waxi4.org   
  https://agate-project.org    
     
-Directional Band Pass   
+*Directional Band Pass*   
 $`H(k_x, k_y) = \exp\left(-\frac{(k_x \cos\theta + k_y \sin\theta - k_c)^2}{2 \sigma^2}\right)`$   
 - The directional filter isolates frequency components along a specific direction.
 - theta : The angle of the direction to be emphasized.
 - sigma : The sharpness of the filter in the specified direction.   
 
-Band Pass
+*Band Pass*
 $`H(k) = e^{-(k - k_c)^2 / (2 \sigma^2)} - e^{-(k + k_c)^2 / (2 \sigma^2)}`$   
 - The band-pass filter retains frequencies within a specified range, suppressing both low and high frequencies outside this range.
 - k_c : The central frequency of the band.
@@ -42,7 +42,7 @@ $`T = \tan^{-1}\left(\frac{\frac{\partial f}{\partial z}}{\sqrt{\left(\frac{\par
 - df/dz : Vertical derivative of the field.
 - df/dx , df/dy : Horizontal derivatives of the field.   
 
-High Pass    
+*High Pass*    
 $`H(k) = 1 - e^{-k^2 / (2 k_c^2)}`$   
 - The high-pass filter removes low-frequency components (long wavelengths) while retaining high-frequency components (short wavelengths).
 - k_c : The cutoff frequency where the filter begins attenuating lower frequencies.   

@@ -58,7 +58,7 @@ class PowerSpectrumDock:
         # Plot the grid with the correct aspect ratio
         # Compute 5th and 95th percentiles
         vmin, vmax = np.percentile(self.grid, [5, 95])
-        ax_image.imshow(self.grid, cmap="viridis", origin="lower", vmin=vmin,vmax=vmax,aspect=self.dy/self.dx)
+        ax_image.imshow(np.flipud(self.grid), cmap="viridis", origin="lower", vmin=vmin,vmax=vmax,aspect=self.dy/self.dx)
         ax_image.set_title(self.gridname)
         ax_image.set_xlabel("X")
         ax_image.set_ylabel("Y")

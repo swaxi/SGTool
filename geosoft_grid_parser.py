@@ -420,6 +420,7 @@ def _build_rotated_coordinates(west, south, shape, spacing, rotation_deg):
 
 
 def extract_proj_str(fname):
+    proj=4326
     with open(fname, "r") as f:
         for line in f:
             if "wellknown_epsg=" in line:
@@ -438,6 +439,5 @@ def extract_proj_str(fname):
         proj
     except:
         #raise NameError("string 'wellknown_epsg=' not found in file.")
-        proj = None
-
+        proj = 4236
     return proj

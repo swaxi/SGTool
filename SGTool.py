@@ -336,7 +336,7 @@ class SGTool:
             "Select direction of continuation"
         )
         self.dlg.lineEdit_10_continuationHeight.setToolTip(
-            "Select amount of continuation [m or other length unit]"
+            "Select amount of continuation [m only]"
         )
         self.dlg.checkBox_10_bandPass.setToolTip(
             "Band pass filter (BP)\nIsolates specific wavelength features."
@@ -565,12 +565,22 @@ class SGTool:
         self.suffix="_AS"
 
     def procContinuation(self):
+        selected_layer=QgsProject.instance().mapLayersByName(self.localGridName)[0]
+
+        crs = selected_layer.crs()
+        if (crs.isGeographic()):
+            height=float(self.cont_height)/110000
+            self.iface.messageBar().pushMessage("Height roughly converted to metres, since this is a geographic projection", level=Qgis.Success, duration=15)
+
+        else:
+            height=float(self.cont_height)
         if(self.cont_direction=="up"):
-            self.new_grid=self.processor.upward_continuation(self.raster_array, height=float(self.cont_height),buffer_size=self.buffer)
+            self.new_grid=self.processor.upward_continuation(self.raster_array, height=height,buffer_size=self.buffer)
             self.suffix="_UC"+"_"+str(self.cont_height)
         else:
-            self.new_grid=self.processor.downward_continuation(self.raster_array, height=float(self.cont_height),buffer_size=self.buffer)
+            self.new_grid=self.processor.downward_continuation(self.raster_array, height=height,buffer_size=self.buffer)
             self.suffix="_DC"+"_"+str(self.cont_height)
+
 
     def procBandPass(self):
         self.new_grid=self.processor.band_pass_filter(self.raster_array, low_cut=float(self.band_low), high_cut=float(self.band_high),buffer_size=self.buffer)
@@ -585,11 +595,17 @@ class SGTool:
         self.suffix="_THG"
 
     def procPGrav(self):
-        if(self.RTE_P_inc=="0" and self.RTE_P_dec=="0"):
-            self.iface.messageBar().pushMessage("You need to define Inc and Dec first", level=Qgis.Warning, duration=15)
-        self.procRTP_E()
-        self.new_grid=self.processor.vertical_integration(self.new_grid)
-        self.suffix="_PG"
+        selected_layer=QgsProject.instance().mapLayersByName(self.localGridName)[0]
+
+        crs = selected_layer.crs()
+        if (crs.isGeographic()):
+            self.iface.messageBar().pushMessage("Pseudogravity calculation cannot be perfomed, since this is a geographic projection", level=Qgis.Warning, duration=15)
+        else:
+            if(self.RTE_P_inc=="0" and self.RTE_P_dec=="0"):
+                self.iface.messageBar().pushMessage("You need to define Inc and Dec first", level=Qgis.Warning, duration=15)
+            self.procRTP_E()
+            self.new_grid=self.processor.vertical_integration(self.new_grid)
+            self.suffix="_PG"
 
     def procFreqCut(self):
         if(self.FreqCut_type=="Low"):
@@ -631,14 +647,16 @@ class SGTool:
             QgsProject.instance().addMapLayer(gridded_layer)
     
     def addNewGrid(self):
-        if(not self.is_layer_loaded(self.base_name+self.suffix)):
-            self.diskNewGridPath = self.insert_text_before_extension(self.diskGridPath, self.suffix)
-            self.numpy_array_to_raster(self.new_grid, self.diskNewGridPath, dx=None,xmin=None,ymax=None,reference_layer=self.layer, no_data_value=np.nan)
-            con_raster_layer = QgsRasterLayer(self.diskNewGridPath, self.base_name+self.suffix)
-            if con_raster_layer.isValid():
-                QgsProject.instance().addMapLayer(con_raster_layer)
-        else:
-            self.iface.messageBar().pushMessage(self.base_name+self.suffix+" already loaded, delete before reprocessing", level=Qgis.Warning, duration=15)
+        if(self.suffix):
+
+            if(not self.is_layer_loaded(self.base_name+self.suffix)):
+                self.diskNewGridPath = self.insert_text_before_extension(self.diskGridPath, self.suffix)
+                self.numpy_array_to_raster(self.new_grid, self.diskNewGridPath, dx=None,xmin=None,ymax=None,reference_layer=self.layer, no_data_value=np.nan)
+                con_raster_layer = QgsRasterLayer(self.diskNewGridPath, self.base_name+self.suffix)
+                if con_raster_layer.isValid():
+                    QgsProject.instance().addMapLayer(con_raster_layer)
+            else:
+                self.iface.messageBar().pushMessage(self.base_name+self.suffix+" already loaded, delete before reprocessing", level=Qgis.Warning, duration=15)
 
     
     def processGeophysics(self):
@@ -698,7 +716,7 @@ class SGTool:
             if(self.buffer>int(self.dlg.lineEdit_13_max_buffer.text())):
                 self.buffer=int(self.dlg.lineEdit_13_max_buffer.text())
             self.processor = GeophysicalProcessor(self.dx, self.dy,self.buffer)
-
+            self.suffix=""
             if(self.DirClean):
                 self.procDirClean()
                 self.addNewGrid()
@@ -761,18 +779,18 @@ class SGTool:
             "Grids (*.TIF;*.tif;*.TIFF;*.tiff;*.grd;*GRD;*.ERS;*.ers)",
         )
         suffix = self.diskGridPath.split(".")[-1].lower()
-        epsg=4326
-
+        epsg=None
         if os.path.exists(self.diskGridPath) and self.diskGridPath != "":
             self.dlg.lineEdit_2_loadGridPath.setText(self.diskGridPath)
             self.dlg.pushButton_3_applyProcessing.setEnabled(True)
-        if(os.path.exists(self.diskGridPath+'.xml') and suffix=="grd"):
-            epsg=extract_proj_str(self.diskGridPath+'.xml')
+        if( suffix=="grd"):
+            if(os.path.exists(self.diskGridPath+'.xml')):
+               epsg=extract_proj_str(self.diskGridPath+'.xml')
             if(epsg== None):
                 epsg=4326
                 self.iface.messageBar().pushMessage("No CRS found in XML, default to 4326", level=Qgis.Warning, duration=15)
             else:
-                self.iface.messageBar().pushMessage("CRS Read from XML as "+epsg, level=Qgis.Info, duration=15)
+                self.iface.messageBar().pushMessage("CRS Read from XML as "+str(epsg), level=Qgis.Info, duration=15)
             #self.dlg.mQgsProjectionSelectionWidget.setCrs(QgsCoordinateReferenceSystem('EPSG:'+str(epsg)))
             self.save_a_grid(epsg)
         elif( suffix=="tif" or suffix=='ers'):

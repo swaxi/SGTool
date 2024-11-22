@@ -3,14 +3,22 @@
  https://waxi4.org   
  https://agate-project.org    
     
-- Directional Band Pass
+- Directional Band Pass 
+$`H(k_x, k_y) = \exp\left(-\frac{(k_x \cos\theta + k_y \sin\theta - k_c)^2}{2 \sigma^2}\right)`$
 - Band Pass   
+$`H(k) = e^{-(k - k_c)^2 / (2 \sigma^2)} - e^{-(k + k_c)^2 / (2 \sigma^2)}`$
 - RTP
+$`H(k_x, k_y) = \frac{1}{\Theta_m \Theta_f}`$
 - RTE
+$`H(k_x, k_y) = \frac{1}{f_z + i \frac{f_e k_x + f_n k_y}{|\mathbf{k}|}}`$
 - Derivative
 - Analytic Signal   
-- Tilt Derivative
+$`A(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\partial f}{\partial y}\right)^2 + \left(\frac{\partial f}{\partial z}\right)^2}
+`$
+- Tilt Angle
+$`T = \tan^{-1}\left(\frac{\frac{\partial f}{\partial z}}{\sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\partial f}{\partial y}\right)^2}}\right)`$
 - High Pass
+$`H(k) = 1 - e^{-k^2 / (2 k_c^2)}`$
 - Low Pass
 Equation:
 $`H(k) = e^{-k^2 / (2 k_c^2)}`$

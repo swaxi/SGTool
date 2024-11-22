@@ -1064,13 +1064,15 @@ class SGTool:
         self.dlg.lineEdit_2_loadGridPath.setText("")
         self.diskGridPath=""
         self.base_name = self.localGridName
-        selected_layer=QgsProject.instance().mapLayersByName(self.localGridName)[0]
-        crs = selected_layer.crs()
-        if (crs.isGeographic()):
-            self.dlg.label_41_units.setText("Units: deg")
-        else:
-            self.dlg.label_41_units.setText("Units: m")
 
+        if(len(self.base_name)>0):
+            selected_layer=QgsProject.instance().mapLayersByName(self.localGridName)[0]
+            if(selected_layer.isValid()):
+                crs = selected_layer.crs()
+                if (crs.isGeographic()):
+                    self.dlg.label_41_units.setText("Units: deg")
+                else:
+                    self.dlg.label_41_units.setText("Units: m")
 
     #--------------------------------------------------------------------------
     def show_version(self):

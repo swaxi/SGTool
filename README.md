@@ -98,7 +98,7 @@ Where P(k) is the radially averaged power spectrum, and N_k is the number of sam
 - Calcs ChatGPT and Mark Jessell
 - IGRF calculation - https://github.com/klaundal/ppigrf  
 - GRD Loader Mark Jessell & Fatiando a Terra crew https://www.fatiando.org/
-- Example geophsyics data in image above courtesy of CPRM http://www.cprm.gov.br/
+- Example geophysics data in image above courtesy of CPRM http://www.cprm.gov.br/
 
 
 

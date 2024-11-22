@@ -3,6 +3,8 @@
  https://waxi4.org   
  https://agate-project.org    
     
+![SGTools image](dialog.png)       
+   
 **Directional Band Pass**   
 $`H(k_x, k_y) = \exp\left(-\frac{(k_x \cos\theta + k_y \sin\theta - k_c)^2}{2 \sigma^2}\right)`$   
 - The directional filter isolates frequency components along a specific direction.
@@ -78,7 +80,6 @@ $`THG(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\
 Where P(k) is the radially averaged power spectrum, and N_k is the number of samples in the radial bin.   
 
    
-![SGTools image](dialog.png)    
    
 # Inputs   
 - Supports data geotiff, grd, ers formats

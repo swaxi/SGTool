@@ -24,7 +24,7 @@
 
 # Tips
 - Simple Potential field calculations, mostly FFT-based
-- Adds suffix to input filename and stores results in same directory
+- Adds suffix (e.g. _TRP) to input filename and stores results in same directory
 - If a layer with a given name already exists, no calc performed
 - Processing methods preceded by a dot should be performed on line-direction-filtered and reduced to pole/equator data   
 - Length units are defined by grid properties (so Lat/Long wavelengths should be defined in degrees!)

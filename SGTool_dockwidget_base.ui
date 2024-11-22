@@ -967,7 +967,7 @@
      <property name="geometry">
       <rect>
        <x>10</x>
-       <y>480</y>
+       <y>470</y>
        <width>47</width>
        <height>13</height>
       </rect>
@@ -980,7 +980,7 @@
      <property name="geometry">
       <rect>
        <x>50</x>
-       <y>480</y>
+       <y>470</y>
        <width>47</width>
        <height>13</height>
       </rect>
@@ -1072,6 +1072,19 @@
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_41_units">
+     <property name="geometry">
+      <rect>
+       <x>110</x>
+       <y>470</y>
+       <width>101</width>
+       <height>16</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Units</string>
      </property>
     </widget>
    </widget>

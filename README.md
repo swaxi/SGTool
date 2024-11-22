@@ -79,7 +79,8 @@ $`THG(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\
 **Radially averaged power spectrum (but needs testing!)** $`P(k) = \frac{1}{N_k} \sum_{(k_x, k_y) \in k} |\text{FFT}(f)|^2`$   
 Where P(k) is the radially averaged power spectrum, and N_k is the number of samples in the radial bin.   
 
-   
+# Installation
+- Dowload the zip file from the <> Code button and install the zip file in QGIS using the plugin manager   
    
 # Inputs   
 - Supports data geotiff, grd, ers formats

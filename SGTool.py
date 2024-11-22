@@ -87,7 +87,7 @@ class SGTool:
         self.plugin_dir = os.path.dirname(__file__)
 
         # initialize locale
-        locale = QSettings().value('locale/userLocale')[0:2]
+        locale = str(QSettings().value('locale/userLocale'))[0:2]
         locale_path = os.path.join(
             self.plugin_dir,
             'i18n',
@@ -377,6 +377,16 @@ class SGTool:
         self.dlg.lineEdit_13_max_buffer.setToolTip(
             "Maximum buffer to be applied to grid to reduce edge effects"
         )
+        self.dlg.checkBox_11_tot_hz_grad.setToolTip(
+            "Total Horizointal Gradient Calculation"
+        )
+        self.dlg.label_38.setToolTip(
+            "Total Horizointal Gradient Calculation"
+        )
+        self.dlg.pushButton_rad_power_spectrum.setToolTip(
+            "Provides pop-up display of grid plus Radial Averaged Power Spectrum (needs testing!)"
+        )
+        
         
 
 

@@ -13,9 +13,7 @@
 - High Pass
 - Low Pass
 Equation:
-$$
-H(k) = e^{-k^2 / (2 k_c^2)}
-$$
+$\H(k) = e^{-k^2 / (2 k_c^2)}$
 - Remove Regional
 - Continuation
 - AGC

@@ -12,6 +12,10 @@
 - Tilt Derivative
 - High Pass
 - Low Pass
+Equation:
+$$
+H(k) = e^{-k^2 / (2 k_c^2)}
+$$
 - Remove Regional
 - Continuation
 - AGC
@@ -26,9 +30,9 @@
 
 # Tips
 - Simple Potential field calculations, mostly FFT-based
-- Adds suffix (e.g. _RTP) to input filename and stores results in same directory
+- Adds suffix (e.g. _RTP) to input filename and stores results in same directory. Converts grd to tif on loading, but leaves ers as is.
 - Calculates IGRF mag field parameters based on centroid of grid, plus date and survey height
-- If a layer with a given name already exists, no calc performed
+- If a layer with a given name already loaded, no calculation is performed
 - Processing methods preceded by a dot should be performed on line-direction-filtered and reduced to pole/equator data   
 - Length units are defined by grid properties (so Lat/Long wavelengths should be defined in degrees!)
 

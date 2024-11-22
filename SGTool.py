@@ -535,7 +535,7 @@ class SGTool:
     def procDirClean(self):
         self.new_grid=self.processor.directional_band_reject_filter(self.raster_array, low_cut=0.9*float(self.DC_lineSpacing), high_cut=1.1*float(self.DC_lineSpacing), direction_angle=float(self.DC_azimuth),buffer_size=self.buffer)
         self.new_grid = self.raster_array-self.new_grid
-        self.suffix="_DC"
+        self.suffix="_DirC"
 
     def procRTP_E(self):
         if(self.RTE_P_inc=="0" and self.RTE_P_dec=="0"):

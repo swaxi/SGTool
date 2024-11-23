@@ -20,14 +20,14 @@ $`H(k) = e^{-(k - k_c)^2 / (2 \sigma^2)} - e^{-(k + k_c)^2 / (2 \sigma^2)}`$
 **Reduction to the Pole**    
 $`H(k_x, k_y) = \frac{1}{\Theta_m \Theta_f}`$   
 - Converts magnetic data measured at any inclination and declination to what it would be if measured at the magnetic pole.
-- Theta_m : Magnetization vector of the source.
-- Theta_f : Geomagnetic field vector.   
+- Theta<sub>m</sub> : Magnetization vector of the source.
+- Theta<sub>f/sub> : Geomagnetic field vector.   
 
 **Reduction to the Equator**    
 $`H(k_x, k_y) = \frac{1}{f_z + i \frac{f_e k_x + f_n k_y}{|\mathbf{k}|}}`$   
 - Converts magnetic data measured at any inclination and declination to what it would be if measured at the magnetic equator.
-- f_z : Downward component of the geomagnetic field.
-- f_e, f_n : Easting and northing components of the geomagnetic field.   
+- f<sub>z</sub> : Downward component of the geomagnetic field.
+- f<sub>e</sub>, f<sub>n</sub> : Easting and northing components of the geomagnetic field.   
 
 **Derivative**    
 $`\frac{\partial f}{\partial u} = \frac{\partial f}{\partial x} \cos\theta + \frac{\partial f}{\partial y} \sin\theta`$   
@@ -47,17 +47,17 @@ $`T = \tan^{-1}\left(\frac{\frac{\partial f}{\partial z}}{\sqrt{\left(\frac{\par
 **High Pass**    
 $`H(k) = 1 - e^{-k^2 / (2 k_c^2)}`$   
 - The high-pass filter removes low-frequency components (long wavelengths) while retaining high-frequency components (short wavelengths).
-- k_c : The cutoff frequency where the filter begins attenuating lower frequencies.   
+- k<sub>c</sub> : The cutoff frequency where the filter begins attenuating lower frequencies.   
 
 **Low Pass**    
 $`H(k) = e^{-k^2 / (2 k_c^2)}`$   
 - The low-pass filter suppresses high-frequency components (short wavelengths) while preserving low-frequency components (long wavelengths).
-- k_c : The cutoff frequency where the filter begins attenuating higher frequencies.   
+- k<sub>c</sub> : The cutoff frequency where the filter begins attenuating higher frequencies.   
 
 **Remove Regional**   
 $`H(k) = e^{-k^2 / (2 k_c^2)}`$
 - The low-pass filter suppresses high-frequency components (short wavelengths) while preserving low-frequency components (long wavelengths).
-- k_c : The cutoff frequency where the filter begins attenuating higher frequencies.   
+- k<sub>c</sub> : The cutoff frequency where the filter begins attenuating higher frequencies.   
 
 **Continuation**    
 $`H(k) = e^{-k h}`$   
@@ -71,13 +71,13 @@ Where RMS(f, w)  is the root mean square of the data over a window w.
 
 **Pseudo Gravity**   
 $`H(k_x, k_y) = \frac{k}{k_x^2 + k_y^2}`$   
-Where k = sqrt{k_x^2 + k_y^2} .   
+Where k = sqrt{k<sub>x</sub>^2 + k<sub>y</sub>^2} .   
 
 **Total Horizontal Gradient**   
 $`THG(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\partial f}{\partial y}\right)^2}`$   
    
 **Radially averaged power spectrum (but needs testing!)** $`P(k) = \frac{1}{N_k} \sum_{(k_x, k_y) \in k} |\text{FFT}(f)|^2`$   
-Where P(k) is the radially averaged power spectrum, and N_k is the number of samples in the radial bin.   
+Where P(k) is the radially averaged power spectrum, and N<sub>k</sub> is the number of samples in the radial bin.   
 
 # Installation
 - Dowload the zip file from the green **<> Code** button and install the zip file in QGIS using the plugin manager   

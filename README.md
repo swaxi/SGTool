@@ -76,7 +76,8 @@ Where k = sqrt{k<sub>x</sub><sup>2</sup> + k<sub>y</sub><sup>2</sup>} .
 **Total Horizontal Gradient**   
 $`THG(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\partial f}{\partial y}\right)^2}`$   
    
-**Radially averaged power spectrum (but needs testing!)** $`P(k) = \frac{1}{N_k} \sum_{(k_x, k_y) \in k} |\text{FFT}(f)|^2`$   
+**Radially averaged power spectrum (but needs testing!)**    
+$`P(k) = \frac{1}{N_k} \sum_{(k_x, k_y) \in k} |\text{FFT}(f)|^2`$   
 Where P(k) is the radially averaged power spectrum, and N<sub>k</sub> is the number of samples in the radial bin.   
 
 # Installation

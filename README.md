@@ -14,7 +14,7 @@ $`H(k_x, k_y) = \exp\left(-\frac{(k_x \cos\theta + k_y \sin\theta - k_c)^2}{2 \s
 **Band Pass**
 $`H(k) = e^{-(k - k_c)^2 / (2 \sigma^2)} - e^{-(k + k_c)^2 / (2 \sigma^2)}`$   
 - The band-pass filter retains frequencies within a specified range, suppressing both low and high frequencies outside this range.
-- k_c : The central frequency of the band.
+- k<sub>c</sub> : The central frequency of the band.
 - sigma : The width of the frequency band.   
 
 **Reduction to the Pole**    

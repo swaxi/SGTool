@@ -71,7 +71,7 @@ Where RMS(f, w)  is the root mean square of the data over a window w.
 
 **Pseudo Gravity**   
 $`H(k_x, k_y) = \frac{k}{k_x^2 + k_y^2}`$   
-Where k = sqrt{k<sub>x</sub>^2 + k<sub>y</sub>^2} .   
+Where k = sqrt{k<sub>x</sub><sup>2</sup> + k<sub>y</sub><sup>2</sup>} .   
 
 **Total Horizontal Gradient**   
 $`THG(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\partial f}{\partial y}\right)^2}`$   

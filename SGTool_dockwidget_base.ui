@@ -38,7 +38,7 @@
      </property>
      <property name="geometry">
       <rect>
-       <x>420</x>
+       <x>430</x>
        <y>130</y>
        <width>41</width>
        <height>20</height>
@@ -66,7 +66,7 @@
       <rect>
        <x>30</x>
        <y>130</y>
-       <width>31</width>
+       <width>41</width>
        <height>16</height>
       </rect>
      </property>
@@ -291,7 +291,7 @@
     <widget class="QLabel" name="label_16">
      <property name="geometry">
       <rect>
-       <x>370</x>
+       <x>380</x>
        <y>130</y>
        <width>41</width>
        <height>21</height>
@@ -535,7 +535,7 @@
       <rect>
        <x>30</x>
        <y>100</y>
-       <width>91</width>
+       <width>121</width>
        <height>16</height>
       </rect>
      </property>
@@ -590,7 +590,7 @@
       <rect>
        <x>30</x>
        <y>160</y>
-       <width>91</width>
+       <width>121</width>
        <height>16</height>
       </rect>
      </property>
@@ -944,7 +944,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>Pseudo Gravity (define reduction and field params in RTE/P area)</string>
+      <string>Vertical Integration (apply to RTE_P result to get Pseudo Gravity)</string>
      </property>
     </widget>
     <widget class="QLabel" name="label_26">
@@ -979,7 +979,7 @@
     <widget class="QLabel" name="version_label">
      <property name="geometry">
       <rect>
-       <x>50</x>
+       <x>60</x>
        <y>470</y>
        <width>47</width>
        <height>13</height>

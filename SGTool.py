@@ -252,10 +252,10 @@ class SGTool:
             "Load new file for processing"
         )
         self.dlg.checkBox_3_DirClean.setToolTip(
-            "Filter [DC} a specific direction and wavelength,\nUseful for filtering flight line noise"
+            "Filter [DirC} a specific direction and wavelength,\nUseful for filtering flight line noise"
         )
         self.dlg.label_2.setToolTip(
-            "Filter [DC} a specific direction and wavelength,\nUseful for filtering flight line noise"
+            "Filter [DirC} a specific direction and wavelength,\nUseful for filtering flight line noise"
         )
         self.dlg.lineEdit_3_azimuth.setToolTip(
             "Azimuth of high frequency noise to be filtered (degrees clockwise from North)"
@@ -288,10 +288,10 @@ class SGTool:
             "Survey date"
         )
         self.dlg.checkBox_4_PGrav.setToolTip(
-            "Pseudo Gravity (PG): all reduction parameters from line above)\nConverts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing."
+            "Vertical Integration:\nWhen applied to RTE_P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing."
         )
         self.dlg.label_39.setToolTip(
-            "Pseudo Gravity (PG): all reduction parameters from line above)\nConverts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing."
+            "Vertical Integration:\nWhen applied to RTE_P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing."
         )
         self.dlg.checkBox_5_regional.setToolTip(
             "Remove regional (RR) based on wavelenth"
@@ -533,19 +533,20 @@ class SGTool:
         return os.path.join(dir_name, new_file_name)
 
     def procDirClean(self):
-        self.new_grid=self.processor.directional_band_reject_filter(self.raster_array, low_cut=0.9*float(self.DC_lineSpacing), high_cut=1.1*float(self.DC_lineSpacing), direction_angle=float(self.DC_azimuth),buffer_size=self.buffer)
+        self.new_grid=self.processor.combined_BHP_DirCos_filter(self.raster_array, cutoff_wavelength=4*float(self.DC_lineSpacing),butterworth_order=8,center_direction=float(self.DC_azimuth)+90,cosine_degree=0.5)
         self.new_grid = self.raster_array-self.new_grid
         self.suffix="_DirC"
 
     def procRTP_E(self):
         if(self.RTE_P_inc=="0" and self.RTE_P_dec=="0"):
-            self.iface.messageBar().pushMessage("You need to define Inc and Dec first", level=Qgis.Warning, duration=15)
-        if(self.RTE_P_type=="Pole"):
-            self.new_grid=self.processor.reduction_to_pole(self.raster_array, inclination=float(self.RTE_P_inc), declination=float(self.RTE_P_dec),buffer_size=self.buffer)
-            self.suffix="_RTP"
+            self.iface.messageBar().pushMessage("You need to define Inc and Dec first!", level=Qgis.Warning, duration=15)
         else:
-            self.new_grid=self.processor.reduction_to_equator(self.raster_array, inclination=float(self.RTE_P_inc), declination=float(self.RTE_P_dec),buffer_size=self.buffer)
-            self.suffix="_RTE"
+            if(self.RTE_P_type=="Pole"):
+                self.new_grid=self.processor.reduction_to_pole(self.raster_array, inclination=float(self.RTE_P_inc), declination=float(self.RTE_P_dec),buffer_size=self.buffer)
+                self.suffix="_RTP"
+            else:
+                self.new_grid=self.processor.reduction_to_equator(self.raster_array, inclination=float(self.RTE_P_inc), declination=float(self.RTE_P_dec),buffer_size=self.buffer)
+                self.suffix="_RTE"
 
     def procRemRegional(self):
         self.new_grid = self.processor.remove_regional_trend_fourier(self.raster_array, cutoff_wavelength=float(self.remReg_wavelength),buffer_size=self.buffer)
@@ -594,18 +595,9 @@ class SGTool:
         self.new_grid=self.processor.total_hz_grad(self.raster_array)
         self.suffix="_THG"
 
-    def procPGrav(self):
-        selected_layer=QgsProject.instance().mapLayersByName(self.localGridName)[0]
-
-        crs = selected_layer.crs()
-        if (crs.isGeographic()):
-            self.iface.messageBar().pushMessage("Pseudogravity calculation cannot be perfomed, since this is a geographic projection", level=Qgis.Warning, duration=15)
-        else:
-            if(self.RTE_P_inc=="0" and self.RTE_P_dec=="0"):
-                self.iface.messageBar().pushMessage("You need to define Inc and Dec first", level=Qgis.Warning, duration=15)
-            self.procRTP_E()
-            self.new_grid=self.processor.vertical_integration(self.new_grid)
-            self.suffix="_PG"
+    def procvInt(self):
+        self.new_grid=self.processor.vertical_integration(self.raster_array,max_wavenumber=None, buffer_size=10, buffer_method="mirror")
+        self.suffix="_VI"
 
     def procFreqCut(self):
         if(self.FreqCut_type=="Low"):
@@ -748,7 +740,8 @@ class SGTool:
                 self.procAGC()
                 self.addNewGrid()
             if(self.PG):
-                self.procPGrav()
+                #self.procRTP_E()
+                self.procvInt()
                 self.addNewGrid()
             if(self.THG):
                 self.procTHG()

@@ -6,11 +6,21 @@
 ![SGTools image](dialog.png)       
    
 **Directional Band Pass**   
-$`H(k_x, k_y) = \exp\left(-\frac{(k_x \cos\theta + k_y \sin\theta - k_c)^2}{2 \sigma^2}\right)`$   
-The directional filter isolates frequency components along a specific direction.
-Where   
-theta : The angle of the direction to be emphasized.
-sigma : The sharpness of the filter in the specified direction.   
+Butterworth High-Pass Filter
+$`H(k) = \frac{1}{1 + \left(\frac{k_c}{k}\right)^{2n}}`$    
+The Butterworth filter attenuates frequencies below the cutoff k<sub>c</sub> while preserving higher frequencies.    
+H(k) : Filter response as a function of wavenumber k.    
+k : Wavenumber (spatial frequency).    
+k<sub>c</sub> : Cutoff wavenumber, related to the cutoff wavelength by k<sub>c</sub> = \frac{1}{\text{cutoff wavelength}}.    
+n : Filter order, determining the sharpness of the transition. Higher \( n \) makes the filter more selective.   
+    
+Directional Cosine Filter   
+$`H(k_x, k_y) = \left| \cos(\theta - \theta_c) \right|^p`$   
+The Directional Cosine Filter emphasizes or suppresses frequency components along a specific direction.   
+H(k<sub>x</sub>, k<sub>y</sub>): Filter response as a function of wavenumber components k<sub>x</sub> and k<sub>y</sub>.   
+theta = \arctan\left(\frac{k_y}{k_x}\right) : Angle of the frequency component.   
+theta<sub>c</sub> : Center direction (in radians), representing the direction to emphasize.   
+p : Degree of the cosine function. Higher \( p \) sharpens the directional emphasis.   
 
 **Band Pass**
 $`H(k) = e^{-(k - k_c)^2 / (2 \sigma^2)} - e^{-(k + k_c)^2 / (2 \sigma^2)}`$   
@@ -78,8 +88,9 @@ $`AGC(x, y) = \frac{f(x, y)}{\text{RMS}(f(x, y), w)}`$
 Where    
 RMS(f, w)  is the root mean square of the data over a window w.   
 
-**Pseudo Gravity**   
-$`H(k_x, k_y) = \frac{k}{k_x^2 + k_y^2}`$   
+**Vertical Integration**   
+$`H(k_x, k_y) = \frac{1}{k}`$  
+When applied to an RTE or RTP image provides the so called Pseudogravity result    
 Where    
 k = sqrt{k<sub>x</sub><sup>2</sup> + k<sub>y</sub><sup>2</sup>} .   
 

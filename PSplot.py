@@ -49,7 +49,7 @@ class PowerSpectrumDock:
                     fine_power_spectrum = interp_func(fine_wavelengths)
                 else:
         """     
-        fine_wavelengths = wavelengths
+        fine_wavelengths = 1/(wavelengths+1e-10)
         fine_power_spectrum = power_spectrum
 
         # Create a standalone figure
@@ -65,12 +65,12 @@ class PowerSpectrumDock:
 
         # Plot the power spectrum with log-wavelength axis and linear power
         if len(fine_wavelengths) > 0 and len(fine_power_spectrum) > 0:
-            ax_spectrum.loglog(fine_wavelengths, fine_power_spectrum,  linestyle="-")
+            ax_spectrum.plot(fine_wavelengths, np.log(fine_power_spectrum),  linestyle="-")
             ax_spectrum.set_xscale("log")  # Logarithmic scale for wavelength
             ax_spectrum.set_xlim(ax_spectrum.get_xlim()[::-1])
             ax_spectrum.set_title("Radially Averaged Power Spectrum")
-            ax_spectrum.set_xlabel("Wavelength (log scale)")
-            ax_spectrum.set_ylabel("Power Spectrum (log Scale)")
+            ax_spectrum.set_xlabel("Wavenumber (linear scale)")
+            ax_spectrum.set_ylabel("Power Spectrum (ln Scale)")
             ax_spectrum.grid(True)
         else:
             ax_spectrum.text(0.5, 0.5, "No data", transform=ax_spectrum.transAxes,

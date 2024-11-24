@@ -813,10 +813,10 @@ class SGTool:
                 directory_path = os.path.dirname(self.diskGridPath)
                 basename =os.path.basename(self.diskGridPath)
                 filename_without_extension =os.path.splitext(basename)[0]
-                self.diskGridPath=directory_path+"/"+filename_without_extension+".tif"
+                self.diskGridPath=directory_path+"/"+filename_without_extension
 
                 fn=self.diskGridPath
-                if(os.path.exists(self.diskGridPath) and not  self.is_layer_loaded(filename_without_extension+".tif")):
+                if(os.path.exists(self.diskGridPath) and not  self.is_layer_loaded(filename_without_extension)):
                     os.remove(self.diskGridPath)
 
                 basename =os.path.basename(self.diskGridPath)
@@ -845,8 +845,8 @@ class SGTool:
                 ds.SetProjection(srs.ExportToWkt())
                 ds=None
 
-                self.layer = QgsRasterLayer(self.diskGridPath, filename_without_extension+".tif")
-                if(not self.is_layer_loaded(filename_without_extension+".tif")):
+                self.layer = QgsRasterLayer(self.diskGridPath, filename_without_extension)
+                if(not self.is_layer_loaded(filename_without_extension)):
                     QgsProject.instance().addMapLayer(self.layer)
 
                 #self.iface.messageBar().pushMessage("GRD saved to file", level=Qgis.Success, duration=5)
@@ -1047,9 +1047,22 @@ class SGTool:
         grid=self.extract_raster_to_numpy(self.pslayer)  # Your method to get NumPy array from raster
 
         dx, dy = self.pslayer.rasterUnitsPerPixelX(), self.pslayer.rasterUnitsPerPixelY()
+        # Get extent
+        extent = self.pslayer.extent()
+        minx = extent.xMinimum()
+        maxx = extent.xMaximum()
+        miny = extent.yMinimum()
+        maxy = extent.yMaximum()
 
+        # Get number of columns (nx) and rows (ny)
+        provider = self.pslayer.dataProvider()
+        nx = provider.xSize()  # Number of columns
+        ny = provider.ySize()  # Number of rows
+
+        x=np.linspace(minx, maxx, provider.xSize() )
+        y=np.linspace(miny, maxy, provider.ySize() )
         # Initialize the PowerSpectrumDock and display the plot
-        power_spectrum_dock = PowerSpectrumDock( grid,self.localGridName, dx, dy)
+        power_spectrum_dock = PowerSpectrumDock( grid,self.localGridName, dx, dy,x,y)
         power_spectrum_dock.plot_grid_and_power_spectrum()
 
     def update_paths(self):

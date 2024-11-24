@@ -420,14 +420,14 @@ def _build_rotated_coordinates(west, south, shape, spacing, rotation_deg):
 
 
 def extract_proj_str(fname):
-    proj=4326
+    proj=None
     with open(fname, "r") as f:
         for line in f:
             if "wellknown_epsg=" in line:
-
+                clean_line=line.replace("&quot;",'"')
                 # extract projection string
-                #proj = line.split('wellknown_epsg="')[1].split('" ')[0]
-                proj = line.split('wellknown_epsg="')
+
+                proj = clean_line.split('wellknown_epsg="')
                 if(len(proj)>1):
                     proj=proj[1].split('" ')[0]
                     # remove non-alphanumeric characters if present
@@ -435,9 +435,8 @@ def extract_proj_str(fname):
                         proj = ''.join(filter(str.isalnum, proj))
 
                     assert proj.isalnum
-    try:
-        proj
-    except:
-        #raise NameError("string 'wellknown_epsg=' not found in file.")
-        proj = 4236
+                    break
     return proj
+
+#type form: wellknown_epsg="32632" projection
+#another form: wellknown_epsg=&quot;32632&quot; projection

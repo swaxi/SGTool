@@ -125,10 +125,10 @@ $`THG(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\
 - Length units are defined by grid properties (so Lat/Long wavelengths should be defined in degrees!)
 
 # Code development
-- Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin    
+- Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin https://g-sherman.github.io/Qgis-Plugin-Builder/    
 - Calcs ChatGPT and Mark Jessell
 - IGRF calculation - https://github.com/klaundal/ppigrf  
-- GRD Loader Mark Jessell & Fatiando a Terra crew https://www.fatiando.org/
+- GRD Loader & Radially averaged  power spectrum Fatiando a Terra crew & Mark Jessell https://www.fatiando.org/
 - Example geophysics data in image above courtesy of CPRM http://www.cprm.gov.br/
 
 

@@ -8,18 +8,25 @@
 ## Grav/Mag Filters   
    
 **Reduction to the Pole**    
-$`H(k_x, k_y) = \frac{1}{\Theta_m \Theta_f}`$   
+$`H_{RTP}(k_x, k_y) = \frac{k \cos I \cos D + i k_y \cos I \sin D + k_x \sin I}{k}`$   
 Converts magnetic data measured at any inclination and declination to what it would be if measured at the magnetic pole.
-Where   
-Theta<sub>m</sub> : Magnetization vector of the source.
-Theta<sub>f/sub> : Geomagnetic field vector.   
+Where     
+- k<sub>x</sub> and k<sub>y</sub> : The wavenumber components in the x and y directions.
+- k = sqrt(k<sub>x</sub><sup>2</sup> + k<sub>y<sub><sup>2</sup>) : The total wavenumber magnitude.
+- I : Magnetic inclination (in radians).
+- D : Magnetic declination (in radians).
+- i : Imaginary unit.
+
 
 **Reduction to the Equator**    
-$`H(k_x, k_y) = \frac{1}{f_z + i \frac{f_e k_x + f_n k_y}{|\mathbf{k}|}}`$   
+$`H_{RTE}(k_x, k_y) = \frac{k \cos I \cos D + i k_y \cos I \sin D + k_x \sin I}{k \cos I \cos D - i k_y \cos I \sin D + k_x \sin I}`$     
 Converts magnetic data measured at any inclination and declination to what it would be if measured at the magnetic equator.
 Where   
-f<sub>z</sub> : Downward component of the geomagnetic field.
-f<sub>e</sub>, f<sub>n</sub> : Easting and northing components of the geomagnetic field.   
+- k<sub>x</sub> and k<sub>y</sub> : The wavenumber components in the x and y directions.
+- k = sqrt(k<sub>x</sub><sup>2</sup> + k<sub>y<sub><sup>2</sup>) : The total wavenumber magnitude.
+- I : Magnetic inclination (in radians).
+- D : Magnetic declination (in radians).
+- i : Imaginary unit. 
    
 **Analytic Signal**    
 $`A(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\partial f}{\partial y}\right)^2 + \left(\frac{\partial f}{\partial z}\right)^2}`$   

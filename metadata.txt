@@ -10,10 +10,10 @@ version=0.2.1
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
-about=Simple Potential Field Processing using FFT grid calcs and simple gridding tool
+about=Simple Potential Field Processing using FFT grid filters, e.g. RTP, 1VD, Band Pass, Analytic Signal, Upward Continuation etc.
 
-tracker=http://bugs
-repository=http://repo
+tracker=https://github.com/swaxi/SGTool/issues
+repository=https://github.com/swaxi/SGTool
 # End of mandatory metadata
 
 # Recommended items:
@@ -23,9 +23,9 @@ hasProcessingProvider=no
 # changelog=
 
 # Tags are comma separated with spaces allowed
-tags=python, geophysics
+tags=python, geophysics, gravity, magnetics, filters
 
-homepage=http://homepage
+homepage=https://github.com/swaxi/SGTool
 category=Plugins
 icon=icon.png
 # experimental flag

@@ -23,6 +23,7 @@
 """
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
+from qgis.core import QgsMapLayerProxyModel
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
 from qgis.core import (
@@ -1115,6 +1116,10 @@ class SGTool:
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dlg)
             self.dlg.show()
             self.define_tips()
+            
+            # Access the QgsMapLayerComboBox by its objectName
+            self.dlg.mMapLayerComboBox_selectGrid.setFilters(QgsMapLayerProxyModel.RasterLayer)
+
 
             self.dlg.version_label.setText(self.show_version())
 

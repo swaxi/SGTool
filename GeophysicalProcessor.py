@@ -197,16 +197,16 @@ class GeophysicalProcessor:
         kx, ky = np.meshgrid(kx, ky, indexing="ij")
         k = np.sqrt(kx**2 + ky**2) + 1e-10  # Avoid division by zero
 
-        # Unit vectors for the geomagnetic field
-        fe = np.sin(dec) * np.cos(inc)  # Easting component
-        fn = np.cos(dec) * np.cos(inc)  # Northing component
-        fz = np.sin(inc)                # Downward component
-
-        # Compute Theta_m and Theta_f
-        theta_f = fz + 1j * (fe * kx + fn * ky) / k
+        # Directional cosines
+        cos_inc = np.cos(inc)
+        sin_inc = np.sin(inc)
+        cos_dec = np.cos(dec)
+        sin_dec = np.sin(dec)
 
         # RTP filter
-        rtp_filter = 1.0 / theta_f
+        with np.errstate(divide='ignore', invalid='ignore'):
+            rtp_filter = (k * cos_inc * cos_dec + 1j * ky * cos_inc * sin_dec + kx * sin_inc) / k
+
         rtp_filter[np.abs(rtp_filter) > 1e6] = 0  # Stabilize extreme values
 
         # Apply max_wavenumber filtering based on cell size
@@ -241,16 +241,19 @@ class GeophysicalProcessor:
         k = np.sqrt(kx**2 + ky**2) + 1e-10  # Avoid division by zero
 
 
-        # Unit vectors for the geomagnetic field
-        fe = np.sin(dec) * np.cos(inc)  # Easting component
-        fn = np.cos(dec) * np.cos(inc)  # Northing component
-        fz = np.sin(inc)                # Downward component
+        # Directional cosines
+        cos_inc = np.cos(inc)
+        sin_inc = np.sin(inc)
+        cos_dec = np.cos(dec)
+        sin_dec = np.sin(dec)
 
-        # Compute Theta_m and Theta_f
-        theta_f = fz + 1j * (fe * kx + fn * ky) / k
 
         # RTP filter
-        rte_filter = theta_f
+        #rte_filter = theta_f
+        with np.errstate(divide='ignore', invalid='ignore'):
+            rte_filter = ((k * cos_inc * cos_dec + 1j * ky * cos_inc * sin_dec + kx * sin_inc) /
+                        (k * cos_inc * cos_dec - 1j * ky * cos_inc * sin_dec + kx * sin_inc))
+
         rte_filter[np.abs(rte_filter) > 1e6] = 0  # Stabilize extreme values
 
         # Apply max_wavenumber filtering based on cell size

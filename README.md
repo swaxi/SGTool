@@ -12,7 +12,7 @@ $`H_{RTP}(k_x, k_y) = \frac{k \cos I \cos D + i k_y \cos I \sin D + k_x \sin I}{
 Converts magnetic data measured at any inclination and declination to what it would be if measured at the magnetic pole.
 Where     
 - k<sub>x</sub> and k<sub>y</sub> : The wavenumber components in the x and y directions.
-- k = The total wavenumber magnitude = sqrt{k<sub>x</sub><sup>2</sup> + k<sub>y<sub><sup>2</sup>}   
+- k = The total wavenumber magnitude = sqrt{k<sub>x</sub><sup>2</sup> + k<sub>y</sub><sup>2</sup>}   
 - I : Magnetic inclination (in radians).
 - D : Magnetic declination (in radians).
 - i : Imaginary unit.
@@ -23,7 +23,7 @@ $`H_{RTE}(k_x, k_y) = \frac{k \cos I \cos D + i k_y \cos I \sin D + k_x \sin I}{
 Converts magnetic data measured at any inclination and declination to what it would be if measured at the magnetic equator.
 Where   
 - k<sub>x</sub> and k<sub>y</sub> : The wavenumber components in the x and y directions.
-- k = The total wavenumber magnitude = sqrt{k<sub>x</sub><sup>2</sup> + k<sub>y<sub><sup>2</sup>}
+- k = The total wavenumber magnitude = sqrt{k<sub>x</sub><sup>2</sup> + k<sub>y</sub><sup>2</sup>}
 - I : Magnetic inclination (in radians).
 - D : Magnetic declination (in radians).
 - i : Imaginary unit. 

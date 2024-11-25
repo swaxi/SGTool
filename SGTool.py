@@ -634,7 +634,7 @@ class SGTool:
 
         raster_path=os.path.dirname(self.diskPointsPath)+"/"+os.path.splitext(os.path.basename(self.diskPointsPath))[0]+"_"+self.dlg.comboBox_grid_data.currentText()+".tif"
 
-        self.numpy_array_to_raster(self.gridded, raster_path=raster_path, dx=dx,xmin=xmin,ymax=ymax,reference_layer=None, no_data_value=np.nan)
+        err=self.numpy_array_to_raster(self.gridded, raster_path=raster_path, dx=dx,xmin=xmin,ymax=ymax,reference_layer=None, no_data_value=np.nan)
         gridded_layer = QgsRasterLayer(raster_path, os.path.splitext(os.path.basename(self.diskPointsPath))[0]+"_"+self.dlg.comboBox_grid_data.currentText())
         if gridded_layer.isValid():
             QgsProject.instance().addMapLayer(gridded_layer)
@@ -644,10 +644,11 @@ class SGTool:
 
             if(not self.is_layer_loaded(self.base_name+self.suffix)):
                 self.diskNewGridPath = self.insert_text_before_extension(self.diskGridPath, self.suffix)
-                self.numpy_array_to_raster(self.new_grid, self.diskNewGridPath, dx=None,xmin=None,ymax=None,reference_layer=self.layer, no_data_value=np.nan)
-                con_raster_layer = QgsRasterLayer(self.diskNewGridPath, self.base_name+self.suffix)
-                if con_raster_layer.isValid():
-                    QgsProject.instance().addMapLayer(con_raster_layer)
+                err=self.numpy_array_to_raster(self.new_grid, self.diskNewGridPath, dx=None,xmin=None,ymax=None,reference_layer=self.layer, no_data_value=np.nan)
+                if(err!=-1):
+                    con_raster_layer = QgsRasterLayer(self.diskNewGridPath, self.base_name+self.suffix)
+                    if con_raster_layer.isValid():
+                        QgsProject.instance().addMapLayer(con_raster_layer)
             else:
                 self.iface.messageBar().pushMessage(self.base_name+self.suffix+" already loaded, delete before reprocessing", level=Qgis.Warning, duration=15)
 
@@ -894,8 +895,8 @@ class SGTool:
             try:
                 os.remove(raster_path)
             except:
-                self.iface.messageBar().pushMessage(self.base_name+self.suffix+" may be open in another program? Loading existing file instead!", level=Qgis.Warning, duration=15)
-                return
+                self.iface.messageBar().pushMessage("Result already loaded, delete layer if you want to update it.", level=Qgis.Warning, duration=15)
+                return (-1)
 
         rows, cols = numpy_array.shape
         driver = gdal.GetDriverByName('GTiff')
@@ -942,6 +943,7 @@ class SGTool:
         band.WriteArray(numpy_array)
         band.FlushCache()
         output_raster = None  # Close the file
+        return(0)
 
     # estimate mag field from centroid of data, date and sensor height
     def update_mag_field(self):

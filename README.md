@@ -138,7 +138,7 @@ $`THG(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\
 - Calcs ChatGPT and Mark Jessell
 - IGRF calculation - https://github.com/klaundal/ppigrf  
 - GRD Loader & Radially averaged  power spectrum Fatiando a Terra crew & Mark Jessell https://www.fatiando.org/
-- Example geophysics data in image above courtesy of CPRM http://www.cprm.gov.br/
+- Example geophysics data in image above courtesy of Mauritania Govt. https://anarpam.mr/en/      
 
 
 

@@ -130,7 +130,7 @@ $`THG(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\
 - All processed files will be saved as geotiffs or ERS format files depending on the original format, will be saved in the same directory as the original file, and will have a suffix added describing the processing step.
 - If a RTP or RTE calculation is performed, it is possible to define the magnetic field manually or the IGRF mag field parameters can be assigned based on the centroid of grid, plus date and survey height
 - If a file exists on disk it will be overwritten, although QGIS plugins don't always like saving to disks other than C: on Windows.
-- Length units are defined by grid properties except for Up/Down Continuaiton (so Lat/Long wavelengths should be defined in degrees!)
+- Length units are defined by grid properties except for Up/Down Continuation (so Lat/Long wavelengths should be defined in degrees!)
 3) If multiple processing steps are required, first apply one process, select the result and then apply subsequent steps.
 
 # Code development

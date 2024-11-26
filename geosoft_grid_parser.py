@@ -440,3 +440,104 @@ def extract_proj_str(fname):
 
 #type form: wellknown_epsg="32632" projection
 #another form: wellknown_epsg=&quot;32632&quot; projection
+
+def _decompress_grid_optimized(grid_compressed):
+    """
+    Optimized decompression of the grid using zlib.
+    Decompresses in parallel or sequentially with memory-efficient handling.
+
+    Parameters
+    ----------
+    grid_compressed : bytes
+        Sequence of bytes corresponding to the compressed grid.
+
+    Returns
+    -------
+    grid : bytes
+        Uncompressed version of the compressed grid.
+    """
+    import concurrent.futures
+
+    # Number of blocks
+    (n_blocks,) = array.array("i", grid_compressed[8 : 8 + 4])
+    # Number of vectors per block
+    (vectors_per_block,) = array.array("i", grid_compressed[12 : 12 + 4])
+    # File offset from start of every block
+    block_offsets = array.array("q", grid_compressed[16 : 16 + n_blocks * 8])
+    # Compressed size of every block
+    compressed_block_sizes = array.array(
+        "i",
+        grid_compressed[16 + n_blocks * 8 : 16 + n_blocks * 8 + n_blocks * 4],
+    )
+
+    def decompress_block(i):
+        """
+        Decompress a single block.
+        """
+        start_offset = block_offsets[i] - 512 + 16
+        end_offset = compressed_block_sizes[i] + block_offsets[i] - 512
+        return zlib.decompress(grid_compressed[start_offset:end_offset])
+
+    # Parallel decompression using ThreadPoolExecutor
+    grid_parts = []
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        grid_parts = list(executor.map(decompress_block, range(n_blocks)))
+
+    # Combine all blocks into the final grid
+    return b"".join(grid_parts)
+
+
+def load_oasis_montaj_grid_optimized(fname):
+    """
+    Optimized function to read Oasis Montaj© .grd file.
+    Includes parallel decompression for faster loading.
+
+    Parameters
+    ----------
+    fname : string or file-like object
+        Path to the .grd file.
+
+    Returns
+    -------
+    grid : np.ndarray
+        Numpy array containing the grid values.
+    header : dict
+        Header information extracted from the .grd file.
+    Gdata_type : int
+        GDAL data type for the grid.
+    """
+    with open(fname, "rb") as grd_file:
+        # Read the header (first 512 bytes)
+        header = _read_header(grd_file.read(512))
+        # Check for valid flags
+        _check_ordering(header["ordering"])
+        _check_sign_flag(header["sign_flag"])
+        # Get data type for the grid elements
+        data_type, Gdata_type = _get_data_type(
+            header["n_bytes_per_element"], header["sign_flag"]
+        )
+        # Read grid
+        grid = grd_file.read()
+
+    # Decompress grid if needed
+    if header["n_bytes_per_element"] > 1024:
+        grid = _decompress_grid_optimized(grid)
+
+    # Load the grid values as an array with the proper data_type
+    grid = array.array(data_type, grid)
+    grid = np.array(grid, dtype=np.float64)
+
+    # Remove dummy values and scale
+    grid = _remove_dummies(grid, data_type)
+    grid = grid / header["data_factor"] + header["base_value"]
+
+    # Reshape the grid
+    if header["ordering"] == 1:
+        shape = (header["shape_v"], header["shape_e"])
+        order = "C"
+    elif header["ordering"] == -1:
+        shape = (header["shape_e"], header["shape_v"])
+        order = "F"
+    grid = grid.reshape(shape, order=order)
+
+    return grid, header, Gdata_type

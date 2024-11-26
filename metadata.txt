@@ -6,7 +6,7 @@
 name=SGTool
 qgisMinimumVersion=3.0
 description=Simple Potential Field Processing
-version=0.2.2
+version=0.2.3
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
@@ -20,7 +20,13 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-# changelog=
+changelog=0.2.3 2024-11-26
+      * Bug fixes to Directional Cleaning
+      * Change of behaviour: existing layer now overwritten in QGIS
+      * Loading of GRD format optimised and now massively quicker
+      * Check for unlikely lengths (>100) with geographic grids
+    0.2.2 2024-11-25: Initial upload to plugin repository.
+
 
 # Tags are comma separated with spaces allowed
 tags=python, geophysics, gravity, magnetics, filters

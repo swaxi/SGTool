@@ -534,9 +534,11 @@ class SGTool:
         return os.path.join(dir_name, new_file_name)
 
     def procDirClean(self):
-        self.new_grid=self.processor.combined_BHP_DirCos_filter(self.raster_array, cutoff_wavelength=4*float(self.DC_lineSpacing),butterworth_order=8,center_direction=float(self.DC_azimuth)+90,cosine_degree=0.5)
-        self.new_grid = self.raster_array-self.new_grid
-        self.suffix="_DirC"
+        cutoff_wavelength=4*float(self.DC_lineSpacing)
+        if(self.unit_check(cutoff_wavelength)):
+            self.new_grid=self.processor.combined_BHP_DirCos_filter(self.raster_array, cutoff_wavelength=cutoff_wavelength,center_direction=float(self.DC_azimuth)+90,degree=0.5,buffer_size=self.buffer)
+            self.new_grid = self.raster_array-self.new_grid
+            self.suffix="_DirC"
 
     def procRTP_E(self):
         if(self.RTE_P_inc=="0" and self.RTE_P_dec=="0"):
@@ -550,9 +552,11 @@ class SGTool:
                 self.suffix="_RTE"
 
     def procRemRegional(self):
-        self.new_grid = self.processor.remove_regional_trend_fourier(self.raster_array, cutoff_wavelength=float(self.remReg_wavelength),buffer_size=self.buffer)
-        self.new_grid = self.raster_array-self.new_grid
-        self.suffix="_RR"+"_"+str(self.remReg_wavelength)
+        cutoff_wavelength=float(self.remReg_wavelength)
+        if(self.unit_check(cutoff_wavelength)):
+            self.new_grid = self.processor.remove_regional_trend_fourier(self.raster_array, cutoff_wavelength=cutoff_wavelength,buffer_size=self.buffer)
+            self.new_grid = self.raster_array-self.new_grid
+            self.suffix="_RR"+"_"+str(self.remReg_wavelength)
 
     def procDerivative(self):
         self.new_grid=self.processor.compute_derivative(self.raster_array, direction=self.derive_direction, order=float(self.derive_power),buffer_size=self.buffer)   
@@ -573,7 +577,6 @@ class SGTool:
         if (crs.isGeographic()):
             height=float(self.cont_height)/110000
             self.iface.messageBar().pushMessage("Height roughly converted to metres, since this is a geographic projection", level=Qgis.Success, duration=15)
-
         else:
             height=float(self.cont_height)
         if(self.cont_direction=="up"):
@@ -585,8 +588,11 @@ class SGTool:
 
 
     def procBandPass(self):
-        self.new_grid=self.processor.band_pass_filter(self.raster_array, low_cut=float(self.band_low), high_cut=float(self.band_high),buffer_size=self.buffer)
-        self.suffix="_BP"+"_"+str(self.band_low)+"_"+str(self.band_high)
+        low_cut=float(self.band_low)
+        high_cut=float(self.band_high)        
+        if(self.unit_check(low_cut) and self.unit_check(high_cut)):
+            self.new_grid=self.processor.band_pass_filter(self.raster_array, low_cut=low_cut, high_cut=high_cut,buffer_size=self.buffer)
+            self.suffix="_BP"+"_"+str(self.band_low)+"_"+str(self.band_high)
 
     def procAGC(self):
         self.new_grid=self.processor.automatic_gain_control(self.raster_array, window_size=float(self.agc_window))
@@ -601,13 +607,24 @@ class SGTool:
         self.suffix="_VI"
 
     def procFreqCut(self):
-        if(self.FreqCut_type=="Low"):
-            self.new_grid=self.processor.low_pass_filter(self.raster_array, cutoff_wavelength=float(self.FreqCut_cut),buffer_size=self.buffer)
-            self.suffix="_LP"+"_"+str(self.FreqCut_cut)
-        else:
-            self.new_grid=self.processor.high_pass_filter(self.raster_array, cutoff_wavelength=float(self.FreqCut_cut),buffer_size=self.buffer)
-            self.suffix="_HP"+"_"+str(self.FreqCut_cut)
+        cutoff_wavelength=float(self.FreqCut_cut)
+        if(self.unit_check(cutoff_wavelength)):
+            if(self.FreqCut_type=="Low"):
+                self.new_grid=self.processor.low_pass_filter(self.raster_array, cutoff_wavelength=cutoff_wavelength,buffer_size=self.buffer)
+                self.suffix="_LP"+"_"+str(self.FreqCut_cut)
+            else:
+                self.new_grid=self.processor.high_pass_filter(self.raster_array, cutoff_wavelength=cutoff_wavelength,buffer_size=self.buffer)
+                self.suffix="_HP"+"_"+str(self.FreqCut_cut)
 
+    def unit_check(self,length):
+        selected_layer=QgsProject.instance().mapLayersByName(self.localGridName)[0]
+        crs = selected_layer.crs()
+        if (crs.isGeographic() and length>100):
+            self.iface.messageBar().pushMessage("Since this is a geographic projection, you need to specify lengths in degrees", level=Qgis.Warning, duration=15)
+            return(False)
+        else:
+            return(True)
+        
     def gridPoints(self):
         dx=float(self.dlg.lineEdit_13_MC_gridSize.text())
         xmin=self.pointData[self.dlg.comboBox_grid_x.currentText()].min()
@@ -641,16 +658,17 @@ class SGTool:
     
     def addNewGrid(self):
         if(self.suffix):
+            if( self.is_layer_loaded(self.base_name+self.suffix)):
+                project = QgsProject.instance()
+                layer = project.mapLayersByName(self.base_name+self.suffix)[0]
+                project.removeMapLayer(layer.id())
 
-            if(not self.is_layer_loaded(self.base_name+self.suffix)):
-                self.diskNewGridPath = self.insert_text_before_extension(self.diskGridPath, self.suffix)
-                err=self.numpy_array_to_raster(self.new_grid, self.diskNewGridPath, dx=None,xmin=None,ymax=None,reference_layer=self.layer, no_data_value=np.nan)
-                if(err!=-1):
-                    con_raster_layer = QgsRasterLayer(self.diskNewGridPath, self.base_name+self.suffix)
-                    if con_raster_layer.isValid():
-                        QgsProject.instance().addMapLayer(con_raster_layer)
-            else:
-                self.iface.messageBar().pushMessage(self.base_name+self.suffix+" already loaded, delete before reprocessing", level=Qgis.Warning, duration=15)
+            self.diskNewGridPath = self.insert_text_before_extension(self.diskGridPath, self.suffix)
+            err=self.numpy_array_to_raster(self.new_grid, self.diskNewGridPath, dx=None,xmin=None,ymax=None,reference_layer=self.layer, no_data_value=np.nan)
+            if(err!=-1):
+                con_raster_layer = QgsRasterLayer(self.diskNewGridPath, self.base_name+self.suffix)
+                if con_raster_layer.isValid():
+                    QgsProject.instance().addMapLayer(con_raster_layer)
 
     
     def processGeophysics(self):
@@ -811,11 +829,11 @@ class SGTool:
             if(not os.path.exists(self.diskGridPath)):
                 self.iface.messageBar().pushMessage("File: "+self.diskGridPath+" not found", level=Qgis.Warning, duration=3)
             else:    
-                grid,header,Gdata_type=load_oasis_montaj_grid(self.diskGridPath)
+                grid,header,Gdata_type=load_oasis_montaj_grid_optimized(self.diskGridPath)
                 directory_path = os.path.dirname(self.diskGridPath)
                 basename =os.path.basename(self.diskGridPath)
                 filename_without_extension =os.path.splitext(basename)[0]
-                self.diskGridPath=directory_path+"/"+filename_without_extension
+                self.diskGridPath=directory_path+"/"+filename_without_extension+".tif"
 
                 fn=self.diskGridPath
                 if(os.path.exists(self.diskGridPath) and not  self.is_layer_loaded(filename_without_extension)):
@@ -845,6 +863,7 @@ class SGTool:
                 srs=osr.SpatialReference()
                 srs.ImportFromEPSG(int(epsg))
                 ds.SetProjection(srs.ExportToWkt())
+                ds.FlushCache()
                 ds=None
 
                 self.layer = QgsRasterLayer(self.diskGridPath, filename_without_extension)
@@ -895,7 +914,7 @@ class SGTool:
             try:
                 os.remove(raster_path)
             except:
-                self.iface.messageBar().pushMessage("Result already loaded, delete layer if you want to update it.", level=Qgis.Warning, duration=15)
+                self.iface.messageBar().pushMessage("Couldn't delete layer, may be open in another program? ON windows files on non-C: drive may be hard to delete", level=Qgis.Warning, duration=15)
                 return (-1)
 
         rows, cols = numpy_array.shape
@@ -1087,13 +1106,14 @@ class SGTool:
     def show_version(self):
         metadata_path = os.path.dirname(os.path.realpath(__file__)) + "/metadata.txt"
         
-        plugin_version_file = open(metadata_path)
-        metadata = plugin_version_file.readlines()
-        for line in metadata:
-            parts = line.split("=")
-            if len(parts) == 2 and parts[0] == "version":
-                plugin_version = parts[1]
-        return plugin_version
+        with open(metadata_path) as plugin_version_file:
+            metadata = plugin_version_file.readlines()
+            for line in metadata:
+                parts = line.split("=")
+                if len(parts) == 2 and parts[0] == "version":
+                    plugin_version = parts[1]
+            
+            return plugin_version
     
     def run(self):
         """Run method that loads and starts the plugin"""

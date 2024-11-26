@@ -587,9 +587,12 @@ class GeophysicalProcessor:
         k = np.sqrt(kx**2 + ky**2)
         cutoff_frequency = 1 / cutoff_wavelength
         butterworth = 1 / (1 + (cutoff_frequency / k) ** (2 * order))
+        butterworth = 1 - butterworth
+        butterworth[k == 0] = 0
+
         return butterworth
 
-    def directional_cosine_filter(self, kx, ky, center_direction, degree):
+    def directional_cosine_filter(self, kx, ky, center_direction,degree):
         """
         Directional Cosine Filter in the Fourier domain.
         """
@@ -598,21 +601,21 @@ class GeophysicalProcessor:
         directional_filter = np.abs(np.cos(theta - center_radians)) ** degree
         return directional_filter
 
-    def combined_BHP_DirCos_filter(self, data, cutoff_wavelength, butterworth_order, center_direction, cosine_degree):
+    def combined_BHP_DirCos_filter(self, data, cutoff_wavelength, center_direction, degree,buffer_size):
         """
-        Apply the combined Butterworth and Directional Cosine filter to the data.
+        Apply the combined high pass and Directional Cosine filter to the data.
         """
-        def filter_function(kx, ky):
+        def filter_function_dc(kx, ky):
             # Create the Butterworth high-pass filter
-            butterworth = self.butterworth_high_pass(kx, ky, cutoff_wavelength, butterworth_order)
+            directional = self.directional_cosine_filter(kx, ky, center_direction,degree)
 
-            # Create the Directional Cosine filter
-            directional = self.directional_cosine_filter(kx, ky, center_direction, cosine_degree)
+            return directional 
+        
+        data = self.high_pass_filter(data, cutoff_wavelength, buffer_size=10, buffer_method="mirror")
+        return self._apply_fourier_filter(data, filter_function_dc, buffer_size=10, buffer_method="mirror")
+        
 
-            # Combine filters (multiplicative effect)
-            return butterworth * directional
-
-        return self._apply_fourier_filter(data, filter_function, buffer_size=10, buffer_method="mirror")
+        
 
 
     # --- Internal Fourier Filter Application ---

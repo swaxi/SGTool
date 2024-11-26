@@ -856,7 +856,7 @@ font-size: 13px;
     <widget class="QLineEdit" name="lineEdit_4_lineSpacing">
      <property name="geometry">
       <rect>
-       <x>390</x>
+       <x>350</x>
        <y>30</y>
        <width>71</width>
        <height>20</height>
@@ -1063,14 +1063,14 @@ font-size: 13px;
     <widget class="QLabel" name="label_13">
      <property name="geometry">
       <rect>
-       <x>300</x>
+       <x>270</x>
        <y>30</y>
-       <width>81</width>
+       <width>71</width>
        <height>21</height>
       </rect>
      </property>
      <property name="text">
-      <string>Line Spacing</string>
+      <string>Cutoff</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -1079,10 +1079,10 @@ font-size: 13px;
     <widget class="QLabel" name="label_12">
      <property name="geometry">
       <rect>
-       <x>150</x>
+       <x>130</x>
        <y>30</y>
-       <width>61</width>
-       <height>16</height>
+       <width>51</width>
+       <height>20</height>
       </rect>
      </property>
      <property name="text">
@@ -1095,7 +1095,7 @@ font-size: 13px;
     <widget class="QLineEdit" name="lineEdit_3_azimuth">
      <property name="geometry">
       <rect>
-       <x>220</x>
+       <x>190</x>
        <y>30</y>
        <width>71</width>
        <height>20</height>
@@ -1265,7 +1265,7 @@ font-size: 13px;
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>550</y>
+      <y>554</y>
       <width>47</width>
       <height>13</height>
      </rect>
@@ -1278,7 +1278,7 @@ font-size: 13px;
     <property name="geometry">
      <rect>
       <x>70</x>
-      <y>550</y>
+      <y>554</y>
       <width>47</width>
       <height>13</height>
      </rect>
@@ -1293,7 +1293,7 @@ font-size: 13px;
       <x>120</x>
       <y>550</y>
       <width>101</width>
-      <height>16</height>
+      <height>20</height>
      </rect>
     </property>
     <property name="text">

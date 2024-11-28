@@ -35,7 +35,7 @@ class GeophysicalProcessor:
         """
         nan_mask = np.isnan(data)
         filled_data = np.copy(data)
-        filled_data[nan_mask] = np.nanmean(data)
+        filled_data[nan_mask] = np.nanmedian(data)
         return filled_data, nan_mask
 
     def restore_nan(self, data, nan_mask):

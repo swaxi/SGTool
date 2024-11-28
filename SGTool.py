@@ -766,7 +766,20 @@ class SGTool:
             if(self.THG):
                 self.procTHG()
                 self.addNewGrid()
-
+            self.resetCheckBoxes()
+    
+    def resetCheckBoxes(self):
+        self.dlg.checkBox_4_RTE_P.setChecked(False)
+        self.dlg.checkBox_7_tiltDerivative.setChecked(False)
+        self.dlg.checkBox_8_analyticSignal.setChecked(False)
+        self.dlg.checkBox_9_continuation.setChecked(False)
+        self.dlg.checkBox_3_DirClean.setChecked(False)
+        self.dlg.checkBox_5_regional.setChecked(False)
+        self.dlg.checkBox_10_bandPass.setChecked(False)
+        self.dlg.checkBox_10_freqCut.setChecked(False)
+        self.dlg.checkBox_11_1vd_agc.setChecked(False)
+        self.dlg.checkBox_6_derivative.setChecked(False)
+        self.dlg.checkBox_11_tot_hz_grad.setChecked(False)
 
     def is_layer_loaded(self,layer_name):
         """

@@ -1196,7 +1196,7 @@ font-size: 13px;
       </rect>
      </property>
      <property name="text">
-      <string>Directional Clean</string>
+      <string>Direction Cosine</string>
      </property>
     </widget>
     <widget class="QLabel" name="label_17">

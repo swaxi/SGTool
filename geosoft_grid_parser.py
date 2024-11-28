@@ -516,8 +516,12 @@ def load_oasis_montaj_grid_optimized(fname):
         data_type, Gdata_type = _get_data_type(
             header["n_bytes_per_element"], header["sign_flag"]
         )
-        # Read grid
-        grid = grd_file.read()
+        if(data_type == "b" or data_type =="B" or data_type =="h" or data_type =="H"):
+            return -1,-1,-1
+        else:
+            # Read grid
+            print("data_type",data_type)
+            grid = grd_file.read()
 
     # Decompress grid if needed
     if header["n_bytes_per_element"] > 1024:

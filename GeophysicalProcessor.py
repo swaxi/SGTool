@@ -580,17 +580,6 @@ class GeophysicalProcessor:
 
         return thg
 
-    def butterworth_high_pass(self, kx, ky, cutoff_wavelength, order):
-        """
-        Butterworth High-Pass Filter in the Fourier domain.
-        """
-        k = np.sqrt(kx**2 + ky**2)
-        cutoff_frequency = 1 / cutoff_wavelength
-        butterworth = 1 / (1 + (cutoff_frequency / k) ** (2 * order))
-        butterworth = 1 - butterworth
-        butterworth[k == 0] = 0
-
-        return butterworth
 
     def directional_cosine_filter(self, kx, ky, center_direction,degree):
         """
@@ -603,20 +592,16 @@ class GeophysicalProcessor:
 
     def combined_BHP_DirCos_filter(self, data, cutoff_wavelength, center_direction, degree,buffer_size):
         """
-        Apply the combined high pass and Directional Cosine filter to the data.
+        Apply the Directional Cosine filter to the data.
         """
         def filter_function_dc(kx, ky):
-            # Create the Butterworth high-pass filter
+            # Create the Direction Cosine high-pass filter
             directional = self.directional_cosine_filter(kx, ky, center_direction,degree)
 
             return directional 
         
-        data = self.high_pass_filter(data, cutoff_wavelength, buffer_size=10, buffer_method="mirror")
         return self._apply_fourier_filter(data, filter_function_dc, buffer_size=10, buffer_method="mirror")
         
-
-        
-
 
     # --- Internal Fourier Filter Application ---
     def _apply_fourier_filter(self, data, filter_function, buffer_size=10, buffer_method="mirror"):

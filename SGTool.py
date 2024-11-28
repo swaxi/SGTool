@@ -537,7 +537,6 @@ class SGTool:
         cutoff_wavelength=4*float(self.DC_lineSpacing)
         if(self.unit_check(cutoff_wavelength)):
             self.new_grid=self.processor.combined_BHP_DirCos_filter(self.raster_array, cutoff_wavelength=cutoff_wavelength,center_direction=float(self.DC_azimuth)+90,degree=0.5,buffer_size=self.buffer)
-            self.new_grid = self.raster_array-self.new_grid
             self.suffix="_DirC"
 
     def procRTP_E(self):
@@ -843,47 +842,51 @@ class SGTool:
                 self.iface.messageBar().pushMessage("File: "+self.diskGridPath+" not found", level=Qgis.Warning, duration=3)
             else:    
                 grid,header,Gdata_type=load_oasis_montaj_grid_optimized(self.diskGridPath)
-                directory_path = os.path.dirname(self.diskGridPath)
-                basename =os.path.basename(self.diskGridPath)
-                filename_without_extension =os.path.splitext(basename)[0]
-                self.diskGridPath=directory_path+"/"+filename_without_extension+".tif"
-
-                fn=self.diskGridPath
-                if(os.path.exists(self.diskGridPath) and not  self.is_layer_loaded(filename_without_extension)):
-                    os.remove(self.diskGridPath)
-
-                basename =os.path.basename(self.diskGridPath)
-                extension =os.path.splitext(basename)[1].lower()
-                if(extension=='ers'):
-                    driver=gdal.GetDriverByName('ERS')
+                #grid,header,Gdata_type=load_oasis_montaj_grid(self.diskGridPath)
+                if(Gdata_type==-1):
+                    self.iface.messageBar().pushMessage("Sorry, can't read 'SHORT' or 'INT' data types at the moment", level=Qgis.Warning, duration=30)
+                    return
                 else:
-                    driver=gdal.GetDriverByName('GTiff')
+                    directory_path = os.path.dirname(self.diskGridPath)
+                    basename =os.path.basename(self.diskGridPath)
+                    filename_without_extension =os.path.splitext(basename)[0]
+                    self.diskGridPath=directory_path+"/"+filename_without_extension+".tif"
 
-                if(header["ordering"]==1):
-                    ds = driver.Create(fn,xsize=header["shape_e"],ysize=header["shape_v"],bands=1,eType=Gdata_type)
-                else:
-                    ds = driver.Create(fn,xsize=header["shape_v"],ysize=header["shape_e"],bands=1,eType=Gdata_type)
+                    fn=self.diskGridPath
+                    if(os.path.exists(self.diskGridPath) and not  self.is_layer_loaded(filename_without_extension)):
+                        os.remove(self.diskGridPath)
 
-                ds.GetRasterBand(1).WriteArray(grid)
-                geot=[header["x_origin"]-(header["spacing_e"]/2),
-                    header["spacing_e"],
-                    0,
-                    header["y_origin"]-(header["spacing_v"]/2),
-                    0,
-                    header["spacing_e"],
-                    ]
-                ds.SetGeoTransform(geot)
-                srs=osr.SpatialReference()
-                srs.ImportFromEPSG(int(epsg))
-                ds.SetProjection(srs.ExportToWkt())
-                ds.FlushCache()
-                ds=None
+                    basename =os.path.basename(self.diskGridPath)
+                    extension =os.path.splitext(basename)[1].lower()
+                    if(extension=='ers'):
+                        driver=gdal.GetDriverByName('ERS')
+                    else:
+                        driver=gdal.GetDriverByName('GTiff')
 
-                self.layer = QgsRasterLayer(self.diskGridPath, filename_without_extension)
-                if(not self.is_layer_loaded(filename_without_extension)):
-                    QgsProject.instance().addMapLayer(self.layer)
+                    if(header["ordering"]==1):
+                        ds = driver.Create(fn,xsize=header["shape_e"],ysize=header["shape_v"],bands=1,eType=Gdata_type)
+                    else:
+                        ds = driver.Create(fn,xsize=header["shape_v"],ysize=header["shape_e"],bands=1,eType=Gdata_type)
 
-                #self.iface.messageBar().pushMessage("GRD saved to file", level=Qgis.Success, duration=5)
+                    ds.GetRasterBand(1).WriteArray(grid)
+                    geot=[header["x_origin"]-(header["spacing_e"]/2),
+                        header["spacing_e"],
+                        0,
+                        header["y_origin"]-(header["spacing_v"]/2),
+                        0,
+                        header["spacing_e"],
+                        ]
+                    ds.SetGeoTransform(geot)
+                    srs=osr.SpatialReference()
+                    srs.ImportFromEPSG(int(epsg))
+                    ds.SetProjection(srs.ExportToWkt())
+                    ds.FlushCache()
+                    ds=None
+
+                    self.layer = QgsRasterLayer(self.diskGridPath, filename_without_extension)
+                    if(not self.is_layer_loaded(filename_without_extension)):
+                        QgsProject.instance().addMapLayer(self.layer)
+
 
         else:
             self.iface.messageBar().pushMessage("You need to select a file first", level=Qgis.Warning, duration=3)

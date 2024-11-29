@@ -677,7 +677,7 @@ font-size: 13px;
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>450</y>
+      <y>460</y>
       <width>591</width>
       <height>91</height>
      </rect>
@@ -831,7 +831,7 @@ font-size: 13px;
       <x>10</x>
       <y>260</y>
       <width>591</width>
-      <height>181</height>
+      <height>191</height>
      </rect>
     </property>
     <property name="title">
@@ -1252,7 +1252,7 @@ font-size: 13px;
     <property name="geometry">
      <rect>
       <x>470</x>
-      <y>550</y>
+      <y>560</y>
       <width>131</width>
       <height>23</height>
      </rect>
@@ -1265,7 +1265,7 @@ font-size: 13px;
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>554</y>
+      <y>564</y>
       <width>47</width>
       <height>13</height>
      </rect>
@@ -1278,7 +1278,7 @@ font-size: 13px;
     <property name="geometry">
      <rect>
       <x>70</x>
-      <y>554</y>
+      <y>564</y>
       <width>47</width>
       <height>13</height>
      </rect>
@@ -1291,7 +1291,7 @@ font-size: 13px;
     <property name="geometry">
      <rect>
       <x>120</x>
-      <y>550</y>
+      <y>560</y>
       <width>101</width>
       <height>20</height>
      </rect>
@@ -1304,7 +1304,7 @@ font-size: 13px;
     <property name="geometry">
      <rect>
       <x>190</x>
-      <y>550</y>
+      <y>560</y>
       <width>121</width>
       <height>20</height>
      </rect>
@@ -1320,7 +1320,7 @@ font-size: 13px;
     <property name="geometry">
      <rect>
       <x>320</x>
-      <y>550</y>
+      <y>560</y>
       <width>71</width>
       <height>20</height>
      </rect>

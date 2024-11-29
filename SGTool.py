@@ -110,6 +110,7 @@ class SGTool:
 
         self.pluginIsActive = False
         self.dlg = None
+        self.last_directory = None
 
 
 
@@ -796,11 +797,12 @@ class SGTool:
         return False
 
     def select_grid_file(self):
+        start_directory = self.last_directory if self.last_directory else os.getcwd()
 
         self.diskGridPath, _filter = QFileDialog.getOpenFileName(
             None,
             "Select Data File",
-            ".",
+            start_directory,
             "Grids (*.TIF;*.tif;*.TIFF;*.tiff;*.grd;*GRD;*.ERS;*.ers)",
         )
         suffix = self.diskGridPath.split(".")[-1].lower()
@@ -808,29 +810,31 @@ class SGTool:
         if os.path.exists(self.diskGridPath) and self.diskGridPath != "":
             self.dlg.lineEdit_2_loadGridPath.setText(self.diskGridPath)
             self.dlg.pushButton_3_applyProcessing.setEnabled(True)
-        if( suffix=="grd"):
-            if(os.path.exists(self.diskGridPath+'.xml')):
-               epsg=extract_proj_str(self.diskGridPath+'.xml')
-            if(epsg== None):
-                epsg=4326
-                self.iface.messageBar().pushMessage("No CRS found in XML, default to 4326", level=Qgis.Warning, duration=15)
-            else:
-                self.iface.messageBar().pushMessage("CRS Read from XML as "+str(epsg), level=Qgis.Info, duration=15)
-            #self.dlg.mQgsProjectionSelectionWidget.setCrs(QgsCoordinateReferenceSystem('EPSG:'+str(epsg)))
-            self.save_a_grid(epsg)
-        elif( suffix=="tif" or suffix=='ers'):
-            basename =os.path.basename(self.diskGridPath)
-            filename_without_extension =os.path.splitext(basename)[0]
-            self.layer = QgsRasterLayer(self.diskGridPath, filename_without_extension)
-            try:
-                test_proj = self.layer.crs().authid().split(":")[1]
-            except:
-                # Define the new CRS (e.g., EPSG:4326 for WGS84)
-                    new_crs = QgsCoordinateReferenceSystem("EPSG:4326")
-                    # Set the CRS for the raster layer
-                    self.layer.setCrs(new_crs)
-            if(not self.is_layer_loaded(self.diskGridPath)):
-                QgsProject.instance().addMapLayer(self.layer)
+            self.last_directory = os.path.dirname(self.diskGridPath)
+
+            if( suffix=="grd"):
+                if(os.path.exists(self.diskGridPath+'.xml')):
+                    epsg=extract_proj_str(self.diskGridPath+'.xml')
+                if(epsg== None):
+                    epsg=4326
+                    self.iface.messageBar().pushMessage("No CRS found in XML, default to 4326", level=Qgis.Warning, duration=15)
+                else:
+                    self.iface.messageBar().pushMessage("CRS Read from XML as "+str(epsg), level=Qgis.Info, duration=15)
+                #self.dlg.mQgsProjectionSelectionWidget.setCrs(QgsCoordinateReferenceSystem('EPSG:'+str(epsg)))
+                self.save_a_grid(epsg)
+            elif( suffix=="tif" or suffix=='ers'):
+                basename =os.path.basename(self.diskGridPath)
+                filename_without_extension =os.path.splitext(basename)[0]
+                self.layer = QgsRasterLayer(self.diskGridPath, filename_without_extension)
+                try:
+                    test_proj = self.layer.crs().authid().split(":")[1]
+                except:
+                    # Define the new CRS (e.g., EPSG:4326 for WGS84)
+                        new_crs = QgsCoordinateReferenceSystem("EPSG:4326")
+                        # Set the CRS for the raster layer
+                        self.layer.setCrs(new_crs)
+                if(not self.is_layer_loaded(self.diskGridPath)):
+                    QgsProject.instance().addMapLayer(self.layer)
 
     #save grd file as geotiff
     def save_a_grid(self,epsg):
@@ -892,14 +896,16 @@ class SGTool:
             self.iface.messageBar().pushMessage("You need to select a file first", level=Qgis.Warning, duration=3)
 
     def select_point_file(self):
+        start_directory = self.last_directory if self.last_directory else os.getcwd()
 
         self.diskPointsPath, _filter = QFileDialog.getOpenFileName(
             None,
             "Select Data File",
-            ".",
+            start_directory,
             "CSV (*.csv;*.txt;*.CSV;*.TXT)",
         )
         if os.path.exists(self.diskPointsPath) and self.diskPointsPath != "":
+            self.last_directory = os.path.dirname(self.diskPointsPath)
 
             self.pointData = pd.read_csv(self.diskPointsPath)
 

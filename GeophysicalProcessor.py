@@ -476,7 +476,7 @@ class GeophysicalProcessor:
             low_cut_k = 2 * np.pi / high_cut
 
             # Create a band-pass mask
-            filter_mask = (k >= low_cut_k) & (k <= high_cut_k)
+            filter_mask = (k <= low_cut_k) & (k >= high_cut_k)
 
 
             return (filter_mask)  # Band-pass filter mask

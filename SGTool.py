@@ -1086,28 +1086,30 @@ class SGTool:
         return self.raster_array
 
     def display_rad_power_spectrum(self):
-        self.pslayer=QgsProject.instance().mapLayersByName(self.localGridName)[0]
+        self.localGridName=self.dlg.mMapLayerComboBox_selectGrid.currentText()
+        if(self.localGridName !=""):
+            self.pslayer=QgsProject.instance().mapLayersByName(self.localGridName)[0]
+            if(self.pslayer.isValid()):
+                grid=self.extract_raster_to_numpy(self.pslayer)  # Your method to get NumPy array from raster
 
-        grid=self.extract_raster_to_numpy(self.pslayer)  # Your method to get NumPy array from raster
+                dx, dy = self.pslayer.rasterUnitsPerPixelX(), self.pslayer.rasterUnitsPerPixelY()
+                # Get extent
+                extent = self.pslayer.extent()
+                minx = extent.xMinimum()
+                maxx = extent.xMaximum()
+                miny = extent.yMinimum()
+                maxy = extent.yMaximum()
 
-        dx, dy = self.pslayer.rasterUnitsPerPixelX(), self.pslayer.rasterUnitsPerPixelY()
-        # Get extent
-        extent = self.pslayer.extent()
-        minx = extent.xMinimum()
-        maxx = extent.xMaximum()
-        miny = extent.yMinimum()
-        maxy = extent.yMaximum()
+                # Get number of columns (nx) and rows (ny)
+                provider = self.pslayer.dataProvider()
+                nx = provider.xSize()  # Number of columns
+                ny = provider.ySize()  # Number of rows
 
-        # Get number of columns (nx) and rows (ny)
-        provider = self.pslayer.dataProvider()
-        nx = provider.xSize()  # Number of columns
-        ny = provider.ySize()  # Number of rows
-
-        x=np.linspace(minx, maxx, provider.xSize() )
-        y=np.linspace(miny, maxy, provider.ySize() )
-        # Initialize the PowerSpectrumDock and display the plot
-        power_spectrum_dock = PowerSpectrumDock( grid,self.localGridName, dx, dy,x,y)
-        power_spectrum_dock.plot_grid_and_power_spectrum()
+                x=np.linspace(minx, maxx, provider.xSize() )
+                y=np.linspace(miny, maxy, provider.ySize() )
+                # Initialize the PowerSpectrumDock and display the plot
+                power_spectrum_dock = PowerSpectrumDock( grid,self.localGridName, dx, dy,x,y)
+                power_spectrum_dock.plot_grid_and_power_spectrum()
 
     def update_paths(self):
         self.localGridName=self.dlg.mMapLayerComboBox_selectGrid.currentText()

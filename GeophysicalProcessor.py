@@ -1,24 +1,23 @@
 import numpy as np
-from scipy.fftpack import fft2, ifft2,fftfreq
+from scipy.fftpack import fft2, ifft2, fftfreq
 from scipy.ndimage import gaussian_filter, sobel
 from numpy.polynomial.polynomial import polyvander2d, polyval2d
 from scipy.spatial import cKDTree
 from scipy.ndimage import uniform_filter
 
 
-
 class GeophysicalProcessor:
-    def __init__(self, dx, dy,buffer):
+    def __init__(self, dx, dy, buffer):
         """
         Initialize the processor with grid spacing.
-        
+
         Parameters:
             dx (float): Grid spacing in the x-direction.
             dy (float): Grid spacing in the y-direction.
         """
         self.dx = dx
         self.dy = dy
-        self.buffer=buffer
+        self.buffer = buffer
 
     # --- Utility Methods ---
     def create_wavenumber_grids(self, nx, ny):
@@ -53,7 +52,9 @@ class GeophysicalProcessor:
         if method == "mirror":
             return np.pad(data, pad_width=buffer_size, mode="reflect")
         elif method == "zero":
-            return np.pad(data, pad_width=buffer_size, mode="constant", constant_values=0)
+            return np.pad(
+                data, pad_width=buffer_size, mode="constant", constant_values=0
+            )
         else:
             raise ValueError("Invalid buffer method. Choose 'mirror' or 'zero'.")
 
@@ -68,7 +69,9 @@ class GeophysicalProcessor:
         """
         Remove a regional trend using polynomial fitting.
         """
-        X = np.column_stack([x**i * y**j for i in range(degree + 1) for j in range(degree + 1 - i)])
+        X = np.column_stack(
+            [x**i * y**j for i in range(degree + 1) for j in range(degree + 1 - i)]
+        )
         coeffs, _, _, _ = np.linalg.lstsq(X, z, rcond=None)
 
         # Evaluate polynomial on grid
@@ -77,14 +80,18 @@ class GeophysicalProcessor:
 
         return residual, trend
 
-    def remove_regional_trend_fourier(self, data, cutoff_wavelength, buffer_size=10, buffer_method="mirror"):
+    def remove_regional_trend_fourier(
+        self, data, cutoff_wavelength, buffer_size=10, buffer_method="mirror"
+    ):
         """
         Remove the regional trend using a low-pass filter in the Fourier domain.
         """
         return self.low_pass_filter(data, cutoff_wavelength, buffer_size, buffer_method)
 
-    #vertical integration 
-    def vertical_integration(self, data, max_wavenumber=None, buffer_size=10, buffer_method="mirror"):
+    # vertical integration
+    def vertical_integration(
+        self, data, max_wavenumber=None, buffer_size=10, buffer_method="mirror"
+    ):
         """
         Perform vertical integration of a field in the frequency domain.
 
@@ -97,52 +104,64 @@ class GeophysicalProcessor:
         Returns:
             numpy.ndarray: Vertically integrated data.
         """
+
         def filter_function(kx, ky):
             k = np.sqrt(kx**2 + ky**2) + 1e-10  # Avoid division by zero
             vertical_integration_filter = 1 / k
 
             # Apply max_wavenumber filtering if specified
-            #if max_wavenumber:
+            # if max_wavenumber:
             #    vertical_integration_filter[k > max_wavenumber] = 0
 
             return vertical_integration_filter
 
         # Apply the Fourier filter
-        return self._apply_fourier_filter(data, filter_function, buffer_size, buffer_method)
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
 
     # --- Continuation ---
     def upward_continuation(self, data, height, buffer_size=10, buffer_method="mirror"):
         """
         Perform upward continuation to attenuate high-frequency signals.
         """
+
         def filter_function(kx, ky):
             k = np.sqrt(kx**2 + ky**2)
             return np.exp(-k * height)
 
-        return self._apply_fourier_filter(data, filter_function, buffer_size, buffer_method)
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
 
-    def downward_continuation(self, data, height, buffer_size=10, buffer_method="mirror"):
+    def downward_continuation(
+        self, data, height, buffer_size=10, buffer_method="mirror"
+    ):
         """
         Perform downward continuation to enhance high-frequency signals.
         """
+
         def filter_function(kx, ky):
             k = np.sqrt(kx**2 + ky**2)
             return np.exp(k * height)
 
-        return self._apply_fourier_filter(data, filter_function, buffer_size, buffer_method)
-    
-    def total_hz_grad(self,data,buffer_size=10,buffer_method="mirror"):
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
+
+    def total_hz_grad(self, data, buffer_size=10, buffer_method="mirror"):
         """
-            Compute the total horizontal gradient (THG) of a 2D grid using Fourier filtering.
+        Compute the total horizontal gradient (THG) of a 2D grid using Fourier filtering.
 
-            Parameters:
-                data (numpy.ndarray): Input 2D grid data.
-                buffer_size (int): Buffer size for edge handling.
-                buffer_method (str): Buffering method ('mirror' or 'zero').
+        Parameters:
+            data (numpy.ndarray): Input 2D grid data.
+            buffer_size (int): Buffer size for edge handling.
+            buffer_method (str): Buffering method ('mirror' or 'zero').
 
-            Returns:
-                numpy.ndarray: Total horizontal gradient of the input data.
-            """
+        Returns:
+            numpy.ndarray: Total horizontal gradient of the input data.
+        """
+
         def filter_function_dx(kx, ky):
             """
             Fourier filter for the x-derivative.
@@ -156,19 +175,26 @@ class GeophysicalProcessor:
             return 1j * ky
 
         # Compute derivatives in x and y directions using the Fourier filter
-        dx = self._apply_fourier_filter(data, filter_function_dx, buffer_size, buffer_method)
-        dy = self._apply_fourier_filter(data, filter_function_dy, buffer_size, buffer_method)
+        dx = self._apply_fourier_filter(
+            data, filter_function_dx, buffer_size, buffer_method
+        )
+        dy = self._apply_fourier_filter(
+            data, filter_function_dy, buffer_size, buffer_method
+        )
 
         # Compute the total horizontal gradient
         thg = np.sqrt(dx**2 + dy**2)
 
-        return thg        
+        return thg
 
     # --- Reduction Methods ---
-    def reduction_to_pole(self, data, inclination, declination, buffer_size=10, buffer_method="mirror"):
+    def reduction_to_pole(
+        self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
+    ):
         """
         Perform Reduction to Pole (RTP).
         """
+
         def filter_function(kx, ky):
             k = np.sqrt(kx**2 + ky**2)
             incl = np.radians(inclination)
@@ -177,9 +203,13 @@ class GeophysicalProcessor:
             T = np.sin(incl) - 1j * np.cos(incl) * np.cos(decl) * kx / (k + 1e-10)
             return T / np.sqrt(T.real**2 + T.imag**2)
 
-        return self._apply_fourier_filter(data, filter_function, buffer_size, buffer_method)
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
 
-    def reduction_to_pole(self, data, inclination, declination, buffer_size=10, buffer_method="mirror"):
+    def reduction_to_pole(
+        self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
+    ):
         # Convert angles from degrees to radians
         inc, dec = np.radians(inclination), np.radians(declination)
 
@@ -188,7 +218,6 @@ class GeophysicalProcessor:
 
         # Add buffer
         buffered_data = self.add_buffer(filled_data, buffer_size, buffer_method)
-
 
         # Calculate frequency coordinates
         ny, nx = buffered_data.shape
@@ -204,13 +233,15 @@ class GeophysicalProcessor:
         sin_dec = np.sin(dec)
 
         # RTP filter
-        with np.errstate(divide='ignore', invalid='ignore'):
-            rtp_filter = (k * cos_inc * cos_dec + 1j * ky * cos_inc * sin_dec + kx * sin_inc) / k
+        with np.errstate(divide="ignore", invalid="ignore"):
+            rtp_filter = (
+                k * cos_inc * cos_dec + 1j * ky * cos_inc * sin_dec + kx * sin_inc
+            ) / k
 
         rtp_filter[np.abs(rtp_filter) > 1e6] = 0  # Stabilize extreme values
 
         # Apply max_wavenumber filtering based on cell size
-        #rtp_filter[k > 1/(float(self.dx)*2)] = 0
+        # rtp_filter[k > 1/(float(self.dx)*2)] = 0
 
         # Apply RTP filter in the Fourier domain
         data_fft = fft2(buffered_data)
@@ -222,7 +253,9 @@ class GeophysicalProcessor:
         filtered_data = self.remove_buffer(data_rtp, buffer_size)
         return self.restore_nan(filtered_data, nan_mask)
 
-    def reduction_to_equator(self, data, inclination, declination, buffer_size=10, buffer_method="mirror"):
+    def reduction_to_equator(
+        self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
+    ):
         # Convert angles from degrees to radians
         inc, dec = np.radians(inclination), np.radians(declination)
 
@@ -232,7 +265,6 @@ class GeophysicalProcessor:
         # Add buffer
         buffered_data = self.add_buffer(filled_data, buffer_size, buffer_method)
 
-
         # Calculate frequency coordinates
         ny, nx = buffered_data.shape
         kx = fftfreq(nx, self.dx) * 2 * np.pi
@@ -240,24 +272,23 @@ class GeophysicalProcessor:
         kx, ky = np.meshgrid(kx, ky, indexing="ij")
         k = np.sqrt(kx**2 + ky**2) + 1e-10  # Avoid division by zero
 
-
         # Directional cosines
         cos_inc = np.cos(inc)
         sin_inc = np.sin(inc)
         cos_dec = np.cos(dec)
         sin_dec = np.sin(dec)
 
-
         # RTP filter
-        #rte_filter = theta_f
-        with np.errstate(divide='ignore', invalid='ignore'):
-            rte_filter = ((k * cos_inc * cos_dec + 1j * ky * cos_inc * sin_dec + kx * sin_inc) /
-                        (k * cos_inc * cos_dec - 1j * ky * cos_inc * sin_dec + kx * sin_inc))
+        # rte_filter = theta_f
+        with np.errstate(divide="ignore", invalid="ignore"):
+            rte_filter = (
+                k * cos_inc * cos_dec + 1j * ky * cos_inc * sin_dec + kx * sin_inc
+            ) / (k * cos_inc * cos_dec - 1j * ky * cos_inc * sin_dec + kx * sin_inc)
 
         rte_filter[np.abs(rte_filter) > 1e6] = 0  # Stabilize extreme values
 
         # Apply max_wavenumber filtering based on cell size
-        #rte_filter[k > 1/(float(self.dx)*2)] = 0
+        # rte_filter[k > 1/(float(self.dx)*2)] = 0
 
         # Apply RTP filter in the Fourier domain
         data_fft = fft2(buffered_data)
@@ -268,13 +299,15 @@ class GeophysicalProcessor:
         # Remove buffer and restore NaNs
         filtered_data = self.remove_buffer(data_rte, buffer_size)
         return self.restore_nan(filtered_data, nan_mask)
-    
 
     # --- Derivatives ---
-    def compute_derivative(self, data, direction, order=1, buffer_size=10, buffer_method="mirror"):
+    def compute_derivative(
+        self, data, direction, order=1, buffer_size=10, buffer_method="mirror"
+    ):
         """
         Compute derivatives in x, y, or z directions.
         """
+
         def filter_function(kx, ky):
             if direction == "x":
                 return (1j * kx) ** order
@@ -285,32 +318,43 @@ class GeophysicalProcessor:
                 return k**order
             else:
                 raise ValueError("Invalid direction. Choose 'x', 'y', or 'z'.")
-    
-        return self._apply_fourier_filter(data, filter_function, buffer_size, buffer_method)
+
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
 
     def tilt_derivative(self, data, buffer_size=10, buffer_method="mirror"):
         """
         Compute the tilt derivative of the data.
         """
-        dfdx = self.compute_derivative(data, "x", buffer_size=buffer_size, buffer_method=buffer_method)
-        dfdy = self.compute_derivative(data, "y", buffer_size=buffer_size, buffer_method=buffer_method)
+        dfdx = self.compute_derivative(
+            data, "x", buffer_size=buffer_size, buffer_method=buffer_method
+        )
+        dfdy = self.compute_derivative(
+            data, "y", buffer_size=buffer_size, buffer_method=buffer_method
+        )
         horizontal_gradient = np.sqrt(dfdx**2 + dfdy**2)
-        dfdz = self.compute_derivative(data, "z", buffer_size=buffer_size, buffer_method=buffer_method)
+        dfdz = self.compute_derivative(
+            data, "z", buffer_size=buffer_size, buffer_method=buffer_method
+        )
         return np.arctan2(dfdz, horizontal_gradient)
-
 
     def analytic_signal(self, data, buffer_size=10, buffer_method="mirror"):
         """
         Compute the analytic signal amplitude.
         """
-        dfdx = self.compute_derivative(data, "x", buffer_size=buffer_size, buffer_method=buffer_method)
-        dfdy = self.compute_derivative(data, "y", buffer_size=buffer_size, buffer_method=buffer_method)
-        dfdz = self.compute_derivative(data, "z", buffer_size=buffer_size, buffer_method=buffer_method)
+        dfdx = self.compute_derivative(
+            data, "x", buffer_size=buffer_size, buffer_method=buffer_method
+        )
+        dfdy = self.compute_derivative(
+            data, "y", buffer_size=buffer_size, buffer_method=buffer_method
+        )
+        dfdz = self.compute_derivative(
+            data, "z", buffer_size=buffer_size, buffer_method=buffer_method
+        )
         return np.sqrt(dfdx**2 + dfdy**2 + dfdz**2)
 
-
-
-    def automatic_gain_control(self,grid, window_size):
+    def automatic_gain_control(self, grid, window_size):
         """
         Apply automatic gain control (AGC) to a 2D NumPy grid with edge handling.
 
@@ -326,15 +370,17 @@ class GeophysicalProcessor:
         abs_grid = np.abs(filled_data)
 
         # Pad the grid to handle edges using reflection
-        padded_abs_grid = np.pad(abs_grid, pad_width=int(3 * window_size), mode='reflect')
+        padded_abs_grid = np.pad(
+            abs_grid, pad_width=int(3 * window_size), mode="reflect"
+        )
 
         # Apply Gaussian smoothing to the padded grid
         smoothed_padded_grid = gaussian_filter(padded_abs_grid, sigma=window_size)
 
         # Remove padding
         smoothed_grid = smoothed_padded_grid[
-            int(3 * window_size):-int(3 * window_size),
-            int(3 * window_size):-int(3 * window_size)
+            int(3 * window_size) : -int(3 * window_size),
+            int(3 * window_size) : -int(3 * window_size),
         ]
 
         # Prevent division by zero by adding a small constant
@@ -343,9 +389,11 @@ class GeophysicalProcessor:
         # Apply AGC: normalize the original grid by the smoothed grid
         agc_grid = grid / smoothed_grid
 
-        return  self.restore_nan(agc_grid, nan_mask)
+        return self.restore_nan(agc_grid, nan_mask)
 
-    def minimum_curvature_gridding(self,x, y, z, grid_x, grid_y, max_iterations=1000, tolerance=1e-6):
+    def minimum_curvature_gridding(
+        self, x, y, z, grid_x, grid_y, max_iterations=1000, tolerance=1e-6
+    ):
         """
         Perform minimum curvature gridding to interpolate scattered data onto a regular grid.
 
@@ -381,9 +429,16 @@ class GeophysicalProcessor:
             for i in range(1, grid.shape[0] - 1):
                 for j in range(1, grid.shape[1] - 1):
                     if nan_mask[i, j]:  # Only update NaN (interpolated) cells
-                        grid[i, j] = (
-                            0.25 * (grid[i + 1, j] + grid[i - 1, j] + grid[i, j + 1] + grid[i, j - 1])
-                            - 0.125 * (grid[i + 1, j + 1] + grid[i - 1, j - 1] + grid[i + 1, j - 1] + grid[i - 1, j + 1])
+                        grid[i, j] = 0.25 * (
+                            grid[i + 1, j]
+                            + grid[i - 1, j]
+                            + grid[i, j + 1]
+                            + grid[i, j - 1]
+                        ) - 0.125 * (
+                            grid[i + 1, j + 1]
+                            + grid[i - 1, j - 1]
+                            + grid[i + 1, j - 1]
+                            + grid[i - 1, j + 1]
                         )
 
             # Check for convergence
@@ -396,7 +451,9 @@ class GeophysicalProcessor:
 
         return np.flipud(grid)
 
-    def minimum_curvature_griddingx(self,x, y, z, grid_x, grid_y, max_iterations=1000, tolerance=1e-4):
+    def minimum_curvature_griddingx(
+        self, x, y, z, grid_x, grid_y, max_iterations=1000, tolerance=1e-4
+    ):
         """
         Perform minimum curvature gridding on scattered data.
 
@@ -410,11 +467,11 @@ class GeophysicalProcessor:
         Returns:
             numpy.ndarray: Gridded values.
         """
-        points=zip(x, y, z)
+        points = zip(x, y, z)
         # Initialize the grid with a distance-weighted average
         grid = np.zeros_like(grid_x, dtype=float)
         for xi, yi, zi in zip(x, y, z):
-            distances = np.sqrt((grid_x - xi)**2 + (grid_y - yi)**2)
+            distances = np.sqrt((grid_x - xi) ** 2 + (grid_y - yi) ** 2)
             distances[distances == 0] = 1e-10  # Prevent division by zero
             grid += zi / distances
         grid /= len(x)
@@ -430,8 +487,12 @@ class GeophysicalProcessor:
             for i in range(1, grid.shape[0] - 1):
                 for j in range(1, grid.shape[1] - 1):
                     if mask[i, j]:
-                        grid[i, j] = 0.25 * (old_grid[i+1, j] + old_grid[i-1, j] +
-                                            old_grid[i, j+1] + old_grid[i, j-1])
+                        grid[i, j] = 0.25 * (
+                            old_grid[i + 1, j]
+                            + old_grid[i - 1, j]
+                            + old_grid[i, j + 1]
+                            + old_grid[i, j - 1]
+                        )
 
             # Check for convergence
             max_diff = np.nanmax(np.abs(grid - old_grid))
@@ -443,33 +504,45 @@ class GeophysicalProcessor:
 
         return np.flipud(grid)
 
-
-    def low_pass_filter(self, data, cutoff_wavelength, buffer_size=10, buffer_method="mirror"):
+    def low_pass_filter(
+        self, data, cutoff_wavelength, buffer_size=10, buffer_method="mirror"
+    ):
         """
         Apply a low-pass filter to suppress high-frequency noise.
         """
+
         def filter_function(kx, ky):
             k = np.sqrt(kx**2 + ky**2)
-            cutoff_k = 2 * np.pi / (cutoff_wavelength+1e-10)
+            cutoff_k = 2 * np.pi / (cutoff_wavelength + 1e-10)
             return k < cutoff_k  # Low-pass filter mask
 
-        return self._apply_fourier_filter(data, filter_function, buffer_size, buffer_method)
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
 
-    def high_pass_filter(self, data, cutoff_wavelength, buffer_size=10, buffer_method="mirror"):
+    def high_pass_filter(
+        self, data, cutoff_wavelength, buffer_size=10, buffer_method="mirror"
+    ):
         """
         Apply a high-pass filter to remove regional trends.
         """
+
         def filter_function(kx, ky):
             k = np.sqrt(kx**2 + ky**2)
-            cutoff_k = 2 * np.pi / (cutoff_wavelength+1e-10)
+            cutoff_k = 2 * np.pi / (cutoff_wavelength + 1e-10)
             return k > cutoff_k  # High-pass filter mask
 
-        return self._apply_fourier_filter(data, filter_function, buffer_size, buffer_method)
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
 
-    def band_pass_filter(self, data, low_cut, high_cut, buffer_size=10, buffer_method="mirror"):
+    def band_pass_filter(
+        self, data, low_cut, high_cut, buffer_size=10, buffer_method="mirror"
+    ):
         """
         Apply a band-pass filter to isolate anomalies within a wavelength range.
         """
+
         def filter_function(kx, ky):
             k = np.sqrt(kx**2 + ky**2)
             high_cut_k = 2 * np.pi / low_cut
@@ -478,12 +551,21 @@ class GeophysicalProcessor:
             # Create a band-pass mask
             filter_mask = (k <= low_cut_k) & (k >= high_cut_k)
 
+            return filter_mask  # Band-pass filter mask
 
-            return (filter_mask)  # Band-pass filter mask
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
 
-        return self._apply_fourier_filter(data, filter_function, buffer_size, buffer_method)
-    
-    def directional_band_reject_filter(self, data, low_cut, high_cut, direction_angle, buffer_size=10, buffer_method="mirror"):
+    def directional_band_reject_filter(
+        self,
+        data,
+        low_cut,
+        high_cut,
+        direction_angle,
+        buffer_size=10,
+        buffer_method="mirror",
+    ):
         """
         Apply a directional band-reject filter to isolate anomalies in a specific frequency band and direction.
 
@@ -513,13 +595,16 @@ class GeophysicalProcessor:
             directional_k = kx * np.cos(theta) + ky * np.sin(theta)
 
             # Create the directional band-reject mask
-            filter_mask = ((k >= low_cut_k) & (k <= high_cut_k) & (np.abs(directional_k) > 0))
+            filter_mask = (
+                (k >= low_cut_k) & (k <= high_cut_k) & (np.abs(directional_k) > 0)
+            )
             # Debugging: Ensure the filter mask is valid
 
-
             return filter_mask
-        
-        return self._apply_fourier_filter(data, filter_function, buffer_size, buffer_method)
+
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
 
     def apply_window(data, window="hann"):
         """
@@ -546,7 +631,6 @@ class GeophysicalProcessor:
         window_2d = np.outer(wy, wx)
         return data * window_2d
 
-
     def total_horizontal_gradient(self, data, buffer_size=10, buffer_method="mirror"):
         """
         Compute the total horizontal gradient (THG) of a 2D grid using Fourier filtering.
@@ -559,6 +643,7 @@ class GeophysicalProcessor:
         Returns:
             numpy.ndarray: Total horizontal gradient of the input data.
         """
+
         def filter_function_dx(kx, ky):
             """
             Fourier filter for the x-derivative.
@@ -572,58 +657,70 @@ class GeophysicalProcessor:
             return 1j * ky
 
         # Compute derivatives in x and y directions using the Fourier filter
-        dx = self._apply_fourier_filter(data, filter_function_dx, buffer_size, buffer_method)
-        dy = self._apply_fourier_filter(data, filter_function_dy, buffer_size, buffer_method)
+        dx = self._apply_fourier_filter(
+            data, filter_function_dx, buffer_size, buffer_method
+        )
+        dy = self._apply_fourier_filter(
+            data, filter_function_dy, buffer_size, buffer_method
+        )
 
         # Compute the total horizontal gradient
         thg = np.sqrt(dx**2 + dy**2)
 
         return thg
 
-
-    def directional_cosine_filter(self, kx, ky, center_direction,degree):
+    def directional_cosine_filter(self, kx, ky, center_direction, degree):
         """
         Directional Cosine Filter in the Fourier domain.
         """
         theta = np.arctan2(ky, kx)  # Direction of each frequency component
-        center_radians = np.deg2rad(center_direction)  # Convert center direction to radians
+        center_radians = np.deg2rad(
+            center_direction
+        )  # Convert center direction to radians
         directional_filter = np.abs(np.cos(theta - center_radians)) ** degree
         return directional_filter
 
-    def combined_BHP_DirCos_filter(self, data, cutoff_wavelength, center_direction, degree,buffer_size):
+    def combined_BHP_DirCos_filter(
+        self, data, cutoff_wavelength, center_direction, degree, buffer_size
+    ):
         """
         Apply the Directional Cosine filter to the data.
         """
+
         def filter_function_dc(kx, ky):
             # Create the Direction Cosine high-pass filter
-            directional = self.directional_cosine_filter(kx, ky, center_direction,degree)
+            directional = self.directional_cosine_filter(
+                kx, ky, center_direction, degree
+            )
 
-            return directional 
-        
-        return self._apply_fourier_filter(data, filter_function_dc, buffer_size=10, buffer_method="mirror")
-        
+            return directional
+
+        return self._apply_fourier_filter(
+            data, filter_function_dc, buffer_size=10, buffer_method="mirror"
+        )
 
     # --- Internal Fourier Filter Application ---
-    def _apply_fourier_filter(self, data, filter_function, buffer_size=10, buffer_method="mirror"):
+    def _apply_fourier_filter(
+        self, data, filter_function, buffer_size=10, buffer_method="mirror"
+    ):
         """
         Apply a Fourier-domain filter with buffering and NaN handling.
         """
+        # inpaint NaN values
         # Handle NaN values
         filled_data, nan_mask = self.fill_nan(data)
-
         # Add buffer
         buffered_data = self.add_buffer(filled_data, buffer_size, buffer_method)
 
-        #buffered_data=self.apply_window(buffered_data)
+        # buffered_data=self.apply_window(buffered_data)
         # Fourier transform
         data_fft = fft2(buffered_data)
-
 
         # Compute filter
         ny, nx = buffered_data.shape
         kx, ky = self.create_wavenumber_grids(nx, ny)
         filter_array = filter_function(kx, ky)
-        
+
         # Apply filter
         filtered_fft = data_fft * filter_array
 
@@ -644,7 +741,9 @@ if __name__ == "__main__":
     x = np.linspace(0, 99, nx)
     y = np.linspace(0, 99, ny)
     X, Y = np.meshgrid(x, y)
-    data = 0.01 * X**2 + 0.02 * Y + np.sin(2 * np.pi * X / 10) + np.cos(2 * np.pi * Y / 15)
+    data = (
+        0.01 * X**2 + 0.02 * Y + np.sin(2 * np.pi * X / 10) + np.cos(2 * np.pi * Y / 15)
+    )
 
     # Add NaNs
     data[40:60, 40:60] = np.nan
@@ -676,7 +775,9 @@ if __name__ == "__main__":
     grid_x, grid_y = np.meshgrid(np.linspace(0, 40, 50), np.linspace(0, 40, 50))
 
     # Remove polynomial trend
-    residual, trend = processor.remove_polynomial_trend(x, y, z, grid_x, grid_y, degree=2)
+    residual, trend = processor.remove_polynomial_trend(
+        x, y, z, grid_x, grid_y, degree=2
+    )
 
     # Plot results
     plt.imshow(trend, cmap="viridis", origin="lower")
@@ -685,7 +786,9 @@ if __name__ == "__main__":
     plt.show()
 
     # Remove regional trend using Fourier (low-pass filter)
-    regional_removed = processor.remove_regional_trend_fourier(data, cutoff_wavelength=30)
+    regional_removed = processor.remove_regional_trend_fourier(
+        data, cutoff_wavelength=30
+    )
 
     # Plot results
     plt.imshow(regional_removed, cmap="viridis", origin="lower")
@@ -720,7 +823,6 @@ if __name__ == "__main__":
     plt.title("Reduction to Pole")
     plt.show()
 
-
     # Perform Reduction to Equator
     rte_result = processor.reduction_to_equator(data, inclination=10, declination=30)
 
@@ -739,7 +841,6 @@ if __name__ == "__main__":
     plt.title("Horizontal Derivative (X-Direction)")
     plt.show()
 
-
     # Compute first vertical derivative
     dz_result = processor.compute_derivative(data, direction="z", order=1)
 
@@ -749,16 +850,16 @@ if __name__ == "__main__":
     plt.title("Vertical Derivative")
     plt.show()
 
-
     # Compute tilt derivative
     tilt_result = processor.tilt_derivative(data)
 
     # Plot results
-    plt.imshow(tilt_result, cmap="seismic", origin="lower", vmin=-np.pi/2, vmax=np.pi/2)
+    plt.imshow(
+        tilt_result, cmap="seismic", origin="lower", vmin=-np.pi / 2, vmax=np.pi / 2
+    )
     plt.colorbar()
     plt.title("Tilt Derivative")
     plt.show()
-
 
     # Compute analytic signal
     analytic_signal_result = processor.analytic_signal(data)
@@ -768,7 +869,6 @@ if __name__ == "__main__":
     plt.colorbar()
     plt.title("Analytic Signal")
     plt.show()
-
 
     # Apply Automatic Gain Control
     agc_result = processor.automatic_gain_control(data, window_size=5)
@@ -805,4 +905,3 @@ if __name__ == "__main__":
     plt.colorbar()
     plt.title("Band-Pass Filter")
     plt.show()
-

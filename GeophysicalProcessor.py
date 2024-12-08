@@ -187,13 +187,13 @@ class GeophysicalProcessor:
 
         return thg
 
-    # --- Reduction Methods ---
+    """# --- Reduction Methods ---
     def reduction_to_pole(
         self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
     ):
-        """
-        Perform Reduction to Pole (RTP).
-        """
+        
+        #Perform Reduction to Pole (RTP).
+        
 
         def filter_function(kx, ky):
             k = np.sqrt(kx**2 + ky**2)
@@ -205,7 +205,7 @@ class GeophysicalProcessor:
 
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method
-        )
+        )"""
 
     def reduction_to_pole(
         self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
@@ -391,119 +391,6 @@ class GeophysicalProcessor:
 
         return self.restore_nan(agc_grid, nan_mask)
 
-    def minimum_curvature_gridding(
-        self, x, y, z, grid_x, grid_y, max_iterations=1000, tolerance=1e-6
-    ):
-        """
-        Perform minimum curvature gridding to interpolate scattered data onto a regular grid.
-
-        Parameters:
-            x, y (1D array): Coordinates of the input data points.
-            z (1D array): Values at the input data points.
-            grid_x, grid_y (2D arrays): Regular grid coordinates for interpolation.
-            max_iterations (int): Maximum number of iterations for convergence.
-            tolerance (float): Convergence criterion based on change in grid values.
-
-        Returns:
-            2D array: Interpolated grid values.
-        """
-        # Initialize grid
-        grid = np.full(grid_x.shape, np.nan)
-
-        # Assign known values to the grid
-        for xi, yi, zi in zip(x, y, z):
-            # Find the nearest grid point
-            ix = np.argmin(np.abs(grid_x[0, :] - xi))
-            iy = np.argmin(np.abs(grid_y[:, 0] - yi))
-            grid[iy, ix] = zi
-
-        # Fill initial NaN values with the average of known values
-        nan_mask = np.isnan(grid)
-        grid[nan_mask] = np.nanmean(grid)
-
-        # Iteratively solve for minimum curvature
-        for iteration in range(max_iterations):
-            grid_old = grid.copy()
-
-            # Update each grid cell
-            for i in range(1, grid.shape[0] - 1):
-                for j in range(1, grid.shape[1] - 1):
-                    if nan_mask[i, j]:  # Only update NaN (interpolated) cells
-                        grid[i, j] = 0.25 * (
-                            grid[i + 1, j]
-                            + grid[i - 1, j]
-                            + grid[i, j + 1]
-                            + grid[i, j - 1]
-                        ) - 0.125 * (
-                            grid[i + 1, j + 1]
-                            + grid[i - 1, j - 1]
-                            + grid[i + 1, j - 1]
-                            + grid[i - 1, j + 1]
-                        )
-
-            # Check for convergence
-            max_change = np.nanmax(np.abs(grid - grid_old))
-            if max_change < tolerance:
-                print(f"Converged after {iteration + 1} iterations.")
-                break
-        else:
-            print("Maximum iterations reached without full convergence.")
-
-        return np.flipud(grid)
-
-    def minimum_curvature_griddingx(
-        self, x, y, z, grid_x, grid_y, max_iterations=1000, tolerance=1e-4
-    ):
-        """
-        Perform minimum curvature gridding on scattered data.
-
-        Parameters:
-            points (iterable): Iterable of (x, y, z) tuples.
-            grid_x (numpy.ndarray): 2D array of x-coordinates for the output grid.
-            grid_y (numpy.ndarray): 2D array of y-coordinates for the output grid.
-            max_iterations (int): Maximum number of iterations for the solver.
-            tolerance (float): Convergence tolerance.
-
-        Returns:
-            numpy.ndarray: Gridded values.
-        """
-        points = zip(x, y, z)
-        # Initialize the grid with a distance-weighted average
-        grid = np.zeros_like(grid_x, dtype=float)
-        for xi, yi, zi in zip(x, y, z):
-            distances = np.sqrt((grid_x - xi) ** 2 + (grid_y - yi) ** 2)
-            distances[distances == 0] = 1e-10  # Prevent division by zero
-            grid += zi / distances
-        grid /= len(x)
-
-        # Mask for grid cells that do not have observed values
-        mask = np.isnan(grid)
-
-        # Iterative solver
-        for iteration in range(max_iterations):
-            old_grid = grid.copy()
-
-            # Update the grid using a 5-point Laplacian smoothing operator
-            for i in range(1, grid.shape[0] - 1):
-                for j in range(1, grid.shape[1] - 1):
-                    if mask[i, j]:
-                        grid[i, j] = 0.25 * (
-                            old_grid[i + 1, j]
-                            + old_grid[i - 1, j]
-                            + old_grid[i, j + 1]
-                            + old_grid[i, j - 1]
-                        )
-
-            # Check for convergence
-            max_diff = np.nanmax(np.abs(grid - old_grid))
-            if max_diff < tolerance:
-                print(f"Converged after {iteration} iterations.")
-                break
-        else:
-            print("Did not converge within the maximum number of iterations.")
-
-        return np.flipud(grid)
-
     def low_pass_filter(
         self, data, cutoff_wavelength, buffer_size=10, buffer_method="mirror"
     ):
@@ -556,80 +443,6 @@ class GeophysicalProcessor:
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method
         )
-
-    def directional_band_reject_filter(
-        self,
-        data,
-        low_cut,
-        high_cut,
-        direction_angle,
-        buffer_size=10,
-        buffer_method="mirror",
-    ):
-        """
-        Apply a directional band-reject filter to isolate anomalies in a specific frequency band and direction.
-
-        Parameters:
-            data (numpy.ndarray): Input 2D grid.
-            low_cut (float): Minimum wavelength to reject.
-            high_cut (float): Maximum wavelength to reject.
-            direction_angle (float): Direction of the filter in degrees (clockwise from North).
-            buffer_size (int): Buffer size for edge handling.
-            buffer_method (str): Buffering method ('mirror' or 'zero').
-
-        Returns:
-            numpy.ndarray: Filtered data with specified directional band removed.
-        """
-        if low_cut >= high_cut:
-            raise ValueError("low_cut must be smaller than high_cut.")
-
-        # Convert direction angle to radians
-        theta = np.radians(direction_angle)
-
-        def filter_function(kx, ky):
-            k = np.sqrt(kx**2 + ky**2) + 1e-10  # Avoid division by zero
-            high_cut_k = 2 * np.pi / low_cut
-            low_cut_k = 2 * np.pi / high_cut
-
-            # Directional wavenumber component
-            directional_k = kx * np.cos(theta) + ky * np.sin(theta)
-
-            # Create the directional band-reject mask
-            filter_mask = (
-                (k >= low_cut_k) & (k <= high_cut_k) & (np.abs(directional_k) > 0)
-            )
-            # Debugging: Ensure the filter mask is valid
-
-            return filter_mask
-
-        return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
-        )
-
-    def apply_window(data, window="hann"):
-        """
-        Apply a tapering window function to reduce edge effects.
-
-        Parameters:
-            data (2D array): Input grid.
-            window (str): Type of window function ('hann', 'hamming', etc.).
-
-        Returns:
-            2D array: Windowed grid.
-        """
-        ny, nx = data.shape
-
-        if window == "hann":
-            wx = np.hanning(nx)
-            wy = np.hanning(ny)
-        elif window == "hamming":
-            wx = np.hamming(nx)
-            wy = np.hamming(ny)
-        else:
-            raise ValueError("Unsupported window type.")
-
-        window_2d = np.outer(wy, wx)
-        return data * window_2d
 
     def total_horizontal_gradient(self, data, buffer_size=10, buffer_method="mirror"):
         """

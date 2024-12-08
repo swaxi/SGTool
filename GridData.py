@@ -13,6 +13,8 @@ from scipy.optimize import minimize
 class GridData:
     def __init__(self, df, nx, ny, grid_bounds=None):
         self.validate_input(df)
+        df = df.dropna(subset=["value"])
+        df = df.apply(pd.to_numeric, errors="coerce")
         self.original_df = df.copy()  # Keep a copy of the original data
         self.x = df["x"].values
         self.y = df["y"].values
@@ -23,6 +25,7 @@ class GridData:
 
         # Normalize data
         self.normalize_data()
+        self.interpolator = None
 
         self.grid_x, self.grid_y = self.create_grid(grid_bounds=None)
 
@@ -64,7 +67,7 @@ class GridData:
 
     def interpolate(self, method="akima", **kwargs):
         if method == "akima":
-            grid_data = self.akima_2d_interpolation()
+            grid_data = self.akima_interpolation()
         elif method == "clough_tocher":
             grid_data = self.clough_tocher_interpolation()
         elif method == "rbf":
@@ -80,47 +83,6 @@ class GridData:
 
         # Denormalize the interpolated values
         return self.denormalize_grid(grid_data)
-
-    def akima_2d_interpolation(self):
-        """
-        Perform Akima interpolation in 2D using 1D interpolation along each axis.
-
-        This function first grids the scattered data (if necessary) and then performs
-        1D Akima interpolation along each axis to fill the grid.
-        """
-
-        grid_x = self.grid_x
-        grid_y = self.grid_y
-
-        # Grid the scattered data using scipy.interpolate.griddata
-        grid_values = griddata(
-            points=(self.x, self.y),
-            values=self.values,  # Scattered points and values
-            xi=(grid_x, grid_y),
-            method="linear",  # Grid points and interpolation method
-        )
-
-        # Handle NaN values in the grid (if any)
-        if np.isnan(grid_values).any():
-            grid_values = np.nan_to_num(grid_values, nan=np.mean(self.values))
-
-        # Interpolate along the y-axis first (rows)
-        intermediate = np.zeros((grid_y.shape[0], grid_x.shape[1]))
-        for i in range(grid_x.shape[1]):
-            akima = Akima1DInterpolator(
-                grid_y[:, 0], grid_values[:, i], method="makima"
-            )
-            intermediate[:, i] = akima(grid_y[:, 0])
-
-        # Interpolate along the x-axis (columns)
-        result = np.zeros((grid_y.shape[0], grid_x.shape[1]))
-        for i in range(grid_y.shape[0]):
-            akima = Akima1DInterpolator(
-                grid_x[0, :], intermediate[i, :], method="makima"
-            )
-            result[i, :] = akima(grid_x[0, :])
-
-        return result
 
     def clough_tocher_interpolation(self):
         interpolator = CloughTocher2DInterpolator(
@@ -161,3 +123,129 @@ class GridData:
         )
         df.to_csv(filename, index=False)
         print(f"Grid data saved to {filename}")
+
+    def akima_interpolation(self):
+        """
+        Perform 2D Akima interpolation on the grid.
+
+        Returns:
+        - Interpolated values on the grid.
+        """
+        akima_2d = IterativeAkima2D(
+            self.x, self.y, self.values, self.grid_x, self.grid_y, iterations=5
+        )
+        grid_z = akima_2d.interpolate()
+
+        return grid_z
+
+
+class IterativeAkima2D:
+    def __init__(self, x, y, values, grid_x, grid_y, iterations=3):
+        """
+        Iterative 2D Akima Interpolation.
+
+        Parameters:
+        - x: 1D array of x-coordinates of data points.
+        - y: 1D array of y-coordinates of data points.
+        - values: 1D array of values at the data points.
+        - grid_x: 2D array of x-coordinates for the output grid.
+        - grid_y: 2D array of y-coordinates for the output grid.
+        - iterations: Number of iterations to refine the interpolation.
+        """
+        self.x = x
+        self.y = y
+        self.values = values
+        self.grid_x = grid_x
+        self.grid_y = grid_y
+        self.iterations = iterations
+        self.grid_z = np.full(grid_x.shape, np.nan)
+
+    def interpolate(self):
+        """
+        Perform iterative 2D Akima interpolation.
+
+        Returns:
+        - 2D array of interpolated values.
+        """
+        # Initialize grid with nearest-neighbor interpolation for better propagation
+        self.grid_z = self.nearest_neighbor_init()
+
+        for iteration in range(self.iterations):
+            # Copy grid for blending
+            row_result = np.copy(self.grid_z)
+            col_result = np.copy(self.grid_z)
+
+            # Interpolate row-wise
+            for i, yi in enumerate(self.grid_y[:, 0]):
+                row_indices = np.where(np.isclose(self.y, yi, atol=1e-6))[0]
+                if len(row_indices) < 2:
+                    continue
+
+                x_row = self.x[row_indices]
+                z_row = self.values[row_indices]
+
+                # Ensure strict ordering and remove duplicates
+                sorted_indices = np.argsort(x_row)
+                x_row = x_row[sorted_indices]
+                z_row = z_row[sorted_indices]
+                x_row, unique_indices = np.unique(x_row, return_index=True)
+                z_row = z_row[unique_indices]
+
+                if len(x_row) < 2:
+                    continue
+
+                akima = Akima1DInterpolator(x_row, z_row)
+                row_result[i, :] = akima(self.grid_x[i, :])
+
+            # Interpolate column-wise
+            for j, xi in enumerate(self.grid_x[0, :]):
+                col_indices = np.where(np.isclose(self.x, xi, atol=1e-6))[0]
+                if len(col_indices) < 2:
+                    continue
+
+                y_col = self.y[col_indices]
+                z_col = self.values[col_indices]
+
+                # Ensure strict ordering and remove duplicates
+                sorted_indices = np.argsort(y_col)
+                y_col = y_col[sorted_indices]
+                z_col = z_col[sorted_indices]
+                y_col, unique_indices = np.unique(y_col, return_index=True)
+                z_col = z_col[unique_indices]
+
+                if len(y_col) < 2:
+                    continue
+
+                akima = Akima1DInterpolator(y_col, z_col)
+                col_result[:, j] = akima(self.grid_y[:, j])
+
+            # Blend row-wise and column-wise results
+            valid_row = np.isfinite(row_result)
+            valid_col = np.isfinite(col_result)
+            self.grid_z[valid_row & valid_col] = (
+                0.5 * row_result[valid_row & valid_col]
+                + 0.5 * col_result[valid_row & valid_col]
+            )
+
+            # Fill gaps in the grid from either row-wise or column-wise results
+            self.grid_z[valid_row & ~valid_col] = row_result[valid_row & ~valid_col]
+            self.grid_z[~valid_row & valid_col] = col_result[~valid_row & valid_col]
+
+        return self.grid_z
+
+    def nearest_neighbor_init(self):
+        """
+        Initialize the grid using nearest-neighbor interpolation.
+
+        Returns:
+        - 2D array of initial grid values.
+        """
+        from scipy.interpolate import griddata
+
+        return griddata(
+            points=np.column_stack((self.x, self.y)),
+            values=self.values,
+            xi=(self.grid_x, self.grid_y),
+            method="nearest",
+            fill_value=np.nan,
+        )

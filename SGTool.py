@@ -29,14 +29,13 @@ from qgis.PyQt.QtWidgets import QAction
 from qgis.core import (
     Qgis,
     QgsCoordinateReferenceSystem,
-    QgsCoordinateTransform,
     QgsVectorLayer,
     QgsProject,
     QgsRasterLayer,
+    QgsRasterDataProvider,
+    QgsSingleBandGrayRenderer,
     QgsFeature,
     QgsField,
-    QgsVectorFileWriter,
-    QgsPoint,
 )
 from qgis.PyQt.QtWidgets import QAction, QFileDialog
 from qgis.PyQt.QtCore import (
@@ -48,11 +47,7 @@ from qgis.PyQt.QtCore import (
     Qt,
 )
 
-from qgis.core import QgsRasterLayer, QgsRectangle
-from PyQt5.QtWidgets import QVBoxLayout, QDialog
-from PyQt5.QtGui import QValidator
-from PyQt5 import uic
-from PyQt5.QtWidgets import QTabWidget
+from qgis.core import QgsRasterLayer
 from qgis.core import (
     QgsProject,
     QgsVectorLayer,
@@ -255,7 +250,10 @@ class SGTool:
         del self.toolbar
 
     def define_tips(self):
-        self.dlg.mMapLayerComboBox_selectGrid.setToolTip("Process previous loaded file")
+        self.dlg.mMapLayerComboBox_selectGrid.setToolTip("File selected for processing")
+        self.dlg.mMapLayerComboBox_selectGrid_Conv.setToolTip(
+            "File selected for processing"
+        )
         self.dlg.pushButton_2_selectGrid.setToolTip("Load new file for processing")
         self.dlg.checkBox_3_DirClean.setToolTip(
             "Filter [DirC} a specific direction and wavelength,\nUseful for filtering flight line noise"
@@ -266,9 +264,7 @@ class SGTool:
         self.dlg.lineEdit_3_azimuth.setToolTip(
             "Azimuth of high frequency noise to be filtered (degrees clockwise from North)"
         )
-        self.dlg.lineEdit_4_lineSpacing.setToolTip(
-            "Wavelength (Line spacing) of high frequency noise to be filtered [m or other length unit]"
-        )
+
         self.dlg.checkBox_4_RTE_P.setToolTip(
             "Reduction to pole or equator\nThe reduction to the pole (RTP) or to Equator (RTE) is a process in geophysics\nwhere magnetic data are transformed to look as though\n they were measured at the magnetic pole/equator\nCorrects the asymmetry of magnetic anomalies caused by\n the Earth's field, making them appear directly above their sources"
         )
@@ -290,10 +286,10 @@ class SGTool:
         self.dlg.lineEdit_7_height.setToolTip("Survey height [m or other length unit]")
         self.dlg.dateEdit.setToolTip("Survey date")
         self.dlg.checkBox_4_PGrav.setToolTip(
-            "Vertical Integration:\nWhen applied to RTE_P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing."
+            "Vertical Integration:\nWhen applied to RTE/P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing."
         )
         self.dlg.label_39.setToolTip(
-            "Vertical Integration:\nWhen applied to RTE_P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing."
+            "Vertical Integration:\nWhen applied to RTE/P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing."
         )
         self.dlg.checkBox_5_regional.setToolTip(
             "Remove regional (RR) based on wavelenth"
@@ -366,6 +362,9 @@ class SGTool:
         self.dlg.pushButton_3_applyProcessing.setToolTip(
             "Apply selected processing steps in parallel to selected grid"
         )
+        self.dlg.pushButton_3_applyProcessing_Conv.setToolTip(
+            "Apply selected processing steps in parallel to selected grid"
+        )
         self.dlg.lineEdit_13_max_buffer.setToolTip(
             "Maximum buffer to be applied to grid to reduce edge effects"
         )
@@ -376,6 +375,21 @@ class SGTool:
         self.dlg.pushButton_rad_power_spectrum.setToolTip(
             "Provides pop-up display of grid plus Radial Averaged Power Spectrum (needs testing!)"
         )
+
+        self.dlg.checkBox_Mean.setToolTip("Mean of values around central pixel")
+        self.dlg.label_66.setToolTip("Mean of values around central pixel")
+
+        self.dlg.checkBox_Median.setToolTip("Median of values around central pixel")
+        self.dlg.label_57.setToolTip("Median of values around central pixel")
+
+        self.dlg.checkBox_Gaussian.setToolTip("Gaussian smoothing of image")
+        self.dlg.label_59.setToolTip("Gaussian smoothing of image")
+
+        self.dlg.checkBox_Directional.setToolTip("Directional enhancement")
+        self.dlg.label_56.setToolTip("Directional enhancement")
+
+        self.dlg.checkBox_SunShading.setToolTip("Sun Shading")
+        self.dlg.label_61.setToolTip("Sun Shading")
 
     def initParams(self):
         self.localGridName = ""
@@ -429,7 +443,6 @@ class SGTool:
 
         self.DirClean = self.dlg.checkBox_3_DirClean.isChecked()
         self.DC_azimuth = self.dlg.lineEdit_3_azimuth.text()
-        self.DC_lineSpacing = self.dlg.lineEdit_4_lineSpacing.text()
 
         self.RTE_P = self.dlg.checkBox_4_RTE_P.isChecked()
         self.RTE_P_type = self.dlg.comboBox_3_rte_p_list.currentText()
@@ -484,8 +497,8 @@ class SGTool:
         self.directional_dir = self.dlg.comboBox_Dir_dir.currentText()
 
         self.SunShade = self.dlg.checkBox_SunShading.isChecked()
-        self.sun_shade_az = int(self.dlg.lineEdit_SunSh_Az.text())
-        self.sun_shade_zn = int(self.dlg.lineEdit_SunSh_Zn.text())
+        self.sun_shade_az = float(self.dlg.lineEdit_SunSh_Az.text())
+        self.sun_shade_zn = float(self.dlg.lineEdit_SunSh_Zn.text())
 
     def loadGrid(self):
         fileInfo = QFileInfo(self.diskGridPath)
@@ -710,7 +723,9 @@ class SGTool:
 
     def procSunShade(self):
         self.new_grid = self.convolution.sun_shading_filter(
-            self.raster_array, self.sun_shade_az, self.sun_shade_zn
+            self.raster_array,
+            sun_alt=self.sun_shade_zn,
+            sun_az=180 - self.sun_shade_az,
         )
         self.suffix = "_Sh"
 
@@ -760,6 +775,29 @@ class SGTool:
                 )
                 if con_raster_layer.isValid():
                     QgsProject.instance().addMapLayer(con_raster_layer)
+
+                    # Add the layer to the project
+                    QgsProject.instance().addMapLayer(con_raster_layer)
+
+                    # Access the raster data provider
+                    provider = con_raster_layer.dataProvider()
+
+                    # Calculate statistics for the first band
+                    band = 1  # Specify the band number
+                    stats = provider.bandStatistics(band)
+
+                    # Create or modify the renderer
+                    renderer = con_raster_layer.renderer()
+                    if isinstance(renderer, QgsSingleBandGrayRenderer):
+                        # Set contrast enhancement
+                        contrast_enhancement = renderer.contrastEnhancement()
+                        contrast_enhancement.setMinimumValue(stats.minimumValue)
+                        contrast_enhancement.setMaximumValue(stats.maximumValue)
+
+                        # Refresh the layer
+                        con_raster_layer.triggerRepaint()
+                    else:
+                        print("Renderer is not a QgsSingleBandGrayRenderer.")
 
     def processGeophysics_fft(self):
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
@@ -1385,7 +1423,7 @@ class SGTool:
                 QgsMapLayerProxyModel.RasterLayer
             )
             self.dlg.mMapLayerComboBox_selectGrid_3.setFilters(
-                QgsMapLayerProxyModel.VectorLayer
+                QgsMapLayerProxyModel.PointLayer
             )
 
             self.dlg.version_label.setText(self.show_version())
@@ -1470,25 +1508,22 @@ class SGTool:
                 self.updateLayertoGrid
             )
 
-            self.dlg.mQgsSpinBox_mesh_size_y.valueChanged.connect(
+            self.dlg.doubleSpinBox_cellsize.valueChanged.connect(
                 self.updateLayertoGrid2
             )
-            self.dlg.mQgsSpinBox_mesh_south.valueChanged.connect(
+            self.dlg.comboBox_select_grid_data_field.currentTextChanged.connect(
                 self.updateLayertoGrid2
             )
-            self.dlg.mQgsSpinBox_mesh_north.valueChanged.connect(
-                self.updateLayertoGrid2
-            )
-            self.dlg.mQgsSpinBox_mesh_west.valueChanged.connect(self.updateLayertoGrid2)
-            self.dlg.mQgsSpinBox_mesh_east.valueChanged.connect(self.updateLayertoGrid2)
-
             # Connect to layer removal signal
             QgsProject.instance().layerRemoved.connect(self.refreshComboBox)
 
-            self.dlg.radioButton_makima.setChecked(True)
+            self.dlg.radioButton_MinQ.setChecked(True)
             self.dlg.pushButton_3_applyGridding.clicked.connect(self.gridData)
 
             self.dlg.pushButton_selectGridOutputDir.clicked.connect(self.gridDir)
+
+            if self.dlg.mMapLayerComboBox_selectGrid_3.currentText() != "":
+                self.updateLayertoGrid()
 
     # select directory to store grid
     def gridDir(self):
@@ -1522,6 +1557,7 @@ class SGTool:
 
     # Function to refresh the combo box
     def refreshComboBox(self):
+        return
         comboBox = self.dlg.mMapLayerComboBox_selectGrid_3
         comboBox.clear()
         for layer in QgsProject.instance().mapLayers().values():
@@ -1541,29 +1577,28 @@ class SGTool:
 
                 extent = selected_layer.extent()
 
-                self.dlg.mQgsSpinBox_mesh_south.setValue(int(extent.yMinimum()))
-                self.dlg.mQgsSpinBox_mesh_north.setValue(int(extent.yMaximum()))
-                self.dlg.mQgsSpinBox_mesh_west.setValue(int(extent.xMinimum()))
-                self.dlg.mQgsSpinBox_mesh_east.setValue(int(extent.xMaximum()))
-
-                cell_size = self.dlg.mQgsSpinBox_mesh_size_y.value()
-                nx_label = int((extent.xMaximum() - extent.xMinimum()) / cell_size)
-                ny_label = int((extent.yMaximum() - extent.yMinimum()) / cell_size)
-                self.dlg.nx_label.setText(str(nx_label))
-                self.dlg.ny_label.setText(str(ny_label))
+                cell_size = self.dlg.doubleSpinBox_cellsize.value()
+                self.nx_label = int((extent.xMaximum() - extent.xMinimum()) / cell_size)
+                self.ny_label = int((extent.yMaximum() - extent.yMinimum()) / cell_size)
+                self.dlg.nx_label.setText(str(self.nx_label))
+                self.dlg.ny_label.setText(str(self.ny_label))
 
     def updateLayertoGrid2(self):
 
-        xMaximum = int(self.dlg.mQgsSpinBox_mesh_east.text())
-        xMinimum = int(self.dlg.mQgsSpinBox_mesh_west.text())
-        yMinimum = int(self.dlg.mQgsSpinBox_mesh_south.text())
-        yMaximum = int(self.dlg.mQgsSpinBox_mesh_north.text())
-        cell_size = int(self.dlg.mQgsSpinBox_mesh_size_y.value())
+        if self.dlg.mMapLayerComboBox_selectGrid_3.count() > 0:
 
-        nx_label = int((xMaximum - xMinimum) / cell_size)
-        ny_label = int((yMaximum - yMinimum) / cell_size)
-        self.dlg.nx_label.setText(str(nx_label))
-        self.dlg.ny_label.setText(str(ny_label))
+            self.selectedPoints = self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
+            selected_layer = QgsProject.instance().mapLayersByName(self.selectedPoints)[
+                0
+            ]
+            if selected_layer.isValid():
+                extent = selected_layer.extent()
+
+                cell_size = self.dlg.doubleSpinBox_cellsize.value()
+                self.nx_label = int((extent.xMaximum() - extent.xMinimum()) / cell_size)
+                self.ny_label = int((extent.yMaximum() - extent.yMinimum()) / cell_size)
+                self.dlg.nx_label.setText(str(self.nx_label))
+                self.dlg.ny_label.setText(str(self.ny_label))
 
     def import_point_line_data(self):
         # import point or line data as vector file to memory
@@ -1640,9 +1675,9 @@ class SGTool:
                     except ValueError:
                         pass
 
-    def import_XYZ(self, csv_file, crs, layer_name="line"):
+    def import_XYZ(self, XYZ_file, crs, layer_name="line"):
         # Input file path
-        # csv_file = r"//wsl.localhost/Ubuntu-20.04/home/mark/gridding/MAG.XYZ"  # Replace with your actual file path
+
         load_ties = self.dlg.checkBox_load_tie_lines.isChecked()
 
         # Initialize variables
@@ -1650,7 +1685,7 @@ class SGTool:
         current_line_number = None
 
         # Read the file line-by-line
-        with open(csv_file, "r") as file:
+        with open(XYZ_file, "r") as file:
             for line in file:
                 line = line.strip()
                 if line.startswith("LINE:"):  # Check for 'LINE:' markers
@@ -1683,7 +1718,9 @@ class SGTool:
         # columns = ['x', 'y', 'z', 'tmi', 'mag', 'line_number']
         data = pd.DataFrame(data_list, columns=columns)
 
-        # print("Data loaded:", len(data), "points")
+        # dir_name, base_name = os.path.split(XYZ_file)
+        # filename_without_extension = "/" + os.path.splitext(base_name)[0]
+        # output_path = dir_name + filename_without_extension + ".shp"
 
         # Group data by line ID and create features
         layer = QgsVectorLayer("LineString?crs=EPSG:" + crs, layer_name, "memory")
@@ -1692,9 +1729,7 @@ class SGTool:
         # Add fields to the memory layer
         fields = QgsFields()
         fields.append(QgsField("LINE_ID", QVariant.Int))
-        # fields.append(QgsField("Z", QVariant.Double))
-        # fields.append(QgsField("TMI", QVariant.Double))
-        # fields.append(QgsField("MAG", QVariant.Double))
+
         for i in range(len(parts) - 2):
             fields.append(QgsField("data_" + str(i), QVariant.Double))
         fields.append(QgsField("X_COORDS", QVariant.String))
@@ -1727,6 +1762,17 @@ class SGTool:
 
         # Add the layer to the QGIS project
         QgsProject.instance().addMapLayer(layer)
+
+        """# Define options
+        options = QgsVectorFileWriter.SaveVectorOptions()
+        options.driverName = "ESRI Shapefile"  # Specify the output format
+        options.fileEncoding = "UTF-8"  # Specify encoding
+
+        # Write the layer to file
+        context = QgsCoordinateTransformContext()
+        error = QgsVectorFileWriter.writeAsVectorFormatV3(
+            layer, output_path, context, options
+        )"""
 
         # print("Polyline layer created with attributes including x, y coordinates!")
         # --- Create Point Layer ---
@@ -1822,7 +1868,7 @@ class SGTool:
 
     def gridData(self):
         if self.gridDirectory and os.path.exists(self.gridDirectory):
-            self.parseGridParams()
+
             if self.dlg.mMapLayerComboBox_selectGrid_3.count() > 0:
                 self.selectedPoints = (
                     self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
@@ -1838,18 +1884,11 @@ class SGTool:
                         selected_layer, attribute_name
                     )
 
-                    grid_bounds = [
-                        self.grid_xMinimum,
-                        self.grid_xMaximum,
-                        self.grid_yMinimum,
-                        self.grid_yMaximum,
-                    ]
-
                     gridder = GridData(
                         df,
-                        self.grid_nx,
-                        self.grid_ny,
-                        grid_bounds=grid_bounds,
+                        self.nx_label,
+                        self.ny_label,
+                        grid_bounds=None,
                     )
 
                     if self.dlg.radioButton_makima.isChecked():
@@ -1859,38 +1898,43 @@ class SGTool:
                         new_grid = gridder.interpolate(method="minimum_curvature")
                         self.suffix = "_MQ"
                     elif self.dlg.radioButton_RBF.isChecked():
-
-                        new_grid = gridder.interpolate(
-                            method="rbf", function="multiquadric"
-                        )
+                        method = self.dlg.comboBox_RBF_fun.currentText()
+                        new_grid = gridder.interpolate(method="rbf", function=method)
                         self.suffix = "_RBF"
                     elif self.dlg.radioButton_CT.isChecked():
                         new_grid = gridder.interpolate(method="clough_tocher")
                         self.suffix = "_CT"
                     elif self.dlg.radioButton_IDW.isChecked():
-                        power = self.dlg.comboBox_RBF_fun.currentText()
+                        power = float(self.dlg.lineEdit_IDW_power.text())
                         new_grid = gridder.interpolate(method="idw", power=power)
                         self.suffix = "_IDW"
 
-                    self.addGridded(new_grid, self.selectedPoints, epsg)
+                extent = selected_layer.extent()
+
+                cell_size = self.dlg.doubleSpinBox_cellsize.value()
+                self.nx_label = int((extent.xMaximum() - extent.xMinimum()) / cell_size)
+                self.ny_label = int((extent.yMaximum() - extent.yMinimum()) / cell_size)
+                self.addGridded(
+                    new_grid, self.selectedPoints + self.suffix, epsg, extent, cell_size
+                )
 
     # save new gridded data as geotiff
-    def addGridded(self, grid, filename_without_extension, epsg):
+    def addGridded(self, grid, filename_without_extension, epsg, extent, cell_size):
+
+        if self.is_layer_loaded(filename_without_extension):
+            layer = QgsProject.instance().mapLayersByName(filename_without_extension)
+
+            if layer:
+                # Rename the layer
+                filename_without_extension = filename_without_extension + "1"
 
         self.diskGridPath = (
-            self.gridDirectory + "/" + filename_without_extension + self.suffix + ".tif"
+            self.gridDirectory + "/" + filename_without_extension + ".tif"
         )
 
-        fn = self.diskGridPath
-        if os.path.exists(self.diskGridPath) and not self.is_layer_loaded(
-            filename_without_extension
-        ):
-            os.remove(self.diskGridPath)
-
         driver = gdal.GetDriverByName("GTiff")
-
         ds = driver.Create(
-            fn,
+            self.diskGridPath,
             xsize=grid.shape[1],
             ysize=grid.shape[0],
             bands=1,
@@ -1899,12 +1943,12 @@ class SGTool:
 
         ds.GetRasterBand(1).WriteArray(grid)
         geot = [
-            self.grid_xMinimum - (self.grid_cell_size / 2),
-            self.grid_cell_size,
+            extent.xMinimum() - (cell_size / 2),
+            cell_size,
             0,
-            self.grid_yMinimum - (self.grid_cell_size / 2),
+            extent.yMinimum() - (cell_size / 2),
             0,
-            self.grid_cell_size,
+            cell_size,
         ]
         ds.SetGeoTransform(geot)
         srs = osr.SpatialReference()
@@ -1913,23 +1957,25 @@ class SGTool:
         ds.FlushCache()
         ds = None
 
-        self.layer = QgsRasterLayer(
-            self.diskGridPath, filename_without_extension + self.suffix
-        )
-        if not self.is_layer_loaded(filename_without_extension + self.suffix):
+        self.layer = QgsRasterLayer(self.diskGridPath, filename_without_extension)
+        if not self.is_layer_loaded(filename_without_extension):
             QgsProject.instance().addMapLayer(self.layer)
+            # Access the raster data provider
+            provider = self.layer.dataProvider()
 
-    def parseGridParams(self):
+            # Calculate statistics for the first band
+            band = 1  # Specify the band number
+            stats = provider.bandStatistics(band)
 
-        self.grid_xMaximum = int(self.dlg.mQgsSpinBox_mesh_east.text())
-        self.grid_xMinimum = int(self.dlg.mQgsSpinBox_mesh_west.text())
-        self.grid_yMinimum = int(self.dlg.mQgsSpinBox_mesh_south.text())
-        self.grid_yMaximum = int(self.dlg.mQgsSpinBox_mesh_north.text())
-        self.grid_cell_size = int(self.dlg.mQgsSpinBox_mesh_size_y.value())
+            # Create or modify the renderer
+            renderer = self.layer.renderer()
+            if isinstance(renderer, QgsSingleBandGrayRenderer):
+                # Set contrast enhancement
+                contrast_enhancement = renderer.contrastEnhancement()
+                contrast_enhancement.setMinimumValue(stats.minimumValue)
+                contrast_enhancement.setMaximumValue(stats.maximumValue)
 
-        self.grid_nx = int(
-            (self.grid_xMaximum - self.grid_xMinimum) / self.grid_cell_size
-        )
-        self.grid_ny = int(
-            (self.grid_yMaximum - self.grid_yMinimum) / self.grid_cell_size
-        )
+                # Refresh the layer
+                self.layer.triggerRepaint()
+            else:
+                print("Renderer is not a QgsSingleBandGrayRenderer.")

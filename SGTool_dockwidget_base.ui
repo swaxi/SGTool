@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>646</width>
-    <height>733</height>
+    <width>768</width>
+    <height>851</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -40,7 +40,7 @@ font-size: 12px;</string>
       <x>10</x>
       <y>0</y>
       <width>591</width>
-      <height>701</height>
+      <height>651</height>
      </rect>
     </property>
     <property name="minimumSize">
@@ -109,7 +109,7 @@ QTabBar::tab:hover {
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>574</y>
+        <y>594</y>
         <width>47</width>
         <height>13</height>
        </rect>
@@ -121,8 +121,8 @@ QTabBar::tab:hover {
      <widget class="QLabel" name="label_37">
       <property name="geometry">
        <rect>
-        <x>180</x>
-        <y>570</y>
+        <x>210</x>
+        <y>590</y>
         <width>121</width>
         <height>20</height>
        </rect>
@@ -141,7 +141,7 @@ QTabBar::tab:hover {
       <property name="geometry">
        <rect>
         <x>440</x>
-        <y>570</y>
+        <y>590</y>
         <width>131</width>
         <height>23</height>
        </rect>
@@ -153,8 +153,8 @@ QTabBar::tab:hover {
      <widget class="QLineEdit" name="lineEdit_13_max_buffer">
       <property name="geometry">
        <rect>
-        <x>310</x>
-        <y>570</y>
+        <x>340</x>
+        <y>590</y>
         <width>71</width>
         <height>20</height>
        </rect>
@@ -167,7 +167,7 @@ QTabBar::tab:hover {
       <property name="geometry">
        <rect>
         <x>60</x>
-        <y>574</y>
+        <y>594</y>
         <width>47</width>
         <height>13</height>
        </rect>
@@ -202,19 +202,6 @@ QTabBar::tab:hover {
        </property>
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
-      <widget class="QLineEdit" name="lineEdit_4_lineSpacing">
-       <property name="geometry">
-        <rect>
-         <x>350</x>
-         <y>30</y>
-         <width>71</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>400</string>
        </property>
       </widget>
       <widget class="QLabel" name="label_32">
@@ -409,22 +396,6 @@ QTabBar::tab:hover {
        </property>
        <property name="text">
         <string>AGC</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_13">
-       <property name="geometry">
-        <rect>
-         <x>270</x>
-         <y>30</y>
-         <width>71</width>
-         <height>21</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Cutoff</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
        </property>
       </widget>
       <widget class="QLabel" name="label_12">
@@ -1196,7 +1167,7 @@ QTabBar::tab:hover {
       <property name="geometry">
        <rect>
         <x>110</x>
-        <y>570</y>
+        <y>590</y>
         <width>101</width>
         <height>20</height>
        </rect>
@@ -1797,7 +1768,7 @@ font-size: 13px;
        </property>
        <property name="geometry">
         <rect>
-         <x>250</x>
+         <x>260</x>
          <y>160</y>
          <width>101</width>
          <height>23</height>
@@ -1827,45 +1798,20 @@ font-size: 13px;
         <x>10</x>
         <y>230</y>
         <width>381</width>
-        <height>431</height>
+        <height>301</height>
        </rect>
       </property>
       <property name="title">
        <string>Gridding</string>
       </property>
-      <widget class="QgsSpinBox" name="mQgsSpinBox_mesh_west">
-       <property name="geometry">
-        <rect>
-         <x>76</x>
-         <y>146</y>
-         <width>101</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="minimum">
-        <number>-1000000000</number>
-       </property>
-       <property name="maximum">
-        <number>1000000000</number>
-       </property>
-       <property name="singleStep">
-        <number>50</number>
-       </property>
-       <property name="value">
-        <number>430000</number>
-       </property>
-       <property name="displayIntegerBase">
-        <number>10</number>
-       </property>
-      </widget>
       <widget class="QPushButton" name="pushButton_3_applyGridding">
        <property name="enabled">
         <bool>true</bool>
        </property>
        <property name="geometry">
         <rect>
-         <x>270</x>
-         <y>400</y>
+         <x>260</x>
+         <y>260</y>
          <width>101</width>
          <height>23</height>
         </rect>
@@ -1877,8 +1823,8 @@ font-size: 13px;
       <widget class="QLabel" name="nx_label">
        <property name="geometry">
         <rect>
-         <x>120</x>
-         <y>226</y>
+         <x>270</x>
+         <y>110</y>
          <width>41</width>
          <height>16</height>
         </rect>
@@ -1895,8 +1841,8 @@ font-size: 13px;
       <widget class="QLabel" name="label_51">
        <property name="geometry">
         <rect>
-         <x>40</x>
-         <y>226</y>
+         <x>190</x>
+         <y>110</y>
          <width>47</width>
          <height>16</height>
         </rect>
@@ -1912,57 +1858,11 @@ font-size: 13px;
         <string># Cells</string>
        </property>
       </widget>
-      <widget class="QgsSpinBox" name="mQgsSpinBox_mesh_north">
-       <property name="geometry">
-        <rect>
-         <x>250</x>
-         <y>120</y>
-         <width>91</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="minimum">
-        <number>-1000000000</number>
-       </property>
-       <property name="maximum">
-        <number>1000000000</number>
-       </property>
-       <property name="singleStep">
-        <number>50</number>
-       </property>
-       <property name="value">
-        <number>6730000</number>
-       </property>
-       <property name="displayIntegerBase">
-        <number>10</number>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_52">
-       <property name="geometry">
-        <rect>
-         <x>201</x>
-         <y>146</y>
-         <width>31</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">font-family: Arial; 
-font-size: 13px;
-</string>
-       </property>
-       <property name="text">
-        <string>East</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
       <widget class="QLabel" name="label_49">
        <property name="geometry">
         <rect>
-         <x>90</x>
-         <y>226</y>
+         <x>240</x>
+         <y>110</y>
          <width>16</width>
          <height>16</height>
         </rect>
@@ -1979,78 +1879,11 @@ font-size: 13px;
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
        </property>
       </widget>
-      <widget class="QgsSpinBox" name="mQgsSpinBox_mesh_east">
-       <property name="geometry">
-        <rect>
-         <x>250</x>
-         <y>146</y>
-         <width>91</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="minimum">
-        <number>-1000000000</number>
-       </property>
-       <property name="maximum">
-        <number>1000000000</number>
-       </property>
-       <property name="singleStep">
-        <number>50</number>
-       </property>
-       <property name="value">
-        <number>482000</number>
-       </property>
-       <property name="displayIntegerBase">
-        <number>10</number>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_46">
-       <property name="geometry">
-        <rect>
-         <x>191</x>
-         <y>120</y>
-         <width>41</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">font-family: Arial; 
-font-size: 13px;
-</string>
-       </property>
-       <property name="text">
-        <string>North</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_42">
-       <property name="geometry">
-        <rect>
-         <x>17</x>
-         <y>120</y>
-         <width>41</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">font-family: Arial; 
-font-size: 13px;
-</string>
-       </property>
-       <property name="text">
-        <string>South</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
       <widget class="QLabel" name="ny_label">
        <property name="geometry">
         <rect>
-         <x>190</x>
-         <y>226</y>
+         <x>340</x>
+         <y>110</y>
          <width>41</width>
          <height>16</height>
         </rect>
@@ -2064,46 +1897,11 @@ font-size: 13px;
         <string>0</string>
        </property>
       </widget>
-      <widget class="QLabel" name="label_60">
-       <property name="geometry">
-        <rect>
-         <x>96</x>
-         <y>100</y>
-         <width>151</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="font">
-        <font>
-         <family>Arial</family>
-         <pointsize>-1</pointsize>
-         <weight>75</weight>
-         <bold>true</bold>
-        </font>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">font-family: Arial; 
-font-size: 13px;
-</string>
-       </property>
-       <property name="text">
-        <string>Grid Range</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignCenter</set>
-       </property>
-      </widget>
       <widget class="QLabel" name="label_48">
        <property name="geometry">
         <rect>
-         <x>160</x>
-         <y>226</y>
+         <x>310</x>
+         <y>110</y>
          <width>16</width>
          <height>16</height>
         </rect>
@@ -2120,82 +1918,11 @@ font-size: 13px;
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
        </property>
       </widget>
-      <widget class="QLabel" name="label_50">
-       <property name="geometry">
-        <rect>
-         <x>27</x>
-         <y>146</y>
-         <width>31</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">font-family: Arial; 
-font-size: 13px;
-</string>
-       </property>
-       <property name="text">
-        <string>West</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
-      <widget class="QgsSpinBox" name="mQgsSpinBox_mesh_south">
-       <property name="geometry">
-        <rect>
-         <x>76</x>
-         <y>120</y>
-         <width>101</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="minimum">
-        <number>-1000000000</number>
-       </property>
-       <property name="maximum">
-        <number>1000000000</number>
-       </property>
-       <property name="singleStep">
-        <number>50</number>
-       </property>
-       <property name="value">
-        <number>6790000</number>
-       </property>
-       <property name="displayIntegerBase">
-        <number>10</number>
-       </property>
-      </widget>
-      <widget class="QgsSpinBox" name="mQgsSpinBox_mesh_size_y">
-       <property name="geometry">
-        <rect>
-         <x>100</x>
-         <y>190</y>
-         <width>71</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="minimum">
-        <number>1</number>
-       </property>
-       <property name="maximum">
-        <number>100000</number>
-       </property>
-       <property name="singleStep">
-        <number>50</number>
-       </property>
-       <property name="value">
-        <number>2000</number>
-       </property>
-       <property name="displayIntegerBase">
-        <number>10</number>
-       </property>
-      </widget>
       <widget class="QLabel" name="label_53">
        <property name="geometry">
         <rect>
-         <x>20</x>
-         <y>190</y>
+         <x>0</x>
+         <y>110</y>
          <width>67</width>
          <height>16</height>
         </rect>
@@ -2265,10 +1992,13 @@ font-size: 13px;
        </property>
       </widget>
       <widget class="QRadioButton" name="radioButton_makima">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>260</y>
+         <y>150</y>
          <width>101</width>
          <height>17</height>
         </rect>
@@ -2281,7 +2011,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>320</y>
+         <y>190</y>
          <width>91</width>
          <height>17</height>
         </rect>
@@ -2290,24 +2020,11 @@ font-size: 13px;
         <string>Clough Tocher</string>
        </property>
       </widget>
-      <widget class="QRadioButton" name="radioButton_RBF">
-       <property name="geometry">
-        <rect>
-         <x>20</x>
-         <y>300</y>
-         <width>111</width>
-         <height>17</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>RBF</string>
-       </property>
-      </widget>
       <widget class="QRadioButton" name="radioButton_MinQ">
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>280</y>
+         <y>170</y>
          <width>121</width>
          <height>17</height>
         </rect>
@@ -2320,7 +2037,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>340</y>
+         <y>210</y>
          <width>82</width>
          <height>17</height>
         </rect>
@@ -2333,7 +2050,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>70</x>
-         <y>340</y>
+         <y>210</y>
          <width>61</width>
          <height>16</height>
         </rect>
@@ -2345,50 +2062,24 @@ font-size: 13px;
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
        </property>
       </widget>
-      <widget class="QLineEdit" name="lineEdit_SunSh_Az_2">
+      <widget class="QLineEdit" name="lineEdit_IDW_power">
        <property name="geometry">
         <rect>
          <x>140</x>
-         <y>340</y>
+         <y>210</y>
          <width>71</width>
          <height>20</height>
         </rect>
        </property>
        <property name="text">
-        <string>45</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_43">
-       <property name="geometry">
-        <rect>
-         <x>90</x>
-         <y>300</y>
-         <width>61</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Function</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
-      <widget class="QComboBox" name="comboBox_RBF_fun">
-       <property name="geometry">
-        <rect>
-         <x>160</x>
-         <y>300</y>
-         <width>61</width>
-         <height>22</height>
-        </rect>
+        <string>2</string>
        </property>
       </widget>
       <widget class="QPushButton" name="pushButton_selectGridOutputDir">
        <property name="geometry">
         <rect>
          <x>220</x>
-         <y>401</y>
+         <y>241</y>
          <width>31</width>
          <height>21</height>
         </rect>
@@ -2401,7 +2092,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>80</x>
-         <y>401</y>
+         <y>241</y>
          <width>131</width>
          <height>20</height>
         </rect>
@@ -2411,7 +2102,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>400</y>
+         <y>240</y>
          <width>61</width>
          <height>21</height>
         </rect>
@@ -2421,6 +2112,31 @@ font-size: 13px;
        </property>
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QDoubleSpinBox" name="doubleSpinBox_cellsize">
+       <property name="geometry">
+        <rect>
+         <x>90</x>
+         <y>110</y>
+         <width>81</width>
+         <height>22</height>
+        </rect>
+       </property>
+       <property name="decimals">
+        <number>7</number>
+       </property>
+       <property name="minimum">
+        <double>0.000100000000000</double>
+       </property>
+       <property name="maximum">
+        <double>9999999.990000000223517</double>
+       </property>
+       <property name="singleStep">
+        <double>10.000000000000000</double>
+       </property>
+       <property name="value">
+        <double>100.000000000000000</double>
        </property>
       </widget>
      </widget>
@@ -2465,11 +2181,6 @@ font-size: 13px;
    <class>QgsProjectionSelectionWidget</class>
    <extends>QWidget</extends>
    <header>qgsprojectionselectionwidget.h</header>
-  </customwidget>
-  <customwidget>
-   <class>QgsSpinBox</class>
-   <extends>QSpinBox</extends>
-   <header>qgsspinbox.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

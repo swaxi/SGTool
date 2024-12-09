@@ -157,8 +157,8 @@ Grids point data using either Clough Tocher or IDW gridding algoithms
 3) If multiple processing steps are required, first apply one process, select the result and then apply subsequent steps.
 
 # Code development
-- Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin https://g-sherman.github.io/Qgis-Plugin-Builder/    
 - Calcs ChatGPT and Mark Jessell
+- Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin https://g-sherman.github.io/Qgis-Plugin-Builder/    
 - IGRF calculation - https://github.com/klaundal/ppigrf  
 - GRD Loader & Radially averaged  power spectrum Fatiando a Terra crew & Mark Jessell https://www.fatiando.org/
 - Example geophysics data in image above courtesy of Mauritania Govt. https://anarpam.mr/en/      

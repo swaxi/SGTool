@@ -1639,10 +1639,17 @@ class SGTool:
                 extent = selected_layer.extent()
 
                 cell_size = self.dlg.doubleSpinBox_cellsize.value()
-                self.nx_label = int((extent.xMaximum() - extent.xMinimum()) / cell_size)
-                self.ny_label = int((extent.yMaximum() - extent.yMinimum()) / cell_size)
-                self.dlg.nx_label.setText(str(self.nx_label))
-                self.dlg.ny_label.setText(str(self.ny_label))
+                if extent.xMaximum() != None:
+                    self.nx_label = int(
+                        (extent.xMaximum() - extent.xMinimum()) / cell_size
+                    )
+                    self.ny_label = int(
+                        (extent.yMaximum() - extent.yMinimum()) / cell_size
+                    )
+                    self.dlg.nx_label.setText(str(self.nx_label))
+                    self.dlg.ny_label.setText(str(self.ny_label))
+                else:
+                    print("no layer loaded")
 
     def updateLayertoGrid2(self):
 
@@ -1652,14 +1659,21 @@ class SGTool:
             selected_layer = QgsProject.instance().mapLayersByName(self.selectedPoints)[
                 0
             ]
-            if selected_layer.isValid():
+            if selected_layer.isValid() and self.selectedPoints != "":
                 extent = selected_layer.extent()
 
-                cell_size = self.dlg.doubleSpinBox_cellsize.value()
-                self.nx_label = int((extent.xMaximum() - extent.xMinimum()) / cell_size)
-                self.ny_label = int((extent.yMaximum() - extent.yMinimum()) / cell_size)
-                self.dlg.nx_label.setText(str(self.nx_label))
-                self.dlg.ny_label.setText(str(self.ny_label))
+                if extent.xMaximum() != None:
+                    cell_size = self.dlg.doubleSpinBox_cellsize.value()
+                    self.nx_label = int(
+                        (extent.xMaximum() - extent.xMinimum()) / cell_size
+                    )
+                    self.ny_label = int(
+                        (extent.yMaximum() - extent.yMinimum()) / cell_size
+                    )
+                    self.dlg.nx_label.setText(str(self.nx_label))
+                    self.dlg.ny_label.setText(str(self.ny_label))
+                else:
+                    print("no layer loaded2")
 
     def import_point_line_data(self):
         # import point or line data as vector file to memory

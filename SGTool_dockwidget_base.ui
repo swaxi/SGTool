@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>768</width>
-    <height>851</height>
+    <width>622</width>
+    <height>712</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -39,8 +39,8 @@ font-size: 12px;</string>
      <rect>
       <x>10</x>
       <y>0</y>
-      <width>591</width>
-      <height>651</height>
+      <width>593</width>
+      <height>671</height>
      </rect>
     </property>
     <property name="minimumSize">
@@ -61,7 +61,7 @@ font-size: 12px;</string>
 }
 
 QTabBar::tab {
-    min-width: 145px; 
+    min-width: 146px; 
     min-height: 23px;
 	background-color: rgb(220, 220, 220,255);
   	border-radius: 2px;	
@@ -108,8 +108,8 @@ QTabBar::tab:hover {
      <widget class="QLabel" name="label_27">
       <property name="geometry">
        <rect>
-        <x>10</x>
-        <y>594</y>
+        <x>370</x>
+        <y>614</y>
         <width>47</width>
         <height>13</height>
        </rect>
@@ -121,8 +121,8 @@ QTabBar::tab:hover {
      <widget class="QLabel" name="label_37">
       <property name="geometry">
        <rect>
-        <x>230</x>
-        <y>590</y>
+        <x>180</x>
+        <y>570</y>
         <width>121</width>
         <height>20</height>
        </rect>
@@ -140,8 +140,8 @@ QTabBar::tab:hover {
       </property>
       <property name="geometry">
        <rect>
-        <x>440</x>
-        <y>590</y>
+        <x>20</x>
+        <y>570</y>
         <width>131</width>
         <height>23</height>
        </rect>
@@ -153,8 +153,8 @@ QTabBar::tab:hover {
      <widget class="QLineEdit" name="lineEdit_13_max_buffer">
       <property name="geometry">
        <rect>
-        <x>360</x>
-        <y>590</y>
+        <x>310</x>
+        <y>570</y>
         <width>71</width>
         <height>20</height>
        </rect>
@@ -166,8 +166,8 @@ QTabBar::tab:hover {
      <widget class="QLabel" name="version_label">
       <property name="geometry">
        <rect>
-        <x>60</x>
-        <y>594</y>
+        <x>420</x>
+        <y>614</y>
         <width>47</width>
         <height>13</height>
        </rect>
@@ -1166,8 +1166,8 @@ QTabBar::tab:hover {
      <widget class="QLabel" name="label_41_units">
       <property name="geometry">
        <rect>
-        <x>110</x>
-        <y>590</y>
+        <x>470</x>
+        <y>610</y>
         <width>101</width>
         <height>20</height>
        </rect>
@@ -1236,7 +1236,7 @@ font-style: italic;</string>
         <x>10</x>
         <y>10</y>
         <width>461</width>
-        <height>281</height>
+        <height>221</height>
        </rect>
       </property>
       <property name="title">
@@ -1569,22 +1569,22 @@ font-style: italic;</string>
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
        </property>
       </widget>
-      <widget class="QPushButton" name="pushButton_3_applyProcessing_Conv">
-       <property name="enabled">
-        <bool>true</bool>
-       </property>
-       <property name="geometry">
-        <rect>
-         <x>300</x>
-         <y>240</y>
-         <width>131</width>
-         <height>23</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Apply Processing</string>
-       </property>
-      </widget>
+     </widget>
+     <widget class="QPushButton" name="pushButton_3_applyProcessing_Conv">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="geometry">
+       <rect>
+        <x>20</x>
+        <y>240</y>
+        <width>131</width>
+        <height>23</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Apply Processing</string>
+      </property>
      </widget>
     </widget>
     <widget class="QWidget" name="Data_management">
@@ -1630,7 +1630,7 @@ font-size: 12px;
         <x>10</x>
         <y>20</y>
         <width>381</width>
-        <height>201</height>
+        <height>241</height>
        </rect>
       </property>
       <property name="title">
@@ -1768,8 +1768,8 @@ font-size: 13px;
        </property>
        <property name="geometry">
         <rect>
-         <x>260</x>
-         <y>160</y>
+         <x>30</x>
+         <y>200</y>
          <width>101</width>
          <height>23</height>
         </rect>
@@ -1782,7 +1782,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>160</y>
+         <y>150</y>
          <width>211</width>
          <height>17</height>
         </rect>
@@ -1796,7 +1796,7 @@ font-size: 13px;
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>230</y>
+        <y>270</y>
         <width>381</width>
         <height>271</height>
        </rect>

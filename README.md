@@ -117,10 +117,10 @@ $`THG(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\
    
 ## Convolution Filters   
 **Mean**
-Applies a mean filter using a kernel of size \( n \times n \).   
+Applies a mean filter using a kernel of size n x n .   
    
 **Median**   
-Applies a median filter using a kernel of size \( n \times n \).   
+Applies a median filter using a kernel of size n x n .   
    
 **Gaussian**   
 Applies a Gaussian filter with a specified standard deviation.    

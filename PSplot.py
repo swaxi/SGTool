@@ -87,7 +87,7 @@ class PowerSpectrumDock:
 
         .. math::
 
-            \Phi_{\Delta T}(k_x, k_y) = | F\left{\Delta T \right}(k_x, k_y) |^2
+            Phi_{Delta T}(k_x, k_y) = | F div left{Delta T right}(k_x, k_y) |^2
 
         .. note:: Requires gridded data.
 
@@ -142,8 +142,8 @@ class PowerSpectrumDock:
             and making it bigger includes points nearer to the boundaries.
         * ring_width : float (optional)
             Width of the rings.
-            By default it's set as the largest value of :math:`\Delta k_x` and
-            :math:`\Delta k_y`, being them the equidistances of the kx and ky
+            By default it's set as the largest value of :math:`Delta k_x` and
+            :math:`Delta k_y`, being them the equidistances of the kx and ky
             arrays.
             Making it bigger gives more populated averages, and
             making it smaller lowers the ammount of points per ring

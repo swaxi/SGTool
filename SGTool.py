@@ -32,7 +32,6 @@ from qgis.core import (
     QgsVectorLayer,
     QgsProject,
     QgsRasterLayer,
-    QgsRasterDataProvider,
     QgsSingleBandGrayRenderer,
     QgsFeature,
     QgsField,

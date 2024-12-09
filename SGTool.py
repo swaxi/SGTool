@@ -390,6 +390,39 @@ class SGTool:
         self.dlg.checkBox_SunShading.setToolTip("Sun Shading")
         self.dlg.label_61.setToolTip("Sun Shading")
 
+        self.dlg.pushButton_selectPoints.setToolTip(
+            "Select csv or xyz format points file"
+        )
+        self.dlg.comboBox_grid_x.setToolTip(
+            "Define X coordinate column (for csv files)"
+        )
+        self.dlg.comboBox_grid_y.setToolTip(
+            "Define Y coordinate column (for csv files)"
+        )
+        self.dlg.mQgsProjectionSelectionWidget.setToolTip(
+            "DEfine Coordinate System of point data"
+        )
+        self.dlg.checkBox_load_tie_lines.setToolTip(
+            "For xyz format files optionally load Tie lines"
+        )
+        self.dlg.pushButton_load_point_data.setToolTip(
+            "Load points file and convert to layer\nWith polyline layer of lines for xyz format files"
+        )
+        self.dlg.mMapLayerComboBox_selectGrid_3.setToolTip(
+            "Select from currently loaded points files for gridding"
+        )
+        self.dlg.comboBox_select_grid_data_field.setToolTip("Select field to grid")
+        self.dlg.doubleSpinBox_cellsize.setToolTip("Define cell size in layer units")
+        self.dlg.radioButton_CT.setToolTip("Choose Clough Tocher gridding (_CT)")
+        self.dlg.radioButton_IDW.setToolTip(
+            "Choose Inverse Distance Weighting Gridding (_IDW)"
+        )
+        self.dlg.lineEdit_IDW_power.setToolTip("Define power for IDW gridding")
+        self.dlg.pushButton_selectGridOutputDir.setToolTip(
+            "Select output directory for grid"
+        )
+        self.dlg.pushButton_3_applyGridding.setToolTip("Grid to selected point data")
+
     def initParams(self):
         self.localGridName = ""
         self.diskGridPath = ""

@@ -115,8 +115,31 @@ theta is the angle defining the direction of the derivative (x,y or z).
 **Total Horizontal Gradient**   
 $`THG(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\partial f}{\partial y}\right)^2}`$   
    
+## Convolution Filters   
+**Mean**
+Applies a mean filter using a kernel of size \( n \times n \).   
+   
+**Median**   
+Applies a median filter using a kernel of size \( n \times n \).   
+   
+**Gaussian**   
+Applies a Gaussian filter with a specified standard deviation.    
+   
+**Directional**   
+Apply directional filter (NE, N, NW, W, SW, S, SE, E)    
+   
+**Sun Shading**   
+Computes relief shading for a digital elevation model (DEM) or other 2D grids.
 
 
+## Gridding   
+**Import points**   
+Imports point data in csv or xyz formats   
+
+**GFridding**   
+Grids point data using either Clough Tocher or IDW gridding algoithms   
+   
+      
 # Installation
 - Dowload the zip file from the green **<> Code** button and install the zip file in QGIS using the plugin manager   
    

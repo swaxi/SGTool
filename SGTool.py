@@ -1527,7 +1527,6 @@ class SGTool:
             # Connect to layer removal signal
             QgsProject.instance().layerRemoved.connect(self.refreshComboBox)
 
-            self.dlg.radioButton_MinQ.setChecked(True)
             self.dlg.pushButton_3_applyGridding.clicked.connect(self.gridData)
 
             self.dlg.pushButton_selectGridOutputDir.clicked.connect(self.gridDir)
@@ -1901,10 +1900,7 @@ class SGTool:
                         grid_bounds=None,
                     )
 
-                    if self.dlg.radioButton_MinQ.isChecked():
-                        new_grid = gridder.interpolate(method="minimum_curvature")
-                        self.suffix = "_MQ"
-                    elif self.dlg.radioButton_CT.isChecked():
+                    if self.dlg.radioButton_CT.isChecked():
                         new_grid = gridder.interpolate(method="clough_tocher")
                         self.suffix = "_CT"
                     elif self.dlg.radioButton_IDW.isChecked():

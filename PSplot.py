@@ -1,13 +1,9 @@
-from PyQt5.QtWidgets import QVBoxLayout, QWidget
-from matplotlib.backends.backend_qt5 import FigureCanvas
-from scipy.fftpack import fft2, fftshift
 import numpy as np
-from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 
 
 class PowerSpectrumDock:
-    def __init__(self, grid,gridname,dx, dy,x,y):
+    def __init__(self, grid, gridname, dx, dy, x, y):
         """
         Initialize the PowerSpectrumDock class to display plots in a docked widget.
 
@@ -20,10 +16,9 @@ class PowerSpectrumDock:
         self.grid = grid
         self.dx = dx
         self.dy = dy
-        self.gridname=gridname
+        self.gridname = gridname
         self.x = y
         self.y = x
-
 
     def plot_grid_and_power_spectrum(self):
         """
@@ -33,13 +28,15 @@ class PowerSpectrumDock:
         # Compute and plot radially averaged power spectrum
         self.grid = np.nan_to_num(self.grid, nan=0.0)
 
-        kx, ky, pds=self.power_density_spectra(self.x, self.y, self.grid, self.grid.shape)
+        kx, ky, pds = self.power_density_spectra(
+            self.x, self.y, self.grid, self.grid.shape
+        )
         wavenumbers, power_spectrum = self.radial_average_spectrum(kx, ky, pds)
-        valid_indices = ~np.isinf(wavenumbers) & ~np.isnan(wavenumbers)  # Exclude invalid wavelengths
+        valid_indices = ~np.isinf(wavenumbers) & ~np.isnan(
+            wavenumbers
+        )  # Exclude invalid wavelengths
         wavenumbers = wavenumbers[valid_indices]
         power_spectrum = power_spectrum[valid_indices]
-
-
 
         # Create a standalone figure
         fig, (ax_image, ax_spectrum) = plt.subplots(1, 2, figsize=(12, 6))
@@ -47,28 +44,43 @@ class PowerSpectrumDock:
         # Plot the grid with the correct aspect ratio
         # Compute 5th and 95th percentiles
         vmin, vmax = np.percentile(self.grid, [5, 95])
-        ax_image.imshow(np.flipud(self.grid), cmap="viridis", origin="lower", vmin=vmin,vmax=vmax,aspect=self.dy/self.dx)
+        ax_image.imshow(
+            np.flipud(self.grid),
+            cmap="viridis",
+            origin="lower",
+            vmin=vmin,
+            vmax=vmax,
+            aspect=self.dy / self.dx,
+        )
         ax_image.set_title(self.gridname)
         ax_image.set_xlabel("X")
         ax_image.set_ylabel("Y")
 
         # Plot the power spectrum with log-wavelength axis and linear power
         if len(wavenumbers) > 0 and len(power_spectrum) > 0:
-            ax_spectrum.plot(wavenumbers*self.dx, np.log(power_spectrum),  linestyle="-")
+            ax_spectrum.plot(
+                wavenumbers * self.dx, np.log(power_spectrum), linestyle="-"
+            )
             ax_spectrum.set_title("Radially Averaged Power Spectrum")
             ax_spectrum.set_xlabel("Wavenumber (linear scale)")
             ax_spectrum.set_ylabel("ln(Power)")
             ax_spectrum.grid(True)
         else:
-            ax_spectrum.text(0.5, 0.5, "No data", transform=ax_spectrum.transAxes,
-                            ha="center", va="center", fontsize=12)
-        
+            ax_spectrum.text(
+                0.5,
+                0.5,
+                "No data",
+                transform=ax_spectrum.transAxes,
+                ha="center",
+                va="center",
+                fontsize=12,
+            )
+
         # Display the plot
         plt.tight_layout()
         plt.show()
 
-
-    def power_density_spectra(self,x, y, data, shape):
+    def power_density_spectra(self, x, y, data, shape):
         """
         Calculates the Power Density Spectra of a 2D gridded potential field
         through the FFT:
@@ -98,12 +110,10 @@ class PowerSpectrumDock:
             The Power Density Spectra of the data
         """
         kx, ky = self._fftfreqs(x, y, shape, shape)
-        pds = abs(np.fft.fft2(np.reshape(data, shape)))**2
+        pds = abs(np.fft.fft2(np.reshape(data, shape))) ** 2
         return kx, ky, pds
 
-
-
-    def radial_average_spectrum(self,kx, ky, pds, max_radius=None, ring_width=None):
+    def radial_average_spectrum(self, kx, ky, pds, max_radius=None, ring_width=None):
         """
         Calculates the average of the Power Density Spectra points that falls
         inside concentric rings built around the origin of the wavenumber
@@ -158,42 +168,39 @@ class PowerSpectrumDock:
         radius_i = -1
         while True:
             radius_i += 1
-            if radius_i*ring_width > max_radius:
+            if radius_i * ring_width > max_radius:
                 break
             else:
                 if radius_i == 0:
-                    inside = k <= 0.5*ring_width
+                    inside = k <= 0.5 * ring_width
                 else:
-                    inside = np.logical_and(k > (radius_i - 0.5)*ring_width,
-                                            k <= (radius_i + 0.5)*ring_width)
+                    inside = np.logical_and(
+                        k > (radius_i - 0.5) * ring_width,
+                        k <= (radius_i + 0.5) * ring_width,
+                    )
                 pds_radial.append(pds[inside].mean())
-                k_radial.append(radius_i*ring_width)
+                k_radial.append(radius_i * ring_width)
         return np.array(k_radial), np.array(pds_radial)
 
-
-
-    def _pad_data(self,data, shape):
+    def _pad_data(self, data, shape):
         n = self._nextpow2(np.max(shape))
         nx, ny = shape
-        padx = (n - nx)//2
-        pady = (n - ny)//2
-        padded = np.pad(data.reshape(shape), ((padx, padx), (pady, pady)),
-                        mode='edge')
+        padx = (n - nx) // 2
+        pady = (n - ny) // 2
+        padded = np.pad(data.reshape(shape), ((padx, padx), (pady, pady)), mode="edge")
         return padded, padx, pady
 
-
-    def _nextpow2(self,i):
-        buf = np.ceil(np.log(i)/np.log(2))
+    def _nextpow2(self, i):
+        buf = np.ceil(np.log(i) / np.log(2))
         return int(2**buf)
 
-
-    def _fftfreqs(self,x, y, shape, padshape):
+    def _fftfreqs(self, x, y, shape, padshape):
         """
         Get two 2D-arrays with the wave numbers in the x and y directions.
         """
         nx, ny = shape
-        dx = (x.max() - x.min())/(nx - 1)
-        fx = 2*np.pi*np.fft.fftfreq(padshape[0], dx)
-        dy = (y.max() - y.min())/(ny - 1)
-        fy = 2*np.pi*np.fft.fftfreq(padshape[1], dy)
+        dx = (x.max() - x.min()) / (nx - 1)
+        fx = 2 * np.pi * np.fft.fftfreq(padshape[0], dx)
+        dy = (y.max() - y.min()) / (ny - 1)
+        fy = 2 * np.pi * np.fft.fftfreq(padshape[1], dy)
         return np.meshgrid(fy, fx)[::-1]

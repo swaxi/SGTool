@@ -843,12 +843,10 @@ class SGTool:
 
     def processGeophysics_fft(self):
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
-        print(self.localGridName)
         self.processGeophysics()
 
     def processGeophysics_conv(self):
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid_Conv.currentText()
-        print(self.localGridName)
         self.processGeophysics()
 
     def processGeophysics(self):
@@ -872,7 +870,7 @@ class SGTool:
             self.layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
             if self.layer.isValid():
                 self.base_name = self.localGridName
-                print("self.base_name", self.base_name)
+
                 self.diskGridPath = self.layer.dataProvider().dataSourceUri()
                 self.dx = self.layer.rasterUnitsPerPixelX()
                 self.dy = self.layer.rasterUnitsPerPixelY()
@@ -882,7 +880,7 @@ class SGTool:
                 # Get raster dimensions
                 cols = provider.xSize()  # Number of columns
                 rows = provider.ySize()  # Number of rows
-                print("rows cols", rows, cols)
+
                 # Read raster data as a block
                 band = 1  # Specify the band number (1-based index)
                 raster_block = provider.block(band, provider.extent(), cols, rows)

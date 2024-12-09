@@ -137,7 +137,6 @@ class GridData:
             }
         )
         df.to_csv(filename, index=False)
-        print(f"Grid data saved to {filename}")
 
     def akima_interpolation(self):
         """

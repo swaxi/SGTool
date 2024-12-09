@@ -1587,6 +1587,7 @@ class SGTool:
                 self.updateLayertoGrid()
 
             self.cell_size = self.dlg.doubleSpinBox_cellsize.value()
+            self.dlg.radioButton_CT.setChecked(True)
 
     # select directory to store grid
     def gridDir(self):

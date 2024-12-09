@@ -73,7 +73,7 @@ from .GridData import GridData
 
 import os.path
 import numpy as np
-import pandas as pd
+from pandas import DataFrame, read_csv
 from osgeo import gdal, osr
 from .ppigrf import igrf, get_inclination_declination
 from datetime import datetime
@@ -1119,7 +1119,6 @@ class SGTool:
         if os.path.exists(self.diskPointsPath) and self.diskPointsPath != "":
             self.last_directory = os.path.dirname(self.diskPointsPath)
 
-            # self.pointData = pd.read_csv(self.diskPointsPath)
             basename = os.path.basename(self.diskPointsPath)
             extension = os.path.splitext(basename)[1]
             self.dlg.lineEdit_loadPointsPath.setText(self.diskPointsPath)
@@ -1131,7 +1130,7 @@ class SGTool:
                 self.pointType = "line"
 
             else:
-                points = pd.read_csv(self.diskPointsPath, nrows=0)
+                points = read_csv(self.diskPointsPath, nrows=0)
                 columns = list(points.columns)
                 self.dlg.comboBox_grid_x.setEnabled(True)
                 self.dlg.comboBox_grid_y.setEnabled(True)
@@ -1725,7 +1724,7 @@ class SGTool:
         columns.append("line_number")
 
         # columns = ['x', 'y', 'z', 'tmi', 'mag', 'line_number']
-        data = pd.DataFrame(data_list, columns=columns)
+        data = DataFrame(data_list, columns=columns)
 
         # dir_name, base_name = os.path.split(XYZ_file)
         # filename_without_extension = "/" + os.path.splitext(base_name)[0]
@@ -1873,7 +1872,7 @@ class SGTool:
         epsg_code = crs.postgisSrid()  # Retrieve the EPSG code
 
         # Create and return a DataFrame
-        return pd.DataFrame(data), epsg_code
+        return DataFrame(data), epsg_code
 
     def gridData(self):
         if self.gridDirectory and os.path.exists(self.gridDirectory):

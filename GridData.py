@@ -1,12 +1,11 @@
 import numpy as np
-import pandas as pd
+from pandas import to_numeric, DataFrame
 from scipy.interpolate import (
     griddata,
     Akima1DInterpolator,
     CloughTocher2DInterpolator,
     Rbf,
 )
-from scipy.optimize import minimize
 from scipy.spatial import ConvexHull, cKDTree
 from matplotlib.path import Path
 
@@ -15,7 +14,7 @@ class GridData:
     def __init__(self, df, nx, ny, grid_bounds=None):
         self.validate_input(df)
         df = df.dropna(subset=["value"])
-        df = df.apply(pd.to_numeric, errors="coerce")
+        df = df.apply(to_numeric, errors="coerce")
         self.original_df = df.copy()  # Keep a copy of the original data
         self.x = df["x"].values
         self.y = df["y"].values
@@ -130,7 +129,7 @@ class GridData:
         return interpolated_grid
 
     def save_to_csv(self, filename, grid_data):
-        df = pd.DataFrame(
+        df = DataFrame(
             {
                 "x": self.grid_x.ravel() * self.x_std + self.x_mean,
                 "y": self.grid_y.ravel() * self.y_std + self.y_mean,

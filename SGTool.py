@@ -1586,6 +1586,8 @@ class SGTool:
             if self.dlg.mMapLayerComboBox_selectGrid_3.currentText() != "":
                 self.updateLayertoGrid()
 
+            self.cell_size = self.dlg.doubleSpinBox_cellsize.value()
+
     # select directory to store grid
     def gridDir(self):
         self.gridDirectory = QFileDialog.getExistingDirectory(
@@ -1638,13 +1640,14 @@ class SGTool:
 
                 extent = selected_layer.extent()
 
-                cell_size = self.dlg.doubleSpinBox_cellsize.value()
                 if extent.xMaximum() != None:
+                    self.cell_size = self.dlg.doubleSpinBox_cellsize.value()
+
                     self.nx_label = int(
-                        (extent.xMaximum() - extent.xMinimum()) / cell_size
+                        (extent.xMaximum() - extent.xMinimum()) / self.cell_size
                     )
                     self.ny_label = int(
-                        (extent.yMaximum() - extent.yMinimum()) / cell_size
+                        (extent.yMaximum() - extent.yMinimum()) / self.cell_size
                     )
                     self.dlg.nx_label.setText(str(self.nx_label))
                     self.dlg.ny_label.setText(str(self.ny_label))
@@ -1659,16 +1662,16 @@ class SGTool:
             selected_layer = QgsProject.instance().mapLayersByName(self.selectedPoints)[
                 0
             ]
-            if selected_layer.isValid() and self.selectedPoints != "":
+            if selected_layer.isValid():
                 extent = selected_layer.extent()
+                self.cell_size = self.dlg.doubleSpinBox_cellsize.value()
 
                 if extent.xMaximum() != None:
-                    cell_size = self.dlg.doubleSpinBox_cellsize.value()
                     self.nx_label = int(
-                        (extent.xMaximum() - extent.xMinimum()) / cell_size
+                        (extent.xMaximum() - extent.xMinimum()) / self.cell_size
                     )
                     self.ny_label = int(
-                        (extent.yMaximum() - extent.yMinimum()) / cell_size
+                        (extent.yMaximum() - extent.yMinimum()) / self.cell_size
                     )
                     self.dlg.nx_label.setText(str(self.nx_label))
                     self.dlg.ny_label.setText(str(self.ny_label))

@@ -683,6 +683,7 @@ class SGTool:
             self.new_grid = self.processor.vertical_integration(
                 self.raster_array,
                 max_wavenumber=None,
+                min_wavenumber=1e-6,
                 buffer_size=10,
                 buffer_method="mirror",
             )

@@ -1635,13 +1635,14 @@ class SGTool:
                 0
             ]
             if selected_layer.isValid():
+
                 field_names = self.get_layer_fields(selected_layer)
                 self.dlg.comboBox_select_grid_data_field.clear()
                 self.dlg.comboBox_select_grid_data_field.addItems(field_names)
 
-                extent = selected_layer.extent()
+                if selected_layer.featureCount() > 0:
+                    extent = selected_layer.extent()
 
-                if extent.xMaximum() != None:
                     self.cell_size = self.dlg.doubleSpinBox_cellsize.value()
 
                     self.nx_label = int(
@@ -1652,8 +1653,6 @@ class SGTool:
                     )
                     self.dlg.nx_label.setText(str(self.nx_label))
                     self.dlg.ny_label.setText(str(self.ny_label))
-                else:
-                    print("no layer loaded")
 
     def updateLayertoGrid2(self):
 
@@ -1664,10 +1663,11 @@ class SGTool:
                 0
             ]
             if selected_layer.isValid():
+
                 extent = selected_layer.extent()
                 self.cell_size = self.dlg.doubleSpinBox_cellsize.value()
 
-                if extent.xMaximum() != None:
+                if selected_layer.featureCount() > 0:
                     self.nx_label = int(
                         (extent.xMaximum() - extent.xMinimum()) / self.cell_size
                     )
@@ -1676,8 +1676,6 @@ class SGTool:
                     )
                     self.dlg.nx_label.setText(str(self.nx_label))
                     self.dlg.ny_label.setText(str(self.ny_label))
-                else:
-                    print("no layer loaded2")
 
     def import_point_line_data(self):
         # import point or line data as vector file to memory
@@ -1956,36 +1954,52 @@ class SGTool:
                     self.selectedPoints
                 )[0]
                 if selected_layer.isValid():
-                    attribute_name = (
-                        self.dlg.comboBox_select_grid_data_field.currentText()
-                    )
-                    df, epsg = self.vector_layer_to_dataframe(
-                        selected_layer, attribute_name
-                    )
+                    if selected_layer.featureCount() > 0:
 
-                    gridder = GridData(
-                        df,
-                        self.nx_label,
-                        self.ny_label,
-                        grid_bounds=None,
-                    )
+                        attribute_name = (
+                            self.dlg.comboBox_select_grid_data_field.currentText()
+                        )
+                        df, epsg = self.vector_layer_to_dataframe(
+                            selected_layer, attribute_name
+                        )
 
-                    if self.dlg.radioButton_CT.isChecked():
-                        new_grid = gridder.interpolate(method="clough_tocher")
-                        self.suffix = "_CT"
-                    elif self.dlg.radioButton_IDW.isChecked():
-                        power = float(self.dlg.lineEdit_IDW_power.text())
-                        new_grid = gridder.interpolate(method="idw", power=power)
-                        self.suffix = "_IDW"
+                        gridder = GridData(
+                            df,
+                            self.nx_label,
+                            self.ny_label,
+                            grid_bounds=None,
+                        )
 
-                extent = selected_layer.extent()
+                        if self.dlg.radioButton_CT.isChecked():
+                            new_grid = gridder.interpolate(method="clough_tocher")
+                            self.suffix = "_CT"
+                        elif self.dlg.radioButton_IDW.isChecked():
+                            power = float(self.dlg.lineEdit_IDW_power.text())
+                            new_grid = gridder.interpolate(method="idw", power=power)
+                            self.suffix = "_IDW"
 
-                cell_size = self.dlg.doubleSpinBox_cellsize.value()
-                self.nx_label = int((extent.xMaximum() - extent.xMinimum()) / cell_size)
-                self.ny_label = int((extent.yMaximum() - extent.yMinimum()) / cell_size)
-                self.addGridded(
-                    new_grid, self.selectedPoints + self.suffix, epsg, extent, cell_size
-                )
+                        extent = selected_layer.extent()
+
+                        cell_size = self.dlg.doubleSpinBox_cellsize.value()
+                        self.nx_label = int(
+                            (extent.xMaximum() - extent.xMinimum()) / cell_size
+                        )
+                        self.ny_label = int(
+                            (extent.yMaximum() - extent.yMinimum()) / cell_size
+                        )
+                        self.addGridded(
+                            new_grid,
+                            self.selectedPoints + self.suffix,
+                            epsg,
+                            extent,
+                            cell_size,
+                        )
+                    else:
+                        self.iface.messageBar().pushMessage(
+                            "Empty point data file",
+                            level=Qgis.Warning,
+                            duration=15,
+                        )
 
     # save new gridded data as geotiff
     def addGridded(self, grid, filename_without_extension, epsg, extent, cell_size):

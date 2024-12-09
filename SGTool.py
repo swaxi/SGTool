@@ -455,7 +455,7 @@ class SGTool:
         self.FreqCut = False
         self.FreqCut_type = "Low"
         self.FreqCut_cut = 1000
-        self.PG = False
+        self.VI = False
         self.THG = False
 
         self.Mean = False
@@ -513,7 +513,7 @@ class SGTool:
         self.FreqCut_type = self.dlg.comboBox_2_FreqCutType.currentText()
         self.FreqCut_cut = self.dlg.lineEdit_12_FreqPass.text()
 
-        self.PG = self.dlg.checkBox_4_PGrav.isChecked()
+        self.VI = self.dlg.checkBox_4_PGrav.isChecked()
         self.THG = self.dlg.checkBox_11_tot_hz_grad.isChecked()
 
         self.Mean = self.dlg.checkBox_Mean.isChecked()
@@ -941,7 +941,7 @@ class SGTool:
             if self.AGC:
                 self.procAGC()
                 self.addNewGrid()
-            if self.PG:
+            if self.VI:
                 # self.procRTP_E()
                 self.procvInt()
                 self.addNewGrid()
@@ -971,14 +971,16 @@ class SGTool:
         self.dlg.checkBox_4_RTE_P.setChecked(False)
         self.dlg.checkBox_7_tiltDerivative.setChecked(False)
         self.dlg.checkBox_8_analyticSignal.setChecked(False)
+        self.dlg.checkBox_4_PGrav.setChecked(False)
         self.dlg.checkBox_9_continuation.setChecked(False)
+
         self.dlg.checkBox_3_DirClean.setChecked(False)
         self.dlg.checkBox_5_regional.setChecked(False)
         self.dlg.checkBox_10_bandPass.setChecked(False)
         self.dlg.checkBox_10_freqCut.setChecked(False)
         self.dlg.checkBox_11_1vd_agc.setChecked(False)
+
         self.dlg.checkBox_6_derivative.setChecked(False)
-        self.dlg.checkBox_4_PGrav.setChecked(False)
         self.dlg.checkBox_11_tot_hz_grad.setChecked(False)
 
         self.dlg.checkBox_Mean.setChecked(False)
@@ -986,6 +988,26 @@ class SGTool:
         self.dlg.checkBox_Gaussian.setChecked(False)
         self.dlg.checkBox_Directional.setChecked(False)
         self.dlg.checkBox_SunShading.setChecked(False)
+
+        self.RTE_P = False
+        self.TDR = False
+        self.AS = False
+
+        self.DirClean = False
+        self.RemRegional = False
+        self.Derivative = False
+        self.Continuation = False
+        self.BandPass = False
+        self.AGC = False
+        self.FreqCut = False
+        self.VI = False
+        self.THG = False
+        self.Mean = False
+        self.Median = False
+        self.Gaussian = False
+        self.Gaussian = False
+        self.Direction = False
+        self.SunShade = False
 
     def is_layer_loaded(self, layer_name):
         """

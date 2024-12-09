@@ -136,7 +136,7 @@ Computes relief shading for a digital elevation model (DEM) or other 2D grids.
 **Import points**   
 Imports point data in csv or xyz formats   
 
-**GFridding**   
+**Gridding**   
 Grids point data using either Clough Tocher or IDW gridding algoithms   
    
       

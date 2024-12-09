@@ -671,13 +671,22 @@ class SGTool:
         self.suffix = "_THG"
 
     def procvInt(self):
-        self.new_grid = self.processor.vertical_integration(
-            self.raster_array,
-            max_wavenumber=None,
-            buffer_size=10,
-            buffer_method="mirror",
-        )
-        self.suffix = "_VI"
+        selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
+        crs = selected_layer.crs()
+        if crs.isGeographic():
+            self.iface.messageBar().pushMessage(
+                "Vertical integration requires a metre-based projection system",
+                level=Qgis.Warning,
+                duration=15,
+            )
+        else:
+            self.new_grid = self.processor.vertical_integration(
+                self.raster_array,
+                max_wavenumber=None,
+                buffer_size=10,
+                buffer_method="mirror",
+            )
+            self.suffix = "_VI"
 
     def procFreqCut(self):
         cutoff_wavelength = float(self.FreqCut_cut)
@@ -936,6 +945,7 @@ class SGTool:
         self.dlg.checkBox_10_freqCut.setChecked(False)
         self.dlg.checkBox_11_1vd_agc.setChecked(False)
         self.dlg.checkBox_6_derivative.setChecked(False)
+        self.dlg.checkBox_4_PGrav.setChecked(False)
         self.dlg.checkBox_11_tot_hz_grad.setChecked(False)
 
         self.dlg.checkBox_Mean.setChecked(False)
@@ -1891,16 +1901,9 @@ class SGTool:
                         grid_bounds=None,
                     )
 
-                    if self.dlg.radioButton_makima.isChecked():
-                        new_grid = gridder.interpolate(method="akima")
-                        self.suffix = "_MK"
-                    elif self.dlg.radioButton_MinQ.isChecked():
+                    if self.dlg.radioButton_MinQ.isChecked():
                         new_grid = gridder.interpolate(method="minimum_curvature")
                         self.suffix = "_MQ"
-                    elif self.dlg.radioButton_RBF.isChecked():
-                        method = self.dlg.comboBox_RBF_fun.currentText()
-                        new_grid = gridder.interpolate(method="rbf", function=method)
-                        self.suffix = "_RBF"
                     elif self.dlg.radioButton_CT.isChecked():
                         new_grid = gridder.interpolate(method="clough_tocher")
                         self.suffix = "_CT"

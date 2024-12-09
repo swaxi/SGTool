@@ -6,8 +6,9 @@ from scipy.interpolate import (
     CloughTocher2DInterpolator,
     Rbf,
 )
-from scipy.spatial import cKDTree
 from scipy.optimize import minimize
+from scipy.spatial import ConvexHull, cKDTree
+from matplotlib.path import Path
 
 
 class GridData:
@@ -104,14 +105,29 @@ class GridData:
         return interpolated_values
 
     def idw_interpolation(self, power=2):
+        # Build k-D tree for the input points
         tree = cKDTree(np.c_[self.x, self.y])
         xi = np.c_[self.grid_x.ravel(), self.grid_y.ravel()]
+
+        # Compute distances and weights for IDW
         distances, indices = tree.query(xi, k=10)
         weights = 1 / (distances**power + 1e-12)
         interpolated_values = np.sum(weights * self.values[indices], axis=1) / np.sum(
             weights, axis=1
         )
-        return interpolated_values.reshape(self.grid_x.shape)
+
+        # Compute the convex hull of the input data points
+        hull = ConvexHull(np.c_[self.x, self.y])
+        hull_path = Path(np.c_[self.x[hull.vertices], self.y[hull.vertices]])
+
+        # Check which grid points are inside the convex hull
+        inside_hull = hull_path.contains_points(xi).reshape(self.grid_x.shape)
+
+        # Create the interpolated grid and set NaN for points outside the hull
+        interpolated_grid = interpolated_values.reshape(self.grid_x.shape)
+        interpolated_grid[~inside_hull] = np.nan
+
+        return interpolated_grid
 
     def save_to_csv(self, filename, grid_data):
         df = pd.DataFrame(

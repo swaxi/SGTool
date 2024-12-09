@@ -109,10 +109,6 @@ class GeophysicalProcessor:
             k = np.sqrt(kx**2 + ky**2) + 1e-10  # Avoid division by zero
             vertical_integration_filter = 1 / k
 
-            # Apply max_wavenumber filtering if specified
-            # if max_wavenumber:
-            #    vertical_integration_filter[k > max_wavenumber] = 0
-
             return vertical_integration_filter
 
         # Apply the Fourier filter

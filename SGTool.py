@@ -69,13 +69,16 @@ from .geosoft_grid_parser import *
 from .PSplot import PowerSpectrumDock
 from .ConvolutionFilter import ConvolutionFilter
 from .ConvolutionFilter import OddPositiveIntegerValidator
-from .GridData import GridData
+from .GridData_no_pandas import GridData
 
 import os.path
 import numpy as np
-from pandas import DataFrame, read_csv
+import subprocess
+
+# from pandas import DataFrame, read_csv
 from osgeo import gdal, osr
-from .ppigrf import igrf, get_inclination_declination
+
+# from .ppigrf import igrf, get_inclination_declination
 from datetime import datetime
 from pyproj import Transformer
 
@@ -120,6 +123,38 @@ class SGTool:
         self.pluginIsActive = False
         self.dlg = None
         self.last_directory = None
+
+        ## Python library integration
+        def install_library(library_name):
+            try:
+                subprocess.call(["python", "-m", "pip", "install", library_name])
+                print(f"Successfully installed {library_name}")
+                import library_name
+            except subprocess.CalledProcessError as e:
+                print(f"Error installing {library_name}: {e}")
+
+        # Library Xlswriter
+        """ 
+        try:
+            import xlsxwriter
+
+        except:
+            install_library("xlsxwriter")
+
+        # Library Openpyxl
+        try:
+            import openpyxl
+
+        except:
+            install_library("openpyxl")
+        """
+
+        # Library pyIGRF
+        try:
+            import pyIGRF
+
+        except:
+            install_library("pyIGRF")
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -283,7 +318,7 @@ class SGTool:
             "Manually define magnetic declination [degrees clockwise from North]"
         )
         self.dlg.lineEdit_7_height.setToolTip("Survey height [m or other length unit]")
-        self.dlg.dateEdit.setToolTip("Survey date")
+        self.dlg.dateEdit.setToolTip("Survey date (1900-2025)")
         self.dlg.checkBox_4_PGrav.setToolTip(
             "Vertical Integration:\nWhen applied to RTE/P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing."
         )
@@ -418,9 +453,7 @@ class SGTool:
             "Choose Inverse Distance Weighting Gridding (_IDW)"
         )
         self.dlg.lineEdit_IDW_power.setToolTip("Define power for IDW gridding")
-        self.dlg.pushButton_selectGridOutputDir.setToolTip(
-            "Select output directory for grid"
-        )
+        self.dlg.pushButton_selectGridOutputDir.setToolTip("Select filename for grid")
         self.dlg.pushButton_3_applyGridding.setToolTip("Grid to selected point data")
 
     def initParams(self):
@@ -1183,8 +1216,8 @@ class SGTool:
                 self.pointType = "line"
 
             else:
-                points = read_csv(self.diskPointsPath, nrows=0)
-                columns = list(points.columns)
+                columns = self.read_csv_header(self.diskPointsPath)
+                # columns = list(points.columns)
                 self.dlg.comboBox_grid_x.setEnabled(True)
                 self.dlg.comboBox_grid_y.setEnabled(True)
                 self.dlg.mQgsProjectionSelectionWidget.setEnabled(True)
@@ -1193,6 +1226,17 @@ class SGTool:
                 self.dlg.comboBox_grid_y.addItems(columns)
                 self.dlg.pushButton_load_point_data.setEnabled(True)
                 self.pointType = "point"
+
+    def read_csv_header(self, file_path):
+        """
+        Reads the first line of a CSV file and stores the values as a list.
+
+        :param file_path: Path to the CSV file
+        :return: List of header values
+        """
+        with open(file_path, "r") as file:
+            header = file.readline().strip().split(",")
+        return header
 
     def numpy_array_to_raster(
         self,
@@ -1275,8 +1319,40 @@ class SGTool:
         output_raster = None  # Close the file
         return 0
 
+    def day_month_to_decimal_year(self, year, month, day):
+        """
+        Convert a day and month into a decimal year.
+
+        Parameters:
+            year (int): The year.
+            month (int): The month (1-12).
+            day (int): The day (1-31 depending on the month).
+
+        Returns:
+            float: The decimal year.
+        """
+        # Create datetime object for the given date
+        date = datetime(year, month, day)
+
+        # Calculate the start and end of the year
+        start_of_year = datetime(year, 1, 1)
+        end_of_year = datetime(year + 1, 1, 1)
+
+        # Calculate the total days in the year
+        days_in_year = (end_of_year - start_of_year).days
+
+        # Calculate the number of days since the start of the year
+        days_since_start_of_year = (date - start_of_year).days
+
+        # Compute the decimal year
+        decimal_year = year + days_since_start_of_year / days_in_year
+
+        return decimal_year
+
     # estimate mag field from centroid of data, date and sensor height
     def update_mag_field(self):
+        import pyIGRF
+
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
         if os.path.exists(self.diskGridPath) or self.localGridName:
             if os.path.exists(self.diskGridPath):
@@ -1313,24 +1389,21 @@ class SGTool:
             x, y = (midx, midy)
             long, lat = proj.transform(x, y)
 
-            # calculate IGRF compnents and  convert to Inc, Dec, Int
-            Be, Bn, Bu = igrf(
-                long, lat, float(self.magn_SurveyHeight), date
-            )  # returns east, north, up
-            (self.RTE_P_inc, self.RTE_P_dec) = get_inclination_declination(
-                Be, Bn, Bu, degrees=True
+            date = self.day_month_to_decimal_year(
+                self.magn_SurveyYear, self.magn_SurveyMonth, self.magn_SurveyDay
             )
-            self.forward_magneticField_intensity = np.sqrt(Be**2 + Bn**2 + Bu**2)
+            D, I, H, X, Y, Z, F = pyIGRF.igrf_value(
+                lat, long, float(self.magn_SurveyHeight), date
+            )
 
-            self.RTE_P_inc = self.RTE_P_inc.item()
-            self.RTE_P_dec = self.RTE_P_dec.item()
+            # self.forward_magneticField_intensity = np.sqrt(Be**2 + Bn**2 + Bu**2)
+
+            self.RTE_P_inc = I
+            self.RTE_P_dec = D
 
             # update widgets
             self.dlg.lineEdit_5_dec.setText(str(round(self.RTE_P_dec, 1)))
             self.dlg.lineEdit_6_inc.setText(str(round(self.RTE_P_inc, 1)))
-            """self.dlg.doubleSpinBox_mag_int.setValue(
-                self.forward_magneticField_intensity.item()
-            )"""
 
     def extract_raster_to_numpy(self, raster_layer):
         """
@@ -1579,9 +1652,9 @@ class SGTool:
             # Connect to layer removal signal
             QgsProject.instance().layerRemoved.connect(self.refreshComboBox)
 
-            self.dlg.pushButton_3_applyGridding.clicked.connect(self.gridData)
+            self.dlg.pushButton_3_applyGridding.clicked.connect(self.gridPointData)
 
-            self.dlg.pushButton_selectGridOutputDir.clicked.connect(self.gridDir)
+            self.dlg.pushButton_selectGridOutputDir.clicked.connect(self.gridFile)
 
             if self.dlg.mMapLayerComboBox_selectGrid_3.currentText() != "":
                 self.updateLayertoGrid()
@@ -1589,18 +1662,22 @@ class SGTool:
             self.cell_size = self.dlg.doubleSpinBox_cellsize.value()
             self.dlg.radioButton_CT.setChecked(True)
 
-    # select directory to store grid
-    def gridDir(self):
-        self.gridDirectory = QFileDialog.getExistingDirectory(
-            None, "Select output path for your grid"
-        )
+            self.gridDirectory = None
 
-        self.dlg.lineEdit_gridOutputDir.setText(self.gridDirectory)
-        if self.gridDirectory:
-            if os.path.exists(self.gridDirectory):
-                self.output_directory = os.path.split(
-                    self.dlg.lineEdit_gridOutputDir.text()
-                )[-1]
+    # select directory to store grid
+    def gridFile(self):
+        self.gridFilePath = QFileDialog.getSaveFileName(None, "Save grid file as")
+
+        if len(self.gridFilePath) > 1:
+            extension = self.gridFilePath[1]
+        else:
+            extension = ""
+        self.gridFilePath = self.gridFilePath[0]
+
+        if extension.lower() != ".tif":
+            self.gridFilePath = self.gridFilePath + ".tif"
+
+        self.dlg.lineEdit_gridOutputDir.setText(self.gridFilePath)
 
     def get_layer_fields(self, layer):
         """
@@ -1686,7 +1763,8 @@ class SGTool:
 
         if self.pointType == "line":
             crs = proj.split(":")[1]
-            self.import_XYZ(self.diskPointsPath, crs, file_name)
+            load_ties = self.dlg.checkBox_load_tie_lines.isChecked()
+            self.import_XYZ(self.diskPointsPath, crs, file_name, load_ties=load_ties)
         else:
             x_field = self.dlg.comboBox_grid_x.currentText()
             y_field = self.dlg.comboBox_grid_y.currentText()
@@ -1752,7 +1830,93 @@ class SGTool:
                     except ValueError:
                         pass
 
-    def import_XYZ(self, XYZ_file, crs, layer_name="line"):
+    def import_XYZ(self, XYZ_file, crs, layer_name="line", load_ties=True):
+        # Initialize variables
+        data_list = []
+        current_line_number = None
+
+        # Read the file line-by-line
+        with open(XYZ_file, "r") as file:
+            for line in file:
+                line = line.strip()
+                if line.startswith("LINE:"):  # Check for 'LINE:' markers
+                    current_line_number = int(re.search(r"\d+", line).group())
+                elif line.startswith("TIE:"):  # Check for 'TIE:' markers
+                    if load_ties:
+                        current_line_number = int(re.search(r"\d+", line).group())
+                    else:
+                        current_line_number = None
+                elif current_line_number is not None:
+                    try:
+                        parts = list(map(float, line.split()))
+                        if len(parts) >= 2:  # Ensure at least x and y are present
+                            data_list.append(parts + [current_line_number])
+                    except ValueError:
+                        pass
+
+        # Process and create the line layer
+        line_layer = QgsVectorLayer("LineString?crs=EPSG:" + crs, layer_name, "memory")
+        line_provider = line_layer.dataProvider()
+
+        fields = QgsFields()
+        fields.append(QgsField("LINE_ID", QVariant.Int))
+
+        for i in range(len(data_list[0]) - 3):
+            fields.append(QgsField(f"data_{i}", QVariant.Double))
+
+        line_provider.addAttributes(fields)
+        line_layer.updateFields()
+
+        line_features = {}
+
+        for data in data_list:
+            x, y, *values, line_id = data
+            if line_id not in line_features:
+                line_features[line_id] = []
+            line_features[line_id].append((x, y, values))
+
+        for line_id, points in line_features.items():
+            coords = [QgsPointXY(x, y) for x, y, _ in points]
+            geometry = QgsGeometry.fromPolylineXY(coords)
+
+            feature = QgsFeature()
+            feature.setGeometry(geometry)
+
+            first_values = points[0][2]
+            feature.setAttributes([line_id] + first_values)
+            line_provider.addFeature(feature)
+
+        QgsProject.instance().addMapLayer(line_layer)
+
+        # Create the point layer
+        point_layer = QgsVectorLayer(
+            "Point?crs=EPSG:" + crs, f"{layer_name}_points", "memory"
+        )
+        point_provider = point_layer.dataProvider()
+
+        fields = QgsFields()
+        fields.append(QgsField("LINE_ID", QVariant.Int))
+
+        for i in range(len(data_list[0]) - 3):
+            fields.append(QgsField(f"data_{i}", QVariant.Double))
+
+        point_provider.addAttributes(fields)
+        point_layer.updateFields()
+
+        for data in data_list:
+            x, y, *values, line_id = data
+            point = QgsGeometry.fromPointXY(QgsPointXY(x, y))
+
+            feature = QgsFeature()
+            feature.setGeometry(point)
+            feature.setAttributes([line_id] + values)
+            point_provider.addFeature(feature)
+
+        QgsProject.instance().addMapLayer(point_layer)
+        layer_tree = QgsProject.instance().layerTreeRoot()
+        layer_tree.findLayer(point_layer.id()).setItemVisibilityChecked(False)
+
+    def import_XYZ_(self, XYZ_file, crs, layer_name="line"):
         # Input file path
 
         load_ties = self.dlg.checkBox_load_tie_lines.isChecked()
@@ -1914,37 +2078,40 @@ class SGTool:
             raise ValueError(f"Attribute '{attribute_name}' not found in layer")
 
         # Extract features and build DataFrame
+        data = self.extract_features_to_array(layer, attribute_name)
+
+        crs = layer.crs()  # Get the CRS of the layer
+        epsg_code = crs.postgisSrid()  # Retrieve the EPSG code
+
+        # Create and return a DataFrame
+        return data, epsg_code
+
+    def extract_features_to_array(self, layer, attribute_name):
+        """
+        Extract x, y, value data from a QGIS layer into a 3×n NumPy array.
+
+        :param layer: QGIS layer to extract features from.
+        :param attribute_name: The attribute name to extract as the value.
+        :return: 3×n NumPy array of x, y, and value data.
+        """
         data = []
+
         for feature in layer.getFeatures():
             geom = feature.geometry()
             if geom and geom.isMultipart():
                 # Handle multipart geometries
                 for part in geom.asMultiPoint():
-                    data.append(
-                        {
-                            "x": part.x(),
-                            "y": part.y(),
-                            "value": feature[attribute_name],
-                        }
-                    )
+                    data.append([part.x(), part.y(), feature[attribute_name]])
             elif geom:
                 # Handle single-part geometries
                 point = geom.asPoint()
-                data.append(
-                    {
-                        "x": point.x(),
-                        "y": point.y(),
-                        "value": feature[attribute_name],
-                    }
-                )
-        crs = layer.crs()  # Get the CRS of the layer
-        epsg_code = crs.postgisSrid()  # Retrieve the EPSG code
+                data.append([point.x(), point.y(), feature[attribute_name]])
 
-        # Create and return a DataFrame
-        return DataFrame(data), epsg_code
+        # Convert to a NumPy array and return as a 3×n array
+        return np.array(data)
 
-    def gridData(self):
-        if self.gridDirectory and os.path.exists(self.gridDirectory):
+    def gridPointData(self):
+        if self.gridFilePath and not os.path.exists(self.gridFilePath):
 
             if self.dlg.mMapLayerComboBox_selectGrid_3.count() > 0:
                 self.selectedPoints = (
@@ -1954,17 +2121,17 @@ class SGTool:
                     self.selectedPoints
                 )[0]
                 if selected_layer.isValid():
-                    if selected_layer.featureCount() > 0:
+                    if selected_layer.featureCount() > 3:
 
                         attribute_name = (
                             self.dlg.comboBox_select_grid_data_field.currentText()
                         )
-                        df, epsg = self.vector_layer_to_dataframe(
+                        data, epsg = self.vector_layer_to_dataframe(
                             selected_layer, attribute_name
                         )
 
                         gridder = GridData(
-                            df,
+                            data,
                             self.nx_label,
                             self.ny_label,
                             grid_bounds=None,
@@ -1987,22 +2154,33 @@ class SGTool:
                         self.ny_label = int(
                             (extent.yMaximum() - extent.yMinimum()) / cell_size
                         )
+                        dir_name, base_name = os.path.split(self.gridFilePath)
+                        file_name, file_ext = os.path.splitext(base_name)
                         self.addGridded(
                             new_grid,
-                            self.selectedPoints + self.suffix,
+                            file_name,
+                            self.gridFilePath,
                             epsg,
                             extent,
                             cell_size,
                         )
                     else:
                         self.iface.messageBar().pushMessage(
-                            "Empty point data file",
+                            "Data file must have at least 3 points",
                             level=Qgis.Warning,
                             duration=15,
                         )
+        else:
+            self.iface.messageBar().pushMessage(
+                "Cannot overwrite existing file",
+                level=Qgis.Warning,
+                duration=15,
+            )
 
     # save new gridded data as geotiff
-    def addGridded(self, grid, filename_without_extension, epsg, extent, cell_size):
+    def addGridded(
+        self, grid, filename_without_extension, filepath, epsg, extent, cell_size
+    ):
 
         if self.is_layer_loaded(filename_without_extension):
             layer = QgsProject.instance().mapLayersByName(filename_without_extension)
@@ -2011,37 +2189,40 @@ class SGTool:
                 # Rename the layer
                 filename_without_extension = filename_without_extension + "1"
 
-        self.diskGridPath = (
-            self.gridDirectory + "/" + filename_without_extension + ".tif"
-        )
+        self.diskGridPath = filepath
 
         driver = gdal.GetDriverByName("GTiff")
-        ds = driver.Create(
-            self.diskGridPath,
-            xsize=grid.shape[1],
-            ysize=grid.shape[0],
-            bands=1,
-            eType=GDALDataType["GDT_Float32"],
-        )
+        try:
+            ds = driver.Create(
+                filepath,
+                xsize=grid.shape[1],
+                ysize=grid.shape[0],
+                bands=1,
+                eType=GDALDataType["GDT_Float32"],
+            )
 
-        ds.GetRasterBand(1).WriteArray(grid)
-        geot = [
-            extent.xMinimum() - (cell_size / 2),
-            cell_size,
-            0,
-            extent.yMinimum() - (cell_size / 2),
-            0,
-            cell_size,
-        ]
-        ds.SetGeoTransform(geot)
-        srs = osr.SpatialReference()
-        srs.ImportFromEPSG(int(epsg))
-        ds.SetProjection(srs.ExportToWkt())
-        ds.FlushCache()
-        ds = None
+            ds.GetRasterBand(1).WriteArray(grid)
+            geot = [
+                extent.xMinimum() - (cell_size / 2),
+                cell_size,
+                0,
+                extent.yMinimum() - (cell_size / 2),
+                0,
+                cell_size,
+            ]
+            ds.SetGeoTransform(geot)
+            srs = osr.SpatialReference()
+            srs.ImportFromEPSG(int(epsg))
+            ds.SetProjection(srs.ExportToWkt())
+            ds.FlushCache()
+            ds = None
 
-        self.layer = QgsRasterLayer(self.diskGridPath, filename_without_extension)
-        if not self.is_layer_loaded(filename_without_extension):
+            self.layer = QgsRasterLayer(self.diskGridPath, filename_without_extension)
+            if self.is_layer_loaded(filename_without_extension):
+                project = QgsProject.instance()
+                layer = project.mapLayersByName(filename_without_extension)[0]
+                project.removeMapLayer(layer.id())
+
             QgsProject.instance().addMapLayer(self.layer)
             # Access the raster data provider
             provider = self.layer.dataProvider()
@@ -2062,3 +2243,9 @@ class SGTool:
                 self.layer.triggerRepaint()
             else:
                 print("Renderer is not a QgsSingleBandGrayRenderer.")
+        except:
+            self.iface.messageBar().pushMessage(
+                "Data file must have at lesat 3 points",
+                level=Qgis.Warning,
+                duration=15,
+            )

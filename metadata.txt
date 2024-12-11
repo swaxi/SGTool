@@ -6,7 +6,7 @@
 name=SGTool
 qgisMinimumVersion=3.0
 description=Simple Potential Field Processing
-version=0.2.4
+version=0.2.5
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
@@ -20,7 +20,11 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.2.3 2024-11-26
+changelog=0.2.5 2024-12-11
+      * add convolution filtering
+      * add simple gridding from csv and xyz format files
+      * change to pyIGRF for RTP_E calcs
+    0.2.3 2024-11-26
       * Bug fixes to Directional Cleaning
       * Change of behaviour: existing layer now overwritten in QGIS
       * Loading of GRD format optimised and now massively quicker

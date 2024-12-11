@@ -714,6 +714,20 @@ QTabBar::tab:hover {
          <height>22</height>
         </rect>
        </property>
+       <property name="maximumDate">
+        <date>
+         <year>2025</year>
+         <month>12</month>
+         <day>31</day>
+        </date>
+       </property>
+       <property name="minimumDate">
+        <date>
+         <year>1900</year>
+         <month>1</month>
+         <day>1</day>
+        </date>
+       </property>
       </widget>
       <widget class="QCheckBox" name="checkBox_9_continuation">
        <property name="geometry">
@@ -1810,7 +1824,7 @@ font-size: 13px;
        </property>
        <property name="geometry">
         <rect>
-         <x>260</x>
+         <x>30</x>
          <y>230</y>
          <width>101</width>
          <height>23</height>

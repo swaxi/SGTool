@@ -1,5 +1,4 @@
 import numpy as np
-from pandas import to_numeric, DataFrame
 from scipy.interpolate import (
     griddata,
     Akima1DInterpolator,
@@ -11,15 +10,10 @@ from matplotlib.path import Path
 
 
 class GridData:
-    def __init__(self, df, nx, ny, grid_bounds=None):
-        self.validate_input(df)
-        df = df.dropna(subset=["value"])
-        df = df.apply(to_numeric, errors="coerce")
-        self.original_df = df.copy()  # Keep a copy of the original data
-        self.x = df["x"].values
-        self.y = df["y"].values
-        self.values = df["value"].values
-        # self.grid_bounds = [-1, 1, -1, 1]
+    def __init__(self, data, nx, ny, grid_bounds=None):
+        self.validate_input(data)
+        data = self.clean_data(data)
+        self.x, self.y, self.values = data[:, 0], data[:, 1], data[:, 2]
         self.nx = nx
         self.ny = ny
 
@@ -27,20 +21,25 @@ class GridData:
         self.normalize_data()
         self.interpolator = None
 
-        self.grid_x, self.grid_y = self.create_grid(grid_bounds=None)
+        self.grid_x, self.grid_y = self.create_grid(grid_bounds=grid_bounds)
 
     @staticmethod
-    def validate_input(df):
-        if not all(col in df.columns for col in ["x", "y", "value"]):
-            raise ValueError("DataFrame must contain 'x', 'y', and 'value' columns")
-        if df.empty:
-            raise ValueError("DataFrame is empty. Provide valid input data.")
+    def validate_input(data):
+        if not isinstance(data, np.ndarray) or data.shape[1] != 3:
+            raise ValueError(
+                "Input data must be a numpy array with three columns: x, y, and value."
+            )
+
+    @staticmethod
+    def clean_data(data):
+        # Remove rows with NaN values
+        return data[~np.isnan(data).any(axis=1)]
 
     def normalize_data(self):
         # Compute normalization factors
-        self.x_mean, self.x_std = self.x.mean(), self.x.std()
-        self.y_mean, self.y_std = self.y.mean(), self.y.std()
-        self.value_mean, self.value_std = self.values.mean(), self.values.std()
+        self.x_mean, self.x_std = np.mean(self.x), np.std(self.x)
+        self.y_mean, self.y_std = np.mean(self.y), np.std(self.y)
+        self.value_mean, self.value_std = np.mean(self.values), np.std(self.values)
 
         # Normalize x, y, and value
         self.x = (self.x - self.x_mean) / self.x_std
@@ -55,8 +54,8 @@ class GridData:
         if grid_bounds:
             x_min, x_max, y_min, y_max = grid_bounds
         else:
-            x_min, x_max = self.x.min(), self.x.max()
-            y_min, y_max = self.y.min(), self.y.max()
+            x_min, x_max = np.min(self.x), np.max(self.x)
+            y_min, y_max = np.min(self.y), np.max(self.y)
 
         grid_x, grid_y = np.meshgrid(
             np.linspace(x_min, x_max, self.nx),
@@ -129,14 +128,18 @@ class GridData:
         return interpolated_grid
 
     def save_to_csv(self, filename, grid_data):
-        df = DataFrame(
-            {
-                "x": self.grid_x.ravel() * self.x_std + self.x_mean,
-                "y": self.grid_y.ravel() * self.y_std + self.y_mean,
-                "value": grid_data.ravel(),
-            }
-        )
-        df.to_csv(filename, index=False)
+        with open(filename, mode="w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["x", "y", "value"])
+            for i in range(self.grid_x.shape[0]):
+                for j in range(self.grid_x.shape[1]):
+                    writer.writerow(
+                        [
+                            self.grid_x[i, j] * self.x_std + self.x_mean,
+                            self.grid_y[i, j] * self.y_std + self.y_mean,
+                            grid_data[i, j],
+                        ]
+                    )
 
     def akima_interpolation(self):
         """

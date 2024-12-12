@@ -133,22 +133,6 @@ class SGTool:
             except subprocess.CalledProcessError as e:
                 print(f"Error installing {library_name}: {e}")
 
-        # Library Xlswriter
-        """ 
-        try:
-            import xlsxwriter
-
-        except:
-            install_library("xlsxwriter")
-
-        # Library Openpyxl
-        try:
-            import openpyxl
-
-        except:
-            install_library("openpyxl")
-        """
-
         # Library pyIGRF
         try:
             import pyIGRF
@@ -1358,11 +1342,8 @@ class SGTool:
             if os.path.exists(self.diskGridPath):
                 self.loadGrid()
 
-            else:
-                self.layer = QgsProject.instance().mapLayersByName(self.localGridName)[
-                    0
-                ]
-                self.base_name = self.localGridName
+            self.layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
+            self.base_name = self.localGridName
 
             # retrieve parameters
             self.magn_SurveyHeight = self.dlg.lineEdit_7_height.text()
@@ -1382,28 +1363,35 @@ class SGTool:
             midx = extent.xMinimum() + (extent.xMaximum() - extent.xMinimum())
             midy = extent.yMinimum() + (extent.yMaximum() - extent.yMinimum())
 
-            # convert midpoint to lat/long
-            magn_proj = self.layer.crs().authid().split(":")[1]
+            if self.layer.crs().authid():
+                # convert midpoint to lat/long
+                magn_proj = self.layer.crs().authid().split(":")[1]
 
-            proj = Transformer.from_crs(magn_proj, 4326, always_xy=True)
-            x, y = (midx, midy)
-            long, lat = proj.transform(x, y)
+                proj = Transformer.from_crs(magn_proj, 4326, always_xy=True)
+                x, y = (midx, midy)
+                long, lat = proj.transform(x, y)
 
-            date = self.day_month_to_decimal_year(
-                self.magn_SurveyYear, self.magn_SurveyMonth, self.magn_SurveyDay
-            )
-            D, I, H, X, Y, Z, F = pyIGRF.igrf_value(
-                lat, long, float(self.magn_SurveyHeight), date
-            )
+                date = self.day_month_to_decimal_year(
+                    self.magn_SurveyYear, self.magn_SurveyMonth, self.magn_SurveyDay
+                )
+                D, I, H, X, Y, Z, F = pyIGRF.igrf_value(
+                    lat, long, float(self.magn_SurveyHeight), date
+                )
 
-            # self.forward_magneticField_intensity = np.sqrt(Be**2 + Bn**2 + Bu**2)
+                # self.forward_magneticField_intensity = np.sqrt(Be**2 + Bn**2 + Bu**2)
 
-            self.RTE_P_inc = I
-            self.RTE_P_dec = D
+                self.RTE_P_inc = I
+                self.RTE_P_dec = D
 
-            # update widgets
-            self.dlg.lineEdit_5_dec.setText(str(round(self.RTE_P_dec, 1)))
-            self.dlg.lineEdit_6_inc.setText(str(round(self.RTE_P_inc, 1)))
+                # update widgets
+                self.dlg.lineEdit_5_dec.setText(str(round(self.RTE_P_dec, 1)))
+                self.dlg.lineEdit_6_inc.setText(str(round(self.RTE_P_inc, 1)))
+            else:
+                self.iface.messageBar().pushMessage(
+                    "Sorry, I couldn't interpret the projection system of this layer, try either saving out grid or define the Inc/Dec manually.",
+                    level=Qgis.Warning,
+                    duration=15,
+                )
 
     def extract_raster_to_numpy(self, raster_layer):
         """
@@ -1547,6 +1535,7 @@ class SGTool:
             # show the dockwidget
             # TODO: fix to allow choice of dock location
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dlg)
+            # Raise the docked widget above others
             self.dlg.show()
             self.define_tips()
 
@@ -1663,6 +1652,8 @@ class SGTool:
             self.dlg.radioButton_CT.setChecked(True)
 
             self.gridDirectory = None
+
+            # self.dlg.raise_()
 
     # select directory to store grid
     def gridFile(self):

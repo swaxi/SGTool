@@ -991,7 +991,7 @@ QTabBar::tab:hover {
         </rect>
        </property>
        <property name="text">
-        <string>Vertical Integration (apply to RTE_P result to get Pseudo Gravity)</string>
+        <string>Vertical Integration (apply to RTE/P result to get Pseudo Gravity)</string>
        </property>
       </widget>
       <widget class="QLabel" name="label_26">

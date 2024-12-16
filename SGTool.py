@@ -1096,11 +1096,12 @@ class SGTool:
                             QgsProject.instance().addMapLayer(self.layer)
 
                     else:
-                        self.iface.messageBar().pushMessage(
-                            "Conversion failed, check CSS colour names",
-                            level=Qgis.Warning,
-                            duration=15,
-                        )
+                        if RGBGridPath_gray != -3:
+                            self.iface.messageBar().pushMessage(
+                                "Conversion failed, check CSS colour names",
+                                level=Qgis.Warning,
+                                duration=15,
+                            )
 
                 else:
                     self.iface.messageBar().pushMessage(
@@ -1988,12 +1989,22 @@ class SGTool:
         result = False
         # Load the 3-band TIF
         with rasterio.open(RGBGridPath) as src:
-            red = src.read(1)  # Band 1
-            green = src.read(2)  # Band 2
-            blue = src.read(3)  # Band 3
-            profile = src.profile
-            transform = src.transform
-            crs = src.crs
+            array = src.read()
+            if array.shape[0] < 3:
+                self.iface.messageBar().pushMessage(
+                    "Data file must have at least 3 layers",
+                    level=Qgis.Warning,
+                    duration=15,
+                )
+                return False, -3
+            else:
+
+                red = src.read(1)  # Band 1
+                green = src.read(2)  # Band 2
+                blue = src.read(3)  # Band 3
+                profile = src.profile
+                transform = src.transform
+                crs = src.crs
 
         # Stack bands into an RGB array
         rgb_raster = np.dstack((red, green, blue)).astype(float)
@@ -2003,45 +2014,48 @@ class SGTool:
         css_color_list.reverse()
         # Define the LUT for (high to low) scalar values
         lut = self.generate_rgb_lut(css_color_list, num_entries=1024)
+        if lut:
 
-        # Extract scalar values and RGB colors
-        scalar_values, lut_colors = zip(*lut)
-        lut_colors = np.array(lut_colors) / 255.0  # Normalize LUT colors
+            # Extract scalar values and RGB colors
+            scalar_values, lut_colors = zip(*lut)
+            lut_colors = np.array(lut_colors) / 255.0  # Normalize LUT colors
 
-        # Identify white pixels (255, 255, 255)
-        white_mask = (rgb_raster == [255, 255, 255]).all(axis=2)
+            # Identify white pixels (255, 255, 255)
+            white_mask = (rgb_raster == [255, 255, 255]).all(axis=2)
 
-        # Identify white pixels (255, 255, 255)
-        black_mask = (rgb_raster == [0, 0, 0]).all(axis=2)
+            # Identify white pixels (255, 255, 255)
+            black_mask = (rgb_raster == [0, 0, 0]).all(axis=2)
 
-        # Normalize raster RGB values to [0, 1]
-        normalized_rgb = rgb_raster / 255.0
+            # Normalize raster RGB values to [0, 1]
+            normalized_rgb = rgb_raster / 255.0
 
-        # Flatten RGB raster for KDTree query
-        reshaped_rgb = normalized_rgb.reshape(-1, 3)
+            # Flatten RGB raster for KDTree query
+            reshaped_rgb = normalized_rgb.reshape(-1, 3)
 
-        # Build a KDTree for nearest neighbor lookup
-        lut_tree = cKDTree(lut_colors)
-        distances, indices = lut_tree.query(reshaped_rgb)
+            # Build a KDTree for nearest neighbor lookup
+            lut_tree = cKDTree(lut_colors)
+            distances, indices = lut_tree.query(reshaped_rgb)
 
-        # Map nearest LUT color to scalar values
-        scalar_grid = np.array(scalar_values)[indices].reshape(rgb_raster.shape[:2])
+            # Map nearest LUT color to scalar values
+            scalar_grid = np.array(scalar_values)[indices].reshape(rgb_raster.shape[:2])
 
-        # Set white (255, 255, 255) areas to NaN
-        scalar_grid[white_mask] = np.nan
-        scalar_grid[black_mask] = np.nan
+            # Set white (255, 255, 255) areas to NaN
+            scalar_grid[white_mask] = np.nan
+            scalar_grid[black_mask] = np.nan
 
-        # Save the floating-point raster with georeferencing
-        profile.update(
-            count=1, dtype="float32", transform=transform, crs=crs, nodata=np.nan
-        )
-        RGBGridPath_gray = self.insert_text_before_extension(RGBGridPath, "_gray")
+            # Save the floating-point raster with georeferencing
+            profile.update(
+                count=1, dtype="float32", transform=transform, crs=crs, nodata=np.nan
+            )
+            RGBGridPath_gray = self.insert_text_before_extension(RGBGridPath, "_gray")
 
-        with rasterio.open(RGBGridPath_gray, "w", **profile) as dst:
-            dst.write(scalar_grid, 1)
-            result = True
+            with rasterio.open(RGBGridPath_gray, "w", **profile) as dst:
+                dst.write(scalar_grid, 1)
+                result = True
 
-        return result, RGBGridPath_gray
+            return result, RGBGridPath_gray
+        else:
+            return False, False
 
     def generate_rgb_lut(self, css_color_list, num_entries=1024):
         """
@@ -2060,7 +2074,13 @@ class SGTool:
         decimal_indices = np.linspace(0, 1, num_entries)
 
         # Create a continuous colormap using the input CSS color list
-        cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", css_color_list)
+        try:
+            cmap = mcolors.LinearSegmentedColormap.from_list(
+                "custom_cmap", css_color_list
+            )
+        except:
+
+            return False
 
         # Generate RGB values for each index
         rgb_colors = [cmap(i)[:3] for i in decimal_indices]

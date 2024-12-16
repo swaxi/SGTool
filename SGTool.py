@@ -1321,7 +1321,7 @@ class SGTool:
                 os.remove(raster_path)
             except:
                 self.iface.messageBar().pushMessage(
-                    "Couldn't delete layer, may be open in another program? ON windows files on non-C: drive may be hard to delete",
+                    "Couldn't delete layer, may be open in another program? On windows files on non-C: drive may be hard to delete",
                     level=Qgis.Warning,
                     duration=15,
                 )
@@ -2062,6 +2062,12 @@ class SGTool:
                 count=1, dtype="float32", transform=transform, crs=crs, nodata=np.nan
             )
             RGBGridPath_gray = self.insert_text_before_extension(RGBGridPath, "_gray")
+
+            # scale data
+            LUT_min = self.dlg.mQgsDoubleSpinBox_LUT_min.value()
+            LUT_max = self.dlg.mQgsDoubleSpinBox_LUT_max.value()
+
+            scalar_grid = (scalar_grid * (LUT_max - LUT_min)) + LUT_min
 
             with rasterio.open(RGBGridPath_gray, "w", **profile) as dst:
                 dst.write(scalar_grid, 1)

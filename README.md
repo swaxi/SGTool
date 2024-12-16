@@ -2,7 +2,7 @@
  Simple Potential Field Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   
  https://agate-project.org    
- This plugin is available directly within QGIS using the PLugin Manager, however the latest version will always be at this GitHub site   
+ This plugin is available directly within QGIS using the Plugin Manager, however the latest version will always be at this GitHub site   
     
 ![SGTools image](dialog.png)       
 

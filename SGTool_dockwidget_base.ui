@@ -1609,7 +1609,7 @@ font-style: italic;</string>
         <x>10</x>
         <y>290</y>
         <width>561</width>
-        <height>231</height>
+        <height>241</height>
        </rect>
       </property>
       <property name="title">
@@ -1677,7 +1677,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>200</y>
+         <y>210</y>
          <width>131</width>
          <height>23</height>
         </rect>
@@ -1692,14 +1692,19 @@ font-style: italic;</string>
        </property>
        <property name="geometry">
         <rect>
-         <x>100</x>
-         <y>170</y>
-         <width>391</width>
+         <x>50</x>
+         <y>180</y>
+         <width>501</width>
          <height>20</height>
         </rect>
        </property>
+       <property name="font">
+        <font>
+         <pointsize>7</pointsize>
+        </font>
+       </property>
        <property name="text">
-        <string>e.g.  fuchsia,red,yellow,green,cyan,blue</string>
+        <string>e.g.  fuchsia,red,yellow,green,cyan,blue    See https://matplotlib.org/stable/gallery/color/named_colors.html#css-colors</string>
        </property>
       </widget>
       <widget class="QTextEdit" name="textEdit_2_colour_list">
@@ -1707,7 +1712,7 @@ font-style: italic;</string>
         <rect>
          <x>100</x>
          <y>70</y>
-         <width>391</width>
+         <width>451</width>
          <height>91</height>
         </rect>
        </property>

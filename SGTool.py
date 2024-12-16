@@ -24,7 +24,8 @@
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.core import QgsMapLayerProxyModel
-from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtCore import QUrl
+from qgis.PyQt.QtGui import QIcon, QDesktopServices
 from qgis.PyQt.QtWidgets import QAction
 from qgis.core import (
     Qgis,
@@ -1731,7 +1732,20 @@ class SGTool:
 
             self.gridDirectory = None
 
-            # self.dlg.raise_()
+            # Connection to the Github site  :
+            self.dlg.pushButton_repo.clicked.connect(
+                lambda: QDesktopServices.openUrl(
+                    QUrl("https://github.com/swaxi/SGTool")
+                )
+            )
+            # Connection to the CSS Colours site  :
+            self.dlg.pushButton_CSSS_Colours.clicked.connect(
+                lambda: QDesktopServices.openUrl(
+                    QUrl(
+                        "https://matplotlib.org/stable/gallery/color/named_colors.html#css-colors"
+                    )
+                )
+            )
 
     # select directory to store grid
     def gridFile(self):

@@ -1609,7 +1609,7 @@ font-style: italic;</string>
         <x>10</x>
         <y>290</y>
         <width>561</width>
-        <height>241</height>
+        <height>251</height>
        </rect>
       </property>
       <property name="title">
@@ -1677,7 +1677,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>210</y>
+         <y>220</y>
          <width>131</width>
          <height>23</height>
         </rect>
@@ -1694,17 +1694,17 @@ font-style: italic;</string>
         <rect>
          <x>50</x>
          <y>180</y>
-         <width>501</width>
+         <width>211</width>
          <height>20</height>
         </rect>
        </property>
        <property name="font">
         <font>
-         <pointsize>7</pointsize>
+         <pointsize>8</pointsize>
         </font>
        </property>
        <property name="text">
-        <string>e.g.  fuchsia,red,yellow,green,cyan,blue    See https://matplotlib.org/stable/gallery/color/named_colors.html#css-colors</string>
+        <string>e.g.  fuchsia,red,yellow,green,cyan,blue  </string>
        </property>
       </widget>
       <widget class="QTextEdit" name="textEdit_2_colour_list">
@@ -1718,6 +1718,19 @@ font-style: italic;</string>
        </property>
        <property name="placeholderText">
         <string>comma separated list of CSS colour names</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="pushButton_CSSS_Colours">
+       <property name="geometry">
+        <rect>
+         <x>280</x>
+         <y>180</y>
+         <width>181</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Full list of CSS Colour Names</string>
        </property>
       </widget>
      </widget>
@@ -2260,17 +2273,36 @@ font-size: 13px;
      <attribute name="title">
       <string>Help</string>
      </attribute>
-     <widget class="QLabel" name="label_62">
+     <widget class="QPushButton" name="pushButton_repo">
       <property name="geometry">
        <rect>
-        <x>240</x>
-        <y>330</y>
-        <width>81</width>
-        <height>16</height>
+        <x>110</x>
+        <y>220</y>
+        <width>351</width>
+        <height>23</height>
        </rect>
       </property>
       <property name="text">
-       <string>Coming soon...</string>
+       <string>Plugin Repository</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_13">
+      <property name="geometry">
+       <rect>
+        <x>90</x>
+        <y>120</y>
+        <width>381</width>
+        <height>101</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Simple Potential Field Calcs to assist WAXI/Agate Structural Geophysics Course    
+ https://waxi4.org   
+ https://agate-project.org    
+
+ This plugin is available directly within QGIS using the Plugin Manager,
+ however the latest version will always be at this GitHub site:   
+</string>
       </property>
      </widget>
     </widget>

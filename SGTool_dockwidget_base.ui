@@ -35,6 +35,9 @@ font-size: 12px;</string>
     </property>
    </widget>
    <widget class="QTabWidget" name="tabWidget">
+    <property name="enabled">
+     <bool>true</bool>
+    </property>
     <property name="geometry">
      <rect>
       <x>10</x>
@@ -1202,7 +1205,7 @@ QTabBar::tab:hover {
 }</string>
      </property>
      <attribute name="title">
-      <string>Convolution Filters</string>
+      <string>Conv + RGB</string>
      </attribute>
      <widget class="QPushButton" name="pushButton_19">
       <property name="geometry">
@@ -1250,7 +1253,7 @@ font-style: italic;</string>
         <x>10</x>
         <y>10</y>
         <width>461</width>
-        <height>221</height>
+        <height>271</height>
        </rect>
       </property>
       <property name="title">
@@ -1583,22 +1586,135 @@ font-style: italic;</string>
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
        </property>
       </widget>
+      <widget class="QPushButton" name="pushButton_3_applyProcessing_Conv">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>230</y>
+         <width>131</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Apply Processing</string>
+       </property>
+      </widget>
      </widget>
-     <widget class="QPushButton" name="pushButton_3_applyProcessing_Conv">
-      <property name="enabled">
-       <bool>true</bool>
-      </property>
+     <widget class="QGroupBox" name="groupBox_7">
       <property name="geometry">
        <rect>
-        <x>20</x>
-        <y>240</y>
-        <width>131</width>
-        <height>23</height>
+        <x>10</x>
+        <y>290</y>
+        <width>561</width>
+        <height>231</height>
        </rect>
       </property>
-      <property name="text">
-       <string>Apply Processing</string>
+      <property name="title">
+       <string>Convert LUT to Grayscale</string>
       </property>
+      <widget class="QPushButton" name="pushButton_2_selectGrid_RGB">
+       <property name="geometry">
+        <rect>
+         <x>368</x>
+         <y>30</y>
+         <width>31</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>...</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_42">
+       <property name="geometry">
+        <rect>
+         <x>8</x>
+         <y>30</y>
+         <width>71</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Load RGB Grid</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QLineEdit" name="lineEdit_2_loadGridPath_2">
+       <property name="geometry">
+        <rect>
+         <x>100</x>
+         <y>30</y>
+         <width>251</width>
+         <height>21</height>
+        </rect>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_43">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>70</y>
+         <width>91</width>
+         <height>16</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>CSS Colour List</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="pushButton_3_applyProcessing_Conv_2">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>200</y>
+         <width>131</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Convert Grid</string>
+       </property>
+      </widget>
+      <widget class="QLineEdit" name="lineEdit">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
+       <property name="geometry">
+        <rect>
+         <x>100</x>
+         <y>170</y>
+         <width>391</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>e.g.  fuchsia,red,yellow,green,cyan,blue</string>
+       </property>
+      </widget>
+      <widget class="QTextEdit" name="textEdit_2_colour_list">
+       <property name="geometry">
+        <rect>
+         <x>100</x>
+         <y>70</y>
+         <width>391</width>
+         <height>91</height>
+        </rect>
+       </property>
+       <property name="placeholderText">
+        <string>comma separated list of CSS colour names</string>
+       </property>
+      </widget>
      </widget>
     </widget>
     <widget class="QWidget" name="Data_management">

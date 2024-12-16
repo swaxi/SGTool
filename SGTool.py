@@ -74,6 +74,7 @@ from .GridData_no_pandas import GridData
 import os.path
 import numpy as np
 import subprocess
+from scipy.spatial import cKDTree
 
 # from pandas import DataFrame, read_csv
 from osgeo import gdal, osr
@@ -81,6 +82,7 @@ from osgeo import gdal, osr
 # from .ppigrf import igrf, get_inclination_declination
 from datetime import datetime
 from pyproj import Transformer
+import rasterio
 
 
 class SGTool:
@@ -439,6 +441,16 @@ class SGTool:
         self.dlg.lineEdit_IDW_power.setToolTip("Define power for IDW gridding")
         self.dlg.pushButton_selectGridOutputDir.setToolTip("Select filename for grid")
         self.dlg.pushButton_3_applyGridding.setToolTip("Grid to selected point data")
+
+        self.dlg.pushButton_2_selectGrid_RGB.setToolTip(
+            "Select RGB image that you want to attempt to convert to a monotonic grayscale image"
+        )
+        self.dlg.textEdit_2_colour_list.setToolTip(
+            "Comma separated list of CSS colours, leave blank to get link to list of colours"
+        )
+        self.dlg.groupBox_7.setToolTip(
+            "Load an RGB raster image,\ndefine a Look Up Table by naming the sequence of colours using CSS colour names and\nconvert to greyscale image\n\nDo not use if any shading has been applied to the image!"
+        )
 
     def initParams(self):
         self.localGridName = ""
@@ -1039,6 +1051,64 @@ class SGTool:
                 return True
         return False
 
+    def select_RGBgrid_file(self):
+        start_directory = self.last_directory if self.last_directory else os.getcwd()
+
+        self.diskRGBGridPath, _filter = QFileDialog.getOpenFileName(
+            None,
+            "Select RGB Image File",
+            start_directory,
+            "Grids (*.TIF;*.tif;*.TIFF;*.tiff)",
+        )
+        if os.path.exists(self.diskRGBGridPath) and self.diskRGBGridPath != "":
+            self.dlg.lineEdit_2_loadGridPath_2.setText(self.diskRGBGridPath)
+            self.last_directory = os.path.dirname(self.diskRGBGridPath)
+
+    def processRGB(self):
+        self.diskRGBGridPath = self.dlg.lineEdit_2_loadGridPath_2.text()
+        if self.diskRGBGridPath != "":
+            if os.path.exists(self.diskRGBGridPath):
+                LUT_list = self.dlg.textEdit_2_colour_list.toPlainText()
+
+                if LUT_list != "":
+
+                    result, RGBGridPath_gray = self.convert_RGB_to_grey(
+                        self.diskRGBGridPath, LUT_list
+                    )
+                    if result:
+
+                        basename = os.path.basename(RGBGridPath_gray)
+                        filename_without_extension = os.path.splitext(basename)[0]
+
+                        self.layer = QgsRasterLayer(
+                            RGBGridPath_gray, filename_without_extension
+                        )
+                        """try:
+                            test_proj = self.layer.crs().authid()
+                            self.layer.setCrs(test_proj)
+
+                        except:
+                            # Define the new CRS (e.g., EPSG:4326 for WGS84)
+                            new_crs = QgsCoordinateReferenceSystem("EPSG:4326")
+                            # Set the CRS for the raster layer
+                            self.layer.setCrs(new_crs)"""
+                        if not self.is_layer_loaded(filename_without_extension):
+                            QgsProject.instance().addMapLayer(self.layer)
+
+                    else:
+                        self.iface.messageBar().pushMessage(
+                            "Conversion failed, check CSS colour names",
+                            level=Qgis.Warning,
+                            duration=15,
+                        )
+
+                else:
+                    self.iface.messageBar().pushMessage(
+                        "First define a CSS Colour list <a href='https://matplotlib.org/stable/gallery/color/named_colors.html#css-colors'> (See here for list of colours)</a>",
+                        level=Qgis.Info,
+                        duration=15,
+                    )
+
     def select_grid_file(self):
         start_directory = self.last_directory if self.last_directory else os.getcwd()
 
@@ -1079,13 +1149,14 @@ class SGTool:
                 self.layer = QgsRasterLayer(
                     self.diskGridPath, filename_without_extension
                 )
-                try:
-                    test_proj = self.layer.crs().authid().split(":")[1]
+                """try:
+                    test_proj = self.layer.crs().authid()
+                    self.layer.setCrs(test_proj)
                 except:
                     # Define the new CRS (e.g., EPSG:4326 for WGS84)
                     new_crs = QgsCoordinateReferenceSystem("EPSG:4326")
                     # Set the CRS for the raster layer
-                    self.layer.setCrs(new_crs)
+                    self.layer.setCrs(new_crs)"""
                 if not self.is_layer_loaded(self.diskGridPath):
                     QgsProject.instance().addMapLayer(self.layer)
 
@@ -1576,11 +1647,17 @@ class SGTool:
 
             self.dlg.pushButton_4_calcIGRF.clicked.connect(self.update_mag_field)
             self.dlg.pushButton_2_selectGrid.clicked.connect(self.select_grid_file)
+            self.dlg.pushButton_2_selectGrid_RGB.clicked.connect(
+                self.select_RGBgrid_file
+            )
             self.dlg.pushButton_3_applyProcessing.clicked.connect(
                 self.processGeophysics_fft
             )
             self.dlg.pushButton_3_applyProcessing_Conv.clicked.connect(
                 self.processGeophysics_conv
+            )
+            self.dlg.pushButton_3_applyProcessing_Conv_2.clicked.connect(
+                self.processRGB
             )
 
             self.dlg.pushButton_selectPoints.clicked.connect(self.select_point_file)
@@ -1907,149 +1984,97 @@ class SGTool:
         layer_tree = QgsProject.instance().layerTreeRoot()
         layer_tree.findLayer(point_layer.id()).setItemVisibilityChecked(False)
 
-    def import_XYZ_(self, XYZ_file, crs, layer_name="line"):
-        # Input file path
+    def convert_RGB_to_grey(self, RGBGridPath, LUT):
+        result = False
+        # Load the 3-band TIF
+        with rasterio.open(RGBGridPath) as src:
+            red = src.read(1)  # Band 1
+            green = src.read(2)  # Band 2
+            blue = src.read(3)  # Band 3
+            profile = src.profile
+            transform = src.transform
+            crs = src.crs
 
-        load_ties = self.dlg.checkBox_load_tie_lines.isChecked()
+        # Stack bands into an RGB array
+        rgb_raster = np.dstack((red, green, blue)).astype(float)
 
-        # Initialize variables
-        data_list = []
-        current_line_number = None
+        LUT = LUT.replace(" ", "")
+        css_color_list = LUT.split(",")
+        css_color_list.reverse()
+        # Define the LUT for (high to low) scalar values
+        lut = self.generate_rgb_lut(css_color_list, num_entries=1024)
 
-        # Read the file line-by-line
-        with open(XYZ_file, "r") as file:
-            for line in file:
-                line = line.strip()
-                if line.startswith("LINE:"):  # Check for 'LINE:' markers
-                    current_line_number = int(
-                        re.search(r"\d+", line).group()
-                    )  # Extract the line number
-                elif line.startswith("TIE:"):  # Check for 'TIE:' markers
-                    if load_ties:
-                        current_line_number = int(
-                            re.search(r"\d+", line).group()
-                        )  # Extract the line number
-                    else:
-                        current_line_number = None
-                elif current_line_number is not None:
-                    try:
-                        # Parse numerical lines
-                        parts = list(map(float, line.split()))
-                        if len(parts) >= 3:  # Ensure at least 5 components (x, y, z)
-                            data_list.append(parts + [current_line_number])
-                    except ValueError:
-                        pass
-                        # print(f"Skipping invalid line: {line}")
+        # Extract scalar values and RGB colors
+        scalar_values, lut_colors = zip(*lut)
+        lut_colors = np.array(lut_colors) / 255.0  # Normalize LUT colors
 
-        # Create a DataFrame
-        columns = ["x", "y"]
-        for i in range(len(parts) - 2):
-            columns.append("data_" + str(i))
-        columns.append("line_number")
+        # Identify white pixels (255, 255, 255)
+        white_mask = (rgb_raster == [255, 255, 255]).all(axis=2)
 
-        # columns = ['x', 'y', 'z', 'tmi', 'mag', 'line_number']
-        data = DataFrame(data_list, columns=columns)
+        # Identify white pixels (255, 255, 255)
+        black_mask = (rgb_raster == [0, 0, 0]).all(axis=2)
 
-        # dir_name, base_name = os.path.split(XYZ_file)
-        # filename_without_extension = "/" + os.path.splitext(base_name)[0]
-        # output_path = dir_name + filename_without_extension + ".shp"
+        # Normalize raster RGB values to [0, 1]
+        normalized_rgb = rgb_raster / 255.0
 
-        # Group data by line ID and create features
-        layer = QgsVectorLayer("LineString?crs=EPSG:" + crs, layer_name, "memory")
-        layer_data_provider = layer.dataProvider()
+        # Flatten RGB raster for KDTree query
+        reshaped_rgb = normalized_rgb.reshape(-1, 3)
 
-        # Add fields to the memory layer
-        fields = QgsFields()
-        fields.append(QgsField("LINE_ID", QVariant.Int))
+        # Build a KDTree for nearest neighbor lookup
+        lut_tree = cKDTree(lut_colors)
+        distances, indices = lut_tree.query(reshaped_rgb)
 
-        for i in range(len(parts) - 2):
-            fields.append(QgsField("data_" + str(i), QVariant.Double))
-        fields.append(QgsField("X_COORDS", QVariant.String))
-        fields.append(QgsField("Y_COORDS", QVariant.String))
-        layer_data_provider.addAttributes(fields)
-        layer.updateFields()
+        # Map nearest LUT color to scalar values
+        scalar_grid = np.array(scalar_values)[indices].reshape(rgb_raster.shape[:2])
 
-        # Process each line group and add as a polyline
-        for line_id, group in data.groupby("line_number"):
-            coords = [(row["x"], row["y"]) for _, row in group.iterrows()]
-            geometry = QgsGeometry.fromPolylineXY([QgsPointXY(x, y) for x, y in coords])
+        # Set white (255, 255, 255) areas to NaN
+        scalar_grid[white_mask] = np.nan
+        scalar_grid[black_mask] = np.nan
 
-            feature = QgsFeature()
-            feature.setGeometry(geometry)
+        # Save the floating-point raster with georeferencing
+        profile.update(
+            count=1, dtype="float32", transform=transform, crs=crs, nodata=np.nan
+        )
+        RGBGridPath_gray = self.insert_text_before_extension(RGBGridPath, "_gray")
 
-            # Extract attributes
-            x_coords = [row["x"] for _, row in group.iterrows()]
-            y_coords = [row["y"] for _, row in group.iterrows()]
-            first_row = group.iloc[0]
-            attributes = []
-            attributes.append(line_id)
-            for i in range(len(parts) - 2):
-                attributes.append(first_row["data_" + str(i)])
-            attributes.append(str(x_coords))
-            attributes.append(str(y_coords))
-            feature.setAttributes(attributes)
+        with rasterio.open(RGBGridPath_gray, "w", **profile) as dst:
+            dst.write(scalar_grid, 1)
+            result = True
 
-            # Add feature to the layer
-            layer_data_provider.addFeature(feature)
+        return result, RGBGridPath_gray
 
-        # Add the layer to the QGIS project
-        QgsProject.instance().addMapLayer(layer)
+    def generate_rgb_lut(self, css_color_list, num_entries=1024):
+        """
+        Generate an RGB LUT list from a list of CSS color names.
 
-        """# Define options
-        options = QgsVectorFileWriter.SaveVectorOptions()
-        options.driverName = "ESRI Shapefile"  # Specify the output format
-        options.fileEncoding = "UTF-8"  # Specify encoding
+        Parameters:
+            css_color_list (list): List of CSS color names recognized by Matplotlib.
+            num_entries (int): Total number of entries in the LUT.
 
-        # Write the layer to file
-        context = QgsCoordinateTransformContext()
-        error = QgsVectorFileWriter.writeAsVectorFormatV3(
-            layer, output_path, context, options
-        )"""
+        Returns:
+            list: List of [decimal index, (R, G, B)] where R, G, B are 0-255 integers.
+        """
+        import matplotlib.colors as mcolors
 
-        # print("Polyline layer created with attributes including x, y coordinates!")
-        # --- Create Point Layer ---
-        layer = QgsVectorLayer("Point?crs=EPSG:" + crs, "Points", "memory")
-        layer_data_provider = layer.dataProvider()
+        # Normalize indices to decimal values between 0 and 1
+        decimal_indices = np.linspace(0, 1, num_entries)
 
-        # Add fields to the point layer
-        fields = QgsFields()
-        fields.append(QgsField("LINE_ID", QVariant.Int))
-        for i in range(len(parts) - 2):  # Dynamically add data fields
-            fields.append(QgsField("data_" + str(i), QVariant.Double))
-        fields.append(QgsField("X_COORDS", QVariant.String))
-        fields.append(QgsField("Y_COORDS", QVariant.String))
-        layer_data_provider.addAttributes(fields)
-        layer.updateFields()
+        # Create a continuous colormap using the input CSS color list
+        cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", css_color_list)
 
-        features = []
-        # Add points to the point layer
-        for _, row in data.iterrows():
-            point = QgsPointXY(row["x"], row["y"])
-            geometry = QgsGeometry.fromPointXY(point)
+        # Generate RGB values for each index
+        rgb_colors = [cmap(i)[:3] for i in decimal_indices]
+        rgb_colors_255 = [
+            (int(r * 255), int(g * 255), int(b * 255)) for r, g, b in rgb_colors
+        ]
 
-            feature = QgsFeature()
-            feature.setGeometry(geometry)
+        # Combine decimal indices and RGB tuples
+        lut = [
+            [round(decimal_index, 6), rgb]
+            for decimal_index, rgb in zip(decimal_indices, rgb_colors_255)
+        ]
 
-            # Set attributes for the current point
-            attributes = [int(row["line_number"])]  # LINE_ID
-            for i in range(len(parts) - 2):
-                attributes.append(row["data_" + str(i)])  # Add dynamic data fields
-            attributes.append(str(row["x"]))  # X_COORDS as a string
-            attributes.append(str(row["y"]))  # Y_COORDS as a string
-            feature.setAttributes(attributes)
-            features.append(feature)
-
-        # Add all features in a batch
-        layer_data_provider.addFeatures(features)
-
-        # Add the point layer to the QGIS project
-        QgsProject.instance().addMapLayer(layer)
-
-        # Turn off the visibility of the points layer
-        layer_tree = QgsProject.instance().layerTreeRoot()
-        layer_tree.findLayer(layer.id()).setItemVisibilityChecked(False)
-
-        # print("Point layer created with correct attributes and visibility turned off!")
+        return lut
 
     def vector_layer_to_dataframe(self, layer, attribute_name):
         """

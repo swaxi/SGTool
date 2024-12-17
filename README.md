@@ -134,7 +134,7 @@ Computes relief shading for a digital elevation model (DEM) or other 2D grids.
 
 ## RGB conversion  
 **Convert LUT to grayscale**   
-Takes a 3 band RGB image and converts it to a monotonic grayscale image if you provide the correct Look Up Table, based on CSS Colour names: https://matplotlib.org/stable/gallery/color/named_colors.html#css-colors   
+Takes a 3 band RGB image and converts it to a monotonically increasing grayscale image if you provide the correct Look Up Table, based on CSS Colour names: https://matplotlib.org/stable/gallery/color/named_colors.html#css-colors   
    
 ## Gridding   
 **Import points**   

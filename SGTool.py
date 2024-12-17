@@ -439,7 +439,11 @@ class SGTool:
         self.dlg.radioButton_IDW.setToolTip(
             "Choose Inverse Distance Weighting Gridding (_IDW)"
         )
+
         self.dlg.lineEdit_IDW_power.setToolTip("Define power for IDW gridding")
+        """self.dlg.radioButton_RST.setToolTip(
+            "Choose Regularized Spline with Tension Gridding (_RST)"
+        )"""
         self.dlg.pushButton_selectGridOutputDir.setToolTip("Select filename for grid")
         self.dlg.pushButton_3_applyGridding.setToolTip("Grid to selected point data")
 
@@ -452,6 +456,16 @@ class SGTool:
         self.dlg.groupBox_7.setToolTip(
             "Load an RGB raster image,\ndefine a Look Up Table by naming the sequence of colours using CSS colour names and\nconvert to greyscale image\n\nDo not use if any shading has been applied to the image!"
         )
+        self.dlg.mQgsDoubleSpinBox_LUT_min.setToolTip(
+            "Define min and max values for rescaling of grid values"
+        )
+        self.dlg.mQgsDoubleSpinBox_LUT_max.setToolTip(
+            "Define min and max values for rescaling of grid values"
+        )
+        self.dlg.pushButton_CSSS_Colours.setToolTip(
+            "See full suite of CSS Colours (requires network connection)"
+        )
+        self.dlg.lineEdit.setToolTip("Example colour sequence, can be copy pasted")
 
     def initParams(self):
         self.localGridName = ""
@@ -2173,6 +2187,7 @@ class SGTool:
         return np.array(data)
 
     def gridPointData(self):
+        self.gridFilePath = self.dlg.lineEdit_gridOutputDir.text()
         if self.gridFilePath and not os.path.exists(self.gridFilePath):
 
             if self.dlg.mMapLayerComboBox_selectGrid_3.count() > 0:
@@ -2191,13 +2206,18 @@ class SGTool:
                         data, epsg = self.vector_layer_to_dataframe(
                             selected_layer, attribute_name
                         )
+                        # normalize = False
+                        """if self.dlg.radioButton_RST.isChecked():
+                            normalize = False"""
 
                         gridder = GridData(
                             data,
                             self.nx_label,
                             self.ny_label,
                             grid_bounds=None,
+                            # normalize=normalize,
                         )
+                        cell_size = self.dlg.doubleSpinBox_cellsize.value()
 
                         if self.dlg.radioButton_CT.isChecked():
                             new_grid = gridder.interpolate(method="clough_tocher")
@@ -2206,10 +2226,14 @@ class SGTool:
                             power = float(self.dlg.lineEdit_IDW_power.text())
                             new_grid = gridder.interpolate(method="idw", power=power)
                             self.suffix = "_IDW"
-
+                        """elif self.dlg.radioButton_RST.isChecked():
+                            new_grid = gridder.interpolate_with_v_surf_rst(
+                                self.gridFilePath, epsg, cell_size=cell_size
+                            )
+                            self.suffix = "_RST"
+                        """
                         extent = selected_layer.extent()
 
-                        cell_size = self.dlg.doubleSpinBox_cellsize.value()
                         self.nx_label = int(
                             (extent.xMaximum() - extent.xMinimum()) / cell_size
                         )

@@ -8,9 +8,24 @@ from scipy.interpolate import (
 from scipy.spatial import ConvexHull, cKDTree
 from matplotlib.path import Path
 
+from qgis.core import (
+    QgsVectorLayer,
+    QgsField,
+    QgsFeature,
+    QgsPointXY,
+    QgsProcessingFeedback,
+    QgsRasterLayer,
+    QgsGeometry,
+)
+
+from qgis.PyQt.QtCore import QVariant
+import processing
+import numpy as np
+import csv
+
 
 class GridData:
-    def __init__(self, data, nx, ny, grid_bounds=None):
+    def __init__(self, data, nx, ny, grid_bounds=None, normalize=False):
         self.validate_input(data)
         data = self.clean_data(data)
         self.x, self.y, self.values = data[:, 0], data[:, 1], data[:, 2]
@@ -18,6 +33,7 @@ class GridData:
         self.ny = ny
 
         # Normalize data
+        # if normalize:
         self.normalize_data()
         self.interpolator = None
 
@@ -154,6 +170,77 @@ class GridData:
         grid_z = akima_2d.interpolate()
 
         return grid_z
+
+    def interpolate_with_v_surf_rst(self, output_raster, epsg, cell_size=10):
+        """
+        Interpolate a 2D grid using GRASS GIS v.surf.rst based on input x, y, and value arrays.
+
+        Parameters:
+            x (array-like): Array of x-coordinates.
+            y (array-like): Array of y-coordinates.
+            values (array-like): Array of values at the (x, y) points.
+            cell_size (float): The resolution of the output grid.
+
+        Returns:
+            np.ndarray: A 2D numpy array of the interpolated grid.
+        """
+        print(
+            "region",
+            f"{min(self.x)},{max(self.x)},{min(self.y)},{max(self.y)},{cell_size},{cell_size}",
+            epsg,
+            cell_size,
+        )
+        # Step 1: Create a temporary vector layer from input arrays
+        mem_layer = QgsVectorLayer(
+            "Point?crs=EPSG:{}".format(epsg), "temp_points", "memory"
+        )
+        provider = mem_layer.dataProvider()
+
+        # Add fields
+        provider.addAttributes([QgsField("value", QVariant.Double)])
+        mem_layer.updateFields()
+
+        # Add features
+        features = []
+        for xi, yi, vi in zip(self.x, self.y, self.values):
+            feature = QgsFeature()
+            point = QgsPointXY(xi, yi)  # Create a point
+            feature.setGeometry(
+                QgsGeometry.fromPointXY(point)
+            )  # Wrap the point in QgsGeometry
+            feature.setAttributes([vi])
+            features.append(feature)
+        provider.addFeatures(features)
+        mem_layer.updateExtents()
+
+        # Step 2: Run GRASS v.surf.rst tool
+        # output_raster = filepath
+        params = {
+            "input": mem_layer,
+            "zcolumn": "value",
+            "elevation": output_raster,
+            "GRASS_REGION_PARAMETER": f"{min(self.x)},{max(self.x)},{min(self.y)},{max(self.y)} [EPSG:{epsg}]",
+            "GRASS_REGION_CELLSIZE_PARAMETER": cell_size,
+        }
+
+        feedback = QgsProcessingFeedback()
+        processing.run("grass7:v.surf.rst", params, feedback=feedback)
+
+        # Step 3: Read the raster as a numpy array
+        raster_layer = QgsRasterLayer(output_raster, "interpolated_raster", "gdal")
+        if not raster_layer.isValid():
+            raise ValueError("Failed to load interpolated raster.")
+
+        # Extract the raster data as a numpy array
+        provider = raster_layer.dataProvider()
+        block = provider.block(
+            1, raster_layer.extent(), raster_layer.width(), raster_layer.height()
+        )
+        numpy_grid = np.array(block.data(), dtype=float).reshape(
+            raster_layer.height(), raster_layer.width()
+        )
+
+        return numpy_grid
 
 
 class IterativeAkima2D:

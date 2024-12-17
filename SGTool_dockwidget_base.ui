@@ -2019,7 +2019,7 @@ font-size: 13px;
         <x>10</x>
         <y>270</y>
         <width>381</width>
-        <height>271</height>
+        <height>261</height>
        </rect>
       </property>
       <property name="title">
@@ -2293,14 +2293,14 @@ font-size: 13px;
       <widget class="QLabel" name="label_58">
        <property name="geometry">
         <rect>
-         <x>10</x>
+         <x>0</x>
          <y>190</y>
-         <width>61</width>
+         <width>71</width>
          <height>21</height>
         </rect>
        </property>
        <property name="text">
-        <string>Output Dir</string>
+        <string>Output File</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>

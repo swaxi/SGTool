@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.ndimage import convolve, median_filter, gaussian_filter
 from PyQt5.QtGui import QValidator
-from qgis.core import QgsProject
 
 
 class OddPositiveIntegerValidator(QValidator):
@@ -38,58 +37,101 @@ class OddPositiveIntegerValidator(QValidator):
 
 
 class ConvolutionFilter:
-    def __init__(self, dx, dy, localGridName):
+    def __init__(self, grid):
         """
         Initialize the ConvolutionFilter with a grid.
 
         :param grid: 2D numpy array representing the input grid
         """
+        self.grid = np.array(grid, dtype=float)
         self.padded_grid = None
-        self.dx = dx
-        self.dy = dy
-        self.localGridName = localGridName
 
-    def apply_padding(self, grid, pad_width):
+    def apply_padding(self, pad_width):
         """
         Apply reflective padding to the grid.
 
         :param pad_width: Width of the padding
         :return: Padded grid
         """
-        self.padded_grid = np.pad(grid, pad_width, mode="reflect")
+        self.padded_grid = np.pad(self.grid, pad_width, mode="reflect")
         return self.padded_grid
 
-    def mean_filter(self, grid, n):
+    def nan_convolution(self, kernel, mode="reflect"):
         """
-        Apply mean filter.
+        Perform convolution while handling NaN values.
+
+        :param kernel: Convolution kernel
+        :param mode: Padding mode (default is 'reflect')
+        :return: Convolved grid with NaN handling
+        """
+        # Create a mask for non-NaN values
+        valid_mask = ~np.isnan(self.grid)
+
+        # Replace NaNs with 0 for convolution
+        grid_filled = np.nan_to_num(self.grid, nan=0.0)
+
+        # Convolve the filled grid and the valid mask
+        convolved_values = convolve(grid_filled, kernel, mode=mode)
+        valid_counts = convolve(valid_mask.astype(float), kernel, mode=mode)
+
+        # Avoid division by zero
+        valid_counts[valid_counts == 0] = np.nan
+
+        # Calculate the mean of valid values
+        return convolved_values / valid_counts
+
+    def mean_filter(self, n):
+        """
+        Apply mean filter while handling NaN values.
 
         :param n: Size of the kernel (n x n)
         :return: Filtered grid
         """
-        kernel = np.ones((n, n)) / (n * n)
-        new_grid = convolve(grid, kernel, mode="reflect")
+        kernel = np.ones((n, n), dtype=float)
+        return self.nan_convolution(kernel)
 
-        return new_grid
-
-    def median_filter(self, grid, n):
+    def median_filter(self, n):
         """
-        Apply median filter.
+        Apply median filter while handling NaN values.
 
         :param n: Size of the kernel (n x n)
         :return: Filtered grid
         """
-        return median_filter(grid, size=(n, n), mode="reflect")
 
-    def gaussian_filter(self, grid, sigma):
+        # Use a sliding window approach with NaN handling
+        def nanmedian(values):
+            return np.nan if np.isnan(values).all() else np.nanmedian(values)
+
+        output = np.zeros_like(self.grid, dtype=float)
+        pad_width = n // 2
+        padded_grid = np.pad(
+            self.grid, pad_width, mode="constant", constant_values=np.nan
+        )
+
+        for i in range(output.shape[0]):
+            for j in range(output.shape[1]):
+                window = padded_grid[i : i + n, j : j + n]
+                output[i, j] = nanmedian(window)
+
+        return output
+
+    def gaussian_filter(self, sigma):
         """
-        Apply Gaussian filter.
+        Apply Gaussian filter while handling NaN values.
 
         :param sigma: Standard deviation for Gaussian kernel
         :return: Filtered grid
         """
-        return gaussian_filter(grid, sigma=sigma, mode="reflect")
+        # Create a Gaussian kernel
+        size = int(2 * np.ceil(2 * sigma) + 1)
+        x = np.linspace(-size // 2, size // 2, size)
+        gaussian_kernel = np.exp(-(x**2 / (2 * sigma**2)))
+        gaussian_kernel = np.outer(gaussian_kernel, gaussian_kernel)
+        gaussian_kernel /= gaussian_kernel.sum()
 
-    def directional_filter(self, grid, direction, n=3):
+        return self.nan_convolution(gaussian_kernel)
+
+    def directional_filter(self, direction, n=3):
         """
         Apply directional filter (NE, N, NW, W, SW, S, SE, E).
 
@@ -123,7 +165,7 @@ class ConvolutionFilter:
                 mode="constant",
             )
 
-        return convolve(grid, kernel, mode="reflect")
+        return convolve(self.grid, kernel, mode="reflect")
 
     def sun_shading_filter(self, elevation, sun_alt=45.0, sun_az=315.0, resolution=1.0):
         """

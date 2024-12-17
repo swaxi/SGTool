@@ -1724,7 +1724,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>300</x>
-         <y>180</y>
+         <y>190</y>
          <width>181</width>
          <height>23</height>
         </rect>

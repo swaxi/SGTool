@@ -771,25 +771,31 @@ class SGTool:
 
     def procMean(self):
         self.new_grid = self.convolution.mean_filter(
-            self.raster_array, self.mean_conv_size
+            # self.raster_array,
+            self.mean_conv_size
         )
         self.suffix = "_Mn"
 
     def procMedian(self):
+        print("_Md")
         self.new_grid = self.convolution.median_filter(
-            self.raster_array, self.median_conv_size
+            # self.raster_array,
+            self.median_conv_size
         )
         self.suffix = "_Md"
 
     def procGaussian(self):
         self.new_grid = self.convolution.gaussian_filter(
-            self.raster_array, self.gauss_rad
+            # self.raster_array,
+            self.gauss_rad
         )
         self.suffix = "_Gs"
 
     def procDirectional(self):
         self.new_grid = self.convolution.directional_filter(
-            self.raster_array, self.directional_dir
+            # self.raster_array,
+            self.directional_dir,
+            n=3,
         )
         self.suffix = "_Dr"
 
@@ -937,7 +943,7 @@ class SGTool:
             if self.buffer > int(self.dlg.lineEdit_13_max_buffer.text()):
                 self.buffer = int(self.dlg.lineEdit_13_max_buffer.text())
             self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
-            self.convolution = ConvolutionFilter(self.dx, self.dy, self.localGridName)
+            self.convolution = ConvolutionFilter(self.raster_array)
             self.suffix = ""
             if self.DirClean:
                 self.procDirClean()

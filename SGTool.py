@@ -454,7 +454,7 @@ class SGTool:
             "Comma separated list of CSS colours, leave blank to get link to list of colours"
         )
         self.dlg.groupBox_7.setToolTip(
-            "Load an RGB raster image,\ndefine a Look Up Table by naming the sequence of colours using CSS colour names and\nconvert to greyscale image\n\nDo not use if any shading has been applied to the image!"
+            "1) Load an RGB raster image,\n2) Define a Look Up Table by defining a comma separated sequence of colours using CSS colour names and\n3) Convert to greyscale image\n\nDo not use if any shading has been applied to the image!"
         )
         self.dlg.mQgsDoubleSpinBox_LUT_min.setToolTip(
             "Define min and max values for rescaling of grid values"

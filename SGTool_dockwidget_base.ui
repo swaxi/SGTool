@@ -1618,7 +1618,7 @@ font-style: italic;</string>
       <widget class="QPushButton" name="pushButton_2_selectGrid_RGB">
        <property name="geometry">
         <rect>
-         <x>368</x>
+         <x>390</x>
          <y>30</y>
          <width>31</width>
          <height>23</height>
@@ -1633,12 +1633,12 @@ font-style: italic;</string>
         <rect>
          <x>8</x>
          <y>30</y>
-         <width>71</width>
+         <width>101</width>
          <height>21</height>
         </rect>
        </property>
        <property name="text">
-        <string>Load RGB Grid</string>
+        <string>Select RGB Grid</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -1647,7 +1647,7 @@ font-style: italic;</string>
       <widget class="QLineEdit" name="lineEdit_2_loadGridPath_2">
        <property name="geometry">
         <rect>
-         <x>100</x>
+         <x>122</x>
          <y>30</y>
          <width>251</width>
          <height>21</height>

@@ -16,6 +16,8 @@ from qgis.core import (
     QgsProcessingFeedback,
     QgsRasterLayer,
     QgsGeometry,
+    QgsApplication,
+    QgsProcessingAlgorithm,
 )
 
 from qgis.PyQt.QtCore import QVariant
@@ -241,6 +243,82 @@ class GridData:
         )
 
         return numpy_grid
+
+
+class QGISGridData:
+    def __init__(self, iface):
+        self.iface = iface
+
+    def launch_r_surf_rst_dialog(self, input, zcolumn, cell_size):
+        """
+        Launch the v.surf.rst dialog from the Processing Toolbox.
+        """
+        pre_filled_params = {
+            "input": input,
+            "zcolumn": zcolumn,
+            "GRASS_REGION_CELLSIZE_PARAMETER": cell_size,  # cell size from sgtoosl dialog
+        }
+        alg_id = "grass7:v.surf.rst"
+        try:
+            # Check if the algorithm exists
+            if QgsApplication.processingRegistry().algorithmById(alg_id):
+                # Launch the dialog
+                processing.execAlgorithmDialog(alg_id, pre_filled_params)
+            else:
+                self.iface.messageBar().pushMessage(
+                    "Error", "GRASS v.surf.rst algorithm not found.", level=3
+                )
+        except Exception as e:
+            self.iface.messageBar().pushMessage("Error", str(e), level=3)
+
+    def launch_idw_dialog(self, input, zcolumn, cell_size):
+        """
+        Launch the v.surf.idw dialog from the Processing Toolbox.
+        """
+        pre_filled_params = {
+            "input": input,
+            "column": zcolumn,
+            "GRASS_REGION_CELLSIZE_PARAMETER": cell_size,  # cell size from sgtoosl dialog
+        }
+        alg_id = "grass7:v.surf.idw"
+        try:
+            # Check if the algorithm exists
+            if QgsApplication.processingRegistry().algorithmById(alg_id):
+                # Launch the dialog
+                processing.execAlgorithmDialog(alg_id, pre_filled_params)
+            else:
+                self.iface.messageBar().pushMessage(
+                    "Error", "GRASS v.surf.rst algorithm not found.", level=3
+                )
+        except Exception as e:
+            self.iface.messageBar().pushMessage("Error", str(e), level=3)
+
+    def launch_bspline_dialog(self, input, zcolumn, cell_size):
+        """
+        Launch the v.surf.bspline dialog from the Processing Toolbox.
+        """
+        pre_filled_params = {
+            "input": input,
+            "column": zcolumn,
+            "GRASS_REGION_CELLSIZE_PARAMETER": cell_size,  # cell size from sgtoosl dialog
+        }
+        alg_id = "grass7:v.surf.bspline"
+        try:
+            # Check if the algorithm exists
+            if QgsApplication.processingRegistry().algorithmById(alg_id):
+                # Launch the dialog
+                processing.execAlgorithmDialog(alg_id, pre_filled_params)
+            else:
+                self.iface.messageBar().pushMessage(
+                    "Error", "GRASS v.surf.bspline algorithm not found.", level=3
+                )
+        except Exception as e:
+            self.iface.messageBar().pushMessage("Error", str(e), level=3)
+
+    def list_grass_algorithms(self):
+        for alg in QgsApplication.processingRegistry().algorithms():
+            if "grass" in alg.id().lower():
+                print(alg.id())
 
 
 class IterativeAkima2D:

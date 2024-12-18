@@ -2019,28 +2019,12 @@ font-size: 13px;
         <x>10</x>
         <y>270</y>
         <width>381</width>
-        <height>261</height>
+        <height>211</height>
        </rect>
       </property>
       <property name="title">
        <string>Gridding</string>
       </property>
-      <widget class="QPushButton" name="pushButton_3_applyGridding">
-       <property name="enabled">
-        <bool>true</bool>
-       </property>
-       <property name="geometry">
-        <rect>
-         <x>30</x>
-         <y>230</y>
-         <width>101</width>
-         <height>23</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Grid Data</string>
-       </property>
-      </widget>
       <widget class="QLabel" name="nx_label">
        <property name="geometry">
         <rect>
@@ -2212,100 +2196,6 @@ font-size: 13px;
         </rect>
        </property>
       </widget>
-      <widget class="QRadioButton" name="radioButton_CT">
-       <property name="geometry">
-        <rect>
-         <x>20</x>
-         <y>140</y>
-         <width>91</width>
-         <height>17</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Clough Tocher</string>
-       </property>
-      </widget>
-      <widget class="QRadioButton" name="radioButton_IDW">
-       <property name="geometry">
-        <rect>
-         <x>20</x>
-         <y>160</y>
-         <width>82</width>
-         <height>17</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>IDW</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_69">
-       <property name="geometry">
-        <rect>
-         <x>70</x>
-         <y>160</y>
-         <width>61</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Power</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
-      <widget class="QLineEdit" name="lineEdit_IDW_power">
-       <property name="geometry">
-        <rect>
-         <x>140</x>
-         <y>160</y>
-         <width>71</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>2</string>
-       </property>
-      </widget>
-      <widget class="QPushButton" name="pushButton_selectGridOutputDir">
-       <property name="geometry">
-        <rect>
-         <x>250</x>
-         <y>191</y>
-         <width>31</width>
-         <height>21</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>...</string>
-       </property>
-      </widget>
-      <widget class="QLineEdit" name="lineEdit_gridOutputDir">
-       <property name="geometry">
-        <rect>
-         <x>80</x>
-         <y>191</y>
-         <width>161</width>
-         <height>20</height>
-        </rect>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_58">
-       <property name="geometry">
-        <rect>
-         <x>0</x>
-         <y>190</y>
-         <width>71</width>
-         <height>21</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Output File</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
       <widget class="QDoubleSpinBox" name="doubleSpinBox_cellsize">
        <property name="geometry">
         <rect>
@@ -2329,6 +2219,45 @@ font-size: 13px;
        </property>
        <property name="value">
         <double>100.000000000000000</double>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="pushButton_rst">
+       <property name="geometry">
+        <rect>
+         <x>14</x>
+         <y>170</y>
+         <width>91</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Spline Gridding</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="pushButton_idw_2">
+       <property name="geometry">
+        <rect>
+         <x>130</x>
+         <y>170</y>
+         <width>91</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>IDW Gridding</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="pushButton_bspline_3">
+       <property name="geometry">
+        <rect>
+         <x>250</x>
+         <y>170</y>
+         <width>111</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>BSpline Gridding</string>
        </property>
       </widget>
      </widget>

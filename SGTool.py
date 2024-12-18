@@ -71,6 +71,7 @@ from .PSplot import PowerSpectrumDock
 from .ConvolutionFilter import ConvolutionFilter
 from .ConvolutionFilter import OddPositiveIntegerValidator
 from .GridData_no_pandas import GridData
+from .GridData_no_pandas import QGISGridData
 
 import os.path
 import numpy as np
@@ -435,17 +436,6 @@ class SGTool:
         )
         self.dlg.comboBox_select_grid_data_field.setToolTip("Select field to grid")
         self.dlg.doubleSpinBox_cellsize.setToolTip("Define cell size in layer units")
-        self.dlg.radioButton_CT.setToolTip("Choose Clough Tocher gridding (_CT)")
-        self.dlg.radioButton_IDW.setToolTip(
-            "Choose Inverse Distance Weighting Gridding (_IDW)"
-        )
-
-        self.dlg.lineEdit_IDW_power.setToolTip("Define power for IDW gridding")
-        """self.dlg.radioButton_RST.setToolTip(
-            "Choose Regularized Spline with Tension Gridding (_RST)"
-        )"""
-        self.dlg.pushButton_selectGridOutputDir.setToolTip("Select filename for grid")
-        self.dlg.pushButton_3_applyGridding.setToolTip("Grid to selected point data")
 
         self.dlg.pushButton_2_selectGrid_RGB.setToolTip(
             "Select RGB image that you want to attempt to convert to a monotonic grayscale image"
@@ -632,6 +622,51 @@ class SGTool:
 
         # Combine directory and new file name
         return os.path.join(dir_name, new_file_name)
+
+    def procRSTGridding(self):
+        gridder = QGISGridData(self.iface)
+
+        layer_name = self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
+        input = self.get_layer_path_by_name(layer_name)
+        zcolumn = self.dlg.comboBox_select_grid_data_field.currentText()
+        cell_size = self.dlg.doubleSpinBox_cellsize.text()
+        gridder.launch_r_surf_rst_dialog(input, zcolumn, cell_size)
+
+    def procIDWGridding(self):
+        gridder = QGISGridData(self.iface)
+
+        layer_name = self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
+        input = self.get_layer_path_by_name(layer_name)
+        zcolumn = self.dlg.comboBox_select_grid_data_field.currentText()
+        cell_size = self.dlg.doubleSpinBox_cellsize.text()
+        gridder.launch_idw_dialog(input, zcolumn, cell_size)
+
+    def procbsplineGridding(self):
+        gridder = QGISGridData(self.iface)
+
+        layer_name = self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
+        input = self.get_layer_path_by_name(layer_name)
+        zcolumn = self.dlg.comboBox_select_grid_data_field.currentText()
+        cell_size = self.dlg.doubleSpinBox_cellsize.text()
+        gridder.launch_bspline_dialog(input, zcolumn, cell_size)
+
+    def get_layer_path_by_name(self, layer_name):
+        """
+        Get the file path of a layer given its name.
+
+        :param layer_name: The name of the layer in the QGIS project.
+        :return: File path of the layer or None if not found or not a file-based layer.
+        """
+        # Iterate through all layers in the project
+        for layer in QgsProject.instance().mapLayers().values():
+            if layer.name() == layer_name:
+                # Check if the layer has a data provider and a file source
+                if hasattr(layer, "dataProvider") and hasattr(
+                    layer.dataProvider(), "dataSourceUri"
+                ):
+                    # Return the file path (for file-based layers like shapefiles or rasters)
+                    return layer.dataProvider().dataSourceUri().split("|")[0]
+        return None
 
     def procDirClean(self):
         cutoff_wavelength = 4 * float(self.DC_lineSpacing)
@@ -1740,15 +1775,10 @@ class SGTool:
             # Connect to layer removal signal
             QgsProject.instance().layerRemoved.connect(self.refreshComboBox)
 
-            self.dlg.pushButton_3_applyGridding.clicked.connect(self.gridPointData)
-
-            self.dlg.pushButton_selectGridOutputDir.clicked.connect(self.gridFile)
-
             if self.dlg.mMapLayerComboBox_selectGrid_3.currentText() != "":
                 self.updateLayertoGrid()
 
             self.cell_size = self.dlg.doubleSpinBox_cellsize.value()
-            self.dlg.radioButton_CT.setChecked(True)
 
             self.gridDirectory = None
 
@@ -1766,6 +1796,10 @@ class SGTool:
                     )
                 )
             )
+
+            self.dlg.pushButton_rst.clicked.connect(self.procRSTGridding)
+            self.dlg.pushButton_idw_2.clicked.connect(self.procIDWGridding)
+            self.dlg.pushButton_bspline_3.clicked.connect(self.procbsplineGridding)
 
     # select directory to store grid
     def gridFile(self):
@@ -2221,13 +2255,13 @@ class SGTool:
                         )
                         cell_size = self.dlg.doubleSpinBox_cellsize.value()
 
-                        if self.dlg.radioButton_CT.isChecked():
+                        """if self.dlg.radioButton_CT.isChecked():
                             new_grid = gridder.interpolate(method="clough_tocher")
                             self.suffix = "_CT"
                         elif self.dlg.radioButton_IDW.isChecked():
                             power = float(self.dlg.lineEdit_IDW_power.text())
                             new_grid = gridder.interpolate(method="idw", power=power)
-                            self.suffix = "_IDW"
+                            self.suffix = "_IDW"""
                         """elif self.dlg.radioButton_RST.isChecked():
                             new_grid = gridder.interpolate_with_v_surf_rst(
                                 self.gridFilePath, epsg, cell_size=cell_size

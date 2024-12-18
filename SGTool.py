@@ -2040,6 +2040,8 @@ class SGTool:
                 transform = src.transform
                 crs = src.crs
 
+        if src == "":
+            src = "32753"
         # Stack bands into an RGB array
         rgb_raster = np.dstack((red, green, blue)).astype(float)
 

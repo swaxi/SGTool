@@ -141,7 +141,7 @@ Takes a 3-band registered RGB image and converts it to a monotonically increasin
 Imports point data in csv or xyz formats   
 
 **Gridding**   
-Grids point data using either Clough Tocher or IDW gridding algoithms   
+Grids point data using either Spline, BSpline or IDW built-in gridding algoithms   
    
       
 # Installation

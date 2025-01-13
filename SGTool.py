@@ -460,7 +460,9 @@ class SGTool:
         self.dlg.doubleSpinBox_base.setToolTip("Lowest height to worm")
         self.dlg.doubleSpinBox_inc.setToolTip("Increment in metres between levels ")
         self.dlg.groupBox_8.setToolTip("Create csv file of worms using bsdwormer code")
-        self.dlg.mMapLayerComboBox_selectGrid_worms.setToolTip("Grid to be wormed")
+        self.dlg.mMapLayerComboBox_selectGrid_worms.setToolTip(
+            "Grid to be wormed\n[Must be gravity or RTP_E + Vertical Integration of mag]"
+        )
 
     def initParams(self):
         self.localGridName = ""

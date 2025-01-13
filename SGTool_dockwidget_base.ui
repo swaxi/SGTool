@@ -111,7 +111,7 @@ QTabBar::tab:hover {
      <widget class="QLabel" name="label_27">
       <property name="geometry">
        <rect>
-        <x>370</x>
+        <x>350</x>
         <y>614</y>
         <width>47</width>
         <height>13</height>
@@ -194,7 +194,7 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_35">
        <property name="geometry">
         <rect>
-         <x>180</x>
+         <x>190</x>
          <y>120</y>
          <width>61</width>
          <height>16</height>
@@ -236,26 +236,10 @@ QTabBar::tab:hover {
         <string/>
        </property>
       </widget>
-      <widget class="QLabel" name="label_23">
-       <property name="geometry">
-        <rect>
-         <x>330</x>
-         <y>90</y>
-         <width>101</width>
-         <height>21</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>High (proj units)</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
       <widget class="QCheckBox" name="checkBox_11_1vd_agc">
        <property name="geometry">
         <rect>
-         <x>50</x>
+         <x>40</x>
          <y>150</y>
          <width>21</width>
          <height>17</height>
@@ -268,7 +252,7 @@ QTabBar::tab:hover {
       <widget class="QCheckBox" name="checkBox_10_bandPass">
        <property name="geometry">
         <rect>
-         <x>50</x>
+         <x>40</x>
          <y>90</y>
          <width>21</width>
          <height>17</height>
@@ -297,7 +281,7 @@ QTabBar::tab:hover {
       <widget class="QCheckBox" name="checkBox_10_freqCut">
        <property name="geometry">
         <rect>
-         <x>50</x>
+         <x>40</x>
          <y>120</y>
          <width>21</width>
          <height>17</height>
@@ -310,7 +294,7 @@ QTabBar::tab:hover {
       <widget class="QLineEdit" name="lineEdit_12_bandPassLow">
        <property name="geometry">
         <rect>
-         <x>250</x>
+         <x>260</x>
          <y>90</y>
          <width>71</width>
          <height>20</height>
@@ -325,7 +309,7 @@ QTabBar::tab:hover {
         <rect>
          <x>70</x>
          <y>120</y>
-         <width>101</width>
+         <width>111</width>
          <height>16</height>
         </rect>
        </property>
@@ -349,10 +333,10 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_4">
        <property name="geometry">
         <rect>
-         <x>40</x>
+         <x>50</x>
          <y>60</y>
-         <width>121</width>
-         <height>16</height>
+         <width>131</width>
+         <height>20</height>
         </rect>
        </property>
        <property name="text">
@@ -404,7 +388,7 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_12">
        <property name="geometry">
         <rect>
-         <x>160</x>
+         <x>190</x>
          <y>30</y>
          <width>51</width>
          <height>20</height>
@@ -420,7 +404,7 @@ QTabBar::tab:hover {
       <widget class="QLineEdit" name="lineEdit_3_azimuth">
        <property name="geometry">
         <rect>
-         <x>220</x>
+         <x>250</x>
          <y>30</y>
          <width>71</width>
          <height>20</height>
@@ -433,7 +417,7 @@ QTabBar::tab:hover {
       <widget class="QLineEdit" name="lineEdit_9_removeReg_wavelength">
        <property name="geometry">
         <rect>
-         <x>330</x>
+         <x>370</x>
          <y>60</y>
          <width>71</width>
          <height>20</height>
@@ -446,7 +430,7 @@ QTabBar::tab:hover {
       <widget class="QLineEdit" name="lineEdit_12_FreqPass">
        <property name="geometry">
         <rect>
-         <x>450</x>
+         <x>490</x>
          <y>120</y>
          <width>71</width>
          <height>20</height>
@@ -459,10 +443,10 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_24">
        <property name="geometry">
         <rect>
-         <x>100</x>
+         <x>130</x>
          <y>150</y>
-         <width>111</width>
-         <height>16</height>
+         <width>131</width>
+         <height>20</height>
         </rect>
        </property>
        <property name="text">
@@ -475,7 +459,7 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_22">
        <property name="geometry">
         <rect>
-         <x>130</x>
+         <x>140</x>
          <y>90</y>
          <width>111</width>
          <height>16</height>
@@ -491,9 +475,9 @@ QTabBar::tab:hover {
       <widget class="QComboBox" name="comboBox_2_FreqCutType">
        <property name="geometry">
         <rect>
-         <x>250</x>
+         <x>260</x>
          <y>120</y>
-         <width>61</width>
+         <width>71</width>
          <height>22</height>
         </rect>
        </property>
@@ -501,7 +485,7 @@ QTabBar::tab:hover {
       <widget class="QLineEdit" name="lineEdit_13_agc_window">
        <property name="geometry">
         <rect>
-         <x>220</x>
+         <x>270</x>
          <y>150</y>
          <width>71</width>
          <height>20</height>
@@ -514,10 +498,10 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_2">
        <property name="geometry">
         <rect>
-         <x>40</x>
+         <x>50</x>
          <y>30</y>
-         <width>121</width>
-         <height>16</height>
+         <width>111</width>
+         <height>20</height>
         </rect>
        </property>
        <property name="text">
@@ -527,10 +511,10 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_17">
        <property name="geometry">
         <rect>
-         <x>150</x>
+         <x>200</x>
          <y>60</y>
-         <width>151</width>
-         <height>16</height>
+         <width>161</width>
+         <height>20</height>
         </rect>
        </property>
        <property name="text">
@@ -543,7 +527,7 @@ QTabBar::tab:hover {
       <widget class="QLineEdit" name="lineEdit_11_bandPassHigh">
        <property name="geometry">
         <rect>
-         <x>450</x>
+         <x>490</x>
          <y>90</y>
          <width>71</width>
          <height>20</height>
@@ -556,14 +540,30 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_34">
        <property name="geometry">
         <rect>
-         <x>320</x>
+         <x>350</x>
          <y>120</y>
-         <width>111</width>
+         <width>131</width>
          <height>21</height>
         </rect>
        </property>
        <property name="text">
         <string>Cutoff (proj units)</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_23">
+       <property name="geometry">
+        <rect>
+         <x>360</x>
+         <y>90</y>
+         <width>121</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>High (proj units)</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -596,7 +596,7 @@ QTabBar::tab:hover {
         <rect>
          <x>430</x>
          <y>100</y>
-         <width>41</width>
+         <width>31</width>
          <height>20</height>
         </rect>
        </property>
@@ -622,8 +622,8 @@ QTabBar::tab:hover {
         <rect>
          <x>30</x>
          <y>160</y>
-         <width>91</width>
-         <height>16</height>
+         <width>141</width>
+         <height>21</height>
         </rect>
        </property>
        <property name="text">
@@ -633,7 +633,7 @@ QTabBar::tab:hover {
       <widget class="QLineEdit" name="lineEdit_5_dec">
        <property name="geometry">
         <rect>
-         <x>330</x>
+         <x>340</x>
          <y>100</y>
          <width>41</width>
          <height>20</height>
@@ -656,7 +656,7 @@ QTabBar::tab:hover {
       <widget class="QComboBox" name="comboBox_2_continuationDirection">
        <property name="geometry">
         <rect>
-         <x>220</x>
+         <x>240</x>
          <y>220</y>
          <width>61</width>
          <height>22</height>
@@ -679,7 +679,7 @@ QTabBar::tab:hover {
       <widget class="QLineEdit" name="lineEdit_6_inc">
        <property name="geometry">
         <rect>
-         <x>250</x>
+         <x>260</x>
          <y>100</y>
          <width>41</width>
          <height>20</height>
@@ -692,9 +692,9 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_16">
        <property name="geometry">
         <rect>
-         <x>380</x>
+         <x>370</x>
          <y>100</y>
-         <width>41</width>
+         <width>51</width>
          <height>21</height>
         </rect>
        </property>
@@ -711,9 +711,9 @@ QTabBar::tab:hover {
        </property>
        <property name="geometry">
         <rect>
-         <x>480</x>
+         <x>470</x>
          <y>100</y>
-         <width>81</width>
+         <width>91</width>
          <height>22</height>
         </rect>
        </property>
@@ -735,7 +735,7 @@ QTabBar::tab:hover {
       <widget class="QCheckBox" name="checkBox_9_continuation">
        <property name="geometry">
         <rect>
-         <x>40</x>
+         <x>30</x>
          <y>220</y>
          <width>21</width>
          <height>17</height>
@@ -748,7 +748,7 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_20">
        <property name="geometry">
         <rect>
-         <x>140</x>
+         <x>160</x>
          <y>220</y>
          <width>71</width>
          <height>20</height>
@@ -764,7 +764,7 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_14">
        <property name="geometry">
         <rect>
-         <x>290</x>
+         <x>300</x>
          <y>100</y>
          <width>31</width>
          <height>21</height>
@@ -796,7 +796,7 @@ QTabBar::tab:hover {
          <x>30</x>
          <y>130</y>
          <width>91</width>
-         <height>16</height>
+         <height>21</height>
         </rect>
        </property>
        <property name="text">
@@ -819,7 +819,7 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_15">
        <property name="geometry">
         <rect>
-         <x>220</x>
+         <x>230</x>
          <y>100</y>
          <width>21</width>
          <height>21</height>
@@ -838,14 +838,14 @@ QTabBar::tab:hover {
        </property>
        <property name="geometry">
         <rect>
-         <x>140</x>
+         <x>170</x>
          <y>100</y>
-         <width>71</width>
+         <width>51</width>
          <height>23</height>
         </rect>
        </property>
        <property name="text">
-        <string>Calc IGRF</string>
+        <string>IGRF</string>
        </property>
       </widget>
       <widget class="QLabel" name="label_11">
@@ -948,9 +948,9 @@ QTabBar::tab:hover {
       <widget class="QComboBox" name="comboBox_3_rte_p_list">
        <property name="geometry">
         <rect>
-         <x>70</x>
+         <x>80</x>
          <y>100</y>
-         <width>61</width>
+         <width>81</width>
          <height>22</height>
         </rect>
        </property>
@@ -974,7 +974,7 @@ QTabBar::tab:hover {
       <widget class="QCheckBox" name="checkBox_4_PGrav">
        <property name="geometry">
         <rect>
-         <x>40</x>
+         <x>30</x>
          <y>190</y>
          <width>21</width>
          <height>17</height>
@@ -990,7 +990,7 @@ QTabBar::tab:hover {
          <x>60</x>
          <y>190</y>
          <width>471</width>
-         <height>16</height>
+         <height>21</height>
         </rect>
        </property>
        <property name="text">
@@ -1059,7 +1059,7 @@ QTabBar::tab:hover {
       <widget class="QCheckBox" name="checkBox_11_tot_hz_grad">
        <property name="geometry">
         <rect>
-         <x>40</x>
+         <x>30</x>
          <y>60</y>
          <width>21</width>
          <height>17</height>
@@ -1074,7 +1074,7 @@ QTabBar::tab:hover {
         <rect>
          <x>220</x>
          <y>30</y>
-         <width>41</width>
+         <width>51</width>
          <height>22</height>
         </rect>
        </property>
@@ -1098,7 +1098,7 @@ QTabBar::tab:hover {
       <widget class="QCheckBox" name="checkBox_6_derivative">
        <property name="geometry">
         <rect>
-         <x>40</x>
+         <x>30</x>
          <y>30</y>
          <width>21</width>
          <height>17</height>
@@ -1127,10 +1127,10 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_18">
        <property name="geometry">
         <rect>
-         <x>150</x>
+         <x>140</x>
          <y>30</y>
-         <width>61</width>
-         <height>16</height>
+         <width>71</width>
+         <height>20</height>
         </rect>
        </property>
        <property name="text">
@@ -1171,7 +1171,7 @@ QTabBar::tab:hover {
         <rect>
          <x>60</x>
          <y>30</y>
-         <width>91</width>
+         <width>71</width>
          <height>16</height>
         </rect>
        </property>
@@ -1264,8 +1264,8 @@ font-style: italic;</string>
         <rect>
          <x>120</x>
          <y>160</y>
-         <width>61</width>
-         <height>16</height>
+         <width>71</width>
+         <height>20</height>
         </rect>
        </property>
        <property name="text">
@@ -1278,7 +1278,7 @@ font-style: italic;</string>
       <widget class="QCheckBox" name="checkBox_Mean">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>70</y>
          <width>21</width>
          <height>17</height>
@@ -1291,7 +1291,7 @@ font-style: italic;</string>
       <widget class="QCheckBox" name="checkBox_SunShading">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>190</y>
          <width>21</width>
          <height>17</height>
@@ -1304,7 +1304,7 @@ font-style: italic;</string>
       <widget class="QCheckBox" name="checkBox_Gaussian">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>130</y>
          <width>21</width>
          <height>17</height>
@@ -1317,7 +1317,7 @@ font-style: italic;</string>
       <widget class="QCheckBox" name="checkBox_Directional">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>160</y>
          <width>21</width>
          <height>17</height>
@@ -1356,7 +1356,7 @@ font-style: italic;</string>
       <widget class="QCheckBox" name="checkBox_Median">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>100</y>
          <width>21</width>
          <height>17</height>
@@ -1397,8 +1397,8 @@ font-style: italic;</string>
         <rect>
          <x>40</x>
          <y>190</y>
-         <width>81</width>
-         <height>16</height>
+         <width>91</width>
+         <height>21</height>
         </rect>
        </property>
        <property name="text">
@@ -1408,9 +1408,9 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_63">
        <property name="geometry">
         <rect>
-         <x>90</x>
+         <x>120</x>
          <y>70</y>
-         <width>151</width>
+         <width>221</width>
          <height>20</height>
         </rect>
        </property>
@@ -1424,7 +1424,7 @@ font-style: italic;</string>
       <widget class="QLineEdit" name="lineEdit_Mean_size">
        <property name="geometry">
         <rect>
-         <x>260</x>
+         <x>360</x>
          <y>70</y>
          <width>51</width>
          <height>20</height>
@@ -1437,7 +1437,7 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_64">
        <property name="geometry">
         <rect>
-         <x>120</x>
+         <x>140</x>
          <y>190</y>
          <width>61</width>
          <height>16</height>
@@ -1469,7 +1469,7 @@ font-style: italic;</string>
       <widget class="QComboBox" name="comboBox_Dir_dir">
        <property name="geometry">
         <rect>
-         <x>190</x>
+         <x>200</x>
          <y>160</y>
          <width>61</width>
          <height>22</height>
@@ -1479,7 +1479,7 @@ font-style: italic;</string>
       <widget class="QLineEdit" name="lineEdit_SunSh_Az">
        <property name="geometry">
         <rect>
-         <x>190</x>
+         <x>210</x>
          <y>190</y>
          <width>71</width>
          <height>20</height>
@@ -1505,9 +1505,9 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_67">
        <property name="geometry">
         <rect>
-         <x>90</x>
+         <x>120</x>
          <y>100</y>
-         <width>151</width>
+         <width>221</width>
          <height>20</height>
         </rect>
        </property>
@@ -1521,7 +1521,7 @@ font-style: italic;</string>
       <widget class="QLineEdit" name="lineEdit_Median_size">
        <property name="geometry">
         <rect>
-         <x>260</x>
+         <x>360</x>
          <y>100</y>
          <width>51</width>
          <height>20</height>
@@ -1534,7 +1534,7 @@ font-style: italic;</string>
       <widget class="QLineEdit" name="lineEdit_SunSh_Zn">
        <property name="geometry">
         <rect>
-         <x>330</x>
+         <x>350</x>
          <y>190</y>
          <width>71</width>
          <height>20</height>
@@ -1547,7 +1547,7 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_68">
        <property name="geometry">
         <rect>
-         <x>260</x>
+         <x>280</x>
          <y>190</y>
          <width>61</width>
          <height>16</height>
@@ -1692,9 +1692,9 @@ font-style: italic;</string>
        </property>
        <property name="geometry">
         <rect>
-         <x>290</x>
+         <x>230</x>
          <y>150</y>
-         <width>211</width>
+         <width>311</width>
          <height>20</height>
         </rect>
        </property>
@@ -1723,9 +1723,9 @@ font-style: italic;</string>
       <widget class="QPushButton" name="pushButton_CSSS_Colours">
        <property name="geometry">
         <rect>
-         <x>300</x>
+         <x>270</x>
          <y>190</y>
-         <width>201</width>
+         <width>241</width>
          <height>23</height>
         </rect>
        </property>
@@ -1736,9 +1736,9 @@ font-style: italic;</string>
       <widget class="QgsDoubleSpinBox" name="mQgsDoubleSpinBox_LUT_min">
        <property name="geometry">
         <rect>
-         <x>129</x>
+         <x>90</x>
          <y>150</y>
-         <width>111</width>
+         <width>121</width>
          <height>27</height>
         </rect>
        </property>
@@ -1755,9 +1755,9 @@ font-style: italic;</string>
       <widget class="QgsDoubleSpinBox" name="mQgsDoubleSpinBox_LUT_max">
        <property name="geometry">
         <rect>
-         <x>129</x>
+         <x>90</x>
          <y>190</y>
-         <width>111</width>
+         <width>121</width>
          <height>27</height>
         </rect>
        </property>
@@ -1777,7 +1777,7 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_46">
        <property name="geometry">
         <rect>
-         <x>70</x>
+         <x>31</x>
          <y>150</y>
          <width>41</width>
          <height>20</height>
@@ -1793,7 +1793,7 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_50">
        <property name="geometry">
         <rect>
-         <x>70</x>
+         <x>31</x>
          <y>190</y>
          <width>41</width>
          <height>20</height>
@@ -1878,22 +1878,6 @@ font-size: 12px;
        </property>
        <property name="text">
         <string>...</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label">
-       <property name="geometry">
-        <rect>
-         <x>20</x>
-         <y>30</y>
-         <width>111</width>
-         <height>21</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Point/Line Data</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
        </property>
       </widget>
       <widget class="QLabel" name="label_44">
@@ -2004,12 +1988,41 @@ font-size: 13px;
         <rect>
          <x>20</x>
          <y>150</y>
-         <width>211</width>
+         <width>331</width>
          <height>17</height>
         </rect>
        </property>
+       <property name="font">
+        <font>
+         <pointsize>7</pointsize>
+        </font>
+       </property>
        <property name="text">
         <string>Load Tie Lines from XYZ files</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_69">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
+       <property name="geometry">
+        <rect>
+         <x>20</x>
+         <y>30</y>
+         <width>101</width>
+         <height>16</height>
+        </rect>
+       </property>
+       <property name="styleSheet">
+        <string notr="true">font-family: Arial; 
+font-size: 13px;
+</string>
+       </property>
+       <property name="text">
+        <string>Point/Line Data</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
        </property>
       </widget>
      </widget>
@@ -2028,15 +2041,15 @@ font-size: 13px;
       <widget class="QLabel" name="nx_label">
        <property name="geometry">
         <rect>
-         <x>270</x>
+         <x>280</x>
          <y>100</y>
-         <width>41</width>
+         <width>31</width>
          <height>16</height>
         </rect>
        </property>
        <property name="font">
         <font>
-         <pointsize>10</pointsize>
+         <pointsize>9</pointsize>
         </font>
        </property>
        <property name="text">
@@ -2048,13 +2061,13 @@ font-size: 13px;
         <rect>
          <x>190</x>
          <y>100</y>
-         <width>47</width>
+         <width>61</width>
          <height>16</height>
         </rect>
        </property>
        <property name="font">
         <font>
-         <pointsize>9</pointsize>
+         <pointsize>8</pointsize>
          <weight>75</weight>
          <bold>true</bold>
         </font>
@@ -2066,7 +2079,7 @@ font-size: 13px;
       <widget class="QLabel" name="label_49">
        <property name="geometry">
         <rect>
-         <x>240</x>
+         <x>250</x>
          <y>100</y>
          <width>16</width>
          <height>16</height>
@@ -2074,7 +2087,7 @@ font-size: 13px;
        </property>
        <property name="font">
         <font>
-         <pointsize>10</pointsize>
+         <pointsize>9</pointsize>
         </font>
        </property>
        <property name="text">
@@ -2095,7 +2108,7 @@ font-size: 13px;
        </property>
        <property name="font">
         <font>
-         <pointsize>10</pointsize>
+         <pointsize>9</pointsize>
         </font>
        </property>
        <property name="text">
@@ -2113,7 +2126,7 @@ font-size: 13px;
        </property>
        <property name="font">
         <font>
-         <pointsize>10</pointsize>
+         <pointsize>9</pointsize>
         </font>
        </property>
        <property name="text">
@@ -2173,9 +2186,9 @@ font-size: 13px;
       <widget class="QLabel" name="label_55">
        <property name="geometry">
         <rect>
-         <x>40</x>
+         <x>10</x>
          <y>60</y>
-         <width>101</width>
+         <width>131</width>
          <height>20</height>
         </rect>
        </property>
@@ -2224,9 +2237,9 @@ font-size: 13px;
       <widget class="QPushButton" name="pushButton_idw_2">
        <property name="geometry">
         <rect>
-         <x>70</x>
+         <x>30</x>
          <y>150</y>
-         <width>91</width>
+         <width>131</width>
          <height>23</height>
         </rect>
        </property>
@@ -2239,7 +2252,7 @@ font-size: 13px;
         <rect>
          <x>190</x>
          <y>150</y>
-         <width>111</width>
+         <width>141</width>
          <height>23</height>
         </rect>
        </property>
@@ -2263,9 +2276,9 @@ font-size: 13px;
       <widget class="QSpinBox" name="spinBox_levels">
        <property name="geometry">
         <rect>
-         <x>90</x>
+         <x>120</x>
          <y>50</y>
-         <width>61</width>
+         <width>91</width>
          <height>22</height>
         </rect>
        </property>
@@ -2279,9 +2292,9 @@ font-size: 13px;
       <widget class="QLabel" name="label_58">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>50</y>
-         <width>61</width>
+         <width>91</width>
          <height>21</height>
         </rect>
        </property>
@@ -2295,9 +2308,9 @@ font-size: 13px;
       <widget class="QLabel" name="label_60">
        <property name="geometry">
         <rect>
-         <x>10</x>
+         <x>20</x>
          <y>80</y>
-         <width>71</width>
+         <width>81</width>
          <height>21</height>
         </rect>
        </property>
@@ -2311,9 +2324,9 @@ font-size: 13px;
       <widget class="QDoubleSpinBox" name="doubleSpinBox_inc">
        <property name="geometry">
         <rect>
-         <x>90</x>
+         <x>120</x>
          <y>110</y>
-         <width>62</width>
+         <width>91</width>
          <height>22</height>
         </rect>
        </property>
@@ -2336,9 +2349,9 @@ font-size: 13px;
       <widget class="QLabel" name="label_62">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>110</y>
-         <width>61</width>
+         <width>91</width>
          <height>21</height>
         </rect>
        </property>
@@ -2365,9 +2378,9 @@ font-size: 13px;
       <widget class="QgsMapLayerComboBox" name="mMapLayerComboBox_selectGrid_worms">
        <property name="geometry">
         <rect>
-         <x>90</x>
+         <x>110</x>
          <y>20</y>
-         <width>271</width>
+         <width>251</width>
          <height>21</height>
         </rect>
        </property>
@@ -2377,7 +2390,7 @@ font-size: 13px;
         <rect>
          <x>10</x>
          <y>20</y>
-         <width>71</width>
+         <width>91</width>
          <height>20</height>
         </rect>
        </property>
@@ -2391,9 +2404,9 @@ font-size: 13px;
       <widget class="QDoubleSpinBox" name="doubleSpinBox_base">
        <property name="geometry">
         <rect>
-         <x>90</x>
+         <x>120</x>
          <y>80</y>
-         <width>62</width>
+         <width>91</width>
          <height>22</height>
         </rect>
        </property>

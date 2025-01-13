@@ -21,7 +21,8 @@ import array
 import zlib
 
 import numpy as np
-#import xarray as xr
+
+# import xarray as xr
 
 # Define the valid element sizes (ES variable) for GRD files
 # (values > 1024 correspond to compressed versions of the grid)
@@ -38,12 +39,22 @@ DUMMIES = {
     "d": -1e32,
 }
 
-GDALDataType ={
-  "GDT_Unknown" : 0, "GDT_Byte" : 1, "GDT_UInt16" : 2, "GDT_Int16" : 3,
-  "GDT_UInt32" : 4, "GDT_Int32" : 5, "GDT_Float32" : 6, "GDT_Float64" : 7,
-  "GDT_CInt16" : 8, "GDT_CInt32" : 9, "GDT_CFloat32" : 10, "GDT_CFloat64" : 11,
-  "GDT_TypeCount" : 12
+GDALDataType = {
+    "GDT_Unknown": 0,
+    "GDT_Byte": 1,
+    "GDT_UInt16": 2,
+    "GDT_Int16": 3,
+    "GDT_UInt32": 4,
+    "GDT_Int32": 5,
+    "GDT_Float32": 6,
+    "GDT_Float64": 7,
+    "GDT_CInt16": 8,
+    "GDT_CInt32": 9,
+    "GDT_CFloat32": 10,
+    "GDT_CFloat64": 11,
+    "GDT_TypeCount": 12,
 }
+
 
 def load_oasis_montaj_grid(fname):
     """
@@ -86,7 +97,9 @@ def load_oasis_montaj_grid(fname):
         _check_ordering(header["ordering"])
         _check_sign_flag(header["sign_flag"])
         # Get data type for the grid elements
-        data_type,Gdata_type = _get_data_type(header["n_bytes_per_element"], header["sign_flag"])
+        data_type, Gdata_type = _get_data_type(
+            header["n_bytes_per_element"], header["sign_flag"]
+        )
         # Read grid
         grid = grd_file.read()
     # Decompress grid if needed
@@ -124,13 +137,13 @@ def load_oasis_montaj_grid(fname):
         dims = ("y", "x")
         coords = {"easting": (dims, easting), "northing": (dims, northing)}
     # Build an xarray.DataArray for the grid
-    #grid = xr.DataArray(
+    # grid = xr.DataArray(
     #    grid,
     #    coords=coords,
     #    dims=dims,
     #    attrs=header,
-    #)
-    return grid,header,Gdata_type
+    # )
+    return grid, header, Gdata_type
 
 
 def _read_header(header_bytes):
@@ -234,6 +247,7 @@ def _check_sign_flag(sign_flag):
             "Reading .grd files with colour grids is not currenty supported."
         )
 
+
 def _get_data_type(n_bytes_per_element, sign_flag):
     """
     Return the data type for the grid values
@@ -258,14 +272,14 @@ def _get_data_type(n_bytes_per_element, sign_flag):
             Gdata_type = GDALDataType["GDT_Byte"]  # unsigned char
             data_type = "B"  # unsigned char
         elif sign_flag == 1:
-            Gdata_type = GDALDataType["GDT_Byte"] # signed char
+            Gdata_type = GDALDataType["GDT_Byte"]  # signed char
             data_type = "b"  # signed char
     elif n_bytes_per_element == 2:
         if sign_flag == 0:
             Gdata_type = GDALDataType["GDT_UInt16"]  # unsigned short
             data_type = "H"  # unsigned short
         elif sign_flag == 1:
-            Gdata_type = GDALDataType["GDT_Int16"] # signed short
+            Gdata_type = GDALDataType["GDT_Int16"]  # signed short
             data_type = "h"  # signed short
     elif n_bytes_per_element == 4:
         if sign_flag == 0:
@@ -275,12 +289,12 @@ def _get_data_type(n_bytes_per_element, sign_flag):
             Gdata_type = GDALDataType["GDT_Int32"]  # signed int
             data_type = "i"  # signed int
         elif sign_flag == 2:
-            Gdata_type = GDALDataType["GDT_Float32"] # float
+            Gdata_type = GDALDataType["GDT_Float32"]  # float
             data_type = "f"  # float
     elif n_bytes_per_element == 8:
         Gdata_type = GDALDataType["GDT_Float64"]
         data_type = "d"
-    return data_type,Gdata_type
+    return data_type, Gdata_type
 
 
 def _remove_dummies(grid, data_type):
@@ -414,32 +428,35 @@ def _build_rotated_coordinates(west, south, shape, spacing, rotation_deg):
     northing = south + x * sin + y * cos
     return easting, northing
 
+
 # Suggested code to parse xml to get CRS from
-# Santiago Soler 
+# Santiago Soler
 # https://github.com/fatiando/harmonica/pull/348#issuecomment-1327811755
 
 
 def extract_proj_str(fname):
-    proj=None
+    proj = None
     with open(fname, "r") as f:
         for line in f:
             if "wellknown_epsg=" in line:
-                clean_line=line.replace("&quot;",'"')
+                clean_line = line.replace("&quot;", '"')
                 # extract projection string
 
                 proj = clean_line.split('wellknown_epsg="')
-                if(len(proj)>1):
-                    proj=proj[1].split('" ')[0]
+                if len(proj) > 1:
+                    proj = proj[1].split('" ')[0]
                     # remove non-alphanumeric characters if present
                     if proj.isalnum() is False:
-                        proj = ''.join(filter(str.isalnum, proj))
+                        proj = "".join(filter(str.isalnum, proj))
 
                     assert proj.isalnum
                     break
     return proj
 
-#type form: wellknown_epsg="32632" projection
-#another form: wellknown_epsg=&quot;32632&quot; projection
+
+# type form: wellknown_epsg="32632" projection
+# another form: wellknown_epsg=&quot;32632&quot; projection
+
 
 def _decompress_grid_optimized(grid_compressed):
     """
@@ -516,11 +533,10 @@ def load_oasis_montaj_grid_optimized(fname):
         data_type, Gdata_type = _get_data_type(
             header["n_bytes_per_element"], header["sign_flag"]
         )
-        if(data_type == "b" or data_type =="B" or data_type =="h" or data_type =="H"):
-            return -1,-1,-1
+        if data_type == "b" or data_type == "B" or data_type == "h" or data_type == "H":
+            return -1, -1, -1
         else:
             # Read grid
-            print("data_type",data_type)
             grid = grd_file.read()
 
     # Decompress grid if needed

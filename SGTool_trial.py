@@ -76,16 +76,15 @@ from .ConvolutionFilter import OddPositiveIntegerValidator
 from .GridData_no_pandas import GridData
 from .GridData_no_pandas import QGISGridData
 
-from .igrf_utils import igrf_utils as IGRF
 import os.path
 import numpy as np
 import subprocess
 from scipy.spatial import cKDTree
-from scipy import interpolate
 import tempfile
 
 from osgeo import gdal, osr
 
+# from .ppigrf import igrf, get_inclination_declination
 from datetime import datetime
 from pyproj import Transformer
 
@@ -93,6 +92,7 @@ from pyproj import Transformer
 import processing
 from osgeo import gdal, osr
 import sys
+from pyIGRF import *
 
 
 class SGTool:
@@ -142,6 +142,20 @@ class SGTool:
                 print(f"Successfully installed {library_name}")
             except subprocess.CalledProcessError as e:
                 print(f"Error installing {library_name}: {e}")
+
+        """# Example usage
+        library_name = "pyIGRF"
+        try:
+            __import__(library_name)
+            print(f"{library_name} is already installed.")
+        except ImportError:
+            print(f"{library_name} is not installed. Installing...")
+            install_library(library_name)
+            try:
+                __import__(library_name)
+                print(f"{library_name} successfully imported after installation.")
+            except ImportError as e:
+                print(f"Failed to import {library_name} even after installation: {e}")"""
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -456,8 +470,10 @@ class SGTool:
         )
         self.dlg.lineEdit.setToolTip("Example colour sequence, can be copy pasted")
 
-        self.dlg.spinBox_levels.setToolTip("Number of levels")
-        self.dlg.doubleSpinBox_base.setToolTip("Lowest height to worm")
+        self.dlg.spinBox_levels.setToolTip(
+            "Number of levels (minus number of base levels ignored)"
+        )
+        self.dlg.spinBox_base.setToolTip("Number of base levels to ignore, usually 1")
         self.dlg.doubleSpinBox_inc.setToolTip("Increment in metres between levels ")
         self.dlg.groupBox_8.setToolTip("Create csv file of worms using bsdwormer code")
         self.dlg.mMapLayerComboBox_selectGrid_worms.setToolTip("Grid to be wormed")
@@ -874,7 +890,7 @@ class SGTool:
 
     def procBSDworms(self):
         num_levels = int(self.dlg.spinBox_levels.value())
-        bottom_level = int(self.dlg.doubleSpinBox_base.text())
+        bottom_level = int(self.dlg.spinBox_base.value())
         delta_z = float(self.dlg.doubleSpinBox_inc.text())
         selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
         crs = selected_layer.crs()
@@ -1509,6 +1525,7 @@ class SGTool:
 
     # estimate mag field from centroid of data, date and sensor height
     def update_mag_field(self):
+        # import pyIGRF
 
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
         if os.path.exists(self.diskGridPath) or self.localGridName:
@@ -1529,30 +1546,130 @@ class SGTool:
             date = datetime(
                 self.magn_SurveyYear, self.magn_SurveyMonth, self.magn_SurveyDay
             )
+
             extent = self.layer.extent()  # Get the extent of the raster layer
 
             # calculate midpoint of grid
-            midx = extent.xMinimum() + (extent.xMaximum() - extent.xMinimum()) / 2
-            midy = extent.yMinimum() + (extent.yMaximum() - extent.yMinimum()) / 2
+            midx = extent.xMinimum() + (extent.xMaximum() - extent.xMinimum())
+            midy = extent.yMinimum() + (extent.yMaximum() - extent.yMinimum())
 
             if self.layer.crs().authid():
                 # convert midpoint to lat/long
                 magn_proj = self.layer.crs().authid().split(":")[1]
-                from pyproj import CRS
 
-                crs_proj = CRS.from_user_input(int(magn_proj))
-                crs_ll = CRS.from_user_input(4326)
-                proj = Transformer.from_crs(crs_proj, crs_ll, always_xy=True)
-                long, lat = proj.transform(midx, midy)
+                proj = Transformer.from_crs(magn_proj, 4326, always_xy=True)
+                x, y = (midx, midy)
+                long, lat = proj.transform(x, y)
 
                 date = self.day_month_to_decimal_year(
                     self.magn_SurveyYear, self.magn_SurveyMonth, self.magn_SurveyDay
                 )
 
-                I, D = self.calcIGRF(date, float(self.magn_SurveyHeight), lat, long)
+                from scipy import interpolate
+                from pyIGRF import igrf_utils as iut
+                from pyIGRF import io_options as ioo
 
-                self.RTE_P_inc = I
-                self.RTE_P_dec = D
+                igrf_gen = "14"
+                IGRF_FILE = r"./pyIGRF/SHC_files/IGRF" + igrf_gen + ".SHC"
+                igrf = iut.load_shcfile(IGRF_FILE, None)
+                iopt = 1
+                itype = 1
+                colat = lat
+                lon = long
+                alt, colat, sd, cd = iut.gg_to_geo(alt, colat)
+                alt = self.magn_SurveyHeight
+
+                # Interpolate the geomagnetic coefficients to the desired date(s)
+                # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+                f = interpolate.interp1d(
+                    igrf.time, igrf.coeffs, fill_value="extrapolate"
+                )
+                coeffs = f(date)
+
+                # Compute the main field B_r, B_theta and B_phi value for the location(s)
+                Br, Bt, Bp = iut.synth_values(
+                    coeffs.T, alt, colat, lon, igrf.parameters["nmax"]
+                )
+
+                # For the SV, find the 5 year period in which the date lies and compute
+                # the SV within that period. IGRF has constant SV between each 5 year period
+                # We don't need to subtract 1900 but it makes it clearer:
+                epoch = (date - 1900) // 5
+                epoch_start = epoch * 5
+                # Add 1900 back on plus 1 year to account for SV in nT per year (nT/yr):
+                coeffs_sv = f(1900 + epoch_start + 1) - f(1900 + epoch_start)
+                Brs, Bts, Bps = iut.synth_values(
+                    coeffs_sv.T, alt, colat, lon, igrf.parameters["nmax"]
+                )
+
+                # Use the main field coefficients from the start of each five epoch
+                # to compute the SV for Dec, Inc, Hor and Total Field (F)
+                # [Note: these are non-linear components of X, Y and Z so treat separately]
+                coeffsm = f(1900 + epoch_start)
+                Brm, Btm, Bpm = iut.synth_values(
+                    coeffsm.T, alt, colat, lon, igrf.parameters["nmax"]
+                )
+
+                # Rearrange to X, Y, Z components
+                X = -Bt
+                Y = Bp
+                Z = -Br
+                # For the SV
+                dX = -Bts
+                dY = Bps
+                dZ = -Brs
+                Xm = -Btm
+                Ym = Bpm
+                Zm = -Brm
+                # Rotate back to geodetic coords if needed
+                if itype == 1:
+                    t = X
+                    X = X * cd + Z * sd
+                    Z = Z * cd - t * sd
+                    t = dX
+                    dX = dX * cd + dZ * sd
+                    dZ = dZ * cd - t * sd
+                    t = Xm
+                    Xm = Xm * cd + Zm * sd
+                    Zm = Zm * cd - t * sd
+
+                # Compute the four non-linear components
+                dec, hoz, inc, eff = iut.xyz2dhif(X, Y, Z)
+                # The IGRF SV coefficients are relative to the main field components
+                # at the start of each five year epoch e.g. 2010, 2015, 2020
+                decs, hozs, incs, effs = iut.xyz2dhif_sv(Xm, Ym, Zm, dX, dY, dZ)
+
+                # Finally, parse the outputs for writing to screen or file
+                if iopt == 1:
+                    ioo.write1(
+                        name,
+                        date,
+                        alt,
+                        lat,
+                        colat,
+                        lon,
+                        X,
+                        Y,
+                        Z,
+                        dX,
+                        dY,
+                        dZ,
+                        dec,
+                        hoz,
+                        inc,
+                        eff,
+                        decs,
+                        hozs,
+                        incs,
+                        effs,
+                        itype,
+                        igrf_gen,
+                    )
+
+                # self.forward_magneticField_intensity = np.sqrt(Be**2 + Bn**2 + Bu**2)
+
+                self.RTE_P_inc = inc
+                self.RTE_P_dec = dec
 
                 # update widgets
                 self.dlg.lineEdit_5_dec.setText(str(round(self.RTE_P_dec, 1)))
@@ -1563,91 +1680,6 @@ class SGTool:
                     level=Qgis.Warning,
                     duration=15,
                 )
-
-    def calcIGRF(self, date, alt, lat, lon):
-
-        igrf_gen = "14"
-        itype = 1
-        d1 = d2 = d3 = None
-        colat = 90 - lat
-        iut = IGRF(d1, d2, d3)
-
-        # Load in the file of coefficients
-        # IGRF_FILE = r"./SHC_files/IGRF" + igrf_gen + ".SHC"
-        IGRF_FILE = (
-            os.path.dirname(os.path.realpath(__file__))
-            + "/SHC_files/IGRF"
-            + igrf_gen
-            + ".SHC"
-        )
-        from pathlib import Path
-
-        def convert_to_native_path(mixed_path):
-            return str(Path(mixed_path))
-
-        IGRF_FILE_norm = convert_to_native_path(IGRF_FILE)
-        igrf = iut.load_shcfile(IGRF_FILE_norm, None)
-
-        # Interpolate the geomagnetic coefficients to the desired date(s)
-        # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-        f = interpolate.interp1d(igrf.time, igrf.coeffs, fill_value="extrapolate")
-        coeffs = f(date)
-
-        # Compute the main field B_r, B_theta and B_phi value for the location(s)
-        Br, Bt, Bp = iut.synth_values(
-            coeffs.T, alt, colat, lon, igrf.parameters["nmax"]
-        )
-
-        # For the SV, find the 5 year period in which the date lies and compute
-        # the SV within that period. IGRF has constant SV between each 5 year period
-        # We don't need to subtract 1900 but it makes it clearer:
-        epoch = (date - 1900) // 5
-        epoch_start = epoch * 5
-        # Add 1900 back on plus 1 year to account for SV in nT per year (nT/yr):
-        coeffs_sv = f(1900 + epoch_start + 1) - f(1900 + epoch_start)
-        Brs, Bts, Bps = iut.synth_values(
-            coeffs_sv.T, alt, colat, lon, igrf.parameters["nmax"]
-        )
-
-        # Use the main field coefficients from the start of each five epoch
-        # to compute the SV for Dec, Inc, Hor and Total Field (F)
-        # [Note: these are non-linear components of X, Y and Z so treat separately]
-        coeffsm = f(1900 + epoch_start)
-        Brm, Btm, Bpm = iut.synth_values(
-            coeffsm.T, alt, colat, lon, igrf.parameters["nmax"]
-        )
-
-        # Rearrange to X, Y, Z components
-        X = -Bt
-        Y = Bp
-        Z = -Br
-        # For the SV
-        dX = -Bts
-        dY = Bps
-        dZ = -Brs
-        Xm = -Btm
-        Ym = Bpm
-        Zm = -Brm
-        if itype == 1:
-            # alt = input("Enter altitude in km: ").rstrip()
-            # alt = iut.check_float(alt)
-            alt, colat, sd, cd = iut.gg_to_geo(alt, colat)
-
-        # Rotate back to geodetic coords if needed
-        if itype == 1:
-            t = X
-            X = X * cd + Z * sd
-            Z = Z * cd - t * sd
-            t = dX
-            dX = dX * cd + dZ * sd
-            dZ = dZ * cd - t * sd
-            t = Xm
-            Xm = Xm * cd + Zm * sd
-            Zm = Zm * cd - t * sd
-
-        # Compute the four non-linear components
-        dec, hoz, inc, eff = iut.xyz2dhif(X, Y, Z)
-        return inc, dec
 
     def extract_raster_to_numpy(self, raster_layer):
         """

@@ -124,9 +124,9 @@ QTabBar::tab:hover {
      <widget class="QLabel" name="label_37">
       <property name="geometry">
        <rect>
-        <x>180</x>
+        <x>190</x>
         <y>570</y>
-        <width>121</width>
+        <width>181</width>
         <height>20</height>
        </rect>
       </property>
@@ -156,7 +156,7 @@ QTabBar::tab:hover {
      <widget class="QLineEdit" name="lineEdit_13_max_buffer">
       <property name="geometry">
        <rect>
-        <x>310</x>
+        <x>380</x>
         <y>570</y>
         <width>71</width>
         <height>20</height>
@@ -404,7 +404,7 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_12">
        <property name="geometry">
         <rect>
-         <x>130</x>
+         <x>160</x>
          <y>30</y>
          <width>51</width>
          <height>20</height>
@@ -420,7 +420,7 @@ QTabBar::tab:hover {
       <widget class="QLineEdit" name="lineEdit_3_azimuth">
        <property name="geometry">
         <rect>
-         <x>190</x>
+         <x>220</x>
          <y>30</y>
          <width>71</width>
          <height>20</height>
@@ -646,9 +646,9 @@ QTabBar::tab:hover {
       <widget class="QLineEdit" name="lineEdit_2_loadGridPath">
        <property name="geometry">
         <rect>
-         <x>102</x>
+         <x>120</x>
          <y>60</y>
-         <width>251</width>
+         <width>231</width>
          <height>21</height>
         </rect>
        </property>
@@ -853,7 +853,7 @@ QTabBar::tab:hover {
         <rect>
          <x>20</x>
          <y>30</y>
-         <width>61</width>
+         <width>81</width>
          <height>20</height>
         </rect>
        </property>
@@ -922,9 +922,9 @@ QTabBar::tab:hover {
       <widget class="QgsMapLayerComboBox" name="mMapLayerComboBox_selectGrid">
        <property name="geometry">
         <rect>
-         <x>100</x>
+         <x>120</x>
          <y>30</y>
-         <width>301</width>
+         <width>281</width>
          <height>21</height>
         </rect>
        </property>
@@ -960,7 +960,7 @@ QTabBar::tab:hover {
         <rect>
          <x>10</x>
          <y>60</y>
-         <width>71</width>
+         <width>91</width>
          <height>21</height>
         </rect>
        </property>
@@ -1437,7 +1437,7 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_64">
        <property name="geometry">
         <rect>
-         <x>100</x>
+         <x>120</x>
          <y>190</y>
          <width>61</width>
          <height>16</height>
@@ -1479,7 +1479,7 @@ font-style: italic;</string>
       <widget class="QLineEdit" name="lineEdit_SunSh_Az">
        <property name="geometry">
         <rect>
-         <x>170</x>
+         <x>190</x>
          <y>190</y>
          <width>71</width>
          <height>20</height>
@@ -1633,7 +1633,7 @@ font-style: italic;</string>
         <rect>
          <x>8</x>
          <y>30</y>
-         <width>101</width>
+         <width>111</width>
          <height>21</height>
         </rect>
        </property>
@@ -1647,9 +1647,9 @@ font-style: italic;</string>
       <widget class="QLineEdit" name="lineEdit_2_loadGridPath_2">
        <property name="geometry">
         <rect>
-         <x>122</x>
+         <x>132</x>
          <y>30</y>
-         <width>251</width>
+         <width>241</width>
          <height>21</height>
         </rect>
        </property>
@@ -1657,10 +1657,10 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_43">
        <property name="geometry">
         <rect>
-         <x>10</x>
+         <x>20</x>
          <y>70</y>
-         <width>91</width>
-         <height>16</height>
+         <width>101</width>
+         <height>20</height>
         </rect>
        </property>
        <property name="text">
@@ -1710,9 +1710,9 @@ font-style: italic;</string>
       <widget class="QTextEdit" name="textEdit_2_colour_list">
        <property name="geometry">
         <rect>
-         <x>110</x>
+         <x>130</x>
          <y>70</y>
-         <width>441</width>
+         <width>411</width>
          <height>61</height>
         </rect>
        </property>
@@ -1725,7 +1725,7 @@ font-style: italic;</string>
         <rect>
          <x>300</x>
          <y>190</y>
-         <width>181</width>
+         <width>201</width>
          <height>23</height>
         </rect>
        </property>
@@ -1736,9 +1736,9 @@ font-style: italic;</string>
       <widget class="QgsDoubleSpinBox" name="mQgsDoubleSpinBox_LUT_min">
        <property name="geometry">
         <rect>
-         <x>150</x>
+         <x>129</x>
          <y>150</y>
-         <width>90</width>
+         <width>111</width>
          <height>27</height>
         </rect>
        </property>
@@ -1755,9 +1755,9 @@ font-style: italic;</string>
       <widget class="QgsDoubleSpinBox" name="mQgsDoubleSpinBox_LUT_max">
        <property name="geometry">
         <rect>
-         <x>150</x>
+         <x>129</x>
          <y>190</y>
-         <width>90</width>
+         <width>111</width>
          <height>27</height>
         </rect>
        </property>
@@ -1777,7 +1777,7 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_46">
        <property name="geometry">
         <rect>
-         <x>100</x>
+         <x>70</x>
          <y>150</y>
          <width>41</width>
          <height>20</height>
@@ -1793,7 +1793,7 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_50">
        <property name="geometry">
         <rect>
-         <x>100</x>
+         <x>70</x>
          <y>190</y>
          <width>41</width>
          <height>20</height>
@@ -1819,7 +1819,7 @@ font-style: italic;</string>
 }</string>
      </property>
      <attribute name="title">
-      <string>Gridding</string>
+      <string>Gridding + Worms</string>
      </attribute>
      <widget class="QPushButton" name="pushButton_22">
       <property name="geometry">
@@ -1885,7 +1885,7 @@ font-size: 12px;
         <rect>
          <x>20</x>
          <y>30</y>
-         <width>81</width>
+         <width>111</width>
          <height>21</height>
         </rect>
        </property>
@@ -2019,7 +2019,7 @@ font-size: 13px;
         <x>10</x>
         <y>270</y>
         <width>381</width>
-        <height>211</height>
+        <height>191</height>
        </rect>
       </property>
       <property name="title">
@@ -2029,7 +2029,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>270</x>
-         <y>110</y>
+         <y>100</y>
          <width>41</width>
          <height>16</height>
         </rect>
@@ -2047,7 +2047,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>190</x>
-         <y>110</y>
+         <y>100</y>
          <width>47</width>
          <height>16</height>
         </rect>
@@ -2067,7 +2067,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>240</x>
-         <y>110</y>
+         <y>100</y>
          <width>16</width>
          <height>16</height>
         </rect>
@@ -2088,7 +2088,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>340</x>
-         <y>110</y>
+         <y>100</y>
          <width>41</width>
          <height>16</height>
         </rect>
@@ -2106,7 +2106,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>310</x>
-         <y>110</y>
+         <y>100</y>
          <width>16</width>
          <height>16</height>
         </rect>
@@ -2127,7 +2127,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>0</x>
-         <y>110</y>
+         <y>100</y>
          <width>67</width>
          <height>16</height>
         </rect>
@@ -2200,16 +2200,16 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>90</x>
-         <y>110</y>
+         <y>100</y>
          <width>81</width>
          <height>22</height>
         </rect>
        </property>
        <property name="decimals">
-        <number>4</number>
+        <number>6</number>
        </property>
        <property name="minimum">
-        <double>0.000100000000000</double>
+        <double>0.000001000000000</double>
        </property>
        <property name="maximum">
         <double>9999999.990000000223517</double>
@@ -2221,24 +2221,11 @@ font-size: 13px;
         <double>100.000000000000000</double>
        </property>
       </widget>
-      <widget class="QPushButton" name="pushButton_rst">
-       <property name="geometry">
-        <rect>
-         <x>14</x>
-         <y>170</y>
-         <width>91</width>
-         <height>23</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Spline Gridding</string>
-       </property>
-      </widget>
       <widget class="QPushButton" name="pushButton_idw_2">
        <property name="geometry">
         <rect>
-         <x>130</x>
-         <y>170</y>
+         <x>70</x>
+         <y>150</y>
          <width>91</width>
          <height>23</height>
         </rect>
@@ -2250,14 +2237,180 @@ font-size: 13px;
       <widget class="QPushButton" name="pushButton_bspline_3">
        <property name="geometry">
         <rect>
-         <x>250</x>
-         <y>170</y>
+         <x>190</x>
+         <y>150</y>
          <width>111</width>
          <height>23</height>
         </rect>
        </property>
        <property name="text">
         <string>BSpline Gridding</string>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QGroupBox" name="groupBox_8">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>470</y>
+        <width>381</width>
+        <height>161</height>
+       </rect>
+      </property>
+      <property name="title">
+       <string>BSDWorms</string>
+      </property>
+      <widget class="QSpinBox" name="spinBox_levels">
+       <property name="geometry">
+        <rect>
+         <x>90</x>
+         <y>50</y>
+         <width>61</width>
+         <height>22</height>
+        </rect>
+       </property>
+       <property name="minimum">
+        <number>1</number>
+       </property>
+       <property name="value">
+        <number>10</number>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_58">
+       <property name="geometry">
+        <rect>
+         <x>20</x>
+         <y>50</y>
+         <width>61</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string># Levels</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_60">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>80</y>
+         <width>71</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Base Level</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QDoubleSpinBox" name="doubleSpinBox_inc">
+       <property name="geometry">
+        <rect>
+         <x>90</x>
+         <y>110</y>
+         <width>62</width>
+         <height>22</height>
+        </rect>
+       </property>
+       <property name="decimals">
+        <number>0</number>
+       </property>
+       <property name="minimum">
+        <double>0.000000000000000</double>
+       </property>
+       <property name="maximum">
+        <double>100000.000000000000000</double>
+       </property>
+       <property name="singleStep">
+        <double>100.000000000000000</double>
+       </property>
+       <property name="value">
+        <double>1000.000000000000000</double>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_62">
+       <property name="geometry">
+        <rect>
+         <x>20</x>
+         <y>110</y>
+         <width>61</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Increment</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="pushButton_worms">
+       <property name="geometry">
+        <rect>
+         <x>230</x>
+         <y>120</y>
+         <width>131</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Calculate Worms</string>
+       </property>
+      </widget>
+      <widget class="QgsMapLayerComboBox" name="mMapLayerComboBox_selectGrid_worms">
+       <property name="geometry">
+        <rect>
+         <x>90</x>
+         <y>20</y>
+         <width>271</width>
+         <height>21</height>
+        </rect>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_52">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>20</y>
+         <width>71</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Select Grid</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QDoubleSpinBox" name="doubleSpinBox_base">
+       <property name="geometry">
+        <rect>
+         <x>90</x>
+         <y>80</y>
+         <width>62</width>
+         <height>22</height>
+        </rect>
+       </property>
+       <property name="decimals">
+        <number>0</number>
+       </property>
+       <property name="minimum">
+        <double>0.000000000000000</double>
+       </property>
+       <property name="maximum">
+        <double>100000.000000000000000</double>
+       </property>
+       <property name="singleStep">
+        <double>100.000000000000000</double>
+       </property>
+       <property name="value">
+        <double>1000.000000000000000</double>
        </property>
       </widget>
      </widget>

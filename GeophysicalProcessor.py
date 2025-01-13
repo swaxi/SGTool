@@ -4,6 +4,17 @@ from scipy.ndimage import gaussian_filter, sobel
 from numpy.polynomial.polynomial import polyvander2d, polyval2d
 from scipy.spatial import cKDTree
 from scipy.ndimage import uniform_filter
+from math import ceil
+
+from .wormer import Wormer
+from .Utility import (
+    GetExtent,
+    loadGrid,
+    numpy_array_to_raster,
+    insert_text_before_extension,
+    fill_nan,
+)
+import os
 
 
 class GeophysicalProcessor:
@@ -49,11 +60,35 @@ class GeophysicalProcessor:
         """
         Add a buffer around the edges to reduce edge effects.
         """
+        self.data_mean = np.nanmean(data)
+        # data_zero = data - self.data_mean
+
+        # Determine padding sizes (20% of original dimensions)
+        pad_y = buffer_size
+        pad_x = buffer_size
+
+        # Pad the image with zeros
+        padded_image = np.pad(
+            data,
+            pad_width=((pad_y, pad_y), (pad_x, pad_x)),
+            mode="linear_ramp",
+            # constant_values=0
+        )
+
+        # Create a 2D Hanning window
+        window_y = np.hanning(padded_image.shape[0])
+        window_x = np.hanning(padded_image.shape[1])
+        hanning_window = np.outer(window_y, window_x)
+
+        # Apply the Hanning window to the padded image
+        final_image = padded_image * hanning_window
+        return final_image
+
         if method == "mirror":
-            return np.pad(data, pad_width=buffer_size, mode="reflect")
+            return np.pad(data_zero, pad_width=buffer_size, mode="linear_ramp")
         elif method == "zero":
             return np.pad(
-                data, pad_width=buffer_size, mode="constant", constant_values=0
+                data_zero, pad_width=buffer_size, mode="constant", constant_values=0
             )
         else:
             raise ValueError("Invalid buffer method. Choose 'mirror' or 'zero'.")
@@ -62,6 +97,7 @@ class GeophysicalProcessor:
         """
         Remove the buffer from the edges of the grid.
         """
+        data = data  # + self.data_mean
         return data[buffer_size:-buffer_size, buffer_size:-buffer_size]
 
     # --- Trend Removal ---
@@ -551,6 +587,116 @@ class GeophysicalProcessor:
         # Remove buffer and restore NaNs
         filtered_data = self.remove_buffer(filtered_data, buffer_size)
         return self.restore_nan(filtered_data, nan_mask)
+
+    def bsdwormer(self, gridPath, num_levels, bottom_level, delta_z):
+        # code borrows heavilly from bsdwormer example ipynb template example
+        # adds on the fly calc of padded grid
+
+        print(gridPath, num_levels, bottom_level, delta_z)
+        # load grid and convert to numpy
+        image, layer = loadGrid(gridPath)
+
+        # add padding and save to file
+
+        # Remove the mean
+        image_zero_mean = image - np.nanmean(image)
+        image_zero_mea_nonan = fill_nan(image_zero_mean)
+        pad_y = int(0.2 * image.shape[0])
+        pad_x = int(0.2 * image.shape[1])
+
+        pad_x = ceil(pad_x / 2) * 2
+        pad_y = ceil(pad_y / 2) * 2
+        padded_image = np.pad(
+            image_zero_mea_nonan,
+            pad_width=((pad_y, pad_y), (pad_x, pad_x)),
+            mode="constant",
+            constant_values=0,
+        )
+        print("padded_size=", padded_image.shape)
+
+        # Create a 2D Hanning window
+        window_y = np.hanning(padded_image.shape[0])
+        window_x = np.hanning(padded_image.shape[1])
+        hanning_window = np.outer(window_y, window_x)
+
+        # Apply the Hanning window to the padded image
+        final_image = padded_image * hanning_window
+        # save padded image to file as
+
+        job = Wormer()
+        job.importGdalRaster(gridPath)
+        extent = job.geomat
+        extentPadded = GetExtent(job.geomat, -pad_x, -pad_y)
+        gridPathPadded = insert_text_before_extension(gridPath, "_padded")
+
+        # Separate the file path into directory, base name, and extension
+        dir_name, base_name = os.path.split(gridPath)
+        file_name, file_ext = os.path.splitext(base_name)
+        wormsPath = dir_name + "/" + file_name + "_worms.csv"
+
+        numpy_array_to_raster(
+            final_image,
+            gridPathPadded,
+            pad_x,
+            pad_y,
+            dx=job.geomat[1],
+            xmin=extentPadded[2][0],
+            ymax=extentPadded[2][1],
+            reference_layer=layer,
+            no_data_value=np.nan,
+        )
+
+        job.importExternallyPaddedRaster(gridPathPadded, pad_x, pad_y)
+
+        # Initialize a flag to track if the header has been written
+        header_written = False
+
+        # The argument to range is "num_levels + 1" due to the semantics of Python's range function.
+        for dz in range(0, num_levels + 1):
+            dzm = (dz * delta_z) + bottom_level
+            if dzm == 0:
+                dzm = 0.01
+            job.wormLevelAsPoints(dz=dzm)
+            z = [dzm] * len(job.worm_ys)
+            x = (job.worm_xs * job.geomat[1]) + extentPadded[2][0]
+            y = (job.worm_ys * job.geomat[5]) + extentPadded[2][1]
+            vals = job.worm_vals
+
+            # Combine into a single array
+            points = np.column_stack(
+                (
+                    y[: len(job.worm_ys)],
+                    x[: len(job.worm_ys)],
+                    z[: len(job.worm_ys)],
+                    vals[: len(job.worm_ys)],
+                )
+            )
+
+            # Apply the filter conditions
+            mask = (
+                (points[:, 1] >= extent[0])  # x >= extent[0]
+                & (
+                    points[:, 1] <= extent[0] + (image.shape[1] * job.geomat[1])
+                )  # x <= extent[0] + width
+                & (
+                    points[:, 0] >= extent[3] + (image.shape[0] * job.geomat[5])
+                )  # y >= extent[3] + height
+                & (points[:, 0] <= extent[3])  # y <= extent[3]
+            )
+
+            filtered_points = points[mask]
+
+            if os.path.exists(wormsPath) and not header_written:
+                os.remove(wormsPath)
+
+            # Write to file
+            with open(wormsPath, "a") as f:
+                if not header_written:
+                    # Write the header if it hasn't been written yet
+                    f.write("y,x,z,val\n")
+                    header_written = True
+                # Append the filtered points
+                np.savetxt(f, filtered_points, delimiter=",", fmt="%s")
 
 
 if __name__ == "__main__":

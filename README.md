@@ -1,8 +1,8 @@
-# Structural Geophysics Tool v0.2.4
+# Structural Geophysics Tool v0.2.7
  Simple Potential Field Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   
  https://agate-project.org    
- This plugin is available directly within QGIS using the Plugin Manager, however the latest version will always be at this GitHub site   
+ This plugin is available directly within QGIS using the Plugin Manager, however the latest version with all new bugs will always be at this GitHub site   
     
 ![SGTools image](dialog.png)       
 
@@ -141,7 +141,11 @@ Takes a 3-band registered RGB image and converts it to a monotonically increasin
 Imports point data in csv or xyz formats   
 
 **Gridding**   
-Grids point data using either Spline, BSpline or IDW built-in gridding algoithms   
+Grids point data using either BSpline or IDW built-in gridding algoithms   
+   
+## Worming   
+**BSDWorms**   
+Use wavelet transforms to build multilevel "worms", saves out a single csv file of points   
    
       
 # Installation
@@ -163,9 +167,10 @@ Grids point data using either Spline, BSpline or IDW built-in gridding algoithms
 # Code development
 - Calcs ChatGPT and Mark Jessell
 - Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin https://g-sherman.github.io/Qgis-Plugin-Builder/    
-- IGRF calculation - https://github.com/zzyztyy/pyIGRF  
-- GRD Loader & Radially averaged  power spectrum Fatiando a Terra crew & Mark Jessell https://www.fatiando.org/
-- Example geophysics data in image above courtesy of Mauritania Govt. https://anarpam.mr/en/      
+- IGRF calculation -  using pyIGRF https://github.com/ciaranbe/pyIGRF
+- GRD Loader & Radially averaged power spectrum Fatiando a Terra crew & Mark Jessell https://www.fatiando.org/
+- Example geophysics data in image above courtesy of Mauritania Govt. https://anarpam.mr/en/     
+- Worming of grids uses Frank Horowitz's bsdwormer  https://bitbucket.org/fghorow/bsdwormer/
 
 
 

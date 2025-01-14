@@ -1947,6 +1947,14 @@ class SGTool:
                     QUrl("https://github.com/swaxi/SGTool")
                 )
             )
+            # Connection to the Help pdf file :
+            self.dlg.pushButton_help.clicked.connect(
+                lambda: QDesktopServices.openUrl(
+                    QUrl(
+                        "https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/Structural%20Geophysics%20Tools%20v%200_2_7.pdf"
+                    )
+                )
+            )
             # Connection to the CSS Colours site  :
             self.dlg.pushButton_CSSS_Colours.clicked.connect(
                 lambda: QDesktopServices.openUrl(

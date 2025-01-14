@@ -2473,6 +2473,38 @@ font-size: 13px;
 </string>
       </property>
      </widget>
+     <widget class="QLabel" name="label">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>270</y>
+        <width>561</width>
+        <height>101</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Code development
+- Calcs ChatGPT and Mark Jessell
+- Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin https://g-sherman.github.io/Qgis-Plugin-Builder/    
+- IGRF calculation -  using pyIGRF https://github.com/ciaranbe/pyIGRF
+- GRD Loader &amp; Radially averaged power spectrum Fatiando a Terra crew &amp; Mark Jessell https://www.fatiando.org/
+- Example geophysics data in image above courtesy of Mauritania Govt. https://anarpam.mr/en/     
+- Worming of grids uses Frank Horowitz's bsdwormer  https://bitbucket.org/fghorow/bsdwormer/</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="pushButton_help">
+      <property name="geometry">
+       <rect>
+        <x>110</x>
+        <y>410</y>
+        <width>351</width>
+        <height>23</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Help File</string>
+      </property>
+     </widget>
     </widget>
    </widget>
   </widget>

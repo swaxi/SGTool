@@ -7,7 +7,7 @@
 ![SGTools image](dialog.png)       
 
 
-<a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/Structural%20Geophysics%20Tools%20v%200_2_7.pdf">Basic Help Info</a>   
+<a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/Structural%20Geophysics%20Tools%20v%200_2_7.pdf">Download Basic Help Info Document</a>   
 
 ## Grav/Mag Filters   
    

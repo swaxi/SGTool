@@ -609,8 +609,8 @@ class GeophysicalProcessor:
         padded_image = np.pad(
             image_zero_mea_nonan,
             pad_width=((pad_y, pad_y), (pad_x, pad_x)),
-            mode="constant",
-            constant_values=0,
+            mode="linear_ramp",
+            # constant_values=0,
         )
         print("padded_size=", padded_image.shape)
 

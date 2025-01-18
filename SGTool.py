@@ -813,8 +813,8 @@ class SGTool:
             self.new_grid = self.processor.vertical_integration(
                 self.raster_array,
                 max_wavenumber=None,
-                min_wavenumber=1e-6,
-                buffer_size=10,
+                min_wavenumber=1e-4,
+                buffer_size=self.buffer,
                 buffer_method="mirror",
             )
             self.suffix = "_VI"
@@ -2290,6 +2290,11 @@ class SGTool:
         # Prepare output file
         driver = gdal.GetDriverByName("GTiff")
         RGBGridPath_gray = self.insert_text_before_extension(RGBGridPath, "_gray")
+        """print(
+            RGBGridPath_gray,
+            dataset.RasterXSize,
+            dataset.RasterYSize,
+        )"""
         output_dataset = driver.Create(
             RGBGridPath_gray,
             dataset.RasterXSize,

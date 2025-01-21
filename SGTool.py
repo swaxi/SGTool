@@ -76,6 +76,7 @@ from .ConvolutionFilter import OddPositiveIntegerValidator
 from .GridData_no_pandas import GridData
 from .GridData_no_pandas import QGISGridData
 
+from .SG_Util import SG_Util
 from .igrf_utils import igrf_utils as IGRF
 import os.path
 import numpy as np
@@ -573,6 +574,16 @@ class SGTool:
         self.sun_shade_az = float(self.dlg.lineEdit_SunSh_Az.text())
         self.sun_shade_zn = float(self.dlg.lineEdit_SunSh_Zn.text())
 
+        self.NaN = self.dlg.checkBox_NaN.isChecked()
+        if self.dlg.radioButton_NaN_Above.isChecked():
+            self.NaN_Condition = "above"
+        elif self.dlg.radioButton_NaN_Below.isChecked():
+            self.NaN_Condition = "below"
+        else:
+            self.NaN_Condition = "between"
+        self.NaN_Above = float(self.dlg.doubleSpinBox_NaN_Above.text())
+        self.NaN_Below = float(self.dlg.doubleSpinBox_NaN_Below.text())
+
     def loadGrid(self):
         fileInfo = QFileInfo(self.diskGridPath)
         baseName = fileInfo.baseName()
@@ -694,7 +705,7 @@ class SGTool:
                 self.raster_array,
                 cutoff_wavelength=cutoff_wavelength,
                 center_direction=float(self.DC_azimuth) + 90,
-                degree=0.5,
+                degree=2.0,
                 buffer_size=self.buffer,
             )
             self.suffix = "_DirC"
@@ -874,6 +885,15 @@ class SGTool:
         )
         self.suffix = "_Sh"
 
+    def procNaN(self):
+        self.new_grid = self.SG_Util.Threshold2Nan(
+            self.raster_array,
+            condition=self.NaN_Condition,
+            above_threshold_value=self.NaN_Above,
+            below_threshold_value=self.NaN_Below,
+        )
+        self.suffix = "_Clean"
+
     def procBSDworms(self):
         num_levels = int(self.dlg.spinBox_levels.value())
         bottom_level = int(self.dlg.doubleSpinBox_base.text())
@@ -1041,6 +1061,7 @@ class SGTool:
                 self.buffer = int(self.dlg.lineEdit_13_max_buffer.text())
             self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
             self.convolution = ConvolutionFilter(self.raster_array)
+            self.SG_Util = SG_Util(self.raster_array)
             self.suffix = ""
             if self.DirClean:
                 self.procDirClean()
@@ -1096,6 +1117,10 @@ class SGTool:
                 self.procSunShade()
                 self.addNewGrid()
 
+            if self.NaN:
+                self.procNaN()
+                self.addNewGrid()
+
             self.resetCheckBoxes()
 
     def resetCheckBoxes(self):
@@ -1119,6 +1144,8 @@ class SGTool:
         self.dlg.checkBox_Gaussian.setChecked(False)
         self.dlg.checkBox_Directional.setChecked(False)
         self.dlg.checkBox_SunShading.setChecked(False)
+
+        self.dlg.checkBox_NaN.setChecked(False)
 
         self.RTE_P = False
         self.TDR = False

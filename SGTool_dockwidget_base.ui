@@ -1250,10 +1250,10 @@ font-style: italic;</string>
      <widget class="QGroupBox" name="groupBox_6">
       <property name="geometry">
        <rect>
-        <x>10</x>
-        <y>10</y>
+        <x>20</x>
+        <y>40</y>
         <width>461</width>
-        <height>271</height>
+        <height>181</height>
        </rect>
       </property>
       <property name="title">
@@ -1263,7 +1263,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>120</x>
-         <y>160</y>
+         <y>120</y>
          <width>71</width>
          <height>20</height>
         </rect>
@@ -1279,7 +1279,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>70</y>
+         <y>30</y>
          <width>21</width>
          <height>17</height>
         </rect>
@@ -1292,7 +1292,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>190</y>
+         <y>150</y>
          <width>21</width>
          <height>17</height>
         </rect>
@@ -1305,7 +1305,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>130</y>
+         <y>90</y>
          <width>21</width>
          <height>17</height>
         </rect>
@@ -1318,7 +1318,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>160</y>
+         <y>120</y>
          <width>21</width>
          <height>17</height>
         </rect>
@@ -1331,7 +1331,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>190</x>
-         <y>130</y>
+         <y>90</y>
          <width>71</width>
          <height>20</height>
         </rect>
@@ -1344,7 +1344,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>40</x>
-         <y>160</y>
+         <y>120</y>
          <width>61</width>
          <height>16</height>
         </rect>
@@ -1357,7 +1357,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>100</y>
+         <y>60</y>
          <width>21</width>
          <height>17</height>
         </rect>
@@ -1370,7 +1370,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>40</x>
-         <y>100</y>
+         <y>60</y>
          <width>61</width>
          <height>16</height>
         </rect>
@@ -1383,7 +1383,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>40</x>
-         <y>130</y>
+         <y>90</y>
          <width>91</width>
          <height>16</height>
         </rect>
@@ -1396,7 +1396,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>40</x>
-         <y>190</y>
+         <y>150</y>
          <width>91</width>
          <height>21</height>
         </rect>
@@ -1409,7 +1409,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>120</x>
-         <y>70</y>
+         <y>30</y>
          <width>221</width>
          <height>20</height>
         </rect>
@@ -1425,7 +1425,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>360</x>
-         <y>70</y>
+         <y>30</y>
          <width>51</width>
          <height>20</height>
         </rect>
@@ -1438,7 +1438,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>140</x>
-         <y>190</y>
+         <y>150</y>
          <width>61</width>
          <height>16</height>
         </rect>
@@ -1454,7 +1454,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>110</x>
-         <y>130</y>
+         <y>90</y>
          <width>71</width>
          <height>20</height>
         </rect>
@@ -1470,7 +1470,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>200</x>
-         <y>160</y>
+         <y>120</y>
          <width>61</width>
          <height>22</height>
         </rect>
@@ -1480,7 +1480,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>210</x>
-         <y>190</y>
+         <y>150</y>
          <width>71</width>
          <height>20</height>
         </rect>
@@ -1493,7 +1493,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>40</x>
-         <y>70</y>
+         <y>30</y>
          <width>41</width>
          <height>16</height>
         </rect>
@@ -1506,7 +1506,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>120</x>
-         <y>100</y>
+         <y>60</y>
          <width>221</width>
          <height>20</height>
         </rect>
@@ -1522,7 +1522,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>360</x>
-         <y>100</y>
+         <y>60</y>
          <width>51</width>
          <height>20</height>
         </rect>
@@ -1535,7 +1535,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>350</x>
-         <y>190</y>
+         <y>150</y>
          <width>71</width>
          <height>20</height>
         </rect>
@@ -1548,7 +1548,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>280</x>
-         <y>190</y>
+         <y>150</y>
          <width>61</width>
          <height>16</height>
         </rect>
@@ -1560,56 +1560,14 @@ font-style: italic;</string>
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
        </property>
       </widget>
-      <widget class="QgsMapLayerComboBox" name="mMapLayerComboBox_selectGrid_Conv">
-       <property name="geometry">
-        <rect>
-         <x>110</x>
-         <y>30</y>
-         <width>301</width>
-         <height>21</height>
-        </rect>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_47">
-       <property name="geometry">
-        <rect>
-         <x>0</x>
-         <y>30</y>
-         <width>91</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Select Grid</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
-      <widget class="QPushButton" name="pushButton_3_applyProcessing_Conv">
-       <property name="enabled">
-        <bool>true</bool>
-       </property>
-       <property name="geometry">
-        <rect>
-         <x>10</x>
-         <y>230</y>
-         <width>131</width>
-         <height>23</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Apply Processing</string>
-       </property>
-      </widget>
      </widget>
      <widget class="QGroupBox" name="groupBox_7">
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>290</y>
+        <y>370</y>
         <width>561</width>
-        <height>281</height>
+        <height>271</height>
        </rect>
       </property>
       <property name="title">
@@ -1676,7 +1634,7 @@ font-style: italic;</string>
        </property>
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>390</x>
          <y>240</y>
          <width>141</width>
          <height>23</height>
@@ -1804,6 +1762,180 @@ font-style: italic;</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QPushButton" name="pushButton_3_applyProcessing_Conv">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="geometry">
+       <rect>
+        <x>20</x>
+        <y>320</y>
+        <width>131</width>
+        <height>23</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Apply Processing</string>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_47">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>10</y>
+        <width>91</width>
+        <height>16</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Select Grid</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+      </property>
+     </widget>
+     <widget class="QgsMapLayerComboBox" name="mMapLayerComboBox_selectGrid_Conv">
+      <property name="geometry">
+       <rect>
+        <x>120</x>
+        <y>10</y>
+        <width>301</width>
+        <height>21</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QGroupBox" name="groupBox_9">
+      <property name="geometry">
+       <rect>
+        <x>20</x>
+        <y>229</y>
+        <width>461</width>
+        <height>81</height>
+       </rect>
+      </property>
+      <property name="title">
+       <string>Threshold to NaN</string>
+      </property>
+      <widget class="QRadioButton" name="radioButton_NaN_Above">
+       <property name="geometry">
+        <rect>
+         <x>50</x>
+         <y>30</y>
+         <width>61</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Above</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+      <widget class="QRadioButton" name="radioButton_NaN_Below">
+       <property name="geometry">
+        <rect>
+         <x>140</x>
+         <y>30</y>
+         <width>61</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Below</string>
+       </property>
+      </widget>
+      <widget class="QRadioButton" name="radioButton_NaN_Both">
+       <property name="geometry">
+        <rect>
+         <x>220</x>
+         <y>30</y>
+         <width>61</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Between</string>
+       </property>
+      </widget>
+      <widget class="QDoubleSpinBox" name="doubleSpinBox_NaN_Above">
+       <property name="geometry">
+        <rect>
+         <x>370</x>
+         <y>20</y>
+         <width>81</width>
+         <height>22</height>
+        </rect>
+       </property>
+       <property name="minimum">
+        <double>-99999999999999996863366107917975552.000000000000000</double>
+       </property>
+       <property name="maximum">
+        <double>100000000000000000620008645040778319495168.000000000000000</double>
+       </property>
+      </widget>
+      <widget class="QDoubleSpinBox" name="doubleSpinBox_NaN_Below">
+       <property name="geometry">
+        <rect>
+         <x>371</x>
+         <y>50</y>
+         <width>81</width>
+         <height>22</height>
+        </rect>
+       </property>
+       <property name="minimum">
+        <double>-1000000000000000042420637374017961984.000000000000000</double>
+       </property>
+       <property name="maximum">
+        <double>99999999999999997748809823456034029568.000000000000000</double>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_70">
+       <property name="geometry">
+        <rect>
+         <x>270</x>
+         <y>20</y>
+         <width>91</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Above</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_71">
+       <property name="geometry">
+        <rect>
+         <x>280</x>
+         <y>50</y>
+         <width>81</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Below</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QCheckBox" name="checkBox_NaN">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>30</y>
+         <width>21</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string/>
        </property>
       </widget>
      </widget>

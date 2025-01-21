@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.2.7
+# Structural Geophysics Tool v0.2.8
  Simple Potential Field Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
@@ -149,6 +149,10 @@ Grids point data using either BSpline or IDW built-in gridding algoithms
 ## Worming   
 **BSDWorms**   
 Use wavelet transforms to build multilevel "worms", saves out a single csv file of points   
+   
+## Threshold to NaN   
+**Threshold to NaN**   
+Define upper or lower bound (or range) for which values will be set to NaN (i.e. excluded from display). Useful when reprojected images produce an unwanted border.      
    
       
 # Installation

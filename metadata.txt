@@ -4,9 +4,9 @@
 
 [general]
 name=SGTool
-qgisMinimumVersion=3.0
+qgisMinimumVersion=3.24
 description=Simple Potential Field Processing
-version=0.2.7
+version=0.2.8
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
@@ -20,7 +20,8 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.2.7 Add worming and improve installation of plugin on PC & Mac
+changelog=0.2.8 Added Threshold to NaN tool
+    0.2.7 Add worming and improve installation of plugin on PC & Mac
     0.2.6 Add RGB conversion to grayscale
     0.2.5 2024-12-11
       * add convolution filtering

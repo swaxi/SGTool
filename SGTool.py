@@ -280,17 +280,12 @@ class SGTool:
         self.dlg.checkBox_3_DirClean.setToolTip(
             "Filter [DirC} a specific direction and wavelength,\nUseful for filtering flight line noise"
         )
-        self.dlg.label_2.setToolTip(
-            "Filter [DirC} a specific direction and wavelength,\nUseful for filtering flight line noise"
-        )
+
         self.dlg.lineEdit_3_azimuth.setToolTip(
             "Azimuth of high frequency noise to be filtered (degrees clockwise from North)"
         )
 
         self.dlg.checkBox_4_RTE_P.setToolTip(
-            "Reduction to pole or equator\nThe reduction to the pole (RTP) or to Equator (RTE) is a process in geophysics\nwhere magnetic data are transformed to look as though\n they were measured at the magnetic pole/equator\nCorrects the asymmetry of magnetic anomalies caused by\n the Earth's field, making them appear directly above their sources"
-        )
-        self.dlg.label_3.setToolTip(
             "Reduction to pole or equator\nThe reduction to the pole (RTP) or to Equator (RTE) is a process in geophysics\nwhere magnetic data are transformed to look as though\n they were measured at the magnetic pole/equator\nCorrects the asymmetry of magnetic anomalies caused by\n the Earth's field, making them appear directly above their sources"
         )
         self.dlg.pushButton_4_calcIGRF.setToolTip(
@@ -310,42 +305,31 @@ class SGTool:
         self.dlg.checkBox_4_PGrav.setToolTip(
             "Vertical Integration:\nWhen applied to RTE/P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing."
         )
-        self.dlg.label_39.setToolTip(
-            "Vertical Integration:\nWhen applied to RTE/P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing."
-        )
+
         self.dlg.checkBox_5_regional.setToolTip(
             "Remove regional (RR) based on wavelenth"
         )
-        self.dlg.label_4.setToolTip("Remove regional (RR) based on wavelenth")
         self.dlg.lineEdit_9_removeReg_wavelength.setToolTip(
             "Wavelength to define regional [m or other length unit]"
         )
         self.dlg.checkBox_6_derivative.setToolTip(
             "Calculate derivate (d+power+direction) parallel to x, y or z\nHighlights near-surface/short-wavelength features"
         )
-        self.dlg.label_5.setToolTip(
-            "Calculate derivate (d+power+direction) parallel to x, y or z\nHighlights near-surface/short-wavelength features"
-        )
+
         self.dlg.comboBox_derivDirection.setToolTip("Select derivative direction")
         self.dlg.lineEdit_9_derivePower.setToolTip("Power of derivative")
         self.dlg.checkBox_7_tiltDerivative.setToolTip(
             "Tilt Derivative (TD)\nIt is often applied to magnetic or gravity data to enhance edges and detect shallow sources\nTends to overconnect structural features"
         )
-        self.dlg.label_6.setToolTip(
-            "Tilt Derivative (TD)\nIt is often applied to magnetic or gravity data to enhance edges and detect shallow sources\nTends to overconnect structural features"
-        )
+
         self.dlg.checkBox_8_analyticSignal.setToolTip(
             "Analytic Signal (AS)\nIt combines horizontal and vertical derivatives to highlight anomaly edges and amplitude variations, independent of direction"
         )
-        self.dlg.label_7.setToolTip(
-            "Analytic Signal (AS)\nIt combines horizontal and vertical derivatives to highlight anomaly edges and amplitude variations, independent of direction"
-        )
+
         self.dlg.checkBox_9_continuation.setToolTip(
             "Upward or downward continuation\nUpward Continuation (UC) data by continuing it to a higher altitude, attenuating high-frequency noise and shallow features\nDownward Continuation (DC) enhances shallow or high-frequency anomalies by continuing the field to a lower altitude"
         )
-        self.dlg.label_8.setToolTip(
-            "Upward or downward continuation\nUpward Continuation (UC) data by continuing it to a higher altitude, attenuating high-frequency noise and shallow features\nDownward Continuation (DC) enhances shallow or high-frequency anomalies by continuing the field to a lower altitude"
-        )
+
         self.dlg.comboBox_2_continuationDirection.setToolTip(
             "Select direction of continuation"
         )
@@ -355,9 +339,7 @@ class SGTool:
         self.dlg.checkBox_10_bandPass.setToolTip(
             "Band pass filter (BP)\nIsolates specific wavelength features."
         )
-        self.dlg.label_9.setToolTip(
-            "Band pass filter (BP)\nIsolates specific wavelength features."
-        )
+
         self.dlg.lineEdit_12_bandPassLow.setToolTip(
             "Low wavelength cutoff [m or other length unit]"
         )
@@ -367,9 +349,7 @@ class SGTool:
         self.dlg.checkBox_10_freqCut.setToolTip(
             "High or Low pass filter\nIsolates specific short wavelength (HP) or long wavelength (LP) features."
         )
-        self.dlg.label_33.setToolTip(
-            "High or Low pass filter\nIsolates specific short wavelength (HP) or long wavelength (LP) features."
-        )
+
         self.dlg.comboBox_2_FreqCutType.setToolTip("Cut off type")
         self.dlg.lineEdit_12_FreqPass.setToolTip(
             "Cutoff wavelength [m or other length unit]"
@@ -377,9 +357,7 @@ class SGTool:
         self.dlg.checkBox_11_1vd_agc.setToolTip(
             "Automatic Gain Control (AGC) or Amplitude Normalisation\nHighlights short wavelength/low amplitude features"
         )
-        self.dlg.label_10.setToolTip(
-            "Automatic Gain Control (AGC) or Amplitude Normalisation\nHighlights short wavelength/low amplitude features"
-        )
+
         self.dlg.lineEdit_13_agc_window.setToolTip("Window size for normalisation")
         self.dlg.pushButton_3_applyProcessing.setToolTip(
             "Apply selected processing steps in parallel to selected grid"
@@ -393,25 +371,19 @@ class SGTool:
         self.dlg.checkBox_11_tot_hz_grad.setToolTip(
             "Total Horizointal Gradient Calculation"
         )
-        self.dlg.label_38.setToolTip("Total Horizointal Gradient Calculation")
         self.dlg.pushButton_rad_power_spectrum.setToolTip(
             "Provides pop-up display of grid plus Radial Averaged Power Spectrum (needs testing!)"
         )
 
         self.dlg.checkBox_Mean.setToolTip("Mean of values around central pixel")
-        self.dlg.label_66.setToolTip("Mean of values around central pixel")
 
         self.dlg.checkBox_Median.setToolTip("Median of values around central pixel")
-        self.dlg.label_57.setToolTip("Median of values around central pixel")
 
         self.dlg.checkBox_Gaussian.setToolTip("Gaussian smoothing of image")
-        self.dlg.label_59.setToolTip("Gaussian smoothing of image")
 
         self.dlg.checkBox_Directional.setToolTip("Directional enhancement")
-        self.dlg.label_56.setToolTip("Directional enhancement")
 
         self.dlg.checkBox_SunShading.setToolTip("Sun Shading")
-        self.dlg.label_61.setToolTip("Sun Shading")
 
         self.dlg.pushButton_selectPoints.setToolTip(
             "Select csv or xyz format points file"

@@ -228,12 +228,12 @@ QTabBar::tab:hover {
         <rect>
          <x>20</x>
          <y>30</y>
-         <width>21</width>
+         <width>161</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
+        <string>Direction Cosine</string>
        </property>
       </widget>
       <widget class="QCheckBox" name="checkBox_11_1vd_agc">
@@ -241,12 +241,12 @@ QTabBar::tab:hover {
         <rect>
          <x>40</x>
          <y>150</y>
-         <width>21</width>
+         <width>211</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
+        <string>Automatic Gain Control</string>
        </property>
       </widget>
       <widget class="QCheckBox" name="checkBox_10_bandPass">
@@ -254,12 +254,12 @@ QTabBar::tab:hover {
         <rect>
          <x>40</x>
          <y>90</y>
-         <width>21</width>
+         <width>111</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
+        <string>Band Pass</string>
        </property>
       </widget>
       <widget class="QLabel" name="label_29">
@@ -283,12 +283,12 @@ QTabBar::tab:hover {
         <rect>
          <x>40</x>
          <y>120</y>
-         <width>21</width>
+         <width>151</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
+        <string>High/Low Pass</string>
        </property>
       </widget>
       <widget class="QLineEdit" name="lineEdit_12_bandPassLow">
@@ -304,39 +304,13 @@ QTabBar::tab:hover {
         <string>5000</string>
        </property>
       </widget>
-      <widget class="QLabel" name="label_33">
-       <property name="geometry">
-        <rect>
-         <x>70</x>
-         <y>120</y>
-         <width>111</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>High/Low Pass</string>
-       </property>
-      </widget>
       <widget class="QCheckBox" name="checkBox_5_regional">
        <property name="geometry">
         <rect>
          <x>20</x>
          <y>60</y>
-         <width>21</width>
+         <width>191</width>
          <height>17</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string/>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_4">
-       <property name="geometry">
-        <rect>
-         <x>50</x>
-         <y>60</y>
-         <width>131</width>
-         <height>20</height>
         </rect>
        </property>
        <property name="text">
@@ -357,32 +331,6 @@ QTabBar::tab:hover {
        </property>
        <property name="alignment">
         <set>Qt::AlignCenter</set>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_9">
-       <property name="geometry">
-        <rect>
-         <x>70</x>
-         <y>90</y>
-         <width>91</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Band Pass</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_10">
-       <property name="geometry">
-        <rect>
-         <x>70</x>
-         <y>150</y>
-         <width>31</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>AGC</string>
        </property>
       </widget>
       <widget class="QLabel" name="label_12">
@@ -443,7 +391,7 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_24">
        <property name="geometry">
         <rect>
-         <x>130</x>
+         <x>230</x>
          <y>150</y>
          <width>131</width>
          <height>20</height>
@@ -485,7 +433,7 @@ QTabBar::tab:hover {
       <widget class="QLineEdit" name="lineEdit_13_agc_window">
        <property name="geometry">
         <rect>
-         <x>270</x>
+         <x>370</x>
          <y>150</y>
          <width>71</width>
          <height>20</height>
@@ -493,19 +441,6 @@ QTabBar::tab:hover {
        </property>
        <property name="text">
         <string>10</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_2">
-       <property name="geometry">
-        <rect>
-         <x>50</x>
-         <y>30</y>
-         <width>111</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Direction Cosine</string>
        </property>
       </widget>
       <widget class="QLabel" name="label_17">
@@ -604,19 +539,6 @@ QTabBar::tab:hover {
         <string>0</string>
        </property>
       </widget>
-      <widget class="QLabel" name="label_3">
-       <property name="geometry">
-        <rect>
-         <x>30</x>
-         <y>60</y>
-         <width>41</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>RTE/P</string>
-       </property>
-      </widget>
       <widget class="QLineEdit" name="lineEdit_5_dec">
        <property name="geometry">
         <rect>
@@ -638,19 +560,6 @@ QTabBar::tab:hover {
          <width>61</width>
          <height>22</height>
         </rect>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_8">
-       <property name="geometry">
-        <rect>
-         <x>60</x>
-         <y>120</y>
-         <width>91</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Continuation</string>
        </property>
       </widget>
       <widget class="QLineEdit" name="lineEdit_6_inc">
@@ -714,12 +623,12 @@ QTabBar::tab:hover {
         <rect>
          <x>30</x>
          <y>120</y>
-         <width>21</width>
+         <width>151</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
+        <string>Continuation</string>
        </property>
       </widget>
       <widget class="QLabel" name="label_20">
@@ -759,12 +668,12 @@ QTabBar::tab:hover {
         <rect>
          <x>10</x>
          <y>60</y>
-         <width>21</width>
+         <width>61</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
+        <string>RTE/P</string>
        </property>
       </widget>
       <widget class="QLabel" name="label_15">
@@ -859,21 +768,8 @@ QTabBar::tab:hover {
         <rect>
          <x>30</x>
          <y>90</y>
-         <width>21</width>
+         <width>481</width>
          <height>17</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string/>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_39">
-       <property name="geometry">
-        <rect>
-         <x>60</x>
-         <y>90</y>
-         <width>471</width>
-         <height>21</height>
         </rect>
        </property>
        <property name="text">
@@ -943,12 +839,12 @@ QTabBar::tab:hover {
         <rect>
          <x>30</x>
          <y>60</y>
-         <width>21</width>
+         <width>271</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
+        <string>Total Horizontal Gradient</string>
        </property>
       </widget>
       <widget class="QComboBox" name="comboBox_derivDirection">
@@ -982,12 +878,12 @@ QTabBar::tab:hover {
         <rect>
          <x>30</x>
          <y>30</y>
-         <width>21</width>
+         <width>131</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
+        <string>Derivative</string>
        </property>
       </widget>
       <widget class="QLabel" name="label_40">
@@ -1035,69 +931,17 @@ QTabBar::tab:hover {
         <string>1</string>
        </property>
       </widget>
-      <widget class="QLabel" name="label_41">
-       <property name="geometry">
-        <rect>
-         <x>60</x>
-         <y>60</y>
-         <width>241</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Total Horizontal Gradient</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_5">
-       <property name="geometry">
-        <rect>
-         <x>60</x>
-         <y>30</y>
-         <width>71</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Derivative</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_7">
-       <property name="geometry">
-        <rect>
-         <x>30</x>
-         <y>120</y>
-         <width>141</width>
-         <height>21</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Analytic Signal</string>
-       </property>
-      </widget>
       <widget class="QCheckBox" name="checkBox_8_analyticSignal">
        <property name="geometry">
         <rect>
          <x>10</x>
          <y>120</y>
-         <width>21</width>
+         <width>191</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_6">
-       <property name="geometry">
-        <rect>
-         <x>30</x>
-         <y>90</y>
-         <width>91</width>
-         <height>21</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Tilt Angle</string>
+        <string>Analytic Signal</string>
        </property>
       </widget>
       <widget class="QCheckBox" name="checkBox_7_tiltDerivative">
@@ -1105,12 +949,12 @@ QTabBar::tab:hover {
         <rect>
          <x>10</x>
          <y>90</y>
-         <width>21</width>
+         <width>231</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
+        <string>Tilt Angle</string>
        </property>
       </widget>
      </widget>
@@ -1279,12 +1123,12 @@ font-style: italic;</string>
         <rect>
          <x>10</x>
          <y>30</y>
-         <width>21</width>
+         <width>191</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
+        <string>Mean</string>
        </property>
       </widget>
       <widget class="QCheckBox" name="checkBox_SunShading">
@@ -1292,12 +1136,12 @@ font-style: italic;</string>
         <rect>
          <x>10</x>
          <y>150</y>
-         <width>21</width>
+         <width>121</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
+        <string>Sun SHading</string>
        </property>
       </widget>
       <widget class="QCheckBox" name="checkBox_Gaussian">
@@ -1305,12 +1149,12 @@ font-style: italic;</string>
         <rect>
          <x>10</x>
          <y>90</y>
-         <width>21</width>
+         <width>111</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
+        <string>Gaussian</string>
        </property>
       </widget>
       <widget class="QCheckBox" name="checkBox_Directional">
@@ -1318,12 +1162,12 @@ font-style: italic;</string>
         <rect>
          <x>10</x>
          <y>120</y>
-         <width>21</width>
+         <width>111</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
+        <string>Directional</string>
        </property>
       </widget>
       <widget class="QLineEdit" name="lineEdit_Gaussian_Sigma">
@@ -1339,69 +1183,17 @@ font-style: italic;</string>
         <string>1</string>
        </property>
       </widget>
-      <widget class="QLabel" name="label_56">
-       <property name="geometry">
-        <rect>
-         <x>40</x>
-         <y>120</y>
-         <width>61</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Directional</string>
-       </property>
-      </widget>
       <widget class="QCheckBox" name="checkBox_Median">
        <property name="geometry">
         <rect>
          <x>10</x>
          <y>60</y>
-         <width>21</width>
+         <width>151</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_57">
-       <property name="geometry">
-        <rect>
-         <x>40</x>
-         <y>60</y>
-         <width>61</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
         <string>Median</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_59">
-       <property name="geometry">
-        <rect>
-         <x>40</x>
-         <y>90</y>
-         <width>91</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Gaussian</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_61">
-       <property name="geometry">
-        <rect>
-         <x>40</x>
-         <y>150</y>
-         <width>91</width>
-         <height>21</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Sun Shading</string>
        </property>
       </widget>
       <widget class="QLabel" name="label_63">
@@ -1486,19 +1278,6 @@ font-style: italic;</string>
        </property>
        <property name="text">
         <string>45</string>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_66">
-       <property name="geometry">
-        <rect>
-         <x>40</x>
-         <y>30</y>
-         <width>41</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Mean</string>
        </property>
       </widget>
       <widget class="QLabel" name="label_67">
@@ -2581,9 +2360,9 @@ font-size: 13px;
      <widget class="QPushButton" name="pushButton_repo">
       <property name="geometry">
        <rect>
-        <x>110</x>
+        <x>190</x>
         <y>220</y>
-        <width>351</width>
+        <width>181</width>
         <height>23</height>
        </rect>
       </property>
@@ -2613,28 +2392,33 @@ font-size: 13px;
      <widget class="QLabel" name="label">
       <property name="geometry">
        <rect>
-        <x>10</x>
+        <x>90</x>
         <y>270</y>
-        <width>561</width>
+        <width>481</width>
         <height>101</height>
        </rect>
       </property>
       <property name="text">
        <string>Code development
 - Calcs ChatGPT and Mark Jessell
-- Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin https://g-sherman.github.io/Qgis-Plugin-Builder/    
-- IGRF calculation -  using pyIGRF https://github.com/ciaranbe/pyIGRF
-- GRD Loader &amp; Radially averaged power spectrum Fatiando a Terra crew &amp; Mark Jessell https://www.fatiando.org/
-- Example geophysics data in image above courtesy of Mauritania Govt. https://anarpam.mr/en/     
-- Worming of grids uses Frank Horowitz's bsdwormer  https://bitbucket.org/fghorow/bsdwormer/</string>
+- Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin
+      https://g-sherman.github.io/Qgis-Plugin-Builder/    
+- IGRF calculation -  using pyIGRF 
+      https://github.com/ciaranbe/pyIGRF
+- GRD Loader &amp; Radially averaged power spectrum Fatiando a Terra 
+      https://www.fatiando.org/
+- Example geophysics data in image above courtesy of Mauritania Govt. 
+      https://anarpam.mr/en/     
+- Worming of grids uses Frank Horowitz's bsdwormer 
+      https://bitbucket.org/fghorow/bsdwormer/</string>
       </property>
      </widget>
      <widget class="QPushButton" name="pushButton_help">
       <property name="geometry">
        <rect>
-        <x>110</x>
+        <x>190</x>
         <y>410</y>
-        <width>351</width>
+        <width>171</width>
         <height>23</height>
        </rect>
       </property>

@@ -1978,7 +1978,7 @@ class SGTool:
             self.dlg.pushButton_help.clicked.connect(
                 lambda: QDesktopServices.openUrl(
                     QUrl(
-                        "https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/Structural%20Geophysics%20Tools%20v%200_2_7.pdf"
+                        "https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/Structural%20Geophysics%20Tools.pdf"
                     )
                 )
             )

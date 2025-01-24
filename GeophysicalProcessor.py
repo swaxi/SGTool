@@ -76,7 +76,7 @@ class GeophysicalProcessor:
         # Reshape back to the original array shape
         filled_array = filled_values.reshape(data.shape)
 
-        # self.display_grid(filled_array)
+        #self.display_grid(filled_array)
 
         return filled_array, nan_mask
 
@@ -262,26 +262,6 @@ class GeophysicalProcessor:
         thg = np.sqrt(dx**2 + dy**2)
 
         return thg
-
-    """# --- Reduction Methods ---
-    def reduction_to_pole(
-        self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
-    ):
-        
-        #Perform Reduction to Pole (RTP).
-        
-
-        def filter_function(kx, ky):
-            k = np.sqrt(kx**2 + ky**2)
-            incl = np.radians(inclination)
-            decl = np.radians(declination)
-
-            T = np.sin(incl) - 1j * np.cos(incl) * np.cos(decl) * kx / (k + 1e-10)
-            return T / np.sqrt(T.real**2 + T.imag**2)
-
-        return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
-        )"""
 
     def reduction_to_pole(
         self, data, inclination, declination, buffer_size=10, buffer_method="mirror"

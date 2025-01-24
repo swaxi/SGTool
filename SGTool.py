@@ -437,6 +437,19 @@ class SGTool:
             "Grid to be wormed\n[Must be gravity or RTP_E + Vertical Integration of mag]"
         )
 
+        self.dlg.checkBox_NaN.setToolTip("Threshold background values to NaN")
+        self.dlg.radioButton_NaN_Above.setToolTip(
+            "Threshold background values above set value to NaN"
+        )
+        self.dlg.radioButton_NaN_Below.setToolTip(
+            "Threshold background values below set value to NaN"
+        )
+        self.dlg.radioButton_NaN_Both.setToolTip(
+            "Threshold background values between set values to NaN"
+        )
+        self.dlg.doubleSpinBox_NaN_Above.setToolTip("Upper threshold value")
+        self.dlg.doubleSpinBox_NaN_Below.setToolTip("Lower threshold value")
+
     def initParams(self):
         self.localGridName = ""
         self.diskGridPath = ""

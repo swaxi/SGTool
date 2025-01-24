@@ -5,6 +5,7 @@ from numpy.polynomial.polynomial import polyvander2d, polyval2d
 from scipy.spatial import cKDTree
 from scipy.ndimage import uniform_filter
 from math import ceil
+from scipy.interpolate import interpn
 
 from .wormer import Wormer
 from .Utility import (
@@ -44,9 +45,40 @@ class GeophysicalProcessor:
         Replace NaN values with the mean of the non-NaN values.
         """
         nan_mask = np.isnan(data)
-        filled_data = np.copy(data)
-        filled_data[nan_mask] = np.nanmedian(data)
-        return filled_data, nan_mask
+        # filled_data = np.copy(data)
+        # filled_data[nan_mask] = np.nanmedian(data)
+
+        # Create a grid of coordinates
+        x = np.arange(data.shape[0])
+        y = np.arange(data.shape[1])
+        grid_x, grid_y = np.meshgrid(x, y, indexing="ij")
+
+        # Replace NaN values temporarily with zeros to enable interpolation
+        # (valid points will define the interpolation behavior)
+        data_temp = np.copy(data)
+        data_temp[np.isnan(data)] = (
+            0  # Use a placeholder (will be replaced by interpolated values)
+        )
+
+        # Interpolation grid for all points
+        all_coords = np.array((grid_x.ravel(), grid_y.ravel())).T
+
+        # Perform interpolation
+        filled_values = interpn(
+            (x, y),
+            data_temp,
+            all_coords,
+            method="linear",
+            bounds_error=False,
+            fill_value=None,
+        )
+
+        # Reshape back to the original array shape
+        filled_array = filled_values.reshape(data.shape)
+
+        # self.display_grid(filled_array)
+
+        return filled_array, nan_mask
 
     def restore_nan(self, data, nan_mask):
         """
@@ -553,7 +585,7 @@ class GeophysicalProcessor:
             return directional
 
         return self._apply_fourier_filter(
-            data, filter_function_dc, buffer_size=10, buffer_method="mirror"
+            data, filter_function_dc, buffer_size=buffer_size, buffer_method="mirror"
         )
 
     # --- Internal Fourier Filter Application ---
@@ -697,6 +729,15 @@ class GeophysicalProcessor:
                     header_written = True
                 # Append the filtered points
                 np.savetxt(f, filtered_points, delimiter=",", fmt="%s")
+
+    def display_grid(self, grid):
+        import matplotlib.pyplot as plt
+
+        # Plot results
+        plt.imshow(grid, cmap="gray")
+        plt.colorbar()
+        plt.title("Grid")
+        plt.show()
 
 
 if __name__ == "__main__":

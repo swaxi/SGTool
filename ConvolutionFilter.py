@@ -180,6 +180,11 @@ class ConvolutionFilter:
         Returns:
             numpy.ndarray: 2D array of relief shading values.
         """
+
+        # sometimes doesn't like 90 so offset a bit
+        if sun_alt == 90.0:
+            sun_alt = 88.0
+
         # Convert sun altitude and azimuth to radians
         sun_alt_rad = np.radians(sun_alt)
         sun_az_rad = np.radians(sun_az)

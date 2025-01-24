@@ -32,18 +32,6 @@ Where
 - D : Magnetic declination (in radians).
 - i : Imaginary unit. 
    
-**Analytic Signal**    
-$`A(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\partial f}{\partial y}\right)^2 + \left(\frac{\partial f}{\partial z}\right)^2}`$   
-Computes the total amplitude of the gradients, independent of field inclination or declination.
-Useful for locating edges of potential field sources (e.g., faults or contacts).   
-
-**Tilt Angle**    
-$`T = \tan^{-1}\left(\frac{\frac{\partial f}{\partial z}}{\sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\partial f}{\partial y}\right)^2}}\right)`$   
-Enhances the contrast of geological features by highlighting gradients relative to the vertical component.
-Where   
-df/dz : Vertical derivative of the field.
-df/dx , df/dy : Horizontal derivatives of the field.   
-   
 **Continuation**    
 $`H(k) = e^{-k h}`$   
 Where   
@@ -118,6 +106,18 @@ theta is the angle defining the direction of the derivative (x,y or z).
    
 **Total Horizontal Gradient**   
 $`THG(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\partial f}{\partial y}\right)^2}`$   
+   
+**Analytic Signal**    
+$`A(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\partial f}{\partial y}\right)^2 + \left(\frac{\partial f}{\partial z}\right)^2}`$   
+Computes the total amplitude of the gradients, independent of field inclination or declination.
+Useful for locating edges of potential field sources (e.g., faults or contacts).   
+       
+**Tilt Angle**    
+$`T = \tan^{-1}\left(\frac{\frac{\partial f}{\partial z}}{\sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\partial f}{\partial y}\right)^2}}\right)`$   
+Enhances the contrast of geological features by highlighting gradients relative to the vertical component.
+Where   
+df/dz : Vertical derivative of the field.
+df/dx , df/dy : Horizontal derivatives of the field.   
    
 ## Convolution Filters   
 **Mean**

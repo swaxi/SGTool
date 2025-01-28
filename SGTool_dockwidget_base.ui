@@ -301,7 +301,7 @@ QTabBar::tab:hover {
         </rect>
        </property>
        <property name="text">
-        <string>5000</string>
+        <string>50000</string>
        </property>
       </widget>
       <widget class="QCheckBox" name="checkBox_5_regional">
@@ -469,7 +469,7 @@ QTabBar::tab:hover {
         </rect>
        </property>
        <property name="text">
-        <string>50000</string>
+        <string>5000</string>
        </property>
       </widget>
       <widget class="QLabel" name="label_34">
@@ -1141,7 +1141,7 @@ font-style: italic;</string>
         </rect>
        </property>
        <property name="text">
-        <string>Sun SHading</string>
+        <string>Sun Shading</string>
        </property>
       </widget>
       <widget class="QCheckBox" name="checkBox_Gaussian">

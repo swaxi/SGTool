@@ -24,7 +24,6 @@ changelog=0.2.8 Added Threshold to NaN tool
       * sun shading for 90 zenith reset to 88 as this can blow up otherwise
       * better handling of irregular grids by using linear infill of NaNs
       * checkboxes labels defined directly
-      * New tool to replace ranges by NaNs
       * GUI rearranged so gradient tools all together
       * Vertical Integration now uses user-defined buffer
     0.2.7 Add worming and improve installation of plugin on PC & Mac

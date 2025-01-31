@@ -183,9 +183,9 @@ QTabBar::tab:hover {
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>220</y>
+        <y>190</y>
         <width>571</width>
-        <height>191</height>
+        <height>221</height>
        </rect>
       </property>
       <property name="title">
@@ -195,7 +195,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>190</x>
-         <y>120</y>
+         <y>160</y>
          <width>61</width>
          <height>16</height>
         </rect>
@@ -211,7 +211,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>120</y>
+         <y>160</y>
          <width>16</width>
          <height>21</height>
         </rect>
@@ -227,7 +227,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>30</y>
+         <y>70</y>
          <width>161</width>
          <height>17</height>
         </rect>
@@ -240,7 +240,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>40</x>
-         <y>150</y>
+         <y>190</y>
          <width>211</width>
          <height>17</height>
         </rect>
@@ -253,7 +253,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>40</x>
-         <y>90</y>
+         <y>130</y>
          <width>111</width>
          <height>17</height>
         </rect>
@@ -266,7 +266,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>90</y>
+         <y>130</y>
          <width>16</width>
          <height>21</height>
         </rect>
@@ -282,7 +282,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>40</x>
-         <y>120</y>
+         <y>160</y>
          <width>151</width>
          <height>17</height>
         </rect>
@@ -295,7 +295,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>260</x>
-         <y>90</y>
+         <y>130</y>
          <width>71</width>
          <height>20</height>
         </rect>
@@ -308,7 +308,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>60</y>
+         <y>100</y>
          <width>191</width>
          <height>17</height>
         </rect>
@@ -321,7 +321,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>150</y>
+         <y>190</y>
          <width>16</width>
          <height>21</height>
         </rect>
@@ -337,7 +337,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>190</x>
-         <y>30</y>
+         <y>70</y>
          <width>51</width>
          <height>20</height>
         </rect>
@@ -353,7 +353,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>250</x>
-         <y>30</y>
+         <y>70</y>
          <width>71</width>
          <height>20</height>
         </rect>
@@ -366,7 +366,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>370</x>
-         <y>60</y>
+         <y>100</y>
          <width>71</width>
          <height>20</height>
         </rect>
@@ -379,7 +379,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>490</x>
-         <y>120</y>
+         <y>160</y>
          <width>71</width>
          <height>20</height>
         </rect>
@@ -392,7 +392,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>230</x>
-         <y>150</y>
+         <y>190</y>
          <width>131</width>
          <height>20</height>
         </rect>
@@ -408,7 +408,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>140</x>
-         <y>90</y>
+         <y>130</y>
          <width>111</width>
          <height>16</height>
         </rect>
@@ -424,7 +424,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>260</x>
-         <y>120</y>
+         <y>160</y>
          <width>71</width>
          <height>22</height>
         </rect>
@@ -434,7 +434,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>370</x>
-         <y>150</y>
+         <y>190</y>
          <width>71</width>
          <height>20</height>
         </rect>
@@ -447,7 +447,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>200</x>
-         <y>60</y>
+         <y>100</y>
          <width>161</width>
          <height>20</height>
         </rect>
@@ -463,7 +463,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>490</x>
-         <y>90</y>
+         <y>130</y>
          <width>71</width>
          <height>20</height>
         </rect>
@@ -476,7 +476,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>350</x>
-         <y>120</y>
+         <y>160</y>
          <width>131</width>
          <height>21</height>
         </rect>
@@ -492,7 +492,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>360</x>
-         <y>90</y>
+         <y>130</y>
          <width>121</width>
          <height>21</height>
         </rect>
@@ -504,6 +504,19 @@ QTabBar::tab:hover {
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
        </property>
       </widget>
+      <widget class="QPushButton" name="pushButton_rad_power_spectrum">
+       <property name="geometry">
+        <rect>
+         <x>20</x>
+         <y>30</y>
+         <width>151</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Rad Power Spectrum</string>
+       </property>
+      </widget>
      </widget>
      <widget class="QGroupBox" name="groupBox">
       <property name="geometry">
@@ -511,7 +524,7 @@ QTabBar::tab:hover {
         <x>10</x>
         <y>60</y>
         <width>571</width>
-        <height>151</height>
+        <height>121</height>
        </rect>
       </property>
       <property name="font">
@@ -530,7 +543,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>430</x>
-         <y>60</y>
+         <y>30</y>
          <width>31</width>
          <height>20</height>
         </rect>
@@ -543,7 +556,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>340</x>
-         <y>60</y>
+         <y>30</y>
          <width>41</width>
          <height>20</height>
         </rect>
@@ -556,7 +569,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>240</x>
-         <y>120</y>
+         <y>90</y>
          <width>61</width>
          <height>22</height>
         </rect>
@@ -566,7 +579,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>260</x>
-         <y>60</y>
+         <y>30</y>
          <width>41</width>
          <height>20</height>
         </rect>
@@ -579,7 +592,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>370</x>
-         <y>60</y>
+         <y>30</y>
          <width>51</width>
          <height>21</height>
         </rect>
@@ -598,7 +611,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>470</x>
-         <y>60</y>
+         <y>30</y>
          <width>91</width>
          <height>22</height>
         </rect>
@@ -622,7 +635,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>30</x>
-         <y>120</y>
+         <y>90</y>
          <width>151</width>
          <height>17</height>
         </rect>
@@ -635,7 +648,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>160</x>
-         <y>120</y>
+         <y>90</y>
          <width>71</width>
          <height>20</height>
         </rect>
@@ -651,7 +664,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>300</x>
-         <y>60</y>
+         <y>30</y>
          <width>31</width>
          <height>21</height>
         </rect>
@@ -667,7 +680,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>60</y>
+         <y>30</y>
          <width>61</width>
          <height>17</height>
         </rect>
@@ -680,7 +693,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>230</x>
-         <y>60</y>
+         <y>30</y>
          <width>21</width>
          <height>21</height>
         </rect>
@@ -699,7 +712,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>170</x>
-         <y>60</y>
+         <y>30</y>
          <width>51</width>
          <height>23</height>
         </rect>
@@ -712,7 +725,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>390</x>
-         <y>120</y>
+         <y>90</y>
          <width>71</width>
          <height>20</height>
         </rect>
@@ -725,7 +738,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>300</x>
-         <y>120</y>
+         <y>90</y>
          <width>81</width>
          <height>16</height>
         </rect>
@@ -741,7 +754,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>120</y>
+         <y>90</y>
          <width>16</width>
          <height>21</height>
         </rect>
@@ -757,7 +770,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>80</x>
-         <y>60</y>
+         <y>30</y>
          <width>81</width>
          <height>22</height>
         </rect>
@@ -767,7 +780,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>30</x>
-         <y>90</y>
+         <y>60</y>
          <width>481</width>
          <height>17</height>
         </rect>
@@ -780,7 +793,7 @@ QTabBar::tab:hover {
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>90</y>
+         <y>60</y>
          <width>16</width>
          <height>21</height>
         </rect>
@@ -790,19 +803,6 @@ QTabBar::tab:hover {
        </property>
        <property name="alignment">
         <set>Qt::AlignCenter</set>
-       </property>
-      </widget>
-      <widget class="QPushButton" name="pushButton_rad_power_spectrum">
-       <property name="geometry">
-        <rect>
-         <x>10</x>
-         <y>20</y>
-         <width>151</width>
-         <height>31</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Rad Power Spectrum</string>
        </property>
       </widget>
      </widget>
@@ -1354,7 +1354,7 @@ font-style: italic;</string>
       <widget class="QPushButton" name="pushButton_2_selectGrid_RGB">
        <property name="geometry">
         <rect>
-         <x>390</x>
+         <x>360</x>
          <y>30</y>
          <width>31</width>
          <height>23</height>
@@ -1367,7 +1367,7 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_42">
        <property name="geometry">
         <rect>
-         <x>8</x>
+         <x>-22</x>
          <y>30</y>
          <width>111</width>
          <height>21</height>
@@ -1383,7 +1383,7 @@ font-style: italic;</string>
       <widget class="QLineEdit" name="lineEdit_2_loadGridPath_2">
        <property name="geometry">
         <rect>
-         <x>132</x>
+         <x>102</x>
          <y>30</y>
          <width>241</width>
          <height>21</height>
@@ -1393,7 +1393,7 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_43">
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>-10</x>
          <y>70</y>
          <width>101</width>
          <height>20</height>
@@ -1428,7 +1428,7 @@ font-style: italic;</string>
        </property>
        <property name="geometry">
         <rect>
-         <x>230</x>
+         <x>200</x>
          <y>150</y>
          <width>311</width>
          <height>20</height>
@@ -1446,7 +1446,7 @@ font-style: italic;</string>
       <widget class="QTextEdit" name="textEdit_2_colour_list">
        <property name="geometry">
         <rect>
-         <x>130</x>
+         <x>100</x>
          <y>70</y>
          <width>411</width>
          <height>61</height>
@@ -1459,7 +1459,7 @@ font-style: italic;</string>
       <widget class="QPushButton" name="pushButton_CSSS_Colours">
        <property name="geometry">
         <rect>
-         <x>270</x>
+         <x>200</x>
          <y>190</y>
          <width>241</width>
          <height>23</height>
@@ -1472,7 +1472,7 @@ font-style: italic;</string>
       <widget class="QgsDoubleSpinBox" name="mQgsDoubleSpinBox_LUT_min">
        <property name="geometry">
         <rect>
-         <x>90</x>
+         <x>60</x>
          <y>150</y>
          <width>121</width>
          <height>27</height>
@@ -1491,7 +1491,7 @@ font-style: italic;</string>
       <widget class="QgsDoubleSpinBox" name="mQgsDoubleSpinBox_LUT_max">
        <property name="geometry">
         <rect>
-         <x>90</x>
+         <x>60</x>
          <y>190</y>
          <width>121</width>
          <height>27</height>
@@ -1513,7 +1513,7 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_46">
        <property name="geometry">
         <rect>
-         <x>31</x>
+         <x>1</x>
          <y>150</y>
          <width>41</width>
          <height>20</height>
@@ -1529,7 +1529,7 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_50">
        <property name="geometry">
         <rect>
-         <x>31</x>
+         <x>1</x>
          <y>190</y>
          <width>41</width>
          <height>20</height>

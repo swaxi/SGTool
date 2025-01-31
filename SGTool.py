@@ -68,16 +68,16 @@ from .resources import *
 
 # Import the code for the DockWidget
 from .SGTool_dockwidget import SGToolDockWidget
-from .GeophysicalProcessor import GeophysicalProcessor
-from .geosoft_grid_parser import *
-from .PSplot import PowerSpectrumDock
-from .ConvolutionFilter import ConvolutionFilter
-from .ConvolutionFilter import OddPositiveIntegerValidator
-from .GridData_no_pandas import GridData
-from .GridData_no_pandas import QGISGridData
+from .calcs.GeophysicalProcessor import GeophysicalProcessor
+from .calcs.geosoft_grid_parser import *
+from .calcs.PSplot import PowerSpectrumDock
+from .calcs.ConvolutionFilter import ConvolutionFilter
+from .calcs.ConvolutionFilter import OddPositiveIntegerValidator
+from .calcs.GridData_no_pandas import GridData
+from .calcs.GridData_no_pandas import QGISGridData
 
-from .SG_Util import SG_Util
-from .igrf_utils import igrf_utils as IGRF
+from .calcs.SG_Util import SG_Util
+from .igrf.igrf_utils import igrf_utils as IGRF
 import os.path
 import numpy as np
 import subprocess
@@ -1590,7 +1590,7 @@ class SGTool:
         # IGRF_FILE = r"./SHC_files/IGRF" + igrf_gen + ".SHC"
         IGRF_FILE = (
             os.path.dirname(os.path.realpath(__file__))
-            + "/SHC_files/IGRF"
+            + "/igrf/SHC_files/IGRF"
             + igrf_gen
             + ".SHC"
         )

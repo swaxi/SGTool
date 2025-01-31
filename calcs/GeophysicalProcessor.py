@@ -7,8 +7,8 @@ from scipy.ndimage import uniform_filter
 from math import ceil
 from scipy.interpolate import interpn
 
-from .wormer import Wormer
-from .Utility import (
+from sgtool.worms.wormer import Wormer
+from sgtool.worms.Utility import (
     GetExtent,
     loadGrid,
     numpy_array_to_raster,
@@ -76,7 +76,7 @@ class GeophysicalProcessor:
         # Reshape back to the original array shape
         filled_array = filled_values.reshape(data.shape)
 
-        #self.display_grid(filled_array)
+        # self.display_grid(filled_array)
 
         return filled_array, nan_mask
 

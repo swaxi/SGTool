@@ -2352,7 +2352,7 @@ font-size: 13px;
         </rect>
        </property>
        <property name="text">
-        <string>Convert csv file to shapefile</string>
+        <string>Also save to shapefile</string>
        </property>
        <property name="checked">
         <bool>true</bool>

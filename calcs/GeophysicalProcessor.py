@@ -1,11 +1,17 @@
 import numpy as np
 from scipy.fftpack import fft2, ifft2, fftfreq
-from scipy.ndimage import gaussian_filter, sobel
-from numpy.polynomial.polynomial import polyvander2d, polyval2d
+from scipy.ndimage import gaussian_filter
+from numpy.polynomial.polynomial import polyval2d
 from scipy.spatial import cKDTree
-from scipy.ndimage import uniform_filter
 from math import ceil
 from scipy.interpolate import interpn
+
+
+from osgeo import ogr, osr
+from shapely.geometry import LineString, Point
+from sklearn.cluster import DBSCAN
+from joblib import Parallel, delayed
+import csv
 
 from sgtool.worms.wormer import Wormer
 from sgtool.worms.Utility import (
@@ -600,7 +606,7 @@ class GeophysicalProcessor:
         filtered_data = self.remove_buffer(filtered_data, buffer_size)
         return self.restore_nan(filtered_data, nan_mask)
 
-    def bsdwormer(self, gridPath, num_levels, bottom_level, delta_z):
+    def bsdwormer(self, gridPath, num_levels, bottom_level, delta_z, shps, crs):
         # code borrows heavilly from bsdwormer example ipynb template example
         # adds on the fly calc of padded grid
 
@@ -662,9 +668,9 @@ class GeophysicalProcessor:
 
         # Initialize a flag to track if the header has been written
         header_written = False
+        print("num_levels", num_levels)
 
-        # The argument to range is "num_levels + 1" due to the semantics of Python's range function.
-        for dz in range(0, num_levels + 1):
+        for dz in range(0, num_levels):
             dzm = (dz * delta_z) + bottom_level
             if dzm == 0:
                 dzm = 0.01
@@ -710,6 +716,12 @@ class GeophysicalProcessor:
                 # Append the filtered points
                 np.savetxt(f, filtered_points, delimiter=",", fmt="%s")
 
+        if shps:
+            max_distance = job.geomat[1] * 1.5
+            in_path = wormsPath
+            out_path = wormsPath.replace(".csv", ".shp")
+            self.xyz_to_polylines(in_path, out_path, max_distance, crs)
+
     def display_grid(self, grid):
         import matplotlib.pyplot as plt
 
@@ -718,6 +730,176 @@ class GeophysicalProcessor:
         plt.colorbar()
         plt.title("Grid")
         plt.show()
+
+    def split_long_segments(self, line, max_distance):
+        """Split a LineString into valid segments and discard only the segments longer than max_distance."""
+        coords = list(line.coords)
+        new_lines = []
+        segment = [coords[0]]
+
+        for i in range(1, len(coords)):
+            segment.append(coords[i])
+            segment_length = Point(coords[i - 1]).distance(Point(coords[i]))
+
+            if segment_length > max_distance:
+                if len(segment) > 2:
+                    new_lines.append(LineString(segment[:-1]))
+                segment = [coords[i]]
+
+        if len(segment) > 1:
+            new_lines.append(LineString(segment))
+
+        return new_lines
+
+    def process_cluster(self, points, z, max_distance):
+        """Process a cluster of points to create split LineStrings."""
+        if len(points) > 1:
+            tree = cKDTree(points)
+            sorted_points = [points[0]]
+            remaining_points = set(range(1, len(points)))
+
+            while remaining_points:
+                last_point = sorted_points[-1]
+                distances, indices = tree.query(
+                    last_point, k=min(len(remaining_points), len(points))
+                )
+                if np.isscalar(indices):
+                    indices = [indices]
+                valid_indices = [idx for idx in indices if idx in remaining_points]
+
+                if valid_indices:
+                    nearest_idx = valid_indices[0]
+                    sorted_points.append(points[nearest_idx])
+                    remaining_points.remove(nearest_idx)
+                else:
+                    break
+
+            if len(sorted_points) > 1:
+                polyline = LineString(sorted_points)
+                split_segments = self.split_long_segments(polyline, max_distance)
+                return [(seg, z) for seg in split_segments]
+        return []
+
+    def split_long_segments(self, line, max_distance):
+        """Split a LineString into valid segments and discard only the segments longer than max_distance."""
+        coords = list(line.coords)
+        new_lines = []
+        segment = [coords[0]]
+
+        for i in range(1, len(coords)):
+            segment.append(coords[i])
+            segment_length = Point(coords[i - 1]).distance(Point(coords[i]))
+
+            if segment_length > max_distance:
+                if len(segment) > 2:
+                    new_lines.append(LineString(segment[:-1]))
+                segment = [coords[i]]
+
+        if len(segment) > 1:
+            new_lines.append(LineString(segment))
+
+        return new_lines
+
+    def process_cluster(self, points, z, max_distance):
+        """Process a cluster of points to create split LineStrings."""
+        if len(points) > 1:
+            tree = cKDTree(points)
+            sorted_points = [points[0]]
+            remaining_points = set(range(1, len(points)))
+
+            while remaining_points:
+                last_point = sorted_points[-1]
+                distances, indices = tree.query(
+                    last_point, k=min(len(remaining_points), len(points))
+                )
+                if np.isscalar(indices):
+                    indices = [indices]
+                valid_indices = [idx for idx in indices if idx in remaining_points]
+
+                if valid_indices:
+                    nearest_idx = valid_indices[0]
+                    sorted_points.append(points[nearest_idx])
+                    remaining_points.remove(nearest_idx)
+                else:
+                    break
+
+            if len(sorted_points) > 1:
+                polyline = LineString(sorted_points)
+                split_segments = self.split_long_segments(polyline, max_distance)
+                return [(seg, z) for seg in split_segments]
+        return []
+
+    def xyz_to_polylines(self, csv_file, output_shapefile, max_distance, crs):
+        with open(csv_file, "r") as f:
+            reader = csv.DictReader(f)
+            data = [
+                (float(row["x"]), float(row["y"]), float(row["z"])) for row in reader
+            ]
+
+        data = np.array(data)
+        unique_z = np.unique(data[:, 2])
+        results = []
+
+        for z in unique_z:
+
+            mask = data[:, 2] == z
+            points = data[mask][:, :2]
+            if len(points) < 2 or z < 1.0:
+                continue
+
+            print(f"Processing Z-bin: {z}, Number of points: {len(points)}")
+
+            try:
+                clustering = DBSCAN(eps=max_distance, min_samples=1).fit(points)
+            except Exception as e:
+                print(f"Error in DBSCAN at Z-bin {z}: {e}")
+                continue
+
+            labels = clustering.labels_
+            unique_labels = np.unique(labels)
+            unique_labels = unique_labels[unique_labels != -1]
+
+            for label in unique_labels:
+                cluster_points = points[labels == label]
+                if len(cluster_points) > 1:
+                    try:
+                        result = self.process_cluster(cluster_points, z, max_distance)
+                        if result:
+                            results.extend(result)
+                    except Exception as e:
+                        print(f"Error processing cluster at Z-bin {z}: {e}")
+
+        # Collect all polylines and corresponding Z values
+        polylines = [item[0] for item in results if isinstance(item[0], LineString)]
+        z_values = [item[1] for item in results if isinstance(item[0], LineString)]
+
+        if not polylines:
+            raise ValueError(
+                "No valid LineStrings were created. Check your input data or parameters."
+            )
+
+        print("Processing complete. Saving to shapefile...")
+
+        # Save all results in a single shapefile
+        driver = ogr.GetDriverByName("ESRI Shapefile")
+        ds = driver.CreateDataSource(output_shapefile)
+        spatial_ref = osr.SpatialReference()
+        spatial_ref.ImportFromEPSG(crs)
+        layer = ds.CreateLayer("polylines", spatial_ref, ogr.wkbLineString)
+
+        field_defn = ogr.FieldDefn("Z", ogr.OFTInteger)
+        layer.CreateField(field_defn)
+
+        for polyline, z in zip(polylines, z_values):
+            feature = ogr.Feature(layer.GetLayerDefn())
+            feature.SetField("Z", int(z))
+            geom = ogr.CreateGeometryFromWkt(polyline.wkt)
+            feature.SetGeometry(geom)
+            layer.CreateFeature(feature)
+            feature = None
+
+        ds = None  # Close and save the shapefile
+        print(f"Shapefile saved to {output_shapefile}")
 
 
 if __name__ == "__main__":

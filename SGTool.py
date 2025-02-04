@@ -448,7 +448,10 @@ class SGTool:
             "Threshold background values between set values to NaN"
         )
         self.dlg.doubleSpinBox_NaN_Above.setToolTip("Upper threshold value")
-        self.dlg.doubleSpinBox_NaN_Below.setToolTip("Lower threshold value")
+
+        self.dlg.checkBox_worms_shp.setToolTip(
+            "Convert worms to polyline shapefile\n(Can be slow and best to start worms at >=2000m)"
+        )
 
     def initParams(self):
         self.localGridName = ""
@@ -898,10 +901,12 @@ class SGTool:
                 self.diskGridPath = selected_layer.dataProvider().dataSourceUri()
                 self.dx = selected_layer.rasterUnitsPerPixelX()
                 self.dy = selected_layer.rasterUnitsPerPixelY()
+                crs = int(selected_layer.crs().authid().split(":")[1])
 
                 self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
+                shps = self.dlg.checkBox_worms_shp.isChecked()
                 self.processor.bsdwormer(
-                    self.diskGridPath, num_levels, bottom_level, delta_z
+                    self.diskGridPath, num_levels, bottom_level, delta_z, shps, crs
                 )
                 self.iface.messageBar().pushMessage(
                     "Worms saved to same directory as original grid",

@@ -43,7 +43,7 @@ font-size: 12px;</string>
       <x>10</x>
       <y>0</y>
       <width>593</width>
-      <height>671</height>
+      <height>731</height>
      </rect>
     </property>
     <property name="minimumSize">
@@ -509,12 +509,12 @@ QTabBar::tab:hover {
         <rect>
          <x>20</x>
          <y>30</y>
-         <width>151</width>
+         <width>211</width>
          <height>21</height>
         </rect>
        </property>
        <property name="text">
-        <string>Rad Power Spectrum</string>
+        <string>Radial Power Spectrum</string>
        </property>
       </widget>
      </widget>
@@ -1354,7 +1354,7 @@ font-style: italic;</string>
       <widget class="QPushButton" name="pushButton_2_selectGrid_RGB">
        <property name="geometry">
         <rect>
-         <x>360</x>
+         <x>438</x>
          <y>30</y>
          <width>31</width>
          <height>23</height>
@@ -1367,9 +1367,9 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_42">
        <property name="geometry">
         <rect>
-         <x>-22</x>
+         <x>20</x>
          <y>30</y>
-         <width>111</width>
+         <width>151</width>
          <height>21</height>
         </rect>
        </property>
@@ -1383,7 +1383,7 @@ font-style: italic;</string>
       <widget class="QLineEdit" name="lineEdit_2_loadGridPath_2">
        <property name="geometry">
         <rect>
-         <x>102</x>
+         <x>180</x>
          <y>30</y>
          <width>241</width>
          <height>21</height>
@@ -1393,7 +1393,7 @@ font-style: italic;</string>
       <widget class="QLabel" name="label_43">
        <property name="geometry">
         <rect>
-         <x>-10</x>
+         <x>20</x>
          <y>70</y>
          <width>101</width>
          <height>20</height>
@@ -1446,9 +1446,9 @@ font-style: italic;</string>
       <widget class="QTextEdit" name="textEdit_2_colour_list">
        <property name="geometry">
         <rect>
-         <x>100</x>
+         <x>130</x>
          <y>70</y>
-         <width>411</width>
+         <width>381</width>
          <height>61</height>
         </rect>
        </property>
@@ -1631,7 +1631,7 @@ font-style: italic;</string>
         <rect>
          <x>220</x>
          <y>30</y>
-         <width>61</width>
+         <width>91</width>
          <height>17</height>
         </rect>
        </property>
@@ -1910,7 +1910,7 @@ font-size: 13px;
        </property>
        <property name="font">
         <font>
-         <pointsize>7</pointsize>
+         <pointsize>9</pointsize>
         </font>
        </property>
        <property name="text">
@@ -2183,7 +2183,7 @@ font-size: 13px;
         <x>10</x>
         <y>470</y>
         <width>381</width>
-        <height>161</height>
+        <height>201</height>
        </rect>
       </property>
       <property name="title">
@@ -2282,7 +2282,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>230</x>
-         <y>120</y>
+         <y>170</y>
          <width>131</width>
          <height>23</height>
         </rect>
@@ -2340,6 +2340,22 @@ font-size: 13px;
        </property>
        <property name="value">
         <double>1000.000000000000000</double>
+       </property>
+      </widget>
+      <widget class="QCheckBox" name="checkBox_worms_shp">
+       <property name="geometry">
+        <rect>
+         <x>50</x>
+         <y>140</y>
+         <width>171</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Convert csv file to shapefile</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
        </property>
       </widget>
      </widget>

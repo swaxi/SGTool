@@ -157,7 +157,7 @@ Define upper or lower bound (or range) for which values will be set to NaN (i.e.
       
 ## Normalise Grids   
 **Normalise Grids**   
-Normalise all the means and standard deviations of a series of grids in a directory to minimse mismatches in merged grids. Does not consider overlaps between grids, simply standardises data and removes a first or second order regional.     
+Normalise the means and standard deviations of a series of grids in a directory to minimse mismatches in merged grids. Does not consider overlaps between grids, simply standardises data and removes a first or second order regional.     
    
       
 # Installation

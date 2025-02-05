@@ -155,6 +155,11 @@ Use wavelet transforms to build multilevel "worms", saves out a single csv file 
 Define upper or lower bound (or range) for which values will be set to NaN (i.e. excluded from display). Useful when reprojected images produce an unwanted border.      
    
       
+## Normalise Grids   
+**Normalise Grids**   
+Normalise all the means and standard deviations of a series of grids in a directory to minimse mismatches in merged grids. Does not consider overlaps between grids, simply standardises data and removes a first or second order regional.     
+   
+      
 # Installation
 - Dowload the zip file from the green **<> Code** button and install the zip file in QGIS using the plugin manager   
    

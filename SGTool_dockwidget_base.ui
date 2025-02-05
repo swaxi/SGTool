@@ -1343,7 +1343,7 @@ font-style: italic;</string>
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>370</y>
+        <y>360</y>
         <width>561</width>
         <height>271</height>
        </rect>
@@ -1766,8 +1766,8 @@ font-size: 12px;
        <rect>
         <x>10</x>
         <y>20</y>
-        <width>381</width>
-        <height>241</height>
+        <width>551</width>
+        <height>171</height>
        </rect>
       </property>
       <property name="title">
@@ -1876,9 +1876,9 @@ font-size: 13px;
        </property>
        <property name="geometry">
         <rect>
-         <x>20</x>
-         <y>120</y>
-         <width>291</width>
+         <x>330</x>
+         <y>60</y>
+         <width>211</width>
          <height>21</height>
         </rect>
        </property>
@@ -1889,8 +1889,8 @@ font-size: 13px;
        </property>
        <property name="geometry">
         <rect>
-         <x>30</x>
-         <y>200</y>
+         <x>10</x>
+         <y>130</y>
          <width>101</width>
          <height>23</height>
         </rect>
@@ -1902,9 +1902,9 @@ font-size: 13px;
       <widget class="QCheckBox" name="checkBox_load_tie_lines">
        <property name="geometry">
         <rect>
-         <x>20</x>
-         <y>150</y>
-         <width>331</width>
+         <x>330</x>
+         <y>90</y>
+         <width>211</width>
          <height>17</height>
         </rect>
        </property>
@@ -1946,8 +1946,8 @@ font-size: 13px;
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>270</y>
-        <width>381</width>
+        <y>200</y>
+        <width>551</width>
         <height>191</height>
        </rect>
       </property>
@@ -2181,9 +2181,9 @@ font-size: 13px;
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>470</y>
-        <width>381</width>
-        <height>201</height>
+        <y>400</y>
+        <width>551</width>
+        <height>161</height>
        </rect>
       </property>
       <property name="title">
@@ -2281,8 +2281,8 @@ font-size: 13px;
       <widget class="QPushButton" name="pushButton_worms">
        <property name="geometry">
         <rect>
-         <x>230</x>
-         <y>170</y>
+         <x>400</x>
+         <y>130</y>
          <width>131</width>
          <height>23</height>
         </rect>
@@ -2345,8 +2345,8 @@ font-size: 13px;
       <widget class="QCheckBox" name="checkBox_worms_shp">
        <property name="geometry">
         <rect>
-         <x>50</x>
-         <y>140</y>
+         <x>250</x>
+         <y>110</y>
          <width>171</width>
          <height>17</height>
         </rect>
@@ -2356,6 +2356,139 @@ font-size: 13px;
        </property>
        <property name="checked">
         <bool>true</bool>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QGroupBox" name="groupBox_10">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>570</y>
+        <width>551</width>
+        <height>121</height>
+       </rect>
+      </property>
+      <property name="title">
+       <string>Normalise Grids</string>
+      </property>
+      <widget class="QLineEdit" name="lineEdit_loadPointsPath_normalise_in">
+       <property name="geometry">
+        <rect>
+         <x>152</x>
+         <y>30</y>
+         <width>171</width>
+         <height>20</height>
+        </rect>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="pushButton_select_normalise_in">
+       <property name="geometry">
+        <rect>
+         <x>330</x>
+         <y>30</y>
+         <width>31</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>...</string>
+       </property>
+      </widget>
+      <widget class="QLineEdit" name="lineEdit_loadPointsPath_normalise_out">
+       <property name="geometry">
+        <rect>
+         <x>152</x>
+         <y>60</y>
+         <width>171</width>
+         <height>20</height>
+        </rect>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="pushButton_select_normalise_out">
+       <property name="geometry">
+        <rect>
+         <x>330</x>
+         <y>60</y>
+         <width>31</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>...</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="pushButton_normalise">
+       <property name="geometry">
+        <rect>
+         <x>400</x>
+         <y>90</y>
+         <width>131</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Normalise Grids</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_66">
+       <property name="geometry">
+        <rect>
+         <x>20</x>
+         <y>30</y>
+         <width>121</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Input Directory</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_72">
+       <property name="geometry">
+        <rect>
+         <x>20</x>
+         <y>60</y>
+         <width>121</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Output Directory</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QRadioButton" name="radioButton_normalise_1st">
+       <property name="geometry">
+        <rect>
+         <x>410</x>
+         <y>30</y>
+         <width>131</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>1st order fit</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+      <widget class="QRadioButton" name="radioButton_normalise_2nd">
+       <property name="geometry">
+        <rect>
+         <x>410</x>
+         <y>60</y>
+         <width>131</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>2nd order fit</string>
        </property>
       </widget>
      </widget>

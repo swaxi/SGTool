@@ -453,6 +453,29 @@ class SGTool:
             "Convert worms to polyline shapefile\n(Can be slow and best to start worms at >=2000m)"
         )
 
+        self.dlg.pushButton_select_normalise_in.setToolTip(
+            "Directory with geotiffs to be normalised"
+        )
+
+        self.dlg.pushButton_select_normalise_out.setToolTip(
+            "Directory where normalised geotiffs will be stored"
+        )
+
+        self.dlg.pushButton_normalise.setToolTip(
+            "Normalise geotiffs:\n1. First order regional removed\n2. Normalise standard deviation using alpahbetical first file in input directory as reference\n3. Remove mean"
+        )
+        self.dlg.groupBox_10.setToolTip(
+            "Normalise directory of geotiffs\nOnce normalised the QGIS merge tool produced a reasonable stitch of the grids\nAssumes same processing level for grids\nAssumes flight heights have been normalised by continuation\nMerge uses alpahbetical first file to define cell size\nAll grids in merge have to be same projection"
+        )
+
+        self.dlg.radioButton_normalise_1st.setToolTip(
+            "1st order (flat plane) regional removed from grid"
+        )
+
+        self.dlg.radioButton_normalise_2nd.setToolTip(
+            "2nd order polynomial regional removed from grid (slower)"
+        )
+
     def initParams(self):
         self.localGridName = ""
         self.diskGridPath = ""
@@ -500,6 +523,8 @@ class SGTool:
         self.sun_shade_zn = 45
 
         self.pointType = "point"
+        self.input_directory = ""
+        self.output_directory = ""
 
     def parseParams(self):
 
@@ -882,6 +907,19 @@ class SGTool:
         )
         self.suffix = "_Clean"
 
+    def procNormalise(self):
+        processor = GeophysicalProcessor(None, None, None)
+        inpath = self.input_directory
+        outpath = self.output_directory
+        order = self.dlg.radioButton_normalise_1st.isChecked()
+        if (
+            os.path.exists(inpath)
+            and os.path.exists(outpath)
+            and inpath != ""
+            and outpath != ""
+        ):
+            processor.normalise_geotiffs(inpath, outpath, order)
+
     def procBSDworms(self):
         num_levels = int(self.dlg.spinBox_levels.value())
         bottom_level = int(self.dlg.doubleSpinBox_base.text())
@@ -913,6 +951,38 @@ class SGTool:
                     level=Qgis.Success,
                     duration=15,
                 )
+
+    def set_normalise_in(self):
+        self.input_directory = QFileDialog.getExistingDirectory(
+            None, "Select Input Folder"
+        )
+
+        if os.path.exists(self.input_directory) and self.input_directory != "":
+            self.dlg.lineEdit_loadPointsPath_normalise_in.setText(self.input_directory)
+
+        else:
+            self.iface.messageBar().pushMessage(
+                "Error: Path Incorrect",
+                level=Qgis.Critical,
+                duration=15,
+            )
+
+    def set_normalise_out(self):
+        self.output_directory = QFileDialog.getExistingDirectory(
+            None, "Select Output Folder"
+        )
+
+        if os.path.exists(self.output_directory) and self.output_directory != "":
+            self.dlg.lineEdit_loadPointsPath_normalise_out.setText(
+                self.output_directory
+            )
+
+        else:
+            self.iface.messageBar().pushMessage(
+                "Error: Path Incorrect",
+                level=Qgis.Critical,
+                duration=15,
+            )
 
     def util_display_grid(self, grid):
         import matplotlib.pyplot as plt
@@ -1986,6 +2056,14 @@ class SGTool:
             self.dlg.pushButton_bspline_3.clicked.connect(self.procbsplineGridding)
 
             self.dlg.pushButton_worms.clicked.connect(self.procBSDworms)
+
+            self.dlg.pushButton_normalise.clicked.connect(self.procNormalise)
+            self.dlg.pushButton_select_normalise_in.clicked.connect(
+                self.set_normalise_in
+            )
+            self.dlg.pushButton_select_normalise_out.clicked.connect(
+                self.set_normalise_out
+            )
 
     # select directory to store grid
     def gridFile(self):

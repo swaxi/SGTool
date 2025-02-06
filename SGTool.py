@@ -89,8 +89,6 @@ from osgeo import gdal, osr
 
 from datetime import datetime
 from pyproj import Transformer
-
-# import rasterio
 import processing
 from osgeo import gdal, osr
 import sys
@@ -143,6 +141,22 @@ class SGTool:
                 print(f"Successfully installed {library_name}")
             except subprocess.CalledProcessError as e:
                 print(f"Error installing {library_name}: {e}")
+
+        # Library shapely
+        try:
+            import shapely
+
+        except:
+            install_library("shapely")
+            import shapely
+
+        # Library scikit-learn
+        try:
+            import sklearn
+
+        except:
+            install_library("scikit-learn")
+            import sklearn
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):

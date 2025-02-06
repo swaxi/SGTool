@@ -9,9 +9,14 @@ from scipy.interpolate import interpn
 
 from osgeo import ogr, osr
 from shapely.geometry import LineString, Point
-from sklearn.cluster import DBSCAN
 from joblib import Parallel, delayed
 import csv
+
+import glob
+import os
+from osgeo import gdal
+from scipy.optimize import leastsq
+
 
 from sgtool.worms.wormer import Wormer
 from sgtool.worms.Utility import (
@@ -717,7 +722,7 @@ class GeophysicalProcessor:
                 np.savetxt(f, filtered_points, delimiter=",", fmt="%s")
 
         if shps:
-            max_distance = job.geomat[1] * 1.5
+            max_distance = job.geomat[1] * 1.3
             in_path = wormsPath
             out_path = wormsPath.replace(".csv", ".shp")
             self.xyz_to_polylines(in_path, out_path, max_distance, crs)
@@ -830,6 +835,8 @@ class GeophysicalProcessor:
         return []
 
     def xyz_to_polylines(self, csv_file, output_shapefile, max_distance, crs):
+        from sklearn.cluster import DBSCAN
+
         with open(csv_file, "r") as f:
             reader = csv.DictReader(f)
             data = [
@@ -900,6 +907,126 @@ class GeophysicalProcessor:
 
         ds = None  # Close and save the shapefile
         print(f"Shapefile saved to {output_shapefile}")
+
+    def remove_2o_gradient(self, data, mask):
+        """Fit a second-order polynomial surface to the raster data and remove it."""
+        rows, cols = data.shape
+        X, Y = np.meshgrid(np.arange(cols), np.arange(rows))
+
+        x, y, z = X[~mask], Y[~mask], data[~mask]
+        if len(z) == 0:
+            print("Warning: No valid data for gradient removal.")
+            return data
+
+        def poly2d(params, x, y):
+            a, b, c, d, e, f = params
+            return a * x**2 + b * y**2 + c * x * y + d * x + e * y + f
+
+        def residuals(params, x, y, z):
+            return poly2d(params, x, y) - z
+
+        params_init = [0, 0, 0, 0, 0, np.mean(z)]
+        params_opt, _ = leastsq(residuals, params_init, args=(x, y, z))
+
+        fitted_surface = poly2d(params_opt, X, Y)
+        return data - fitted_surface
+
+    def remove_gradient(self, data, mask):
+        """Fit a plane to the raster data and remove the first-order gradient."""
+        rows, cols = data.shape
+        X, Y = np.meshgrid(np.arange(cols), np.arange(rows))
+
+        x, y, z = X[~mask], Y[~mask], data[~mask]
+        if len(z) == 0:
+            print("Warning: No valid data for gradient removal.")
+            return data
+
+        def plane(params, x, y):
+            a, b, c = params
+            return a * x + b * y + c
+
+        def residuals(params, x, y, z):
+            return plane(params, x, y) - z
+
+        params_init = [0, 0, np.mean(z)]
+        params_opt, _ = leastsq(residuals, params_init, args=(x, y, z))
+
+        fitted_plane = plane(params_opt, X, Y)
+        return data - fitted_plane
+
+    def fix_extreme_values(self, data):
+        """Replace extreme NoData values with a safe float32-compatible value."""
+        safe_nodata_value = -999999.0
+        data[data < -1e38] = safe_nodata_value
+        return data, safe_nodata_value
+
+    def compute_reference_stats(self, reference_tiff):
+        """Compute mean and standard deviation from the first (reference) GeoTIFF."""
+        ds = gdal.Open(reference_tiff)
+        band = ds.GetRasterBand(1)
+        data = band.ReadAsArray().astype(np.float32)
+        data, nodata_value = self.fix_extreme_values(data)
+        mask = (data == nodata_value) | np.isnan(data)
+
+        detrended_data = self.remove_gradient(data, mask)
+        valid_data = detrended_data[~mask]
+        mean, std = (
+            (np.mean(valid_data), np.std(valid_data)) if valid_data.size > 0 else (0, 1)
+        )
+
+        return mean, std
+
+    def normalise_geotiffs(self, input_folder, output_folder, order):
+        """Process multiple GeoTIFFs using normalization parameters from the first GeoTIFF."""
+        tiff_files = sorted(glob.glob(os.path.join(input_folder, "*.tif")))
+        if not tiff_files:
+            print("No GeoTIFF files found.")
+            return
+
+        first = True
+        for tiff_file in tiff_files:
+            ds = gdal.Open(tiff_file, gdal.GA_ReadOnly)
+            band = ds.GetRasterBand(1)
+            data = band.ReadAsArray()
+            geotransform = ds.GetGeoTransform()
+            projection = ds.GetProjection()
+
+            data, nodata_value = self.fix_extreme_values(data)
+            data = data.astype(np.float32)
+            mask = (data == nodata_value) | np.isnan(data)
+
+            if order:
+                detrended_data = self.remove_gradient(data, mask)
+            else:
+                detrended_data = self.remove_2o_gradient(data, mask)
+
+            valid_data = detrended_data[~mask]
+
+            if first:
+                first = False
+                reference_std = np.std(valid_data)
+
+            normalized_data = (
+                reference_std
+                * (detrended_data - np.mean(valid_data))
+                / np.std(valid_data)
+            )
+
+            normalized_data[mask] = nodata_value
+
+            driver = gdal.GetDriverByName("GTiff")
+            output_path = os.path.join(output_folder, os.path.basename(tiff_file))
+            out_ds = driver.Create(
+                output_path, ds.RasterXSize, ds.RasterYSize, 1, gdal.GDT_Float32
+            )
+            out_ds.SetGeoTransform(geotransform)
+            out_ds.SetProjection(projection)
+            out_band = out_ds.GetRasterBand(1)
+            out_band.WriteArray(normalized_data)
+            out_band.SetNoDataValue(nodata_value)
+            out_band.FlushCache()
+
+            print(f"Saved: {output_path}")
 
 
 if __name__ == "__main__":

@@ -127,15 +127,6 @@ class GeophysicalProcessor:
         final_image = padded_image * hanning_window
         return final_image
 
-        if method == "mirror":
-            return np.pad(data_zero, pad_width=buffer_size, mode="linear_ramp")
-        elif method == "zero":
-            return np.pad(
-                data_zero, pad_width=buffer_size, mode="constant", constant_values=0
-            )
-        else:
-            raise ValueError("Invalid buffer method. Choose 'mirror' or 'zero'.")
-
     def remove_buffer(self, data, buffer_size):
         """
         Remove the buffer from the edges of the grid.
@@ -277,6 +268,30 @@ class GeophysicalProcessor:
     def reduction_to_pole(
         self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
     ):
+        """
+        Perform Reduction to the Pole (RTP) transformation on geophysical data.
+        This method transforms magnetic data to what it would look like if the
+        magnetic field were vertical. This is useful for interpreting magnetic
+        anomalies.
+        Parameters:
+        -----------
+        data : np.ndarray
+            2D array of magnetic data to be transformed.
+        inclination : float
+            Inclination angle of the magnetic field in degrees.
+        declination : float
+            Declination angle of the magnetic field in degrees.
+        buffer_size : int, optional
+            Size of the buffer to be added around the data to minimize edge effects,
+            by default 10.
+        buffer_method : str, optional
+            Method to use for buffering the data, by default "mirror". Other options
+            might include "constant", "nearest", etc.
+        Returns:
+        --------
+        np.ndarray
+            2D array of the RTP transformed data.
+        """
         # Convert angles from degrees to radians
         inc, dec = np.radians(inclination), np.radians(declination)
 
@@ -835,6 +850,25 @@ class GeophysicalProcessor:
         return []
 
     def xyz_to_polylines(self, csv_file, output_shapefile, max_distance, crs):
+        """
+        Converts XYZ points from a CSV file into polylines and saves them as a shapefile.
+        Parameters:
+        csv_file (str): Path to the input CSV file containing XYZ points.
+        output_shapefile (str): Path to the output shapefile where polylines will be saved.
+        max_distance (float): Maximum distance between points to be considered part of the same cluster.
+        crs (int): Coordinate Reference System (CRS) EPSG code for the output shapefile.
+        Raises:
+        ValueError: If no valid LineStrings are created.
+        Notes:
+        - The CSV file should have columns named "x", "y", and "z".
+        - Points with a Z value less than 1.0 are ignored.
+        - Uses DBSCAN clustering to group points into clusters based on the max_distance.
+        - Each cluster is processed into a polyline if it contains more than one point.
+        - The resulting polylines are saved in a shapefile with an attribute field "Z" indicating the Z value.
+        Example:
+        >>> processor = GeophysicalProcessor()
+        >>> processor.xyz_to_polylines("input.csv", "output.shp", 10.0, 4326)
+        """
         from sklearn.cluster import DBSCAN
 
         with open(csv_file, "r") as f:
@@ -977,7 +1011,23 @@ class GeophysicalProcessor:
         return mean, std
 
     def normalise_geotiffs(self, input_folder, output_folder, order):
-        """Process multiple GeoTIFFs using normalization parameters from the first GeoTIFF."""
+        """
+        Process multiple GeoTIFF files by normalizing them using parameters from the first GeoTIFF.
+        Args:
+            input_folder (str): Path to the folder containing input GeoTIFF files.
+            output_folder (str): Path to the folder where normalized GeoTIFF files will be saved.
+            order (bool): If True, remove first-order gradient; if False, remove second-order gradient.
+        Returns:
+            None
+        The function performs the following steps:
+            1. Reads all GeoTIFF files from the input folder.
+            2. For each GeoTIFF file:
+                a. Opens the file and reads the raster data.
+                b. Fixes extreme values in the data.
+                c. Removes the gradient (first-order or second-order) from the data.
+                d. Normalizes the data using the standard deviation of the valid data from the first GeoTIFF.
+                e. Saves the normalized data to a new GeoTIFF file in the output folder.
+        """
         tiff_files = sorted(glob.glob(os.path.join(input_folder, "*.tif")))
         if not tiff_files:
             print("No GeoTIFF files found.")

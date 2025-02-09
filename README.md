@@ -8,6 +8,8 @@
     
 ![SGTools image](dialog.png)       
 
+## MACOS USERS
+Until further notice, please ensure that the unzipped plugin directory is called SGTool (note case) before rezipping and installing...   
 
 ## Grav/Mag Filters   
    

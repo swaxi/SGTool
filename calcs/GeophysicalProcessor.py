@@ -16,16 +16,26 @@ import glob
 import os
 from osgeo import gdal
 from scipy.optimize import leastsq
+import platform
 
-
-from SGTool.worms.wormer import Wormer
-from SGTool.worms.Utility import (
-    GetExtent,
-    loadGrid,
-    numpy_array_to_raster,
-    insert_text_before_extension,
-    fill_nan,
-)
+if platform.system() == "Windows":
+    from SGTool.worms.wormer import Wormer
+    from SGTool.worms.Utility import (
+        GetExtent,
+        loadGrid,
+        numpy_array_to_raster,
+        insert_text_before_extension,
+        fill_nan,
+    )
+else:
+    from sgtool.worms.wormer import Wormer
+    from sgtool.worms.Utility import (
+        GetExtent,
+        loadGrid,
+        numpy_array_to_raster,
+        insert_text_before_extension,
+        fill_nan,
+    )
 import os
 
 

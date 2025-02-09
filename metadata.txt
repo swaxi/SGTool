@@ -24,6 +24,7 @@ changelog=0.2.8 Added Threshold to NaN tool
       * New conversion of worms to polyline shapefile option
       * New grid normalisation tool
       * New threshold to NaN tool      
+      * Apply Butterworth Filter before FFT calcs
       * Sun shading for 90 zenith reset to 88 as this can blow up otherwise
       * Better handling of irregular grids by using linear infill of NaNs
       * Checkboxes labels defined directly

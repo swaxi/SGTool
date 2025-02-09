@@ -17,15 +17,26 @@ import os
 from osgeo import gdal
 from scipy.optimize import leastsq
 
+import platform
 
-from sgtool.worms.wormer import Wormer
-from sgtool.worms.Utility import (
-    GetExtent,
-    loadGrid,
-    numpy_array_to_raster,
-    insert_text_before_extension,
-    fill_nan,
-)
+if platform.system() == "Windows":
+    from sgtool.worms.wormer import Wormer
+    from sgtool.worms.Utility import (
+        GetExtent,
+        loadGrid,
+        numpy_array_to_raster,
+        insert_text_before_extension,
+        fill_nan,
+    )
+else:
+    from SGTool.worms.wormer import Wormer
+    from SGTool.worms.Utility import (
+        GetExtent,
+        loadGrid,
+        numpy_array_to_raster,
+        insert_text_before_extension,
+        fill_nan,
+    )
 import os
 
 
@@ -268,30 +279,6 @@ class GeophysicalProcessor:
     def reduction_to_pole(
         self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
     ):
-        """
-        Perform Reduction to the Pole (RTP) transformation on geophysical data.
-        This method transforms magnetic data to what it would look like if the
-        magnetic field were vertical. This is useful for interpreting magnetic
-        anomalies.
-        Parameters:
-        -----------
-        data : np.ndarray
-            2D array of magnetic data to be transformed.
-        inclination : float
-            Inclination angle of the magnetic field in degrees.
-        declination : float
-            Declination angle of the magnetic field in degrees.
-        buffer_size : int, optional
-            Size of the buffer to be added around the data to minimize edge effects,
-            by default 10.
-        buffer_method : str, optional
-            Method to use for buffering the data, by default "mirror". Other options
-            might include "constant", "nearest", etc.
-        Returns:
-        --------
-        np.ndarray
-            2D array of the RTP transformed data.
-        """
         # Convert angles from degrees to radians
         inc, dec = np.radians(inclination), np.radians(declination)
 
@@ -594,8 +581,75 @@ class GeophysicalProcessor:
             data, filter_function_dc, buffer_size=buffer_size, buffer_method="mirror"
         )
 
-    # --- Internal Fourier Filter Application ---
     def _apply_fourier_filter(
+        self,
+        data,
+        filter_function,
+        buffer_size=10,
+        buffer_method="mirror",
+        butterworth_order=4,
+        cutoff_freq=0.5,
+    ):
+        """
+        Apply a Fourier-domain filter with buffering, NaN handling, and Butterworth filtering.
+
+        Parameters:
+        -----------
+        data : ndarray
+            Input data to be filtered
+        filter_function : callable
+            Function that generates the frequency domain filter
+        buffer_size : int
+            Size of the buffer to add around the edges
+        buffer_method : str
+            Method for buffering ('mirror', 'wrap', etc.)
+        butterworth_order : int
+            Order of the Butterworth filter (controls steepness of rolloff)
+        cutoff_freq : float
+            Cutoff frequency for the Butterworth filter (normalized to Nyquist)
+        """
+        # Handle NaN values
+        filled_data, nan_mask = self.fill_nan(data)
+
+        # Add buffer
+        buffered_data = self.add_buffer(filled_data, buffer_size, buffer_method)
+
+        # Apply Butterworth filter in spatial domain
+        ny, nx = buffered_data.shape
+        y, x = np.ogrid[:ny, :nx]
+        center_y, center_x = ny / 2, nx / 2
+
+        # Create radial distance matrix
+        radius = np.sqrt((x - center_x) ** 2 + (y - center_y) ** 2)
+
+        # Normalize radius to [0,1]
+        radius = radius / np.max(radius)
+
+        # Create Butterworth filter
+        butterworth = 1 / (1.0 + (radius / cutoff_freq) ** (2 * butterworth_order))
+
+        # Apply in Fourier domain
+        data_fft = fft2(buffered_data)
+        data_fft = np.fft.fftshift(data_fft)  # Shift zero frequency to center
+        data_fft = data_fft * butterworth  # Apply Butterworth filter
+        data_fft = np.fft.ifftshift(data_fft)  # Shift back
+
+        # Compute main filter
+        kx, ky = self.create_wavenumber_grids(nx, ny)
+        filter_array = filter_function(kx, ky)
+
+        # Apply main filter
+        filtered_fft = data_fft * filter_array
+
+        # Inverse transform
+        filtered_data = np.real(ifft2(filtered_fft))
+
+        # Remove buffer and restore NaNs
+        filtered_data = self.remove_buffer(filtered_data, buffer_size)
+        return self.restore_nan(filtered_data, nan_mask)
+
+    # --- Internal Fourier Filter Application ---
+    def _apply_fourier_filter_nobw(
         self, data, filter_function, buffer_size=10, buffer_method="mirror"
     ):
         """
@@ -737,7 +791,7 @@ class GeophysicalProcessor:
                 np.savetxt(f, filtered_points, delimiter=",", fmt="%s")
 
         if shps:
-            max_distance = job.geomat[1] * 1.3
+            max_distance = job.geomat[1] * 1.5
             in_path = wormsPath
             out_path = wormsPath.replace(".csv", ".shp")
             self.xyz_to_polylines(in_path, out_path, max_distance, crs)
@@ -850,25 +904,6 @@ class GeophysicalProcessor:
         return []
 
     def xyz_to_polylines(self, csv_file, output_shapefile, max_distance, crs):
-        """
-        Converts XYZ points from a CSV file into polylines and saves them as a shapefile.
-        Parameters:
-        csv_file (str): Path to the input CSV file containing XYZ points.
-        output_shapefile (str): Path to the output shapefile where polylines will be saved.
-        max_distance (float): Maximum distance between points to be considered part of the same cluster.
-        crs (int): Coordinate Reference System (CRS) EPSG code for the output shapefile.
-        Raises:
-        ValueError: If no valid LineStrings are created.
-        Notes:
-        - The CSV file should have columns named "x", "y", and "z".
-        - Points with a Z value less than 1.0 are ignored.
-        - Uses DBSCAN clustering to group points into clusters based on the max_distance.
-        - Each cluster is processed into a polyline if it contains more than one point.
-        - The resulting polylines are saved in a shapefile with an attribute field "Z" indicating the Z value.
-        Example:
-        >>> processor = GeophysicalProcessor()
-        >>> processor.xyz_to_polylines("input.csv", "output.shp", 10.0, 4326)
-        """
         from sklearn.cluster import DBSCAN
 
         with open(csv_file, "r") as f:
@@ -1011,23 +1046,7 @@ class GeophysicalProcessor:
         return mean, std
 
     def normalise_geotiffs(self, input_folder, output_folder, order):
-        """
-        Process multiple GeoTIFF files by normalizing them using parameters from the first GeoTIFF.
-        Args:
-            input_folder (str): Path to the folder containing input GeoTIFF files.
-            output_folder (str): Path to the folder where normalized GeoTIFF files will be saved.
-            order (bool): If True, remove first-order gradient; if False, remove second-order gradient.
-        Returns:
-            None
-        The function performs the following steps:
-            1. Reads all GeoTIFF files from the input folder.
-            2. For each GeoTIFF file:
-                a. Opens the file and reads the raster data.
-                b. Fixes extreme values in the data.
-                c. Removes the gradient (first-order or second-order) from the data.
-                d. Normalizes the data using the standard deviation of the valid data from the first GeoTIFF.
-                e. Saves the normalized data to a new GeoTIFF file in the output folder.
-        """
+        """Process multiple GeoTIFFs using normalization parameters from the first GeoTIFF."""
         tiff_files = sorted(glob.glob(os.path.join(input_folder, "*.tif")))
         if not tiff_files:
             print("No GeoTIFF files found.")

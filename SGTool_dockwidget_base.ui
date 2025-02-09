@@ -2544,7 +2544,7 @@ font-size: 13px;
         <x>90</x>
         <y>270</y>
         <width>421</width>
-        <height>101</height>
+        <height>241</height>
        </rect>
       </property>
       <property name="text">
@@ -2566,7 +2566,7 @@ font-size: 13px;
       <property name="geometry">
        <rect>
         <x>190</x>
-        <y>410</y>
+        <y>530</y>
         <width>171</width>
         <height>23</height>
        </rect>

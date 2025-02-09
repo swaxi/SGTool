@@ -28,8 +28,8 @@ if platform.system() == "Windows":
         fill_nan,
     )
 else:
-    from SGTool.worms.wormer import Wormer
-    from SGTool.worms.Utility import (
+    from ..worms.wormer import Wormer
+    from ..worms.Utility import (
         GetExtent,
         loadGrid,
         numpy_array_to_raster,

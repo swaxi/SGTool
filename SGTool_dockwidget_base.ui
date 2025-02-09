@@ -43,7 +43,7 @@ font-size: 12px;</string>
       <x>10</x>
       <y>0</y>
       <width>593</width>
-      <height>731</height>
+      <height>671</height>
      </rect>
     </property>
     <property name="minimumSize">
@@ -1948,7 +1948,7 @@ font-size: 13px;
         <x>10</x>
         <y>200</y>
         <width>551</width>
-        <height>191</height>
+        <height>131</height>
        </rect>
       </property>
       <property name="title">
@@ -1957,8 +1957,8 @@ font-size: 13px;
       <widget class="QLabel" name="nx_label">
        <property name="geometry">
         <rect>
-         <x>280</x>
-         <y>100</y>
+         <x>460</x>
+         <y>20</y>
          <width>31</width>
          <height>16</height>
         </rect>
@@ -1975,8 +1975,8 @@ font-size: 13px;
       <widget class="QLabel" name="label_51">
        <property name="geometry">
         <rect>
-         <x>190</x>
-         <y>100</y>
+         <x>370</x>
+         <y>20</y>
          <width>61</width>
          <height>16</height>
         </rect>
@@ -1995,8 +1995,8 @@ font-size: 13px;
       <widget class="QLabel" name="label_49">
        <property name="geometry">
         <rect>
-         <x>250</x>
-         <y>100</y>
+         <x>430</x>
+         <y>20</y>
          <width>16</width>
          <height>16</height>
         </rect>
@@ -2016,8 +2016,8 @@ font-size: 13px;
       <widget class="QLabel" name="ny_label">
        <property name="geometry">
         <rect>
-         <x>340</x>
-         <y>100</y>
+         <x>460</x>
+         <y>50</y>
          <width>41</width>
          <height>16</height>
         </rect>
@@ -2034,8 +2034,8 @@ font-size: 13px;
       <widget class="QLabel" name="label_48">
        <property name="geometry">
         <rect>
-         <x>310</x>
-         <y>100</y>
+         <x>430</x>
+         <y>50</y>
          <width>16</width>
          <height>16</height>
         </rect>
@@ -2056,7 +2056,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>0</x>
-         <y>100</y>
+         <y>90</y>
          <width>67</width>
          <height>16</height>
         </rect>
@@ -2077,7 +2077,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>150</x>
-         <y>30</y>
+         <y>20</y>
          <width>201</width>
          <height>21</height>
         </rect>
@@ -2087,7 +2087,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>30</y>
+         <y>20</y>
          <width>131</width>
          <height>16</height>
         </rect>
@@ -2103,7 +2103,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>60</y>
+         <y>50</y>
          <width>131</width>
          <height>20</height>
         </rect>
@@ -2119,7 +2119,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>150</x>
-         <y>60</y>
+         <y>50</y>
          <width>201</width>
          <height>22</height>
         </rect>
@@ -2129,7 +2129,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>90</x>
-         <y>100</y>
+         <y>90</y>
          <width>81</width>
          <height>22</height>
         </rect>
@@ -2153,8 +2153,8 @@ font-size: 13px;
       <widget class="QPushButton" name="pushButton_idw_2">
        <property name="geometry">
         <rect>
-         <x>30</x>
-         <y>150</y>
+         <x>210</x>
+         <y>90</y>
          <width>131</width>
          <height>23</height>
         </rect>
@@ -2166,8 +2166,8 @@ font-size: 13px;
       <widget class="QPushButton" name="pushButton_bspline_3">
        <property name="geometry">
         <rect>
-         <x>190</x>
-         <y>150</y>
+         <x>370</x>
+         <y>90</y>
          <width>141</width>
          <height>23</height>
         </rect>
@@ -2181,9 +2181,9 @@ font-size: 13px;
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>400</y>
+        <y>340</y>
         <width>551</width>
-        <height>161</height>
+        <height>151</height>
        </rect>
       </property>
       <property name="title">
@@ -2282,7 +2282,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>400</x>
-         <y>130</y>
+         <y>110</y>
          <width>131</width>
          <height>23</height>
         </rect>
@@ -2345,8 +2345,8 @@ font-size: 13px;
       <widget class="QCheckBox" name="checkBox_worms_shp">
        <property name="geometry">
         <rect>
-         <x>250</x>
-         <y>110</y>
+         <x>370</x>
+         <y>20</y>
          <width>171</width>
          <height>17</height>
         </rect>
@@ -2363,7 +2363,7 @@ font-size: 13px;
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>570</y>
+        <y>500</y>
         <width>551</width>
         <height>121</height>
        </rect>
@@ -2524,7 +2524,7 @@ font-size: 13px;
        <rect>
         <x>90</x>
         <y>120</y>
-        <width>381</width>
+        <width>431</width>
         <height>101</height>
        </rect>
       </property>
@@ -2543,7 +2543,7 @@ font-size: 13px;
        <rect>
         <x>90</x>
         <y>270</y>
-        <width>481</width>
+        <width>421</width>
         <height>101</height>
        </rect>
       </property>

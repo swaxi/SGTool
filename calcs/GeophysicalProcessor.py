@@ -19,8 +19,8 @@ from scipy.optimize import leastsq
 import platform
 
 if platform.system() == "Windows":
-    from SGTool.worms.wormer import Wormer
-    from SGTool.worms.Utility import (
+    from sgtool.worms.wormer import Wormer
+    from sgtool.worms.Utility import (
         GetExtent,
         loadGrid,
         numpy_array_to_raster,

@@ -18,24 +18,14 @@ from osgeo import gdal
 from scipy.optimize import leastsq
 import platform
 
-if platform.system() == "Windows":
-    from sgtool.worms.wormer import Wormer
-    from sgtool.worms.Utility import (
-        GetExtent,
-        loadGrid,
-        numpy_array_to_raster,
-        insert_text_before_extension,
-        fill_nan,
-    )
-else:
-    from ..worms.wormer import Wormer
-    from ..worms.Utility import (
-        GetExtent,
-        loadGrid,
-        numpy_array_to_raster,
-        insert_text_before_extension,
-        fill_nan,
-    )
+from ..worms.wormer import Wormer
+from ..worms.Utility import (
+    GetExtent,
+    loadGrid,
+    numpy_array_to_raster,
+    insert_text_before_extension,
+    fill_nan,
+)
 import os
 
 

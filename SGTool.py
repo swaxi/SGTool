@@ -91,7 +91,7 @@ from datetime import datetime
 from pyproj import Transformer
 import processing
 from osgeo import gdal, osr
-import sys
+import platform
 
 
 class SGTool:
@@ -137,7 +137,14 @@ class SGTool:
 
         def install_library(library_name):
             try:
-                subprocess.check_call(["python3", "-m", "pip3", "install", library_name])
+                if platform.system == "Windows":
+                    subprocess.check_call(
+                        ["python", "-m", "pip", "install", library_name]
+                    )
+                else:
+                    subprocess.check_call(
+                        ["python3", "-m", "pip3", "install", library_name]
+                    )
                 print(f"Successfully installed {library_name}")
             except subprocess.CalledProcessError as e:
                 print(f"Error installing {library_name}: {e}")

@@ -39,7 +39,6 @@ from qgis.core import (
     QgsProcessingFeedback,
 )
 
-
 from qgis.PyQt.QtWidgets import QAction, QFileDialog
 from qgis.PyQt.QtCore import (
     QSettings,
@@ -49,6 +48,8 @@ from qgis.PyQt.QtCore import (
     QVariant,
     Qt,
 )
+from qgis.PyQt.QtWidgets import QDockWidget
+from qgis.PyQt.QtCore import Qt
 
 from qgis.core import QgsRasterLayer
 from qgis.core import (
@@ -321,7 +322,7 @@ class SGTool:
         self.dlg.lineEdit_5_dec.setToolTip(
             "Manually define magnetic declination [degrees clockwise from North]"
         )
-        self.dlg.lineEdit_7_height.setToolTip("Survey height [m or other length unit]")
+        self.dlg.lineEdit_6_int.setToolTip("Survey intensity in nT")
         self.dlg.dateEdit.setToolTip("Survey date (1900-2025)")
         self.dlg.checkBox_4_PGrav.setToolTip(
             "Vertical Integration:\nWhen applied to RTE/P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing."
@@ -556,7 +557,7 @@ class SGTool:
         self.RTE_P_type = self.dlg.comboBox_3_rte_p_list.currentText()
         self.RTE_P_inc = self.dlg.lineEdit_6_inc.text()
         self.RTE_P_dec = self.dlg.lineEdit_5_dec.text()
-        self.RTE_P_height = self.dlg.lineEdit_7_height.text()
+        self.RTE_P_int = self.dlg.lineEdit_6_int.text()
         date_text = str(self.dlg.dateEdit.date().toPyDate())
         date_split = date_text.split("-")
         self.RTE_P_date = [int(date_split[2]), int(date_split[1]), int(date_split[0])]
@@ -765,6 +766,7 @@ class SGTool:
                     declination=float(self.RTE_P_dec),
                     buffer_size=self.buffer,
                 )
+                self.new_grid = self.new_grid  # * float(self.RTE_P_int)
                 self.suffix = "_RTE"
 
     def procRemRegional(self):
@@ -1409,6 +1411,8 @@ class SGTool:
                         filename_without_extension
                     ):
                         os.remove(self.diskGridPath)
+                        if os.path.exists(self.diskGridPath + "aux.xml"):
+                            os.remove(self.diskGridPath + "aux.xml")
 
                     basename = os.path.basename(self.diskGridPath)
                     extension = os.path.splitext(basename)[1].lower()
@@ -1530,6 +1534,8 @@ class SGTool:
         if os.path.exists(raster_path):
             try:
                 os.remove(raster_path)
+                if os.path.exists(raster_path + "aux.xml"):
+                    os.remove(raster_path + "aux.xml")
             except:
                 self.iface.messageBar().pushMessage(
                     "Couldn't delete layer, may be open in another program? On windows files on non-C: drive may be hard to delete",
@@ -1629,7 +1635,7 @@ class SGTool:
             self.base_name = self.localGridName
 
             # retrieve parameters
-            self.magn_SurveyHeight = self.dlg.lineEdit_7_height.text()
+            self.magn_int = self.dlg.lineEdit_6_int.text()
             date_text = str(self.dlg.dateEdit.date().toPyDate())
 
             date_split = date_text.split("-")
@@ -1659,14 +1665,16 @@ class SGTool:
                     self.magn_SurveyYear, self.magn_SurveyMonth, self.magn_SurveyDay
                 )
 
-                I, D = self.calcIGRF(date, float(self.magn_SurveyHeight), lat, long)
+                I, D, intensity = self.calcIGRF(date, float(100.0), lat, long)
 
                 self.RTE_P_inc = I
                 self.RTE_P_dec = D
+                self.RTE_P_int = intensity
 
                 # update widgets
                 self.dlg.lineEdit_5_dec.setText(str(round(self.RTE_P_dec, 1)))
                 self.dlg.lineEdit_6_inc.setText(str(round(self.RTE_P_inc, 1)))
+                self.dlg.lineEdit_6_int.setText(str(int(self.RTE_P_int)))
             else:
                 self.iface.messageBar().pushMessage(
                     "Sorry, I couldn't interpret the projection system of this layer, try either saving out grid or define the Inc/Dec manually.",
@@ -1755,9 +1763,10 @@ class SGTool:
             Xm = Xm * cd + Zm * sd
             Zm = Zm * cd - t * sd
 
+        intensity = np.sqrt(X**2 + Y**2 + Z**2)
         # Compute the four non-linear components
         dec, hoz, inc, eff = iut.xyz2dhif(X, Y, Z)
-        return inc, dec
+        return inc, dec, intensity
 
     def extract_raster_to_numpy(self, raster_layer):
         """
@@ -1923,6 +1932,21 @@ class SGTool:
             # show the dockwidget
             # TODO: fix to allow choice of dock location
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dlg)
+
+            # Find existing dock widgets in the right area
+            right_docks = [
+                d
+                for d in self.iface.mainWindow().findChildren(QDockWidget)
+                if self.iface.mainWindow().dockWidgetArea(d) == Qt.RightDockWidgetArea
+            ]
+            # If there are other dock widgets, tab this one with the first one found
+            if right_docks:
+                for dock in right_docks:
+                    if dock != self.dlg:
+                        self.iface.mainWindow().tabifyDockWidget(dock, self.dlg)
+                        # Optionally, bring your plugin tab to the front
+                        self.dlg.raise_()
+                        break
             # Raise the docked widget above others
             self.dlg.show()
             self.define_tips()
@@ -2372,6 +2396,7 @@ class SGTool:
 
         lut = self.generate_rgb_lut(css_color_list, num_entries=1024)
         if not lut:
+            print("Couldn't generate LUT")
             return False, False
 
         scalar_values, lut_colors = zip(*lut)
@@ -2406,11 +2431,7 @@ class SGTool:
         # Prepare output file
         driver = gdal.GetDriverByName("GTiff")
         RGBGridPath_gray = self.insert_text_before_extension(RGBGridPath, "_gray")
-        """print(
-            RGBGridPath_gray,
-            dataset.RasterXSize,
-            dataset.RasterYSize,
-        )"""
+        print(RGBGridPath_gray, dataset.RasterXSize, dataset.RasterYSize, projection)
         output_dataset = driver.Create(
             RGBGridPath_gray,
             dataset.RasterXSize,

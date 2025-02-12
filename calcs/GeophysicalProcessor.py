@@ -266,121 +266,196 @@ class GeophysicalProcessor:
         return thg
 
     def reduction_to_pole(
-        self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
+        self,
+        data,
+        inclination,
+        declination,
+        magnetization_inclination=None,
+        magnetization_declination=None,
+        buffer_size=10,
+        buffer_method="mirror",
     ):
         """
-        Perform Reduction to the Pole (RTP) transformation on geophysical data.
-        This method transforms magnetic data to what it would look like if the
-        magnetic field were vertical. This is useful for interpreting magnetic
-        anomalies.
-        Parameters:
-        -----------
-        data : np.ndarray
-            2D array of magnetic data to be transformed.
+        Apply reduction to the pole filter in the frequency domain.
+        (Based on Fatiando a Terra https://github.com/fatiando/harmonica/blob/main/harmonica/filters/_filters.py)
+
+        Parameters
+        ----------
+        data : array-like
+            Input magnetic data to be transformed
         inclination : float
-            Inclination angle of the magnetic field in degrees.
+            The inclination of the inducing Geomagnetic field in degrees
         declination : float
-            Declination angle of the magnetic field in degrees.
-        buffer_size : int, optional
-            Size of the buffer to be added around the data to minimize edge effects,
-            by default 10.
-        buffer_method : str, optional
-            Method to use for buffering the data, by default "mirror". Other options
-            might include "constant", "nearest", etc.
-        Returns:
-        --------
-        np.ndarray
-            2D array of the RTP transformed data.
+            The declination of the inducing Geomagnetic field in degrees
+        magnetization_inclination : float or None
+            The inclination of the total magnetization of the anomaly source in degrees
+        magnetization_declination : float or None
+            The declination of the total magnetization of the anomaly source in degrees
+        buffer_size : int
+            Size of the buffer zone for reducing edge effects
+        buffer_method : str
+            Method for handling the buffer zone ("mirror", "mean", etc.)
+
+        Returns
+        -------
+        array-like
+            The reduced to pole magnetic data
         """
-        # Convert angles from degrees to radians
-        inc, dec = np.radians(inclination), np.radians(declination)
+        if inclination < 0:
+            inclination = -inclination
+            declination = -declination
 
-        # Handle NaN values
-        filled_data, nan_mask = self.fill_nan(data)
+        if magnetization_declination is None and magnetization_inclination is None:
+            magnetization_inclination = inclination
+            magnetization_declination = declination
 
-        # Add buffer
-        buffered_data = self.add_buffer(filled_data, buffer_size, buffer_method)
+        # Transform to radians
+        inc_rad = np.radians(inclination)
+        dec_rad = -np.radians(declination)
 
-        # Calculate frequency coordinates
-        ny, nx = buffered_data.shape
-        kx = fftfreq(nx, self.dx) * 2 * np.pi
-        ky = fftfreq(ny, self.dy) * 2 * np.pi
-        kx, ky = np.meshgrid(kx, ky, indexing="ij")
-        k = np.sqrt(kx**2 + ky**2) + 1e-10  # Avoid division by zero
+        # Calculate the 3 components
+        m_e = np.cos(inc_rad) * np.sin(dec_rad)
+        m_n = np.cos(inc_rad) * np.cos(dec_rad)
+        m_z = np.sin(inc_rad)
 
-        # Directional cosines
-        cos_inc = np.cos(inc)
-        sin_inc = np.sin(inc)
-        cos_dec = np.cos(dec)
-        sin_dec = np.sin(dec)
+        f_e, f_n, f_z = m_e, m_n, m_z
 
-        # RTP filter
-        with np.errstate(divide="ignore", invalid="ignore"):
-            rtp_filter = (
-                k * cos_inc * cos_dec + 1j * ky * cos_inc * sin_dec + kx * sin_inc
-            ) / k
+        def filter_function(kx, ky):
+            """
+            Generate the reduction to pole filter in frequency domain with improved stability.
+            """
+            k_squared = kx**2 + ky**2
+            k = np.sqrt(k_squared)
 
-        rtp_filter[np.abs(rtp_filter) > 1e6] = 0  # Stabilize extreme values
+            # Calculate denominators separately
+            denom1 = f_z * k + 1j * (f_e * kx + f_n * ky)
+            denom2 = m_z * k + 1j * (m_e * kx + m_n * ky)
 
-        # Apply max_wavenumber filtering based on cell size
-        # rtp_filter[k > 1/(float(self.dx)*2)] = 0
+            # Small value to prevent division by zero
+            epsilon = 1e-10
 
-        # Apply RTP filter in the Fourier domain
-        data_fft = fft2(buffered_data)
-        data_rtp_fft = data_fft * rtp_filter.T
+            # Create masks for small values
+            mask1 = np.abs(denom1) > epsilon
+            mask2 = np.abs(denom2) > epsilon
+            mask = mask1 & mask2
 
-        data_rtp = np.real(ifft2(data_rtp_fft))
+            # Initialize filter array with zeros
+            rtp_filter = np.zeros_like(k, dtype=complex)
 
-        # Remove buffer and restore NaNs
-        filtered_data = self.remove_buffer(data_rtp, buffer_size)
-        return self.restore_nan(filtered_data, nan_mask)
+            # Calculate filter only where denominators are large enough
+            rtp_filter[mask] = k_squared[mask] / (denom1[mask] * denom2[mask])
+
+            # Calculate theta (angle between wavenumber vector and north)
+            theta = np.abs(np.arctan2(ky, kx) - dec_rad)
+
+            # Apply tapers and stabilization
+            alpha = 0.5
+            theta_cap = np.radians(65)  # Convert to radians
+
+            # Wavenumber taper
+            k_max = np.max(k)
+            k_taper = np.exp(-alpha * (k / k_max) ** 2 / 2)
+
+            # Directional taper
+            dir_taper = np.ones_like(theta)
+            critical_angles = theta < theta_cap
+            dir_taper[critical_angles] = 0.2 + 0.8 * np.sin(theta[critical_angles])
+
+            # Combined taper
+            taper = k_taper * dir_taper
+
+            # Apply taper
+            rtp_filter *= taper
+
+            # Additional stability constraints for low inclinations
+            incl_factor = np.abs(np.sin(inc_rad))
+            if incl_factor < 0.2:  # Near equator
+                rtp_filter *= np.exp(-((1 - incl_factor) * (k / k_max) ** 2))
+
+            # Set specific values to zero
+            rtp_filter[k == 0] = 0  # DC component
+            rtp_filter[~np.isfinite(rtp_filter)] = 0  # Non-finite values
+            rtp_filter[np.abs(rtp_filter) > 1e6] = 0  # Extremely large values
+
+            return rtp_filter
+
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
 
     def reduction_to_equator(
-        self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
+        self,
+        data,
+        inclination,
+        declination,
+        buffer_size=20,  # Increased buffer size
+        buffer_method="mirror",
+        epsilon=1e-06,
     ):
-        # Convert angles from degrees to radians
-        inc, dec = np.radians(inclination), np.radians(declination)
+        """
+        Apply reduction to the equator filter with enhanced anti-striping measures.
+        """
 
-        # Handle NaN values
-        filled_data, nan_mask = self.fill_nan(data)
+        # If inclination/declination of the source is unknown, apply a small perturbation
+        inclination2 = (
+            inclination  # + 0.1  # Small perturbation to avoid zero numerator
+        )
+        declination2 = declination  # + 0.1
 
-        # Add buffer
-        buffered_data = self.add_buffer(filled_data, buffer_size, buffer_method)
+        # Convert degrees to radians
+        inc_rad = np.radians(-inclination)
+        dec_rad = np.radians(-declination)
+        inclination_rad = np.radians(-inclination2)
+        declination_rad = np.radians(-declination2)
 
-        # Calculate frequency coordinates
-        ny, nx = buffered_data.shape
-        kx = fftfreq(nx, self.dx) * 2 * np.pi
-        ky = fftfreq(ny, self.dy) * 2 * np.pi
-        kx, ky = np.meshgrid(kx, ky, indexing="ij")
-        k = np.sqrt(kx**2 + ky**2) + 1e-10  # Avoid division by zero
+        # Get data shape
+        ny, nx = data.shape
 
-        # Directional cosines
-        cos_inc = np.cos(inc)
-        sin_inc = np.sin(inc)
-        cos_dec = np.cos(dec)
-        sin_dec = np.sin(dec)
+        # Create properly scaled wavenumber grids
+        kx = np.fft.fftfreq(nx, d=self.dx) * (
+            2 * np.pi
+        )  # Convert to spatial frequency (radians per unit)
+        ky = np.fft.fftfreq(ny, d=self.dy) * (2 * np.pi)
+        kx, ky = np.meshgrid(kx, ky)
 
-        # RTP filter
-        # rte_filter = theta_f
-        with np.errstate(divide="ignore", invalid="ignore"):
-            rte_filter = (
-                k * cos_inc * cos_dec + 1j * ky * cos_inc * sin_dec + kx * sin_inc
-            ) / (k * cos_inc * cos_dec - 1j * ky * cos_inc * sin_dec + kx * sin_inc)
+        def filter_function(kx, ky):
+            # Compute wavenumber magnitude (ensuring nonzero values)
+            k = np.sqrt(kx**2 + ky**2)
+            k = np.where(k < epsilon, epsilon, k)  # Avoid zero-division
 
-        rte_filter[np.abs(rte_filter) > 1e6] = 0  # Stabilize extreme values
+            # Compute Fourier-space angle theta
+            theta = np.arctan2(ky, kx)
 
-        # Apply max_wavenumber filtering based on cell size
-        # rte_filter[k > 1/(float(self.dx)*2)] = 0
+            # Compute magnetic field components with correction
+            P1 = np.cos(inclination_rad) * np.sin(inc_rad) - np.sin(
+                inclination_rad
+            ) * np.cos(inc_rad) * np.cos(dec_rad - declination_rad)
+            P2 = (
+                np.cos(inclination_rad)
+                * np.cos(inc_rad)
+                * np.sin(dec_rad - declination_rad)
+            )
 
-        # Apply RTP filter in the Fourier domain
-        data_fft = fft2(buffered_data)
-        data_rte_fft = data_fft * rte_filter.T
+            # Ensure P1 and P2 are not zero by adding a minimal perturbation if needed
+            P1 = np.where(np.abs(P1) < epsilon, epsilon, P1)
+            P2 = np.where(np.abs(P2) < epsilon, epsilon, P2)
 
-        data_rte = np.real(ifft2(data_rte_fft))
+            # Compute denominator and ensure non-zero values
+            denom = np.cos(inc_rad) + 1j * np.sin(inc_rad) * np.sin(theta - dec_rad)
+            denom = np.where(np.abs(denom) < epsilon, epsilon, denom)
 
-        # Remove buffer and restore NaNs
-        filtered_data = self.remove_buffer(data_rte, buffer_size)
-        return self.restore_nan(filtered_data, nan_mask)
+            # Compute the improved RTE filter
+            F_rte = (P1 + 1j * P2) / denom
+            # Set specific values to zero
+            F_rte[k == 0] = 0  # DC component
+            F_rte[~np.isfinite(F_rte)] = 0  # Non-finite values
+            F_rte[np.abs(F_rte) > 1e6] = 0  # Extremely large values
+
+            return F_rte
+
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
 
     # --- Derivatives ---
     def compute_derivative(

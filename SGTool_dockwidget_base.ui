@@ -149,6 +149,12 @@ QTabBar::tab:hover {
         <height>23</height>
        </rect>
       </property>
+      <property name="font">
+       <font>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
       <property name="text">
        <string>Apply Processing</string>
       </property>
@@ -1415,6 +1421,12 @@ font-style: italic;</string>
          <height>23</height>
         </rect>
        </property>
+       <property name="font">
+        <font>
+         <weight>75</weight>
+         <bold>true</bold>
+        </font>
+       </property>
        <property name="text">
         <string>Convert Grid</string>
        </property>
@@ -1547,10 +1559,16 @@ font-style: italic;</string>
       <property name="geometry">
        <rect>
         <x>20</x>
-        <y>320</y>
+        <y>300</y>
         <width>131</width>
         <height>23</height>
        </rect>
+      </property>
+      <property name="font">
+       <font>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
       </property>
       <property name="text">
        <string>Apply Processing</string>
@@ -1588,7 +1606,7 @@ font-style: italic;</string>
         <x>20</x>
         <y>220</y>
         <width>461</width>
-        <height>80</height>
+        <height>71</height>
        </rect>
       </property>
       <property name="title">
@@ -1779,6 +1797,12 @@ font-size: 13px;
          <width>101</width>
          <height>23</height>
         </rect>
+       </property>
+       <property name="font">
+        <font>
+         <weight>75</weight>
+         <bold>true</bold>
+        </font>
        </property>
        <property name="text">
         <string>Import Data</string>
@@ -2044,6 +2068,12 @@ font-size: 13px;
          <height>23</height>
         </rect>
        </property>
+       <property name="font">
+        <font>
+         <weight>75</weight>
+         <bold>true</bold>
+        </font>
+       </property>
        <property name="text">
         <string>IDW Gridding</string>
        </property>
@@ -2056,6 +2086,12 @@ font-size: 13px;
          <width>141</width>
          <height>23</height>
         </rect>
+       </property>
+       <property name="font">
+        <font>
+         <weight>75</weight>
+         <bold>true</bold>
+        </font>
        </property>
        <property name="text">
         <string>BSpline Gridding</string>
@@ -2171,6 +2207,12 @@ font-size: 13px;
          <width>131</width>
          <height>23</height>
         </rect>
+       </property>
+       <property name="font">
+        <font>
+         <weight>75</weight>
+         <bold>true</bold>
+        </font>
        </property>
        <property name="text">
         <string>Calculate Worms</string>
@@ -2463,6 +2505,12 @@ font-size: 13px;
          <height>23</height>
         </rect>
        </property>
+       <property name="font">
+        <font>
+         <weight>75</weight>
+         <bold>true</bold>
+        </font>
+       </property>
        <property name="text">
         <string>Normalise Grids</string>
        </property>
@@ -2552,6 +2600,12 @@ font-size: 13px;
         <height>23</height>
        </rect>
       </property>
+      <property name="font">
+       <font>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
       <property name="text">
        <string>Plugin Repository</string>
       </property>
@@ -2607,6 +2661,12 @@ font-size: 13px;
         <width>171</width>
         <height>23</height>
        </rect>
+      </property>
+      <property name="font">
+       <font>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
       </property>
       <property name="text">
        <string>Help File</string>

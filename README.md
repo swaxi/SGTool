@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.2.8
+# Structural Geophysics Tool v0.2.9
  Simple Potential Field Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
@@ -157,6 +157,10 @@ Define upper or lower bound (or range) for which values will be set to NaN (i.e.
 ## Normalise Grids   
 **Normalise Grids**   
 Normalise the means and standard deviations of a series of grids in a directory to minimse mismatches in merged grids. Does not consider overlaps between grids, simply standardises data and removes a first or second order regional.     
+   
+## Create Clipping Polygon   
+**Create Clipping Polygon**   
+Create one or more polygons outlining the available data in the grid. Useful, amongst other things, for clipping worms to grid area..     
    
       
 # Installation

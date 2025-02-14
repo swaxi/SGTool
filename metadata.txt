@@ -22,6 +22,8 @@ hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
 changelog=0.2.9 Docked widget now adds in tabified mode if another widget already there
       * Reformulated RTP & RTE codes
+      * Add grid outline tool
+      * Add extra Utils tab to declutter GUI (for now!)
     0.2.8 Added Threshold to NaN tool
       * New conversion of worms to polyline shapefile option
       * New grid normalisation tool

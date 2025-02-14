@@ -498,6 +498,8 @@ class SGTool:
             "2nd order polynomial regional removed from grid (slower)"
         )
 
+        self.dlg.checkBox_polygons.setToolTip("Create grid outline polygon(s) layer")
+
     def initParams(self):
         self.localGridName = ""
         self.diskGridPath = ""
@@ -618,6 +620,8 @@ class SGTool:
             self.NaN_Condition = "between"
         self.NaN_Above = float(self.dlg.doubleSpinBox_NaN_Above.text())
         self.NaN_Below = float(self.dlg.doubleSpinBox_NaN_Below.text())
+
+        self.Polygons = self.dlg.checkBox_polygons.isChecked()
 
     def loadGrid(self):
         fileInfo = QFileInfo(self.diskGridPath)
@@ -921,6 +925,20 @@ class SGTool:
         )
         self.suffix = "_Sh"
 
+    def procPolygons(self):
+        if self.localGridName and self.localGridName != "":
+            self.parseParams()
+
+            self.layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
+            if self.layer.isValid():
+                print("is valid")
+            else:
+                print("isnt valid")
+            print(
+                "self.localGridName,self.layer", self.localGridName, self.layer.name()
+            )
+            self.SG_Util.create_data_boundary_lines(self.layer)
+
     def procNaN(self):
         self.new_grid = self.SG_Util.Threshold2Nan(
             self.raster_array,
@@ -1199,10 +1217,11 @@ class SGTool:
             if self.SunShade:
                 self.procSunShade()
                 self.addNewGrid()
-
             if self.NaN:
                 self.procNaN()
                 self.addNewGrid()
+            if self.Polygons:
+                self.procPolygons()
 
             self.resetCheckBoxes()
 
@@ -1229,6 +1248,7 @@ class SGTool:
         self.dlg.checkBox_SunShading.setChecked(False)
 
         self.dlg.checkBox_NaN.setChecked(False)
+        self.dlg.checkBox_polygons.setChecked(False)
 
         self.RTE_P = False
         self.TDR = False
@@ -1249,6 +1269,7 @@ class SGTool:
         self.Gaussian = False
         self.Direction = False
         self.SunShade = False
+        self.Polygons = False
 
     def is_layer_loaded(self, layer_name):
         """

@@ -64,7 +64,7 @@ font-size: 12px;</string>
 }
 
 QTabBar::tab {
-    min-width: 146px; 
+    min-width: 116px; 
     min-height: 23px;
 	background-color: rgb(220, 220, 220,255);
   	border-radius: 2px;	
@@ -1582,141 +1582,29 @@ font-style: italic;</string>
        </rect>
       </property>
      </widget>
-     <widget class="QGroupBox" name="groupBox_9">
+     <widget class="QGroupBox" name="groupBox_11">
       <property name="geometry">
        <rect>
         <x>20</x>
-        <y>229</y>
+        <y>220</y>
         <width>461</width>
-        <height>81</height>
+        <height>80</height>
        </rect>
       </property>
       <property name="title">
-       <string>Threshold to NaN</string>
+       <string>Create Cipiping Polygon</string>
       </property>
-      <widget class="QRadioButton" name="radioButton_NaN_Above">
-       <property name="geometry">
-        <rect>
-         <x>50</x>
-         <y>30</y>
-         <width>61</width>
-         <height>17</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Above</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-      <widget class="QRadioButton" name="radioButton_NaN_Below">
-       <property name="geometry">
-        <rect>
-         <x>140</x>
-         <y>30</y>
-         <width>61</width>
-         <height>17</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Below</string>
-       </property>
-      </widget>
-      <widget class="QRadioButton" name="radioButton_NaN_Both">
-       <property name="geometry">
-        <rect>
-         <x>220</x>
-         <y>30</y>
-         <width>91</width>
-         <height>17</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Between</string>
-       </property>
-      </widget>
-      <widget class="QDoubleSpinBox" name="doubleSpinBox_NaN_Above">
-       <property name="geometry">
-        <rect>
-         <x>370</x>
-         <y>20</y>
-         <width>81</width>
-         <height>22</height>
-        </rect>
-       </property>
-       <property name="minimum">
-        <double>-99999999999999996863366107917975552.000000000000000</double>
-       </property>
-       <property name="maximum">
-        <double>100000000000000000620008645040778319495168.000000000000000</double>
-       </property>
-       <property name="value">
-        <double>1.000000000000000</double>
-       </property>
-      </widget>
-      <widget class="QDoubleSpinBox" name="doubleSpinBox_NaN_Below">
-       <property name="geometry">
-        <rect>
-         <x>371</x>
-         <y>50</y>
-         <width>81</width>
-         <height>22</height>
-        </rect>
-       </property>
-       <property name="minimum">
-        <double>-1000000000000000042420637374017961984.000000000000000</double>
-       </property>
-       <property name="maximum">
-        <double>99999999999999997748809823456034029568.000000000000000</double>
-       </property>
-       <property name="value">
-        <double>-1.000000000000000</double>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_70">
-       <property name="geometry">
-        <rect>
-         <x>270</x>
-         <y>20</y>
-         <width>91</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Above</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_71">
-       <property name="geometry">
-        <rect>
-         <x>280</x>
-         <y>50</y>
-         <width>81</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Below</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
-      <widget class="QCheckBox" name="checkBox_NaN">
+      <widget class="QCheckBox" name="checkBox_polygons">
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>30</y>
-         <width>21</width>
+         <y>40</y>
+         <width>281</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
-        <string/>
+        <string>Create polygon based on grid</string>
        </property>
       </widget>
      </widget>
@@ -1732,7 +1620,7 @@ font-style: italic;</string>
 }</string>
      </property>
      <attribute name="title">
-      <string>Gridding + Worms</string>
+      <string>Grid + Worms</string>
      </attribute>
      <widget class="QPushButton" name="pushButton_22">
       <property name="geometry">
@@ -2356,11 +2244,163 @@ font-size: 13px;
        </property>
       </widget>
      </widget>
+    </widget>
+    <widget class="QWidget" name="Utils">
+     <property name="styleSheet">
+      <string notr="true">#Utils {
+	background-position: center;
+	background-repeat: no-repeat;
+	background-attachment: fixed; 
+	background-size: 100% 100%;
+	background-color: rgb(240, 240, 240,255);
+}</string>
+     </property>
+     <attribute name="title">
+      <string>Utils</string>
+     </attribute>
+     <widget class="QGroupBox" name="groupBox_9">
+      <property name="geometry">
+       <rect>
+        <x>20</x>
+        <y>20</y>
+        <width>461</width>
+        <height>81</height>
+       </rect>
+      </property>
+      <property name="title">
+       <string>Threshold to NaN</string>
+      </property>
+      <widget class="QRadioButton" name="radioButton_NaN_Above">
+       <property name="geometry">
+        <rect>
+         <x>50</x>
+         <y>30</y>
+         <width>61</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Above</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+      <widget class="QRadioButton" name="radioButton_NaN_Below">
+       <property name="geometry">
+        <rect>
+         <x>140</x>
+         <y>30</y>
+         <width>61</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Below</string>
+       </property>
+      </widget>
+      <widget class="QRadioButton" name="radioButton_NaN_Both">
+       <property name="geometry">
+        <rect>
+         <x>220</x>
+         <y>30</y>
+         <width>91</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Between</string>
+       </property>
+      </widget>
+      <widget class="QDoubleSpinBox" name="doubleSpinBox_NaN_Above">
+       <property name="geometry">
+        <rect>
+         <x>370</x>
+         <y>20</y>
+         <width>81</width>
+         <height>22</height>
+        </rect>
+       </property>
+       <property name="minimum">
+        <double>-99999999999999996863366107917975552.000000000000000</double>
+       </property>
+       <property name="maximum">
+        <double>100000000000000000620008645040778319495168.000000000000000</double>
+       </property>
+       <property name="value">
+        <double>1.000000000000000</double>
+       </property>
+      </widget>
+      <widget class="QDoubleSpinBox" name="doubleSpinBox_NaN_Below">
+       <property name="geometry">
+        <rect>
+         <x>371</x>
+         <y>50</y>
+         <width>81</width>
+         <height>22</height>
+        </rect>
+       </property>
+       <property name="minimum">
+        <double>-1000000000000000042420637374017961984.000000000000000</double>
+       </property>
+       <property name="maximum">
+        <double>99999999999999997748809823456034029568.000000000000000</double>
+       </property>
+       <property name="value">
+        <double>-1.000000000000000</double>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_70">
+       <property name="geometry">
+        <rect>
+         <x>270</x>
+         <y>20</y>
+         <width>91</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Above</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_71">
+       <property name="geometry">
+        <rect>
+         <x>280</x>
+         <y>50</y>
+         <width>81</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Below</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QCheckBox" name="checkBox_NaN">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>30</y>
+         <width>21</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string/>
+       </property>
+      </widget>
+     </widget>
      <widget class="QGroupBox" name="groupBox_10">
       <property name="geometry">
        <rect>
-        <x>10</x>
-        <y>500</y>
+        <x>20</x>
+        <y>120</y>
         <width>551</width>
         <height>121</height>
        </rect>

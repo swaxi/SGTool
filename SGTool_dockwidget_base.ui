@@ -1345,8 +1345,8 @@ font-style: italic;</string>
      <widget class="QGroupBox" name="groupBox_7">
       <property name="geometry">
        <rect>
-        <x>10</x>
-        <y>360</y>
+        <x>20</x>
+        <y>290</y>
         <width>561</width>
         <height>271</height>
        </rect>
@@ -1559,7 +1559,7 @@ font-style: italic;</string>
       <property name="geometry">
        <rect>
         <x>20</x>
-        <y>300</y>
+        <y>240</y>
         <width>131</width>
         <height>23</height>
        </rect>
@@ -1599,32 +1599,6 @@ font-style: italic;</string>
         <height>21</height>
        </rect>
       </property>
-     </widget>
-     <widget class="QGroupBox" name="groupBox_11">
-      <property name="geometry">
-       <rect>
-        <x>20</x>
-        <y>220</y>
-        <width>461</width>
-        <height>71</height>
-       </rect>
-      </property>
-      <property name="title">
-       <string>Create Cipiping Polygon</string>
-      </property>
-      <widget class="QCheckBox" name="checkBox_polygons">
-       <property name="geometry">
-        <rect>
-         <x>10</x>
-         <y>40</y>
-         <width>281</width>
-         <height>17</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Create polygon based on grid</string>
-       </property>
-      </widget>
      </widget>
     </widget>
     <widget class="QWidget" name="Data_management">
@@ -2303,8 +2277,8 @@ font-size: 13px;
      <widget class="QGroupBox" name="groupBox_9">
       <property name="geometry">
        <rect>
-        <x>20</x>
-        <y>20</y>
+        <x>10</x>
+        <y>70</y>
         <width>461</width>
         <height>81</height>
        </rect>
@@ -2441,8 +2415,8 @@ font-size: 13px;
      <widget class="QGroupBox" name="groupBox_10">
       <property name="geometry">
        <rect>
-        <x>20</x>
-        <y>120</y>
+        <x>10</x>
+        <y>320</y>
         <width>551</width>
         <height>121</height>
        </rect>
@@ -2576,6 +2550,80 @@ font-size: 13px;
         <string>2nd order fit</string>
        </property>
       </widget>
+     </widget>
+     <widget class="QGroupBox" name="groupBox_11">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>170</y>
+        <width>461</width>
+        <height>71</height>
+       </rect>
+      </property>
+      <property name="title">
+       <string>Create Cipiping Polygon</string>
+      </property>
+      <widget class="QCheckBox" name="checkBox_polygons">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>40</y>
+         <width>281</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Create polygon based on grid</string>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QgsMapLayerComboBox" name="mMapLayerComboBox_selectGrid_Conv_2">
+      <property name="geometry">
+       <rect>
+        <x>120</x>
+        <y>30</y>
+        <width>301</width>
+        <height>21</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_56">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>30</y>
+        <width>91</width>
+        <height>16</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Select Grid</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="pushButton_3_applyProcessing_Conv_3">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>260</y>
+        <width>131</width>
+        <height>23</height>
+       </rect>
+      </property>
+      <property name="font">
+       <font>
+        <weight>75</weight>
+        <bold>true</bold>
+       </font>
+      </property>
+      <property name="text">
+       <string>Apply Processing</string>
+      </property>
      </widget>
     </widget>
     <widget class="QWidget" name="Help">

@@ -930,13 +930,7 @@ class SGTool:
             self.parseParams()
 
             self.layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-            if self.layer.isValid():
-                print("is valid")
-            else:
-                print("isnt valid")
-            print(
-                "self.localGridName,self.layer", self.localGridName, self.layer.name()
-            )
+
             self.SG_Util.create_data_boundary_lines(self.layer)
 
     def procNaN(self):
@@ -992,6 +986,21 @@ class SGTool:
                     level=Qgis.Success,
                     duration=15,
                 )
+
+            if shps:
+                head_tail = os.path.split(self.diskGridPath)
+                out_path = (
+                    head_tail[0] + "/" + head_tail[1].split(".")[0] + "_worms.shp"
+                )
+                layer_name = head_tail[1].split(".")[0] + "_worms.shp"
+
+                layer = QgsVectorLayer(out_path, layer_name)
+
+                if not layer.isValid():
+                    raise ValueError(f"Failed to load layer: {out_path}")
+                else:
+                    # Add the layer to the current QGIS project
+                    QgsProject.instance().addMapLayer(layer)
 
     def set_normalise_in(self):
         self.input_directory = QFileDialog.getExistingDirectory(
@@ -1865,6 +1874,7 @@ class SGTool:
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setCurrentText(self.localGridName)
         self.dlg.lineEdit_2_loadGridPath.setText("")
         self.diskGridPath = ""
         self.base_name = self.localGridName
@@ -2018,6 +2028,10 @@ class SGTool:
             self.dlg.pushButton_3_applyProcessing.clicked.connect(
                 self.processGeophysics_fft
             )
+
+            self.dlg.pushButton_3_applyProcessing_Conv_3.clicked.connect(
+                self.processGeophysics_fft
+            )
             self.dlg.pushButton_3_applyProcessing_Conv.clicked.connect(
                 self.processGeophysics_conv
             )
@@ -2032,6 +2046,9 @@ class SGTool:
             )
             self.dlg.mMapLayerComboBox_selectGrid_Conv.layerChanged.connect(
                 self.update_paths_conv
+            )
+            self.dlg.mMapLayerComboBox_selectGrid_Conv_2.layerChanged.connect(
+                self.update_paths
             )
 
             self.dlg.mMapLayerComboBox_selectGrid_worms.layerChanged.connect(

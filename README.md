@@ -143,9 +143,8 @@ Grids point data using either BSpline or IDW built-in gridding algoithms
    
 ## Worming   
 **BSDWorms**   
-Use wavelet transforms to build multilevel "worms", saves out a single csv file of points   
-
-
+Use wavelet transforms to build multilevel "worms", saves out a single csv file of points (for use in 3D visualisation), and optionally a shapefile (for use in QGIS)   
+    
 ## Utilities   
 **Threshold to NaN**   
 Define upper or lower bound (or range) for which values will be set to NaN (i.e. excluded from display). Useful when reprojected images produce an unwanted border.      

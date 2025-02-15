@@ -133,10 +133,6 @@ Apply directional filter (NE, N, NW, W, SW, S, SE, E)
    
 **Sun Shading**   
 Computes relief shading for a digital elevation model (DEM) or other 2D grids.
-
-## RGB conversion  
-**Convert LUT to grayscale**   
-Takes a 3-band registered RGB image and converts it to a monotonically increasing grayscale image if you provide the correct Look Up Table, uses matplotlib CSS Colour names: https://matplotlib.org/stable/gallery/color/named_colors.html#css-colors   
    
 ## Gridding   
 **Import points**   
@@ -148,20 +144,20 @@ Grids point data using either BSpline or IDW built-in gridding algoithms
 ## Worming   
 **BSDWorms**   
 Use wavelet transforms to build multilevel "worms", saves out a single csv file of points   
-   
-## Threshold to NaN   
+
+
+## Utilities   
 **Threshold to NaN**   
 Define upper or lower bound (or range) for which values will be set to NaN (i.e. excluded from display). Useful when reprojected images produce an unwanted border.      
    
-      
-## Normalise Grids   
-**Normalise Grids**   
-Normalise the means and standard deviations of a series of grids in a directory to minimse mismatches in merged grids. Does not consider overlaps between grids, simply standardises data and removes a first or second order regional.     
-   
-## Create Clipping Polygon   
 **Create Clipping Polygon**   
 Create one or more polygons outlining the available data in the grid. Useful, amongst other things, for clipping worms to grid area..     
    
+**Normalise Grids**   
+Normalise the means and standard deviations of a series of grids in a directory to minimse mismatches in merged grids. Does not consider overlaps between grids, simply standardises data and removes a first or second order regional.     
+   
+**Convert LUT to grayscale**   
+Takes a 3-band registered RGB image and converts it to a monotonically increasing grayscale image if you provide the correct Look Up Table, uses matplotlib CSS Colour names: https://matplotlib.org/stable/gallery/color/named_colors.html#css-colors   
       
 # Installation
 - Dowload the zip file from the green **<> Code** button and install the zip file in QGIS using the plugin manager   

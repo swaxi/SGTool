@@ -9,7 +9,8 @@ from scipy.interpolate import interpn
 
 from osgeo import ogr, osr
 from shapely.geometry import LineString, Point
-from joblib import Parallel, delayed
+
+# from joblib import Parallel, delayed
 import csv
 
 import glob
@@ -701,6 +702,507 @@ class GeophysicalProcessor:
         filtered_data = self.remove_buffer(filtered_data, buffer_size)
         return self.restore_nan(filtered_data, nan_mask)
 
+    def bsdwormerttt(self, gridPath, num_levels, bottom_level, delta_z, shps, crs):
+        from qgis.core import QgsTask, QgsApplication
+        import numpy as np
+        from math import ceil
+        import os
+
+        print(gridPath, num_levels, bottom_level, delta_z)
+        # load grid and convert to numpy
+        image, layer = loadGrid(gridPath)
+
+        # Process initial grid setup
+        image_zero_mean = image - np.nanmean(image)
+        image_zero_mea_nonan = fill_nan(image_zero_mean)
+        pad_y = int(0.2 * image.shape[0])
+        pad_x = int(0.2 * image.shape[1])
+
+        pad_x = ceil(pad_x / 2) * 2
+        pad_y = ceil(pad_y / 2) * 2
+        padded_image = np.pad(
+            image_zero_mea_nonan,
+            pad_width=((pad_y, pad_y), (pad_x, pad_x)),
+            mode="linear_ramp",
+        )
+        print("padded_size=", padded_image.shape)
+
+        # Create and apply Hanning window
+        window_y = np.hanning(padded_image.shape[0])
+        window_x = np.hanning(padded_image.shape[1])
+        hanning_window = np.outer(window_y, window_x)
+        final_image = padded_image * hanning_window
+
+        # Setup paths
+        gridPathPadded = insert_text_before_extension(gridPath, "_padded")
+        dir_name, base_name = os.path.split(gridPath)
+        file_name, file_ext = os.path.splitext(base_name)
+        wormsPath = dir_name + "/" + file_name + "_worms.csv"
+
+        # Initialize primary Wormer instance for setup
+        initial_job = Wormer()
+        initial_job.importGdalRaster(gridPath)
+        extent = initial_job.geomat
+        extentPadded = GetExtent(initial_job.geomat, -pad_x, -pad_y)
+
+        # Save padded image
+        numpy_array_to_raster(
+            final_image,
+            gridPathPadded,
+            pad_x,
+            pad_y,
+            dx=initial_job.geomat[1],
+            xmin=extentPadded[2][0],
+            ymax=extentPadded[2][1],
+            reference_layer=layer,
+            no_data_value=np.nan,
+        )
+
+        # Clear existing worms file
+        if os.path.exists(wormsPath):
+            os.remove(wormsPath)
+
+        # Write header
+        with open(wormsPath, "w") as f:
+            f.write("y,x,z,val\n")
+
+        class WormLevelTask(QgsTask):
+            def __init__(
+                self,
+                dz,
+                gridPathPadded,
+                pad_x,
+                pad_y,
+                extent,
+                extentPadded,
+                delta_z,
+                bottom_level,
+                wormsPath,
+            ):
+                super().__init__(f"Process Worm Level {dz}", QgsTask.CanCancel)
+                self.dz = dz
+                self.gridPathPadded = gridPathPadded
+                self.pad_x = pad_x
+                self.pad_y = pad_y
+                self.extent = extent
+                self.extentPadded = extentPadded
+                self.delta_z = delta_z
+                self.bottom_level = bottom_level
+                self.wormsPath = wormsPath
+
+            def run(self):
+                try:
+                    # Create a new Wormer instance for this task
+                    job = Wormer()
+                    job.importGdalRaster(self.gridPathPadded)
+                    job.importExternallyPaddedRaster(
+                        self.gridPathPadded, self.pad_x, self.pad_y
+                    )
+
+                    dzm = (self.dz * self.delta_z) + self.bottom_level
+                    if dzm == 0:
+                        dzm = 0.01
+
+                    job.wormLevelAsPoints(dz=dzm)
+                    z = [dzm] * len(job.worm_ys)
+                    x = (job.worm_xs * job.geomat[1]) + self.extentPadded[2][0]
+                    y = (job.worm_ys * job.geomat[5]) + self.extentPadded[2][1]
+                    vals = job.worm_vals
+
+                    if len(job.worm_ys) == 0:
+                        print(f"No points generated for level {self.dz}")
+                        return True
+
+                    points = np.column_stack(
+                        (
+                            y[: len(job.worm_ys)],
+                            x[: len(job.worm_xs)],
+                            z[: len(job.worm_ys)],
+                            vals[: len(job.worm_ys)],
+                        )
+                    )
+
+                    # Apply filter conditions
+                    mask = (
+                        (points[:, 1] >= self.extent[0])
+                        & (
+                            points[:, 1]
+                            <= self.extent[0] + (job.raster_shape[1] * job.geomat[1])
+                        )
+                        & (
+                            points[:, 0]
+                            >= self.extent[3] + (job.raster_shape[0] * job.geomat[5])
+                        )
+                        & (points[:, 0] <= self.extent[3])
+                    )
+
+                    filtered_points = points[mask]
+
+                    if len(filtered_points) > 0:
+                        # Write to file with lock
+                        with open(self.wormsPath, "a") as f:
+                            np.savetxt(f, filtered_points, delimiter=",", fmt="%s")
+
+                    return True
+                except Exception as e:
+                    print(f"Error processing level {self.dz}: {str(e)}")
+                    return False
+
+        # Create and queue tasks for each level
+        task_manager = QgsApplication.taskManager()
+        tasks = []
+
+        for dz in range(0, num_levels):
+            task = WormLevelTask(
+                dz=dz,
+                gridPathPadded=gridPathPadded,
+                pad_x=pad_x,
+                pad_y=pad_y,
+                extent=extent,
+                extentPadded=extentPadded,
+                delta_z=delta_z,
+                bottom_level=bottom_level,
+                wormsPath=wormsPath,
+            )
+            task_manager.addTask(task)
+            tasks.append(task)
+
+        # Wait for all tasks to complete
+        for task in tasks:
+            task.waitForFinished()
+
+        # Process shapefile if requested
+        if shps:
+            max_distance = initial_job.geomat[1] * 1.3
+            in_path = wormsPath
+            out_path = wormsPath.replace(".csv", ".shp")
+            self.xyz_to_polylines(in_path, out_path, max_distance, crs)
+
+    def bsdwormertt(self, gridPath, num_levels, bottom_level, delta_z, shps, crs):
+        from qgis.core import QgsTask, QgsApplication
+        import numpy as np
+        from math import ceil
+        import os
+
+        print(gridPath, num_levels, bottom_level, delta_z)
+        # load grid and convert to numpy
+        image, layer = loadGrid(gridPath)
+
+        # Process initial grid setup
+        image_zero_mean = image - np.nanmean(image)
+        image_zero_mea_nonan = fill_nan(image_zero_mean)
+        pad_y = int(0.2 * image.shape[0])
+        pad_x = int(0.2 * image.shape[1])
+
+        pad_x = ceil(pad_x / 2) * 2
+        pad_y = ceil(pad_y / 2) * 2
+        padded_image = np.pad(
+            image_zero_mea_nonan,
+            pad_width=((pad_y, pad_y), (pad_x, pad_x)),
+            mode="linear_ramp",
+        )
+        print("padded_size=", padded_image.shape)
+
+        # Create and apply Hanning window
+        window_y = np.hanning(padded_image.shape[0])
+        window_x = np.hanning(padded_image.shape[1])
+        hanning_window = np.outer(window_y, window_x)
+        final_image = padded_image * hanning_window
+
+        # Setup paths
+        gridPathPadded = insert_text_before_extension(gridPath, "_padded")
+        dir_name, base_name = os.path.split(gridPath)
+        file_name, file_ext = os.path.splitext(base_name)
+        wormsPath = dir_name + "/" + file_name + "_worms.csv"
+
+        # Initialize primary Wormer instance for setup
+        initial_job = Wormer()
+        initial_job.importGdalRaster(gridPath)
+        extent = initial_job.geomat
+        extentPadded = GetExtent(initial_job.geomat, -pad_x, -pad_y)
+
+        # Save padded image
+        numpy_array_to_raster(
+            final_image,
+            gridPathPadded,
+            pad_x,
+            pad_y,
+            dx=initial_job.geomat[1],
+            xmin=extentPadded[2][0],
+            ymax=extentPadded[2][1],
+            reference_layer=layer,
+            no_data_value=np.nan,
+        )
+
+        # Clear existing worms file
+        if os.path.exists(wormsPath):
+            os.remove(wormsPath)
+
+        # Write header
+        with open(wormsPath, "w") as f:
+            f.write("y,x,z,val\n")
+
+        class WormLevelTask(QgsTask):
+            def __init__(
+                self,
+                dz,
+                gridPathPadded,
+                pad_x,
+                pad_y,
+                extent,
+                extentPadded,
+                delta_z,
+                bottom_level,
+                wormsPath,
+            ):
+                super().__init__(f"Process Worm Level {dz}", QgsTask.CanCancel)
+                self.dz = dz
+                self.gridPathPadded = gridPathPadded
+                self.pad_x = pad_x
+                self.pad_y = pad_y
+                self.extent = extent
+                self.extentPadded = extentPadded
+                self.delta_z = delta_z
+                self.bottom_level = bottom_level
+                self.wormsPath = wormsPath
+
+            def run(self):
+                try:
+                    # Create a new Wormer instance for this task
+                    job = Wormer()
+                    job.importGdalRaster(self.gridPathPadded)
+                    job.importExternallyPaddedRaster(
+                        self.gridPathPadded, self.pad_x, self.pad_y
+                    )
+
+                    dzm = (self.dz * self.delta_z) + self.bottom_level
+                    if dzm == 0:
+                        dzm = 0.01
+
+                    job.wormLevelAsPoints(dz=dzm)
+                    z = [dzm] * len(job.worm_ys)
+                    x = (job.worm_xs * job.geomat[1]) + self.extentPadded[2][0]
+                    y = (job.worm_ys * job.geomat[5]) + self.extentPadded[2][1]
+                    vals = job.worm_vals
+
+                    if len(job.worm_ys) == 0:
+                        print(f"No points generated for level {self.dz}")
+                        return True
+
+                    points = np.column_stack(
+                        (
+                            y[: len(job.worm_ys)],
+                            x[: len(job.worm_xs)],
+                            z[: len(job.worm_ys)],
+                            vals[: len(job.worm_ys)],
+                        )
+                    )
+
+                    # Apply filter conditions
+                    mask = (
+                        (points[:, 1] >= self.extent[0])
+                        & (
+                            points[:, 1]
+                            <= self.extent[0] + (job.raster_shape[1] * job.geomat[1])
+                        )
+                        & (
+                            points[:, 0]
+                            >= self.extent[3] + (job.raster_shape[0] * job.geomat[5])
+                        )
+                        & (points[:, 0] <= self.extent[3])
+                    )
+
+                    filtered_points = points[mask]
+
+                    if len(filtered_points) > 0:
+                        # Write to file with lock
+                        with open(self.wormsPath, "a") as f:
+                            np.savetxt(f, filtered_points, delimiter=",", fmt="%s")
+
+                    return True
+                except Exception as e:
+                    print(f"Error processing level {self.dz}: {str(e)}")
+                    return False
+
+        # Create and queue tasks for each level
+        task_manager = QgsApplication.taskManager()
+        tasks = []
+
+        for dz in range(0, num_levels):
+            task = WormLevelTask(
+                dz=dz,
+                gridPathPadded=gridPathPadded,
+                pad_x=pad_x,
+                pad_y=pad_y,
+                extent=extent,
+                extentPadded=extentPadded,
+                delta_z=delta_z,
+                bottom_level=bottom_level,
+                wormsPath=wormsPath,
+            )
+            task_manager.addTask(task)
+            tasks.append(task)
+
+        # Wait for all tasks to complete
+        for task in tasks:
+            task.waitForFinished()
+
+        # Process shapefile if requested
+        if shps:
+            max_distance = initial_job.geomat[1] * 1.3
+            in_path = wormsPath
+            out_path = wormsPath.replace(".csv", ".shp")
+            self.xyz_to_polylines(in_path, out_path, max_distance, crs)
+
+    def bsdwormerss(self, gridPath, num_levels, bottom_level, delta_z, shps, crs):
+        from qgis.core import QgsTask, QgsApplication
+        import numpy as np
+        from math import ceil
+        import os
+
+        print(gridPath, num_levels, bottom_level, delta_z)
+        # load grid and convert to numpy
+        image, layer = loadGrid(gridPath)
+
+        # Process initial grid setup (same as before)
+        image_zero_mean = image - np.nanmean(image)
+        image_zero_mea_nonan = fill_nan(image_zero_mean)
+        pad_y = int(0.2 * image.shape[0])
+        pad_x = int(0.2 * image.shape[1])
+
+        pad_x = ceil(pad_x / 2) * 2
+        pad_y = ceil(pad_y / 2) * 2
+        padded_image = np.pad(
+            image_zero_mea_nonan,
+            pad_width=((pad_y, pad_y), (pad_x, pad_x)),
+            mode="linear_ramp",
+        )
+        print("padded_size=", padded_image.shape)
+
+        # Create and apply Hanning window
+        window_y = np.hanning(padded_image.shape[0])
+        window_x = np.hanning(padded_image.shape[1])
+        hanning_window = np.outer(window_y, window_x)
+        final_image = padded_image * hanning_window
+
+        # Setup job and paths
+        job = Wormer()
+        job.importGdalRaster(gridPath)
+        extent = job.geomat
+        extentPadded = GetExtent(job.geomat, -pad_x, -pad_y)
+        gridPathPadded = insert_text_before_extension(gridPath, "_padded")
+
+        dir_name, base_name = os.path.split(gridPath)
+        file_name, file_ext = os.path.splitext(base_name)
+        wormsPath = dir_name + "/" + file_name + "_worms.csv"
+
+        # Save padded image
+        numpy_array_to_raster(
+            final_image,
+            gridPathPadded,
+            pad_x,
+            pad_y,
+            dx=job.geomat[1],
+            xmin=extentPadded[2][0],
+            ymax=extentPadded[2][1],
+            reference_layer=layer,
+            no_data_value=np.nan,
+        )
+
+        job.importExternallyPaddedRaster(gridPathPadded, pad_x, pad_y)
+
+        # Clear existing worms file
+        if os.path.exists(wormsPath):
+            os.remove(wormsPath)
+
+        # Write header
+        with open(wormsPath, "w") as f:
+            f.write("y,x,z,val\n")
+
+        # Create a task for processing each dz level
+        class WormLevelTask(QgsTask):
+            def __init__(
+                self, dz, job, extent, image, wormsPath, delta_z, bottom_level
+            ):
+                super().__init__(f"Process Worm Level {dz}", QgsTask.CanCancel)
+                self.dz = dz
+                self.job = job
+                self.extent = extent
+                self.image = image
+                self.wormsPath = wormsPath
+                self.delta_z = delta_z
+                self.bottom_level = bottom_level
+
+            def run(self):
+                try:
+                    dzm = (self.dz * self.delta_z) + self.bottom_level
+                    if dzm == 0:
+                        dzm = 0.01
+
+                    self.job.wormLevelAsPoints(dz=dzm)
+                    z = [dzm] * len(self.job.worm_ys)
+                    x = (self.job.worm_xs * self.job.geomat[1]) + extentPadded[2][0]
+                    y = (self.job.worm_ys * self.job.geomat[5]) + extentPadded[2][1]
+                    vals = self.job.worm_vals
+
+                    points = np.column_stack(
+                        (
+                            y[: len(self.job.worm_ys)],
+                            x[: len(self.job.worm_xs)],
+                            z[: len(self.job.worm_ys)],
+                            vals[: len(self.job.worm_ys)],
+                        )
+                    )
+
+                    # Apply filter conditions
+                    mask = (
+                        (points[:, 1] >= self.extent[0])
+                        & (
+                            points[:, 1]
+                            <= self.extent[0]
+                            + (self.image.shape[1] * self.job.geomat[1])
+                        )
+                        & (
+                            points[:, 0]
+                            >= self.extent[3]
+                            + (self.image.shape[0] * self.job.geomat[5])
+                        )
+                        & (points[:, 0] <= self.extent[3])
+                    )
+
+                    filtered_points = points[mask]
+
+                    # Write to file with lock to prevent concurrent writes
+                    with open(self.wormsPath, "a") as f:
+                        np.savetxt(f, filtered_points, delimiter=",", fmt="%s")
+
+                    return True
+                except Exception as e:
+                    print(f"Error processing level {self.dz}: {str(e)}")
+                    return False
+
+        # Create and queue tasks for each level
+        task_manager = QgsApplication.taskManager()
+        tasks = []
+
+        for dz in range(0, num_levels):
+            task = WormLevelTask(
+                dz, job, extent, image, wormsPath, delta_z, bottom_level
+            )
+            task_manager.addTask(task)
+            tasks.append(task)
+
+        # Wait for all tasks to complete
+        for task in tasks:
+            task.waitForFinished()
+
+        # Process shapefile if requested
+        if shps:
+            max_distance = job.geomat[1] * 1.3
+            in_path = wormsPath
+            out_path = wormsPath.replace(".csv", ".shp")
+            self.xyz_to_polylines(in_path, out_path, max_distance, crs)
+
     def bsdwormer(self, gridPath, num_levels, bottom_level, delta_z, shps, crs):
         # code borrows heavilly from bsdwormer example ipynb template example
         # adds on the fly calc of padded grid
@@ -923,6 +1425,262 @@ class GeophysicalProcessor:
                 split_segments = self.split_long_segments(polyline, max_distance)
                 return [(seg, z) for seg in split_segments]
         return []
+
+    def xyz_to_polylinestt(self, csv_file, output_shapefile, max_distance, crs):
+        """
+        Converts XYZ points from a CSV file into polylines and saves them as a shapefile.
+        Processes different z-levels in parallel using PyQGIS task management.
+        """
+        from sklearn.cluster import DBSCAN
+        from qgis.core import QgsTask, QgsApplication
+        import csv
+        from queue import Queue
+        import threading
+
+        # Class to handle processing of individual z-levels
+        class ZLevelProcessor(QgsTask):
+            def __init__(self, z_value, points, max_distance, processor):
+                super().__init__(f"Process Z Level {z_value}", QgsTask.CanCancel)
+                self.z_value = z_value
+                self.points = points
+                self.max_distance = max_distance
+                self.processor = processor
+                self.results = []
+
+            def run(self):
+                try:
+                    if len(self.points) < 2 or self.z_value < 1.0:
+                        return True
+
+                    print(
+                        f"Processing Z-bin: {self.z_value}, Number of points: {len(self.points)}"
+                    )
+
+                    clustering = DBSCAN(eps=self.max_distance, min_samples=1).fit(
+                        self.points
+                    )
+                    labels = clustering.labels_
+                    unique_labels = np.unique(labels)
+                    unique_labels = unique_labels[unique_labels != -1]
+
+                    for label in unique_labels:
+                        cluster_points = self.points[labels == label]
+                        if len(cluster_points) > 1:
+                            try:
+                                result = self.processor.process_cluster(
+                                    cluster_points, self.z_value, self.max_distance
+                                )
+                                if result:
+                                    self.results.extend(result)
+                            except Exception as e:
+                                print(
+                                    f"Error processing cluster at Z-bin {self.z_value}: {e}"
+                                )
+                                continue
+
+                    return True
+                except Exception as e:
+                    print(f"Error processing Z level {self.z_value}: {e}")
+                    return False
+
+        # Read and validate CSV data
+        valid_data = []
+        skipped_rows = 0
+
+        with open(csv_file, "r") as f:
+            reader = csv.DictReader(f)
+            for row_num, row in enumerate(reader, start=2):
+                try:
+                    if not all(key in row and row[key] for key in ["x", "y", "z"]):
+                        skipped_rows += 1
+                        continue
+
+                    x = float(row["x"].strip())
+                    y = float(row["y"].strip())
+                    z = float(row["z"].strip())
+
+                    if not all(map(np.isfinite, [x, y, z])):
+                        skipped_rows += 1
+                        continue
+
+                    valid_data.append((x, y, z))
+
+                except (ValueError, AttributeError) as e:
+                    skipped_rows += 1
+                    print(f"Warning: Skipping invalid row {row_num}: {str(e)}")
+                    continue
+
+        if skipped_rows > 0:
+            print(f"Skipped {skipped_rows} rows due to missing or invalid data")
+
+        if not valid_data:
+            raise ValueError("No valid data points found in the CSV file")
+
+        # Convert to numpy array and get unique z values
+        data = np.array(valid_data)
+        unique_z = np.unique(data[:, 2])
+
+        # Create tasks for each z level
+        task_manager = QgsApplication.taskManager()
+        tasks = []
+        all_results = []
+
+        # Process each z level in parallel
+        for z in unique_z:
+            mask = data[:, 2] == z
+            points = data[mask][:, :2]
+
+            task = ZLevelProcessor(z, points, max_distance, self)
+            tasks.append(task)
+            task_manager.addTask(task)
+
+        # Wait for all tasks to complete and collect results
+        for task in tasks:
+            task.waitForFinished()
+            if task.results:
+                all_results.extend(task.results)
+
+        # Collect all polylines and corresponding Z values
+        polylines = [item[0] for item in all_results if isinstance(item[0], LineString)]
+        z_values = [item[1] for item in all_results if isinstance(item[0], LineString)]
+
+        if not polylines:
+            raise ValueError(
+                "No valid LineStrings were created. Check your input data or parameters."
+            )
+
+        print("Processing complete. Saving to shapefile...")
+
+        # Save results to shapefile
+        driver = ogr.GetDriverByName("ESRI Shapefile")
+        ds = driver.CreateDataSource(output_shapefile)
+        spatial_ref = osr.SpatialReference()
+        spatial_ref.ImportFromEPSG(crs)
+        layer = ds.CreateLayer("polylines", spatial_ref, ogr.wkbLineString)
+
+        field_defn = ogr.FieldDefn("Z", ogr.OFTInteger)
+        layer.CreateField(field_defn)
+
+        for polyline, z in zip(polylines, z_values):
+            feature = ogr.Feature(layer.GetLayerDefn())
+            feature.SetField("Z", int(z))
+            geom = ogr.CreateGeometryFromWkt(polyline.wkt)
+            feature.SetGeometry(geom)
+            layer.CreateFeature(feature)
+            feature = None
+
+        ds = None
+        print(f"Shapefile saved to {output_shapefile}")
+
+    def xyz_to_polylineszz(self, csv_file, output_shapefile, max_distance, crs):
+        """
+        Converts XYZ points from a CSV file into polylines and saves them as a shapefile.
+        Handles missing or invalid data in the CSV file.
+        """
+        from sklearn.cluster import DBSCAN
+        import csv
+
+        valid_data = []
+        skipped_rows = 0
+
+        # Read CSV with robust error handling
+        with open(csv_file, "r") as f:
+            reader = csv.DictReader(f)
+            for row_num, row in enumerate(
+                reader, start=2
+            ):  # start=2 because row 1 is header
+                try:
+                    # Check if all required fields exist and are not None/empty
+                    if not all(key in row and row[key] for key in ["x", "y", "z"]):
+                        skipped_rows += 1
+                        continue
+
+                    # Try to convert values to float
+                    x = float(row["x"].strip())
+                    y = float(row["y"].strip())
+                    z = float(row["z"].strip())
+
+                    # Skip rows with NaN values
+                    if not all(map(np.isfinite, [x, y, z])):
+                        skipped_rows += 1
+                        continue
+
+                    valid_data.append((x, y, z))
+
+                except (ValueError, AttributeError) as e:
+                    skipped_rows += 1
+                    print(f"Warning: Skipping invalid row {row_num}: {str(e)}")
+                    continue
+
+        if skipped_rows > 0:
+            print(f"Skipped {skipped_rows} rows due to missing or invalid data")
+
+        if not valid_data:
+            raise ValueError("No valid data points found in the CSV file")
+
+        data = np.array(valid_data)
+        unique_z = np.unique(data[:, 2])
+        results = []
+
+        for z in unique_z:
+            mask = data[:, 2] == z
+            points = data[mask][:, :2]
+            if len(points) < 2 or z < 1.0:
+                continue
+
+            print(f"Processing Z-bin: {z}, Number of points: {len(points)}")
+
+            try:
+                clustering = DBSCAN(eps=max_distance, min_samples=1).fit(points)
+            except Exception as e:
+                print(f"Error in DBSCAN at Z-bin {z}: {e}")
+                continue
+
+            labels = clustering.labels_
+            unique_labels = np.unique(labels)
+            unique_labels = unique_labels[unique_labels != -1]
+
+            for label in unique_labels:
+                cluster_points = points[labels == label]
+                if len(cluster_points) > 1:
+                    try:
+                        result = self.process_cluster(cluster_points, z, max_distance)
+                        if result:
+                            results.extend(result)
+                    except Exception as e:
+                        print(f"Error processing cluster at Z-bin {z}: {e}")
+
+        # Collect all polylines and corresponding Z values
+        polylines = [item[0] for item in results if isinstance(item[0], LineString)]
+        z_values = [item[1] for item in results if isinstance(item[0], LineString)]
+
+        if not polylines:
+            raise ValueError(
+                "No valid LineStrings were created. Check your input data or parameters."
+            )
+
+        print("Processing complete. Saving to shapefile...")
+
+        # Save all results in a single shapefile
+        driver = ogr.GetDriverByName("ESRI Shapefile")
+        ds = driver.CreateDataSource(output_shapefile)
+        spatial_ref = osr.SpatialReference()
+        spatial_ref.ImportFromEPSG(crs)
+        layer = ds.CreateLayer("polylines", spatial_ref, ogr.wkbLineString)
+
+        field_defn = ogr.FieldDefn("Z", ogr.OFTInteger)
+        layer.CreateField(field_defn)
+
+        for polyline, z in zip(polylines, z_values):
+            feature = ogr.Feature(layer.GetLayerDefn())
+            feature.SetField("Z", int(z))
+            geom = ogr.CreateGeometryFromWkt(polyline.wkt)
+            feature.SetGeometry(geom)
+            layer.CreateFeature(feature)
+            feature = None
+
+        ds = None  # Close and save the shapefile
+        print(f"Shapefile saved to {output_shapefile}")
 
     def xyz_to_polylines(self, csv_file, output_shapefile, max_distance, crs):
         """

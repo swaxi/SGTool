@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.2.9
+# Structural Geophysics Tool v0.2.10
  Simple Potential Field Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     

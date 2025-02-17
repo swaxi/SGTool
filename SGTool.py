@@ -1890,10 +1890,32 @@ class SGTool:
                 else:
                     self.dlg.label_41_units.setText("Units: m")
 
+    def update_paths_utils(self):
+        self.localGridName = self.dlg.mMapLayerComboBox_selectGrid_Conv_2.currentText()
+        self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid.setCurrentText(self.localGridName)
+        self.dlg.lineEdit_2_loadGridPath.setText("")
+        self.diskGridPath = ""
+        self.base_name = self.localGridName
+
+        if len(self.base_name) > 0:
+            selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[
+                0
+            ]
+            if selected_layer.isValid():
+                crs = selected_layer.crs()
+                if crs.isGeographic():
+                    self.dlg.label_41_units.setText("Units: deg")
+                else:
+                    self.dlg.label_41_units.setText("Units: m")
+
     def update_paths_conv(self):
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid_Conv.currentText()
         self.dlg.mMapLayerComboBox_selectGrid.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setCurrentText(self.localGridName)
+
         self.dlg.lineEdit_2_loadGridPath.setText("")
         self.diskGridPath = ""
         self.base_name = self.localGridName
@@ -1914,6 +1936,8 @@ class SGTool:
 
         self.dlg.mMapLayerComboBox_selectGrid.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
         self.dlg.lineEdit_2_loadGridPath.setText("")
         self.diskGridPath = ""
         self.base_name = self.localGridName
@@ -1995,7 +2019,9 @@ class SGTool:
             self.dlg.mMapLayerComboBox_selectGrid_3.setFilters(
                 QgsMapLayerProxyModel.PointLayer
             )
-
+            self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setFilters(
+                QgsMapLayerProxyModel.RasterLayer
+            )
             self.dlg.version_label.setText(self.show_version())
 
             self.deriv_dir_list = []
@@ -2048,7 +2074,7 @@ class SGTool:
                 self.update_paths_conv
             )
             self.dlg.mMapLayerComboBox_selectGrid_Conv_2.layerChanged.connect(
-                self.update_paths
+                self.update_paths_utils
             )
 
             self.dlg.mMapLayerComboBox_selectGrid_worms.layerChanged.connect(

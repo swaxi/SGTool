@@ -23,6 +23,7 @@ hasProcessingProvider=no
 changelog=02.10 Bug fixes and GUI Update
       * GUI now split over 5 tabs
       * Add tool to produce outline polygon from a grid
+      * Improved null handling in Normalise Grids tool
     0.2.9 Docked widget now adds in tabified mode if another widget already there
       * Reformulated RTP & RTE codes
       * Add grid outline tool

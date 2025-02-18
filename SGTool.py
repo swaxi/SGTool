@@ -2495,18 +2495,22 @@ class SGTool:
         # Prepare output file
         driver = gdal.GetDriverByName("GTiff")
         RGBGridPath_gray = self.insert_text_before_extension(RGBGridPath, "_gray")
-        print(RGBGridPath_gray, dataset.RasterXSize, dataset.RasterYSize, projection)
-        output_dataset = driver.Create(
-            RGBGridPath_gray,
-            dataset.RasterXSize,
-            dataset.RasterYSize,
-            1,
-            gdal.GDT_Float32,
-        )
-
-        if not output_dataset:
+        try:
+            output_dataset = driver.Create(
+                RGBGridPath_gray,
+                dataset.RasterXSize,
+                dataset.RasterYSize,
+                1,
+                gdal.GDT_Float32,
+            )
+        except:
+            print(
+                RGBGridPath_gray, dataset.RasterXSize, dataset.RasterYSize, projection
+            )
             self.iface.messageBar().pushMessage(
-                "Unable to create the output dataset.", level=Qgis.Warning, duration=15
+                "Unable to create the output dataset, maybe check projection is set?",
+                level=Qgis.Warning,
+                duration=15,
             )
             return False, -3
 

@@ -6,7 +6,7 @@
 name=SGTool
 qgisMinimumVersion=3.24
 description=Simple Potential Field Processing
-version=0.2.10
+version=0.2.11
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
@@ -20,10 +20,12 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=02.10 Bug fixes and GUI Update
+changelog=0.2.11 Remove path insertion in worms code
+    0.2.10 Bug fixes and GUI Update
       * GUI now split over 5 tabs
       * Add tool to produce outline polygon from a grid
       * Improved null handling in Normalise Grids tool
+      * Remove unused joblib import
     0.2.9 Docked widget now adds in tabified mode if another widget already there
       * Reformulated RTP & RTE codes
       * Add grid outline tool

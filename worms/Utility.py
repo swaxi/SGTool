@@ -3,9 +3,9 @@ from matplotlib import pyplot as plt
 import sys
 import os
 
-sys.path += [
-    "/Users/frank/Documents/Src/Git Stuff/BSDWormer/src/Py3Vtk/pyvtk/build/lib/pyvtk"
-]
+# sys.path += [
+#    "/Users/frank/Documents/Src/Git Stuff/BSDWormer/src/Py3Vtk/pyvtk/build/lib/pyvtk"
+# ]
 # import pyvtk as
 from osgeo import gdal, ogr, osr
 

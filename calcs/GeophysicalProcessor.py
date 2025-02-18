@@ -1868,6 +1868,7 @@ class GeophysicalProcessor:
 
         first = True
         for tiff_file in tiff_files:
+            # print("tiff_file", tiff_file)
             ds = gdal.Open(tiff_file, gdal.GA_ReadOnly)
             band = ds.GetRasterBand(1)
             data = band.ReadAsArray()
@@ -1878,6 +1879,9 @@ class GeophysicalProcessor:
             data = data.astype(np.float32)
             mask = (data == nodata_value) | np.isnan(data)
 
+            # print("nodata_value:", nodata_value)
+            # print("Unique values in data:", np.unique(data))
+
             if order:
                 detrended_data = self.remove_gradient(data, mask)
             else:
@@ -1885,16 +1889,37 @@ class GeophysicalProcessor:
 
             valid_data = detrended_data[~mask]
 
+            # Check for empty valid_data
+            if valid_data.size == 0:
+                print("Warning: No valid data found in", tiff_file)
+                continue
+
+            # Check for zero standard deviation
+            valid_std = np.nanstd(valid_data)
+            if valid_std == 0:
+                print(
+                    "Warning: Standard deviation is zero, skipping normalization for",
+                    tiff_file,
+                )
+                continue
+
+            # print("nonnan", np.count_nonzero(~np.isnan(valid_data)))
+            # print("max min", np.max(valid_data), np.min(valid_data))
+
             if first:
                 first = False
-                reference_std = np.std(valid_data)
+                reference_std = valid_std  # Use the non-zero std
 
             normalized_data = (
-                reference_std
-                * (detrended_data - np.mean(valid_data))
-                / np.std(valid_data)
+                reference_std * (detrended_data - np.nanmean(valid_data)) / valid_std
             )
 
+            """print(
+                "reference_std, np.nanmean(valid_data), np.nanstd(valid_data)",
+                reference_std,
+                np.nanmean(valid_data),
+                valid_std,
+            )"""
             normalized_data[mask] = nodata_value
 
             driver = gdal.GetDriverByName("GTiff")

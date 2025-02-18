@@ -20,7 +20,10 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.2.9 Docked widget now adds in tabified mode if another widget already there
+changelog=02.10 Bug fixes and GUI Update
+      * GUI now split over 5 tabs
+      * Add tool to produce outline polygon from a grid
+    0.2.9 Docked widget now adds in tabified mode if another widget already there
       * Reformulated RTP & RTE codes
       * Add grid outline tool
       * Add extra Utils tab to declutter GUI (for now!)
@@ -54,7 +57,7 @@ homepage=https://github.com/swaxi/SGTool
 category=Plugins
 icon=icon.png
 # experimental flag
-experimental=True
+experimental=False
 
 # deprecated flag (applies to the whole plugin, not just a single version)
 deprecated=False

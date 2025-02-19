@@ -4,9 +4,9 @@
     
  This plugin is available directly within QGIS using the Plugin Manager, however the latest version with all new bugs will always be at this site.   
 
- **<a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/Structural%20Geophysics%20Tools.pdf">Download Basic Help Document</a>**   
+ **<a href="https://tectonique.net/sgtools_data/Structural%20Geophysics%20Tools.pdf">Download Basic Help Document</a>**   
     
-**<a href="https://tectonique.net/sgtools_data/SGTools_large.mp4" target="_blank">Ctrl-click on link to watch demo video</a>**
+**<a href="https://tectonique.net/sgtools_data/SGTools_large.mp4">Ctrl-click on link to watch demo video</a>**
     
 ![SGTools image](dialog.png)       
 

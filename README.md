@@ -6,6 +6,8 @@
 
  **<a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/Structural%20Geophysics%20Tools.pdf">Download Basic Help Document</a>**   
     
+**<a href="https://tectonique.net/sgtools_data/SGTools_3.gif" target="_blank">Link to demo video</a>**
+    
 ![SGTools image](dialog.png)       
 
 ## Grav/Mag Filters   

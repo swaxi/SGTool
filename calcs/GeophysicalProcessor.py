@@ -481,7 +481,7 @@ class GeophysicalProcessor:
             data, filter_function, buffer_size, buffer_method
         )
 
-    def tilt_derivative(self, data, buffer_size=10, buffer_method="mirror"):
+    def tilt_angle(self, data, buffer_size=10, buffer_method="mirror"):
         """
         Compute the tilt derivative of the data.
         """
@@ -1968,7 +1968,7 @@ if __name__ == "__main__":
 
     plt.imshow(result, cmap="viridis")
     plt.colorbar()
-    plt.title("tilt_derivative")
+    plt.title("tilt_angle")
     plt.show()
 
     # Define scattered data points
@@ -2056,14 +2056,14 @@ if __name__ == "__main__":
     plt.show()
 
     # Compute tilt derivative
-    tilt_result = processor.tilt_derivative(data)
+    tilt_result = processor.tilt_angle(data)
 
     # Plot results
     plt.imshow(
         tilt_result, cmap="seismic", origin="lower", vmin=-np.pi / 2, vmax=np.pi / 2
     )
     plt.colorbar()
-    plt.title("Tilt Derivative")
+    plt.title("Tilt Angle")
     plt.show()
 
     # Compute analytic signal

@@ -519,7 +519,7 @@ class SGTool:
         self.Derivative = False
         self.derive_direction = "z"
         self.derive_power = 1.0
-        self.TDR = False
+        self.TA = False
         self.AS = False
         self.Continuation = False
         self.cont_direction = "up"
@@ -571,7 +571,7 @@ class SGTool:
         self.derive_direction = self.dlg.comboBox_derivDirection.currentText()
         self.derive_power = self.dlg.lineEdit_9_derivePower.text()
 
-        self.TDR = self.dlg.checkBox_7_tiltDerivative.isChecked()
+        self.TA = self.dlg.checkBox_7_tiltDerivative.isChecked()
 
         self.AS = self.dlg.checkBox_8_analyticSignal.isChecked()
 
@@ -793,11 +793,11 @@ class SGTool:
         )
         self.suffix = "_d" + str(self.derive_power) + self.derive_direction
 
-    def procTiltDerivative(self):
-        self.new_grid = self.processor.tilt_derivative(
+    def procTiltAngle(self):
+        self.new_grid = self.processor.tilt_angle(
             self.raster_array, buffer_size=self.buffer
         )
-        self.suffix = "_TDR"
+        self.suffix = "_TA"
 
     def procAnalyticSignal(self):
         self.new_grid = self.processor.analytic_signal(
@@ -1185,8 +1185,8 @@ class SGTool:
             if self.Derivative:
                 self.procDerivative()
                 self.addNewGrid()
-            if self.TDR:
-                self.procTiltDerivative()
+            if self.TA:
+                self.procTiltAngle()
                 self.addNewGrid()
             if self.AS:
                 self.procAnalyticSignal()
@@ -1260,7 +1260,7 @@ class SGTool:
         self.dlg.checkBox_polygons.setChecked(False)
 
         self.RTE_P = False
-        self.TDR = False
+        self.TA = False
         self.AS = False
 
         self.DirClean = False

@@ -1356,12 +1356,13 @@ class SGTool:
 
     def select_grid_file(self):
         start_directory = self.last_directory if self.last_directory else os.getcwd()
+        file_filter = "Grids (*.TIF *.tif *.TIFF *.tiff *.grd *.GRD *.ERS *.ers)"
 
         self.diskGridPath, _filter = QFileDialog.getOpenFileName(
             None,
             "Select Data File",
             start_directory,
-            "Grids (*.TIF;*.tif;*.TIFF;*.tiff;*.grd;*GRD;*.ERS;*.ers)",
+            file_filter,  # "Grids (*.TIF;*.tif;*.TIFF;*.tiff;*.grd;*GRD;*.ERS;*.ers)",
         )
         suffix = self.diskGridPath.split(".")[-1].lower()
         epsg = None
@@ -1497,12 +1498,13 @@ class SGTool:
 
     def select_point_file(self):
         start_directory = self.last_directory if self.last_directory else os.getcwd()
+        file_filter = "points or lines (*.csv *.txt *.xyz *.CSV *.TXT *.XYZ)"
 
         self.diskPointsPath, _filter = QFileDialog.getOpenFileName(
             None,
             "Select Data File",
             start_directory,
-            "points or lines (*.csv;*.txt;*.xyz;*.CSV;*.TXT;*.XYZ)",
+            file_filter,  # "points or lines (*.csv;*.txt;*.xyz;*.CSV;*.TXT;*.XYZ)",
         )
         if os.path.exists(self.diskPointsPath) and self.diskPointsPath != "":
             self.last_directory = os.path.dirname(self.diskPointsPath)

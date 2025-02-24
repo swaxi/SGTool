@@ -21,6 +21,9 @@ repository=https://github.com/swaxi/SGTool
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
 changelog=0.2.11 Remove path insertion in worms code
+      * add relief shading option (based on Grass algorithm)
+      * generalise a bit epsg parsing for GRD
+      * remove degree test for DirCos filter
     0.2.10 Bug fixes and GUI Update
       * GUI now split over 5 tabs
       * Add tool to produce outline polygon from a grid

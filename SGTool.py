@@ -499,6 +499,9 @@ class SGTool:
         )
 
         self.dlg.checkBox_polygons.setToolTip("Create grid outline polygon(s) layer")
+        self.dlg.checkBox_relief.setToolTip(
+            "relief option gives less agressive shading"
+        )
 
     def initParams(self):
         self.localGridName = ""
@@ -739,15 +742,15 @@ class SGTool:
 
     def procDirClean(self):
         cutoff_wavelength = 4 * float(self.DC_lineSpacing)
-        if self.unit_check(cutoff_wavelength):
-            self.new_grid = self.processor.combined_BHP_DirCos_filter(
-                self.raster_array,
-                cutoff_wavelength=cutoff_wavelength,
-                center_direction=float(self.DC_azimuth) + 90,
-                degree=2.0,
-                buffer_size=self.buffer,
-            )
-            self.suffix = "_DirC"
+        # if self.unit_check(cutoff_wavelength) or True:
+        self.new_grid = self.processor.combined_BHP_DirCos_filter(
+            self.raster_array,
+            cutoff_wavelength=cutoff_wavelength,
+            center_direction=float(self.DC_azimuth) + 90,
+            degree=2.0,
+            buffer_size=self.buffer,
+        )
+        self.suffix = "_DirC"
 
     def procRTP_E(self):
         if self.RTE_P_inc == "0" and self.RTE_P_dec == "0":
@@ -918,11 +921,32 @@ class SGTool:
         self.suffix = "_Dr"
 
     def procSunShade(self):
-        self.new_grid = self.convolution.sun_shading_filter(
-            self.raster_array,
-            sun_alt=self.sun_shade_zn,
-            sun_az=180 - self.sun_shade_az,
-        )
+
+        if not self.dlg.checkBox_relief.isChecked():
+            self.new_grid = self.convolution.sun_shading_filter(
+                self.raster_array,
+                sun_alt=self.sun_shade_zn,
+                sun_az=180 - self.sun_shade_az,
+            )
+        else:
+            selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[
+                0
+            ]
+            crs = selected_layer.crs()
+            if crs.isGeographic():
+                hzscale = 110000.0
+            else:
+                hzscale = 1.0
+
+            self.new_grid = self.convolution.sun_shading_filter_grass(
+                self.raster_array,
+                altitude=self.sun_shade_zn,
+                azimuth=180 - self.sun_shade_az,
+                resolution_ns=self.dy * hzscale,
+                resolution_ew=self.dx * hzscale,
+                scale=1.0,
+                zscale=1.0,
+            )
         self.suffix = "_Sh"
 
     def procPolygons(self):
@@ -1513,7 +1537,7 @@ class SGTool:
             extension = os.path.splitext(basename)[1]
             self.dlg.lineEdit_loadPointsPath.setText(self.diskPointsPath)
 
-            if extension == ".XYZ":
+            if extension.upper() == ".XYZ":
                 self.line_data_cols = self.get_XYZ_header(self.diskPointsPath)
                 self.dlg.mQgsProjectionSelectionWidget.setEnabled(True)
                 self.dlg.pushButton_load_point_data.setEnabled(True)
@@ -2365,14 +2389,15 @@ class SGTool:
                             data_list.append(parts + [current_line_number])
                     except ValueError:
                         pass
-
+                else:
+                    print("Invalid line:", line)
         # Process and create the line layer
         line_layer = QgsVectorLayer("LineString?crs=EPSG:" + crs, layer_name, "memory")
         line_provider = line_layer.dataProvider()
 
         fields = QgsFields()
         fields.append(QgsField("LINE_ID", QVariant.Int))
-
+        print("data_list", data_list)
         for i in range(len(data_list[0]) - 3):
             fields.append(QgsField(f"data_{i}", QVariant.Double))
 

@@ -439,12 +439,12 @@ def extract_proj_str(fname):
     with open(fname, "r") as f:
         for line in f:
             if "wellknown_epsg=" in line:
-                clean_line = line.replace("&quot;", '"')
+                clean_line = line.replace("&quot;", '"').replace(" ", "")
                 # extract projection string
 
                 proj = clean_line.split('wellknown_epsg="')
                 if len(proj) > 1:
-                    proj = proj[1].split('" ')[0]
+                    proj = proj[1].split('"')[0]
                     # remove non-alphanumeric characters if present
                     if proj.isalnum() is False:
                         proj = "".join(filter(str.isalnum, proj))

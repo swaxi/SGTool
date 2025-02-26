@@ -12,13 +12,13 @@
 1) Either:   
 - Download the zip file from the green **<> Code** button and install the zip file in QGIS using the plugin manager for the version on github or   
 - Install directly from the QGIS plugin manager from the plugin repository   
-2) If you get an error of the type **ModuleNotFoundError: No module named 'sklearn'** or any other module name you can install it directly from the QGIS Python COnsole (Menu Plugins->Python Console) and then type is (for this example):   
+2) If you get an error of the type **ModuleNotFoundError: No module named 'sklearn'** or any other module name you can install it directly from the QGIS Python COnsole (Menu Plugins->Python Console) and then type in (for the sklearn example):   
    
-   !pip install scikit-learn
+   **!pip install scikit-learn**
    
 - for other modules that may be msising the module name to be installed with !pip install is generally the same as the name specified in the error (scikit-learn is a special case) so for example if **shapely** was missing the command would be:   
    
-   !pip install shapely   
+   **!pip install shapely**   
 
    
 ## Grav/Mag Filters   

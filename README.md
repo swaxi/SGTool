@@ -17,7 +17,7 @@
    !pip install scikit-learn
    
 for other modules that may be msising the module name to be installed with !pip install is generally the same as the name specified in the error (scikit-learn is a special case) so for example if **shapely** was missing the command would be:
-
+   
    !pip install shapely   
 
    

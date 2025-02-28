@@ -26,6 +26,7 @@ changelog=0.2.11 Remove path insertion in worms code
       * remove degree test for DirCos filter
       * Fix problem with toWkt() on Linux and maybe macs
       * Improved connectivity of worm polylines
+      * Another attempt to fix RTP
     0.2.10 Bug fixes and GUI Update
       * GUI now split over 5 tabs
       * Add tool to produce outline polygon from a grid

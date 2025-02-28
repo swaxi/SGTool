@@ -696,31 +696,14 @@ class GeophysicalProcessor:
         Returns:
             numpy.ndarray: Total horizontal gradient of the input data.
         """
-
-        def filter_function_dx(kx, ky):
-            """
-            Fourier filter for the x-derivative.
-            """
-            return 1j * kx
-
-        def filter_function_dy(kx, ky):
-            """
-            Fourier filter for the y-derivative.
-            """
-            return 1j * ky
-
-        # Compute derivatives in x and y directions using the Fourier filter
-        dx = self._apply_fourier_filter(
-            data, filter_function_dx, buffer_size, buffer_method
+        dfdx = self.compute_derivative(
+            data, "x", buffer_size=buffer_size, buffer_method=buffer_method
         )
-        dy = self._apply_fourier_filter(
-            data, filter_function_dy, buffer_size, buffer_method
+        dfdy = self.compute_derivative(
+            data, "y", buffer_size=buffer_size, buffer_method=buffer_method
         )
-
-        # Compute the total horizontal gradient
-        thg = np.sqrt(dx**2 + dy**2)
-
-        return thg
+        horizontal_gradient = np.sqrt(dfdx**2 + dfdy**2)
+        return horizontal_gradient
 
     def directional_cosine_filter(self, kx, ky, center_direction, degree):
         """

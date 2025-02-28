@@ -391,7 +391,7 @@ class SGTool:
             "Maximum buffer to be applied to grid to reduce edge effects"
         )
         self.dlg.checkBox_11_tot_hz_grad.setToolTip(
-            "Total Horizointal Gradient Calculation"
+            "Total Horizontal Gradient Calculation"
         )
         self.dlg.pushButton_rad_power_spectrum.setToolTip(
             "Provides pop-up display of grid plus Radial Averaged Power Spectrum (needs testing!)"
@@ -851,7 +851,9 @@ class SGTool:
         self.suffix = "_AGC"
 
     def procTHG(self):
-        self.new_grid = self.processor.total_hz_grad(self.raster_array)
+        self.new_grid = self.processor.total_hz_grad(
+            self.raster_array, buffer_size=self.buffer
+        )
         self.suffix = "_THG"
 
     def procvInt(self):

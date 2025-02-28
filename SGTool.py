@@ -1091,6 +1091,8 @@ class SGTool:
             self.diskNewGridPath = self.insert_text_before_extension(
                 self.diskGridPath, self.suffix
             )
+            if os.path.exists(self.diskNewGridPath + "aux.xml"):
+                os.remove(self.diskNewGridPath + "aux.xml")
             err = self.numpy_array_to_raster(
                 self.new_grid,
                 self.diskNewGridPath,

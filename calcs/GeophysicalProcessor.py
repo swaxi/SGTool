@@ -4,7 +4,7 @@ from scipy.ndimage import gaussian_filter
 from numpy.polynomial.polynomial import polyval2d
 from scipy.spatial import cKDTree
 from math import ceil
-from scipy.interpolate import interpn
+import numpy as np
 
 
 from osgeo import ogr, osr
@@ -17,7 +17,6 @@ import glob
 import os
 from osgeo import gdal
 from scipy.optimize import leastsq
-import platform
 
 from ..worms.wormer import Wormer
 from ..worms.Utility import (
@@ -466,79 +465,143 @@ class GeophysicalProcessor:
             data, filter_function, buffer_size, buffer_method
         )
 
-    def reduction_to_equator(
-        self,
-        data,
+    def rte_filter_function(
+        kx,
+        ky,
         inclination,
         declination,
-        buffer_size=20,  # Increased buffer size
-        buffer_method="mirror",
-        epsilon=1e-06,
+        magnetization_inclination=None,
+        magnetization_declination=None,
     ):
         """
-        Apply reduction to the equator filter with enhanced anti-striping measures.
+        Generate a Reduction to the Equator (RTE) filter in the frequency domain.
+
+        Parameters
+        ----------
+        kx : array
+            Wavenumber component in x-direction.
+        ky : array
+            Wavenumber component in y-direction.
+        inclination : float
+            Inclination of the inducing geomagnetic field in degrees.
+        declination : float
+            Declination of the inducing geomagnetic field in degrees.
+        magnetization_inclination : float, optional
+            Inclination of the total magnetization of the source in degrees.
+        magnetization_declination : float, optional
+            Declination of the total magnetization of the source in degrees.
+
+        Returns
+        -------
+        numpy.ndarray
+            Fourier-domain filter for reduction to the equator.
         """
+        # Convert angles to radians
+        inc_rad = np.radians(inclination)
+        dec_rad = np.radians(declination)
 
-        # If inclination/declination of the source is unknown, apply a small perturbation
-        inclination2 = (
-            inclination  # + 0.1  # Small perturbation to avoid zero numerator
+        if magnetization_inclination is None:
+            magnetization_inclination = inclination
+        if magnetization_declination is None:
+            magnetization_declination = declination
+
+        mag_inc_rad = np.radians(magnetization_inclination)
+        mag_dec_rad = np.radians(magnetization_declination)
+
+        # Compute wavevector magnitude and direction
+        k_squared = kx**2 + ky**2
+        k = np.sqrt(k_squared)
+        theta_k = np.arctan2(ky, kx)  # Angle of wavevector
+
+        # Avoid division by zero
+        epsilon = 1e-10
+        k[k == 0] = epsilon
+
+        # Compute field components
+        F_x = np.cos(inc_rad) * np.cos(dec_rad)
+        F_y = np.cos(inc_rad) * np.sin(dec_rad)
+        F_z = np.sin(inc_rad)
+
+        M_x = np.cos(mag_inc_rad) * np.cos(mag_dec_rad)
+        M_y = np.cos(mag_inc_rad) * np.sin(mag_dec_rad)
+        M_z = np.sin(mag_inc_rad)
+
+        # Compute denominator (instability occurs near zero inclination)
+        denominator = F_z * k + 1j * (F_x * kx + F_y * ky)
+        numerator = M_z * k + 1j * (M_x * kx + M_y * ky)
+
+        # Apply a taper for numerical stability at low inclinations
+        incl_factor = np.abs(np.cos(inc_rad))  # Stability factor
+        taper = (
+            np.exp(-((1 - incl_factor) * (k / np.max(k)) ** 2))
+            if incl_factor < 0.2
+            else 1.0
         )
-        declination2 = declination  # + 0.1
 
-        # Convert degrees to radians
-        inc_rad = np.radians(-inclination)
-        dec_rad = np.radians(-declination)
-        inclination_rad = np.radians(-inclination2)
-        declination_rad = np.radians(-declination2)
+        # Compute RTE filter
+        rte_filter = np.zeros_like(k, dtype=complex)
+        mask = np.abs(denominator) > epsilon
+        rte_filter[mask] = (
+            k_squared[mask] / (denominator[mask] * numerator[mask])
+        ) * taper
 
-        # Get data shape
-        ny, nx = data.shape
+        # Set zero frequency to zero to avoid division instability
+        rte_filter[k == 0] = 0
+        rte_filter[~np.isfinite(rte_filter)] = 0  # Remove NaNs and infinities
+        rte_filter[np.abs(rte_filter) > 1e6] = 0  # Cap large values for stability
 
-        # Create properly scaled wavenumber grids
-        kx = np.fft.fftfreq(nx, d=self.dx) * (
-            2 * np.pi
-        )  # Convert to spatial frequency (radians per unit)
-        ky = np.fft.fftfreq(ny, d=self.dy) * (2 * np.pi)
-        kx, ky = np.meshgrid(kx, ky)
-
-        def filter_function(kx, ky):
-            # Compute wavenumber magnitude (ensuring nonzero values)
-            k = np.sqrt(kx**2 + ky**2)
-            k = np.where(k < epsilon, epsilon, k)  # Avoid zero-division
-
-            # Compute Fourier-space angle theta
-            theta = np.arctan2(ky, kx)
-
-            # Compute magnetic field components with correction
-            P1 = np.cos(inclination_rad) * np.sin(inc_rad) - np.sin(
-                inclination_rad
-            ) * np.cos(inc_rad) * np.cos(dec_rad - declination_rad)
-            P2 = (
-                np.cos(inclination_rad)
-                * np.cos(inc_rad)
-                * np.sin(dec_rad - declination_rad)
-            )
-
-            # Ensure P1 and P2 are not zero by adding a minimal perturbation if needed
-            P1 = np.where(np.abs(P1) < epsilon, epsilon, P1)
-            P2 = np.where(np.abs(P2) < epsilon, epsilon, P2)
-
-            # Compute denominator and ensure non-zero values
-            denom = np.cos(inc_rad) + 1j * np.sin(inc_rad) * np.sin(theta - dec_rad)
-            denom = np.where(np.abs(denom) < epsilon, epsilon, denom)
-
-            # Compute the improved RTE filter
-            F_rte = (P1 + 1j * P2) / denom
-            # Set specific values to zero
-            F_rte[k == 0] = 0  # DC component
-            F_rte[~np.isfinite(F_rte)] = 0  # Non-finite values
-            F_rte[np.abs(F_rte) > 1e6] = 0  # Extremely large values
-
-            return F_rte
+        return rte_filter
 
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method
         )
+
+    def reduction_to_equator(
+        self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
+    ):
+        # Convert angles from degrees to radians
+        inc, dec = np.radians(inclination), np.radians(declination)
+
+        # Handle NaN values
+        filled_data, nan_mask = self.fill_nan(data)
+
+        # Add buffer
+        buffered_data = self.add_buffer(filled_data, buffer_size, buffer_method)
+
+        # Calculate frequency coordinates
+        ny, nx = buffered_data.shape
+        kx = fftfreq(nx, self.dx) * 2 * np.pi
+        ky = fftfreq(ny, self.dy) * 2 * np.pi
+        kx, ky = np.meshgrid(kx, ky, indexing="ij")
+        k = np.sqrt(kx**2 + ky**2) + 1e-10  # Avoid division by zero
+
+        # Directional cosines
+        cos_inc = np.cos(inc)
+        sin_inc = np.sin(inc)
+        cos_dec = np.cos(dec)
+        sin_dec = np.sin(dec)
+
+        # RTP filter
+        # rte_filter = theta_f
+        with np.errstate(divide="ignore", invalid="ignore"):
+            rte_filter = (
+                k * cos_inc * cos_dec + 1j * ky * cos_inc * sin_dec + kx * sin_inc
+            ) / (k * cos_inc * cos_dec - 1j * ky * cos_inc * sin_dec + kx * sin_inc)
+
+        rte_filter[np.abs(rte_filter) > 1e6] = 0  # Stabilize extreme values
+
+        # Apply max_wavenumber filtering based on cell size
+        # rte_filter[k > 1/(float(self.dx)*2)] = 0
+
+        # Apply RTP filter in the Fourier domain
+        data_fft = fft2(buffered_data)
+        data_rte_fft = data_fft * rte_filter.T
+
+        data_rte = np.real(ifft2(data_rte_fft))
+
+        # Remove buffer and restore NaNs
+        filtered_data = self.remove_buffer(data_rte, buffer_size)
+        return self.restore_nan(filtered_data, nan_mask)
 
     # --- Derivatives ---
     def compute_derivative(

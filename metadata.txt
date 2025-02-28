@@ -28,6 +28,8 @@ changelog=0.2.11 Remove path insertion in worms code
       * Improved connectivity of worm polylines
       * Another attempt to fix RTP
       * Fix missing buffer for THG calc
+      * Another attempt to fix RTE
+      * Delete xml file when updating a grid
     0.2.10 Bug fixes and GUI Update
       * GUI now split over 5 tabs
       * Add tool to produce outline polygon from a grid

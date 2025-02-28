@@ -1504,6 +1504,7 @@ class SGTool:
                     ]
                     ds.SetGeoTransform(geot)
                     srs = osr.SpatialReference()
+
                     srs.ImportFromEPSG(int(epsg))
                     ds.SetProjection(srs.ExportToWkt())
                     ds.FlushCache()
@@ -1620,7 +1621,10 @@ class SGTool:
 
             # Set CRS
             srs = osr.SpatialReference()
-            srs.ImportFromWkt(reference_layer.crs().toWkt())
+            epsg_code = (
+                reference_layer.crs().authid().split(":")[1]
+            )  # Extract the EPSG number
+            srs.ImportFromEPSG(int(epsg_code))
             output_raster.SetProjection(srs.ExportToWkt())
         else:
             crs = self.dlg.mQgsProjectionSelectionWidget.crs().authid()

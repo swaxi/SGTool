@@ -333,7 +333,10 @@ def numpy_array_to_raster(
 
         # Set CRS
         srs = osr.SpatialReference()
-        srs.ImportFromWkt(reference_layer.crs().toWkt())
+        epsg_code = (
+            reference_layer.crs().authid().split(":")[1]
+        )  # Extract the EPSG number
+        srs.ImportFromEPSG(int(epsg_code))
         output_raster.SetProjection(srs.ExportToWkt())
 
     # Write data to raster

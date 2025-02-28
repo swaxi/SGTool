@@ -52,45 +52,154 @@ class GeophysicalProcessor:
         ky = np.fft.fftfreq(ny, self.dy) * 2 * np.pi
         return np.meshgrid(kx, ky)
 
+    def fill_nanyy(self, data):
+        """
+        Replace NaN values with interpolated values from non-NaN neighbors.
+        """
+        # Make a copy of the data
+        filled_data = np.copy(data)
+        nan_mask = np.isnan(data)
+
+        # Get indices of all non-NaN points
+        non_nan_indices = np.where(~nan_mask)
+        non_nan_values = data[~nan_mask]
+
+        # Get indices of all NaN points
+        nan_indices = np.where(nan_mask)
+
+        # Only interpolate if we have some non-NaN values and some NaN values
+        if len(non_nan_values) > 0 and np.any(nan_mask):
+            # Use griddata for interpolation
+            from scipy.interpolate import griddata
+
+            # Interpolate using the non-NaN values
+            filled_values = griddata(
+                np.array(non_nan_indices).T,  # Points we know
+                non_nan_values,  # Values we know
+                np.array(nan_indices).T,  # Points to interpolate
+                method="linear",  # Linear interpolation
+                fill_value=np.nanmedian(
+                    data
+                ),  # Use median for points outside the convex hull
+            )
+
+            # Place the interpolated values back into the array
+            filled_data[nan_mask] = filled_values
+
+        return filled_data, nan_mask
+
+    def fill_nan_slow(self, data):
+        """
+        Replace NaN values with interpolated values from non-NaN neighbors.
+        """
+        # Make a copy of the data
+        filled_data = np.copy(data)
+        nan_mask = np.isnan(data)
+
+        # Get indices of all non-NaN points
+        non_nan_indices = np.where(~nan_mask)
+        non_nan_values = data[~nan_mask]
+
+        # Get indices of all NaN points
+        nan_indices = np.where(nan_mask)
+
+        # Only interpolate if we have some non-NaN values and some NaN values
+        if len(non_nan_values) > 0 and np.any(nan_mask):
+            # Use griddata for interpolation
+            from scipy.interpolate import griddata
+
+            # Interpolate using the non-NaN values
+            filled_values = griddata(
+                np.array(non_nan_indices).T,  # Points we know
+                non_nan_values,  # Values we know
+                np.array(nan_indices).T,  # Points to interpolate
+                method="linear",  # Linear interpolation
+                fill_value=np.nanmedian(
+                    data
+                ),  # Use median for points outside the convex hull
+            )
+
+            # Place the interpolated values back into the array
+            filled_data[nan_mask] = filled_values
+
+        return filled_data, nan_mask
+
     def fill_nan(self, data):
         """
-        Replace NaN values with the mean of the non-NaN values.
+        Replace NaN values with interpolated values from non-NaN neighbors
+        using a faster approach that works in both x and y directions.
         """
+        from scipy import ndimage
+
+        # Create a copy of the data
+        filled_data = np.copy(data)
         nan_mask = np.isnan(data)
-        # filled_data = np.copy(data)
-        # filled_data[nan_mask] = np.nanmedian(data)
 
-        # Create a grid of coordinates
-        x = np.arange(data.shape[0])
-        y = np.arange(data.shape[1])
-        grid_x, grid_y = np.meshgrid(x, y, indexing="ij")
+        # If there are no NaNs or all NaNs, handle accordingly
+        if not np.any(nan_mask) or np.all(nan_mask):
+            return filled_data, nan_mask
 
-        # Replace NaN values temporarily with zeros to enable interpolation
-        # (valid points will define the interpolation behavior)
-        data_temp = np.copy(data)
-        data_temp[np.isnan(data)] = (
-            0  # Use a placeholder (will be replaced by interpolated values)
-        )
+        # First, try a more direct interpolation along both axes
+        # Iterate through each row (x-direction)
+        for i in range(data.shape[0]):
+            row = filled_data[i, :]
+            mask = ~np.isnan(row)
+            indices = np.arange(len(row))
+            if np.any(mask) and not np.all(
+                mask
+            ):  # If row has some valid values but not all
+                # Linear interpolation along x-axis
+                filled_data[i, ~mask] = np.interp(
+                    indices[~mask], indices[mask], row[mask]
+                )
 
-        # Interpolation grid for all points
-        all_coords = np.array((grid_x.ravel(), grid_y.ravel())).T
+        # Iterate through each column (y-direction)
+        for j in range(data.shape[1]):
+            col = filled_data[:, j]
+            mask = ~np.isnan(col)
+            indices = np.arange(len(col))
+            if np.any(mask) and not np.all(
+                mask
+            ):  # If column has some valid values but not all
+                # Linear interpolation along y-axis
+                filled_data[~mask, j] = np.interp(
+                    indices[~mask], indices[mask], col[mask]
+                )
 
-        # Perform interpolation
-        filled_values = interpn(
-            (x, y),
-            data_temp,
-            all_coords,
-            method="linear",
-            bounds_error=False,
-            fill_value=None,
-        )
+        # Some points might still be NaN if entire rows or columns were NaN
+        # For remaining NaNs, use the smoother approach
+        remaining_nan_mask = np.isnan(filled_data)
+        if np.any(remaining_nan_mask):
+            # Replace remaining NaNs with a placeholder value
+            filled_data[remaining_nan_mask] = 0
 
-        # Reshape back to the original array shape
-        filled_array = filled_values.reshape(data.shape)
+            # Create a mask of valid values (non-NaN)
+            valid_mask = ~remaining_nan_mask
 
-        # self.display_grid(filled_array)
+            # Use a distance-weighted interpolation approach
+            # First, generate a distance transform from valid points
+            dist = ndimage.distance_transform_edt(~valid_mask)
 
-        return filled_array, nan_mask
+            # Use a Gaussian filter for interpolation
+            sigma = 2.0  # Increased for better coverage
+
+            # Apply weight mask to valid data points
+            weights = np.exp(-(dist**2) / (2 * sigma**2))
+            weights[~valid_mask] = 0
+
+            # Normalize weights to sum to 1
+            weight_sum = ndimage.gaussian_filter(weights, sigma)
+            # Avoid division by zero
+            weight_sum[weight_sum == 0] = 1
+
+            # Calculate the weighted average
+            weighted_data = filled_data * weights
+            weighted_avg = ndimage.gaussian_filter(weighted_data, sigma) / weight_sum
+
+            # Only replace remaining NaN values with the interpolated values
+            filled_data[remaining_nan_mask] = weighted_avg[remaining_nan_mask]
+
+        return filled_data, nan_mask
 
     def restore_nan(self, data, nan_mask):
         """
@@ -124,9 +233,46 @@ class GeophysicalProcessor:
         window_x = np.hanning(padded_image.shape[1])
         hanning_window = np.outer(window_y, window_x)
 
-        # Apply the Hanning window to the padded image
-        final_image = padded_image * hanning_window
-        return final_image
+        # Lower alpha means less windowing effect
+        alpha = 0.5  # Adjust this value to control strength
+        modified_window = 1.0 - alpha * (1.0 - hanning_window)
+
+        # Apply the modified window
+        # padded_image = padded_image * modified_window
+
+        alpha = 0.50  # Only taper 50% from each edge
+        window_y = self.tukey_window(padded_image.shape[0], alpha)
+        window_x = self.tukey_window(padded_image.shape[1], alpha)
+        tukey_window = np.outer(window_y, window_x)
+
+        # Apply the Tukey window
+        padded_image = padded_image * tukey_window  # * modified_window
+        return padded_image
+
+    def tukey_window(self, M, alpha=0.25):
+        """Create a Tukey window with length M and shape parameter alpha."""
+        if alpha <= 0:
+            return np.ones(M)  # Rectangular window
+        elif alpha >= 1:
+            return np.hanning(M)  # Hanning window
+
+        # Create the window
+        x = np.linspace(0, 1, M)
+        w = np.ones(M)
+
+        # Left taper
+        left_taper = x < alpha / 2
+        w[left_taper] = 0.5 * (
+            1 + np.cos(2 * np.pi / alpha * (x[left_taper] - alpha / 2))
+        )
+
+        # Right taper
+        right_taper = x >= (1 - alpha / 2)
+        w[right_taper] = 0.5 * (
+            1 + np.cos(2 * np.pi / alpha * (x[right_taper] - 1 + alpha / 2))
+        )
+
+        return w
 
     def remove_buffer(self, data, buffer_size):
         """
@@ -266,7 +412,399 @@ class GeophysicalProcessor:
 
         return thg
 
+    def reduction_to_polex(
+        self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
+    ):
+        """
+        Apply reduction to the pole filter in the frequency domain.
+
+        Parameters
+        ----------
+        data : array-like
+            Input magnetic data to be transformed
+        inclination : float
+            The inclination of the inducing Geomagnetic field in degrees
+        declination : float
+            The declination of the inducing Geomagnetic field in degrees
+        buffer_size : int
+            Size of the buffer zone for reducing edge effects
+        buffer_method : str
+            Method for handling the buffer zone ("mirror", "mean", etc.)
+
+        Returns
+        -------
+        array-like
+            The reduced to pole magnetic data
+        """
+        # Convert angles from degrees to radians
+        inc, dec = np.radians(inclination), np.radians(declination)
+
+        def filter_function(kx, ky):
+            # Transform to radians
+            inc_rad = np.radians(inclination)
+            dec_rad = np.radians(-declination)
+            # Calculate the 3 components
+            m_e = np.cos(inc_rad) * np.sin(dec_rad)
+            m_n = np.cos(inc_rad) * np.cos(dec_rad)
+            m_z = -np.sin(inc_rad)
+            f_e, f_n, f_z = m_e, m_n, m_z
+            k_squared = ky**2 + kx**2
+            k = np.sqrt(k_squared) + 1e-10
+
+            # RTP filter
+            # with np.errstate(divide="ignore", invalid="ignore"):
+            rtp_filter = (
+                k_squared
+                * (f_z * k + 1j * (f_e * kx + f_n * ky)) ** (-1)
+                * (m_z * k + 1j * (m_e * kx + m_n * ky)) ** (-1)
+            )
+
+            rtp_filter[np.abs(rtp_filter) > 1e6] = 0  # Stabilize extreme values
+            return rtp_filter
+
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
+
+    def reduction_to_pole_comm(
+        self,
+        data,
+        inclination,
+        declination,
+        magnetization_inclination=None,
+        magnetization_declination=None,
+        buffer_size=20,
+        buffer_method="mirror",
+    ):
+        """
+        Enhanced reduction to pole implementation aimed at matching Geosoft results.
+        """
+        # Set magnetization direction to field direction if not specified
+        if magnetization_inclination is None:
+            magnetization_inclination = inclination
+        if magnetization_declination is None:
+            magnetization_declination = declination
+
+        # Convert angles from degrees to radians
+        inc_rad = np.radians(inclination)
+        dec_rad = np.radians(declination)
+        mag_inc_rad = np.radians(magnetization_inclination)
+        mag_dec_rad = np.radians(magnetization_declination)
+
+        def filter_function(kx, ky):
+            # Calculate wavenumber magnitude
+            k_squared = kx**2 + ky**2
+            k = np.sqrt(k_squared)
+
+            # Initialize the filter
+            rtp_filter = np.zeros_like(k, dtype=complex)
+
+            # Apply only where k is nonzero
+            nonzero = k > 0
+
+            if np.any(nonzero):
+                # Standard RTP calculation
+                field_z = np.sin(inc_rad)
+                field_x = np.cos(inc_rad) * np.sin(dec_rad)
+                field_y = np.cos(inc_rad) * np.cos(dec_rad)
+
+                mag_z = np.sin(mag_inc_rad)
+                mag_x = np.cos(mag_inc_rad) * np.sin(mag_dec_rad)
+                mag_y = np.cos(mag_inc_rad) * np.cos(mag_dec_rad)
+
+                # Calculate the RTP filter components
+                field_dot_k = field_z * k[nonzero] + 1j * (
+                    field_x * kx[nonzero] + field_y * ky[nonzero]
+                )
+                mag_dot_k = mag_z * k[nonzero] + 1j * (
+                    mag_x * kx[nonzero] + mag_y * ky[nonzero]
+                )
+
+                # Base filter
+                threshold = 1e-10
+                safe_mask = (np.abs(field_dot_k) > threshold) & (
+                    np.abs(mag_dot_k) > threshold
+                )
+
+                if np.any(safe_mask):
+                    # Base RTP filter
+                    base_filter = (k[nonzero][safe_mask] ** 2) / (
+                        field_dot_k[safe_mask] * mag_dot_k[safe_mask]
+                    )
+
+                    # Store in the main filter array
+                    temp_filter = np.zeros_like(k[nonzero], dtype=complex)
+                    temp_filter[safe_mask] = base_filter
+                    rtp_filter[nonzero] = temp_filter
+
+                    # Additional stabilization for high-latitude data
+                    if abs(inclination) > 50:
+                        # Calculate theta (angle in wavenumber domain)
+                        theta = np.arctan2(ky[nonzero], kx[nonzero])
+                        dec_direction = dec_rad
+
+                        # Calculate angular difference from declination direction
+                        angle_diff = np.abs(
+                            np.mod(theta - dec_direction + np.pi, 2 * np.pi) - np.pi
+                        )
+
+                        # Create directional taper (stronger in direction perpendicular to declination)
+                        directional_taper = 0.2 + 0.8 * np.exp(
+                            -(angle_diff**2) / (np.pi / 4) ** 2
+                        )
+
+                        # Apply directional taper
+                        rtp_filter[nonzero] = rtp_filter[nonzero] * directional_taper
+
+                    # Add frequency-dependent taper (similar to upward continuation)
+                    k_max = np.max(k[k > 0])
+                    freq_taper = np.exp(-0.2 * (k[nonzero] / k_max) ** 2)
+                    rtp_filter[nonzero] = rtp_filter[nonzero] * freq_taper
+
+                    # Amplitude stabilization (prevent excessive amplification)
+                    amp_limit = 10.0
+                    amp = np.abs(rtp_filter[nonzero])
+                    over_limit = amp > amp_limit
+                    if np.any(over_limit):
+                        phase = np.angle(rtp_filter[nonzero][over_limit])
+                        rtp_filter[nonzero][over_limit] = amp_limit * np.exp(1j * phase)
+
+            # Set DC component to zero or one based on Geosoft convention
+            rtp_filter[k == 0] = 0
+
+            return rtp_filter
+
+        # Use modified _apply_fourier_filter with FFT shifts
+        def _apply_fourier_filter_shifted(
+            data, filter_func, buffer_size, buffer_method
+        ):
+            # Handle NaN values
+            filled_data, nan_mask = self.fill_nan(data)
+
+            # Add buffer
+            buffered_data = self.add_buffer(filled_data, buffer_size, buffer_method)
+
+            # Apply a cosine taper to edges (reduce edge effects)
+            ny, nx = buffered_data.shape
+            taper_width = min(nx, ny) // 10
+            window = np.ones((ny, nx))
+            window[:taper_width, :] *= np.sin(np.linspace(0, np.pi / 2, taper_width))[
+                :, np.newaxis
+            ]
+            window[-taper_width:, :] *= np.sin(np.linspace(np.pi / 2, 0, taper_width))[
+                :, np.newaxis
+            ]
+            window[:, :taper_width] *= np.sin(np.linspace(0, np.pi / 2, taper_width))[
+                np.newaxis, :
+            ]
+            window[:, -taper_width:] *= np.sin(np.linspace(np.pi / 2, 0, taper_width))[
+                np.newaxis, :
+            ]
+
+            buffered_data = buffered_data * window
+
+            # Fourier transform with shift
+            data_fft = np.fft.fftshift(np.fft.fft2(buffered_data))
+
+            # Compute filter
+            kx = np.fft.fftshift(np.fft.fftfreq(nx, self.dx)) * 2 * np.pi
+            ky = np.fft.fftshift(np.fft.fftfreq(ny, self.dy)) * 2 * np.pi
+            kx_grid, ky_grid = np.meshgrid(kx, ky)
+
+            filter_array = filter_func(kx_grid, ky_grid)
+
+            # Apply filter
+            filtered_fft = data_fft * filter_array
+
+            # Inverse transform with shift
+            filtered_data = np.real(np.fft.ifft2(np.fft.ifftshift(filtered_fft)))
+
+            # Remove buffer and restore NaNs
+            filtered_data = self.remove_buffer(filtered_data, buffer_size)
+            return self.restore_nan(filtered_data, nan_mask)
+
+        return _apply_fourier_filter_shifted(
+            data, filter_function, buffer_size, buffer_method
+        )
+
+    def reduction_to_pole_harmonica(
+        self,
+        data,
+        inclination,
+        declination,
+        magnetization_inclination=None,
+        magnetization_declination=None,
+        buffer_size=10,
+        buffer_method="mirror",
+    ):
+        """
+        Apply reduction to the pole filter with explicit directional control.
+
+        Parameters
+        ----------
+        data : array-like
+            Input magnetic data to be transformed
+        inclination : float
+            The inclination of the inducing Geomagnetic field in degrees
+        declination : float
+            The declination of the inducing Geomagnetic field in degrees
+            (measured clockwise from north)
+        magnetization_inclination : float or None
+            The inclination of the total magnetization of the anomaly source in degrees
+        magnetization_declination : float or None
+            The declination of the total magnetization of the anomaly source in degrees
+        buffer_size : int
+            Size of the buffer zone for reducing edge effects
+        buffer_method : str
+            Method for handling the buffer zone ("mirror", "mean", etc.)
+
+        Returns
+        -------
+        array-like
+            The reduced to pole magnetic data
+        """
+        # Set magnetization direction to field direction if not specified
+        if magnetization_inclination is None:
+            magnetization_inclination = inclination
+        if magnetization_declination is None:
+            magnetization_declination = declination
+
+        # Convert angles from degrees to radians
+        # Note: In geophysics, declination is typically measured clockwise from north
+        inc_rad = np.radians(inclination)
+        dec_rad = np.radians(declination)
+        mag_inc_rad = np.radians(magnetization_inclination)
+        mag_dec_rad = np.radians(magnetization_declination)
+
+        def filter_function(kx, ky):
+            # Calculate wavenumber magnitude
+            k_squared = kx**2 + ky**2
+            k = np.sqrt(k_squared)
+
+            # Create unit vectors in wavenumber domain
+            nonzero = k > 0
+            kx_hat = np.zeros_like(kx)
+            ky_hat = np.zeros_like(ky)
+            k_hat = np.zeros_like(k)
+
+            if np.any(nonzero):
+                kx_hat[nonzero] = kx[nonzero] / k[nonzero]
+                ky_hat[nonzero] = ky[nonzero] / k[nonzero]
+                k_hat[nonzero] = 1.0
+
+            # Calculate field direction components
+            # Note: x points east, y points north, z points down
+            # This aligns with how kx, ky are typically defined in FFT
+            fx = np.cos(inc_rad) * np.sin(dec_rad)  # East component
+            fy = np.cos(inc_rad) * np.cos(dec_rad)  # North component
+            fz = np.sin(inc_rad)  # Vertical component
+
+            # Calculate magnetization direction components
+            mx = np.cos(mag_inc_rad) * np.sin(mag_dec_rad)
+            my = np.cos(mag_inc_rad) * np.cos(mag_dec_rad)
+            mz = np.sin(mag_inc_rad)
+
+            # Calculate the RTP filter
+            # The key part is getting the dot product order correct
+            # In wavenumber domain: north corresponds to ky, east to kx
+            f_dot_k_hat = fz * k_hat + 1j * (fx * kx_hat + fy * ky_hat)
+            m_dot_k_hat = mz * k_hat + 1j * (mx * kx_hat + my * ky_hat)
+
+            # Initialize the filter with zeros
+            rtp_filter = np.zeros_like(k, dtype=complex)
+
+            # Apply the filter where both dot products are sufficiently large
+            threshold = 1e-10
+            safe_mask = (np.abs(f_dot_k_hat) > threshold) & (
+                np.abs(m_dot_k_hat) > threshold
+            )
+
+            if np.any(safe_mask):
+                rtp_filter[safe_mask] = k_hat[safe_mask] ** 2 / (
+                    f_dot_k_hat[safe_mask] * m_dot_k_hat[safe_mask]
+                )
+
+            # Set the center (DC component) to zero
+            center = k == 0
+            rtp_filter[center] = 0
+
+            return rtp_filter
+
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
+
     def reduction_to_pole(
+        self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
+    ):
+        # Convert angles from degrees to radians
+        inc, dec = np.radians(inclination), np.radians(declination)
+
+        # Handle NaN values
+        filled_data, nan_mask = self.fill_nan(data)
+        # Add buffer
+        buffered_data = self.add_buffer(filled_data, buffer_size, buffer_method)
+        self.display_grid(buffered_data)
+
+        # Calculate frequency coordinates
+        ny, nx = buffered_data.shape
+        kx = fftfreq(nx, self.dx) * 2 * np.pi
+        ky = fftfreq(ny, self.dy) * 2 * np.pi
+
+        kx, ky = np.meshgrid(kx, ky, indexing="xy")
+        k_squared = kx**2 + ky**2
+        k = np.sqrt(k_squared) + 1e-10  # Avoid division by zero
+        # Directional cosines
+        cos_inc = np.cos(inc)
+        sin_inc = np.sin(inc)
+        cos_dec = np.cos(dec)
+        sin_dec = np.sin(dec)
+        fx = cos_inc * sin_dec  # East component
+        fy = cos_inc * cos_dec  # North component
+        fz = sin_inc  # Vertical component
+
+        # RTP filter
+        # with np.errstate(divide="ignore", invalid="ignore"):
+        """rtp_filter = (
+            k * cos_inc * cos_dec + 1j * ky * cos_inc * sin_dec + kx * sin_inc
+        ) / k"""
+        rtp_filter = k_squared * (fz * k + 1j * (fx * kx + fy * ky)) ** (-1)
+        rtp_filter[np.abs(rtp_filter) > 1e6] = 0  # Stabilize extreme values
+
+        """# Note: x points east, y points north, z points down
+            # This aligns with how kx, ky are typically defined in FFT
+            fx = np.cos(inc_rad) * np.sin(dec_rad)  # East component
+            fy = np.cos(inc_rad) * np.cos(dec_rad)  # North component
+            fz = np.sin(inc_rad)  # Vertical component
+
+            # Calculate magnetization direction components
+            mx = np.cos(mag_inc_rad) * np.sin(mag_dec_rad)
+            my = np.cos(mag_inc_rad) * np.cos(mag_dec_rad)
+            mz = np.sin(mag_inc_rad)
+
+            # Calculate the RTP filter
+            # The key part is getting the dot product order correct
+            # In wavenumber domain: north corresponds to ky, east to kx
+            f_dot_k_hat = fz * k_hat + 1j * (fx * kx_hat + fy * ky_hat)
+            m_dot_k_hat = mz * k_hat + 1j * (mx * kx_hat + my * ky_hat)
+            
+            k_squared
+            * (f_z * k + 1j * (f_e * k_easting + f_n * k_northing)) ** (-1)"""
+
+        # Apply max_wavenumber filtering based on cell size
+        # rtp_filter[k > 1/(float(self.dx)*2)] = 0
+
+        # Apply RTP filter in the Fourier domain
+        data_fft = fft2(buffered_data)
+        data_rtp_fft = data_fft * rtp_filter
+
+        data_rtp = np.real(ifft2(data_rtp_fft))
+
+        # Remove buffer and restore NaNs
+        filtered_data = self.remove_buffer(data_rtp, buffer_size)
+        return self.restore_nan(filtered_data, nan_mask)
+
+    def reduction_to_poley(
         self,
         data,
         inclination,
@@ -317,7 +855,7 @@ class GeophysicalProcessor:
         # Calculate the 3 components
         m_e = np.cos(inc_rad) * np.sin(dec_rad)
         m_n = np.cos(inc_rad) * np.cos(dec_rad)
-        m_z = np.sin(inc_rad)
+        m_z = -np.sin(inc_rad)
 
         f_e, f_n, f_z = m_e, m_n, m_z
 
@@ -682,6 +1220,7 @@ class GeophysicalProcessor:
         filled_data, nan_mask = self.fill_nan(data)
         # Add buffer
         buffered_data = self.add_buffer(filled_data, buffer_size, buffer_method)
+        # self.display_grid(buffered_data)
 
         # buffered_data=self.apply_window(buffered_data)
         # Fourier transform
@@ -873,7 +1412,7 @@ class GeophysicalProcessor:
 
         # Process shapefile if requested
         if shps:
-            max_distance = initial_job.geomat[1] * 1.3
+            max_distance = initial_job.geomat[1] * 4
             in_path = wormsPath
             out_path = wormsPath.replace(".csv", ".shp")
             self.xyz_to_polylines(in_path, out_path, max_distance, crs)
@@ -1329,52 +1868,117 @@ class GeophysicalProcessor:
         plt.show()
 
     def split_long_segments(self, line, max_distance):
-        """Split a LineString into valid segments and discard only the segments longer than max_distance."""
+        """Split a LineString into segments, interpolating points where needed."""
+        from shapely.geometry import Point, LineString
+        import numpy as np
+
         coords = list(line.coords)
         new_lines = []
-        segment = [coords[0]]
 
-        for i in range(1, len(coords)):
-            segment.append(coords[i])
-            segment_length = Point(coords[i - 1]).distance(Point(coords[i]))
+        for i in range(len(coords) - 1):
+            p1 = coords[i]
+            p2 = coords[i + 1]
 
-            if segment_length > max_distance:
-                if len(segment) > 2:
-                    new_lines.append(LineString(segment[:-1]))
-                segment = [coords[i]]
+            # Calculate distance between consecutive points
+            segment_length = Point(p1).distance(Point(p2))
 
-        if len(segment) > 1:
-            new_lines.append(LineString(segment))
+            if segment_length <= max_distance:
+                # If segment is within threshold, add it directly
+                new_lines.append(LineString([p1, p2]))
+            else:
+                # If segment exceeds threshold, interpolate points
+                num_segments = int(np.ceil(segment_length / max_distance))
+
+                for j in range(num_segments):
+                    # Calculate interpolated points
+                    t1 = j / num_segments
+                    t2 = (j + 1) / num_segments
+
+                    interpolated_p1 = (
+                        p1[0] + t1 * (p2[0] - p1[0]),
+                        p1[1] + t1 * (p2[1] - p1[1]),
+                    )
+                    interpolated_p2 = (
+                        p1[0] + t2 * (p2[0] - p1[0]),
+                        p1[1] + t2 * (p2[1] - p1[1]),
+                    )
+
+                    new_lines.append(LineString([interpolated_p1, interpolated_p2]))
 
         return new_lines
 
     def process_cluster(self, points, z, max_distance):
-        """Process a cluster of points to create split LineStrings."""
-        if len(points) > 1:
-            tree = cKDTree(points)
-            sorted_points = [points[0]]
-            remaining_points = set(range(1, len(points)))
+        """Process a cluster of points to create split LineStrings with better connectivity."""
+        from scipy.spatial import cKDTree
+        from shapely.geometry import LineString, Point
+        import numpy as np
 
-            while remaining_points:
-                last_point = sorted_points[-1]
-                distances, indices = tree.query(
-                    last_point, k=min(len(remaining_points), len(points))
-                )
-                if np.isscalar(indices):
-                    indices = [indices]
-                valid_indices = [idx for idx in indices if idx in remaining_points]
+        if len(points) <= 1:
+            return []
 
-                if valid_indices:
-                    nearest_idx = valid_indices[0]
-                    sorted_points.append(points[nearest_idx])
-                    remaining_points.remove(nearest_idx)
-                else:
+        # Create KD-tree for efficient nearest neighbor search
+        tree = cKDTree(points)
+
+        # Track visited points
+        visited = np.zeros(len(points), dtype=bool)
+
+        # Start with first point
+        sorted_points = [points[0]]
+        visited[0] = True
+        remaining_count = len(points) - 1
+
+        # Find path through points
+        while remaining_count > 0:
+            last_point = sorted_points[-1]
+
+            # Query more points than needed to have alternatives if the closest are already visited
+            # Use a higher k value to have more candidates
+            k_value = min(len(points), 10)  # Try up to 10 nearest neighbors
+            distances, indices = tree.query(last_point, k=k_value)
+
+            # Handle scalar case
+            if np.isscalar(distances):
+                distances = [distances]
+                indices = [indices]
+
+            # Find the closest unvisited point within max_distance
+            found_next = False
+            for idx, dist in zip(indices, distances):
+                if not visited[idx] and dist <= max_distance:
+                    sorted_points.append(points[idx])
+                    visited[idx] = True
+                    remaining_count -= 1
+                    found_next = True
                     break
 
-            if len(sorted_points) > 1:
-                polyline = LineString(sorted_points)
-                split_segments = self.split_long_segments(polyline, max_distance)
-                return [(seg, z) for seg in split_segments]
+            # If no point within max_distance is found, try to start a new segment
+            if not found_next:
+                # Find the closest unvisited point to any point in our current path
+                min_dist = float("inf")
+                best_pair = None
+
+                for i, point in enumerate(sorted_points):
+                    distances, indices = tree.query(point, k=len(points))
+                    for j, (idx, dist) in enumerate(zip(indices, distances)):
+                        if not visited[idx] and dist < min_dist:
+                            min_dist = dist
+                            best_pair = (i, idx)
+
+                # If we found an unvisited point, start a new segment
+                if best_pair:
+                    sorted_points.append(points[best_pair[1]])
+                    visited[best_pair[1]] = True
+                    remaining_count -= 1
+                else:
+                    # No more points can be connected
+                    break
+
+        # Create and split the polyline
+        if len(sorted_points) > 1:
+            polyline = LineString(sorted_points)
+            split_segments = self.split_long_segments(polyline, max_distance)
+            return [(seg, z) for seg in split_segments]
+
         return []
 
     def split_long_segments(self, line, max_distance):
@@ -1396,291 +2000,6 @@ class GeophysicalProcessor:
             new_lines.append(LineString(segment))
 
         return new_lines
-
-    def process_cluster(self, points, z, max_distance):
-        """Process a cluster of points to create split LineStrings."""
-        if len(points) > 1:
-            tree = cKDTree(points)
-            sorted_points = [points[0]]
-            remaining_points = set(range(1, len(points)))
-
-            while remaining_points:
-                last_point = sorted_points[-1]
-                distances, indices = tree.query(
-                    last_point, k=min(len(remaining_points), len(points))
-                )
-                if np.isscalar(indices):
-                    indices = [indices]
-                valid_indices = [idx for idx in indices if idx in remaining_points]
-
-                if valid_indices:
-                    nearest_idx = valid_indices[0]
-                    sorted_points.append(points[nearest_idx])
-                    remaining_points.remove(nearest_idx)
-                else:
-                    break
-
-            if len(sorted_points) > 1:
-                polyline = LineString(sorted_points)
-                split_segments = self.split_long_segments(polyline, max_distance)
-                return [(seg, z) for seg in split_segments]
-        return []
-
-    def xyz_to_polylinestt(self, csv_file, output_shapefile, max_distance, crs):
-        """
-        Converts XYZ points from a CSV file into polylines and saves them as a shapefile.
-        Processes different z-levels in parallel using PyQGIS task management.
-        """
-        from sklearn.cluster import DBSCAN
-        from qgis.core import QgsTask, QgsApplication
-        import csv
-        from queue import Queue
-        import threading
-
-        # Class to handle processing of individual z-levels
-        class ZLevelProcessor(QgsTask):
-            def __init__(self, z_value, points, max_distance, processor):
-                super().__init__(f"Process Z Level {z_value}", QgsTask.CanCancel)
-                self.z_value = z_value
-                self.points = points
-                self.max_distance = max_distance
-                self.processor = processor
-                self.results = []
-
-            def run(self):
-                try:
-                    if len(self.points) < 2 or self.z_value < 1.0:
-                        return True
-
-                    print(
-                        f"Processing Z-bin: {self.z_value}, Number of points: {len(self.points)}"
-                    )
-
-                    clustering = DBSCAN(eps=self.max_distance, min_samples=1).fit(
-                        self.points
-                    )
-                    labels = clustering.labels_
-                    unique_labels = np.unique(labels)
-                    unique_labels = unique_labels[unique_labels != -1]
-
-                    for label in unique_labels:
-                        cluster_points = self.points[labels == label]
-                        if len(cluster_points) > 1:
-                            try:
-                                result = self.processor.process_cluster(
-                                    cluster_points, self.z_value, self.max_distance
-                                )
-                                if result:
-                                    self.results.extend(result)
-                            except Exception as e:
-                                print(
-                                    f"Error processing cluster at Z-bin {self.z_value}: {e}"
-                                )
-                                continue
-
-                    return True
-                except Exception as e:
-                    print(f"Error processing Z level {self.z_value}: {e}")
-                    return False
-
-        # Read and validate CSV data
-        valid_data = []
-        skipped_rows = 0
-
-        with open(csv_file, "r") as f:
-            reader = csv.DictReader(f)
-            for row_num, row in enumerate(reader, start=2):
-                try:
-                    if not all(key in row and row[key] for key in ["x", "y", "z"]):
-                        skipped_rows += 1
-                        continue
-
-                    x = float(row["x"].strip())
-                    y = float(row["y"].strip())
-                    z = float(row["z"].strip())
-
-                    if not all(map(np.isfinite, [x, y, z])):
-                        skipped_rows += 1
-                        continue
-
-                    valid_data.append((x, y, z))
-
-                except (ValueError, AttributeError) as e:
-                    skipped_rows += 1
-                    print(f"Warning: Skipping invalid row {row_num}: {str(e)}")
-                    continue
-
-        if skipped_rows > 0:
-            print(f"Skipped {skipped_rows} rows due to missing or invalid data")
-
-        if not valid_data:
-            raise ValueError("No valid data points found in the CSV file")
-
-        # Convert to numpy array and get unique z values
-        data = np.array(valid_data)
-        unique_z = np.unique(data[:, 2])
-
-        # Create tasks for each z level
-        task_manager = QgsApplication.taskManager()
-        tasks = []
-        all_results = []
-
-        # Process each z level in parallel
-        for z in unique_z:
-            mask = data[:, 2] == z
-            points = data[mask][:, :2]
-
-            task = ZLevelProcessor(z, points, max_distance, self)
-            tasks.append(task)
-            task_manager.addTask(task)
-
-        # Wait for all tasks to complete and collect results
-        for task in tasks:
-            task.waitForFinished()
-            if task.results:
-                all_results.extend(task.results)
-
-        # Collect all polylines and corresponding Z values
-        polylines = [item[0] for item in all_results if isinstance(item[0], LineString)]
-        z_values = [item[1] for item in all_results if isinstance(item[0], LineString)]
-
-        if not polylines:
-            raise ValueError(
-                "No valid LineStrings were created. Check your input data or parameters."
-            )
-
-        print("Processing complete. Saving to shapefile...")
-
-        # Save results to shapefile
-        driver = ogr.GetDriverByName("ESRI Shapefile")
-        ds = driver.CreateDataSource(output_shapefile)
-        spatial_ref = osr.SpatialReference()
-        spatial_ref.ImportFromEPSG(crs)
-        layer = ds.CreateLayer("polylines", spatial_ref, ogr.wkbLineString)
-
-        field_defn = ogr.FieldDefn("Z", ogr.OFTInteger)
-        layer.CreateField(field_defn)
-
-        for polyline, z in zip(polylines, z_values):
-            feature = ogr.Feature(layer.GetLayerDefn())
-            feature.SetField("Z", int(z))
-            geom = ogr.CreateGeometryFromWkt(polyline.wkt)
-            feature.SetGeometry(geom)
-            layer.CreateFeature(feature)
-            feature = None
-
-        ds = None
-        print(f"Shapefile saved to {output_shapefile}")
-
-    def xyz_to_polylineszz(self, csv_file, output_shapefile, max_distance, crs):
-        """
-        Converts XYZ points from a CSV file into polylines and saves them as a shapefile.
-        Handles missing or invalid data in the CSV file.
-        """
-        from sklearn.cluster import DBSCAN
-        import csv
-
-        valid_data = []
-        skipped_rows = 0
-
-        # Read CSV with robust error handling
-        with open(csv_file, "r") as f:
-            reader = csv.DictReader(f)
-            for row_num, row in enumerate(
-                reader, start=2
-            ):  # start=2 because row 1 is header
-                try:
-                    # Check if all required fields exist and are not None/empty
-                    if not all(key in row and row[key] for key in ["x", "y", "z"]):
-                        skipped_rows += 1
-                        continue
-
-                    # Try to convert values to float
-                    x = float(row["x"].strip())
-                    y = float(row["y"].strip())
-                    z = float(row["z"].strip())
-
-                    # Skip rows with NaN values
-                    if not all(map(np.isfinite, [x, y, z])):
-                        skipped_rows += 1
-                        continue
-
-                    valid_data.append((x, y, z))
-
-                except (ValueError, AttributeError) as e:
-                    skipped_rows += 1
-                    print(f"Warning: Skipping invalid row {row_num}: {str(e)}")
-                    continue
-
-        if skipped_rows > 0:
-            print(f"Skipped {skipped_rows} rows due to missing or invalid data")
-
-        if not valid_data:
-            raise ValueError("No valid data points found in the CSV file")
-
-        data = np.array(valid_data)
-        unique_z = np.unique(data[:, 2])
-        results = []
-
-        for z in unique_z:
-            mask = data[:, 2] == z
-            points = data[mask][:, :2]
-            if len(points) < 2 or z < 1.0:
-                continue
-
-            print(f"Processing Z-bin: {z}, Number of points: {len(points)}")
-
-            try:
-                clustering = DBSCAN(eps=max_distance, min_samples=1).fit(points)
-            except Exception as e:
-                print(f"Error in DBSCAN at Z-bin {z}: {e}")
-                continue
-
-            labels = clustering.labels_
-            unique_labels = np.unique(labels)
-            unique_labels = unique_labels[unique_labels != -1]
-
-            for label in unique_labels:
-                cluster_points = points[labels == label]
-                if len(cluster_points) > 1:
-                    try:
-                        result = self.process_cluster(cluster_points, z, max_distance)
-                        if result:
-                            results.extend(result)
-                    except Exception as e:
-                        print(f"Error processing cluster at Z-bin {z}: {e}")
-
-        # Collect all polylines and corresponding Z values
-        polylines = [item[0] for item in results if isinstance(item[0], LineString)]
-        z_values = [item[1] for item in results if isinstance(item[0], LineString)]
-
-        if not polylines:
-            raise ValueError(
-                "No valid LineStrings were created. Check your input data or parameters."
-            )
-
-        print("Processing complete. Saving to shapefile...")
-
-        # Save all results in a single shapefile
-        driver = ogr.GetDriverByName("ESRI Shapefile")
-        ds = driver.CreateDataSource(output_shapefile)
-        spatial_ref = osr.SpatialReference()
-        spatial_ref.ImportFromEPSG(crs)
-        layer = ds.CreateLayer("polylines", spatial_ref, ogr.wkbLineString)
-
-        field_defn = ogr.FieldDefn("Z", ogr.OFTInteger)
-        layer.CreateField(field_defn)
-
-        for polyline, z in zip(polylines, z_values):
-            feature = ogr.Feature(layer.GetLayerDefn())
-            feature.SetField("Z", int(z))
-            geom = ogr.CreateGeometryFromWkt(polyline.wkt)
-            feature.SetGeometry(geom)
-            layer.CreateFeature(feature)
-            feature = None
-
-        ds = None  # Close and save the shapefile
-        print(f"Shapefile saved to {output_shapefile}")
 
     def xyz_to_polylines(self, csv_file, output_shapefile, max_distance, crs):
         """

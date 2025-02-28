@@ -1091,8 +1091,8 @@ class SGTool:
             self.diskNewGridPath = self.insert_text_before_extension(
                 self.diskGridPath, self.suffix
             )
-            if os.path.exists(self.diskNewGridPath + "aux.xml"):
-                os.remove(self.diskNewGridPath + "aux.xml")
+            if os.path.exists(self.diskNewGridPath + ".aux.xml"):
+                os.remove(self.diskNewGridPath + ".aux.xml")
             err = self.numpy_array_to_raster(
                 self.new_grid,
                 self.diskNewGridPath,
@@ -1470,8 +1470,8 @@ class SGTool:
                         filename_without_extension
                     ):
                         os.remove(self.diskGridPath)
-                        if os.path.exists(self.diskGridPath + "aux.xml"):
-                            os.remove(self.diskGridPath + "aux.xml")
+                        if os.path.exists(self.diskGridPath + ".aux.xml"):
+                            os.remove(self.diskGridPath + ".aux.xml")
 
                     basename = os.path.basename(self.diskGridPath)
                     extension = os.path.splitext(basename)[1].lower()

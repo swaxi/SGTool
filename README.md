@@ -185,6 +185,16 @@ Takes a 3-band registered RGB image and converts it to a monotonically increasin
 - Length units are defined by grid properties except for Up/Down Continuation (so Lat/Long wavelengths should be defined in degrees!)
 3) If multiple processing steps are required, first apply one process, select the result and then apply subsequent steps.
 
+# Alternatives   
+There are several excellent Open Source or at least free alternatives to this plugin if you don't want to use QGIS, or want to do things this plugin can't:   
+- Fatiando Harmonica https://www.fatiando.org/harmonica/
+- GravMagSuite https://github.com/fcastro25/GravMagSuite
+- GSSH https://cires1.colorado.edu/people/jones.craig/GSSH/index.html
+- UBC Toolkit https://toolkit.geosci.xyz/content/Demos/SyntheticFilters.html
+- gravmag https://github.com/birocoles/gravmag
+- Fourpot https://sites.google.com/view/markkussoftware/gravity-and-magnetic-software/fourpot
+
+
 # Code development
 - Calcs ChatGPT and Mark Jessell
 - Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin https://g-sherman.github.io/Qgis-Plugin-Builder/    

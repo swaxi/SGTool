@@ -12,13 +12,13 @@
 1) Either:   
 - Download the zip file from the green **<> Code** button and install the zip file in QGIS using the plugin manager for the version on github or   
 - Install directly from the QGIS plugin manager from the plugin repository   
-2) If you get an error of the type **ModuleNotFoundError: No module named 'sklearn'** or any other module name you can install it directly from the QGIS Python COnsole (Menu Plugins->Python Console) and then type in (for the sklearn example):   
+2) If you get an error of the type **ModuleNotFoundError: No module named 'sklearn'** or any other module name you can install it directly from the QGIS Python Console (Menu Plugins->Python Console) and then type in (for the sklearn example):   
    
-   **!pip install scikit-learn**
+   **!pip3 install scikit-learn**
    
-- for other modules that may be msising the module name to be installed with !pip install is generally the same as the name specified in the error (scikit-learn is a special case) so for example if **shapely** was missing the command would be:   
+- for other modules that may be missing, the module name to be installed with !pip3 install is generally the same as the name specified in the error (scikit-learn is a special case) so for example if **shapely** was missing the command would be:   
    
-   **!pip install shapely**   
+   **!pip3 install shapely**   
 
    
 ## Grav/Mag Filters   
@@ -178,10 +178,10 @@ Takes a 3-band registered RGB image and converts it to a monotonically increasin
 # How To   
 1) Load a raster image from file
 - If a GRD grid (Oasis Montaj) is selected, the plugin will attempt to load CRS from the associated xml file, if this is not possible a CRS of EPSG:4326 is assumed. In any case the grid is saved as geotiff.
-2) Whatever layer is shown in the layer selector will be the one processed by whatever combination of filters are selected by check boxes. 
-- All processed files will be saved as geotiffs or ERS format files depending on the original format, will be saved in the same directory as the original file, and will have a suffix added describing the processing step.
-- If a RTP or RTE calculation is performed, it is possible to define the magnetic field manually or the IGRF mag field parameters can be assigned based on the centroid of grid, plus date and survey height
-- If a file exists on disk it will be overwritten, although QGIS plugins don't always like saving to disks other than C: on Windows.
+2) Whatever layer is shown in the layer selector will be the one processed by whatever combination of filters are selected by check boxes, but **must exist as a file, this plugin cannot process grids that are only in mmeory**. 
+- All processed files will be saved as geotiffs or ERS format files or any other QGIS-recognised formatdepending on the original format, will be saved in the same directory as the original file, and will have a suffix added describing the processing step.
+- If a RTP or RTE calculation is performed, it is possible to define the magnetic field manually or the IGRF mag field parameters can be assigned based on the centroid of grid, plus survey date.
+- If a file exists on disk it will be overwritten, although QGIS plugins don't always like saving to disks other than C: on Windows, and can't overwrite if the grid is open in another program.
 - Length units are defined by grid properties except for Up/Down Continuation (so Lat/Long wavelengths should be defined in degrees!)
 3) If multiple processing steps are required, first apply one process, select the result and then apply subsequent steps.
 

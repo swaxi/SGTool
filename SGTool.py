@@ -2150,7 +2150,6 @@ class SGTool:
             self.dlg.pushButton_load_point_data.clicked.connect(
                 self.import_point_line_data
             )
-
             self.dlg.mMapLayerComboBox_selectGrid_3.layerChanged.connect(
                 self.updateLayertoGrid
             )
@@ -2207,6 +2206,83 @@ class SGTool:
             self.dlg.pushButton_select_normalise_out.clicked.connect(
                 self.set_normalise_out
             )
+
+            # set of methods that autocheck the associated checkbox if a parameter is modified
+            self.dlg.lineEdit_3_azimuth.textChanged.connect(self.update_DC)
+            self.dlg.lineEdit_6_inc.textChanged.connect(self.update_RTEP)
+            self.dlg.lineEdit_5_dec.textChanged.connect(self.update_RTEP)
+            self.dlg.dateEdit.dateChanged.connect(self.update_RTEP)
+            self.dlg.comboBox_3_rte_p_list.currentTextChanged.connect(self.update_RTEP)
+            self.dlg.comboBox_2_continuationDirection.currentTextChanged.connect(
+                self.update_UDC
+            )
+            self.dlg.lineEdit_10_continuationHeight.textChanged.connect(self.update_UDC)
+            self.dlg.lineEdit_9_removeReg_wavelength.textChanged.connect(self.update_RR)
+            self.dlg.lineEdit_12_bandPassLow.textChanged.connect(self.update_BP)
+            self.dlg.lineEdit_11_bandPassHigh.textChanged.connect(self.update_BP)
+            self.dlg.lineEdit_12_FreqPass.textChanged.connect(self.update_HLP)
+            self.dlg.comboBox_2_FreqCutType.currentTextChanged.connect(self.update_HLP)
+            self.dlg.lineEdit_13_agc_window.textChanged.connect(self.update_AGC)
+            self.dlg.lineEdit_9_derivePower.textChanged.connect(self.update_Der)
+            self.dlg.comboBox_derivDirection.currentTextChanged.connect(self.update_Der)
+
+            self.dlg.lineEdit_Mean_size.textChanged.connect(self.update_Mn)
+            self.dlg.lineEdit_Median_size.textChanged.connect(self.update_Md)
+            self.dlg.lineEdit_Gaussian_Sigma.textChanged.connect(self.update_Gs)
+
+            self.dlg.comboBox_Dir_dir.currentTextChanged.connect(self.update_DD)
+
+            self.dlg.checkBox_relief.toggled.connect(self.update_Sh)
+            self.dlg.lineEdit_SunSh_Az.textChanged.connect(self.update_Sh)
+            self.dlg.lineEdit_SunSh_Zn.textChanged.connect(self.update_Sh)
+
+            self.dlg.radioButton_NaN_Above.toggled.connect(self.update_NaN)
+            self.dlg.radioButton_NaN_Below.toggled.connect(self.update_NaN)
+            self.dlg.radioButton_NaN_Both.toggled.connect(self.update_NaN)
+            self.dlg.doubleSpinBox_NaN_Above.valueChanged.connect(self.update_NaN)
+            self.dlg.doubleSpinBox_NaN_Below.valueChanged.connect(self.update_NaN)
+
+    def update_DC(self):
+        self.dlg.checkBox_3_DirClean.setChecked(True)
+
+    def update_RTEP(self):
+        self.dlg.checkBox_4_RTE_P.setChecked(True)
+
+    def update_UDC(self):
+        self.dlg.checkBox_9_continuation.setChecked(True)
+
+    def update_RR(self):
+        self.dlg.checkBox_5_regional.setChecked(True)
+
+    def update_BP(self):
+        self.dlg.checkBox_10_bandPass.setChecked(True)
+
+    def update_HLP(self):
+        self.dlg.checkBox_10_freqCut.setChecked(True)
+
+    def update_AGC(self):
+        self.dlg.checkBox_11_1vd_agc.setChecked(True)
+
+    def update_Der(self):
+        self.dlg.checkBox_6_derivative.setChecked(True)
+
+    def update_Mn(self):
+        self.dlg.checkBox_Mean.setChecked(True)
+
+    def update_Md(self):
+        self.dlg.checkBox_Median.setChecked(True)
+
+    def update_Gs(self):
+        self.dlg.checkBox_Gaussian.setChecked(True)
+
+    def update_DD(self):
+        self.dlg.checkBox_Directional.setChecked(True)
+
+    def update_Sh(self):
+        self.dlg.checkBox_SunShading.setChecked(True)
+
+    def update_NaN(self):
+        self.dlg.checkBox_NaN.setChecked(True)
 
     # select directory to store grid
     def gridFile(self):

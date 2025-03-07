@@ -38,6 +38,8 @@ from qgis.core import (
     QgsField,
     QgsProcessingFeedback,
 )
+from qgis.PyQt.QtWidgets import QMessageBox
+from qgis.core import QgsMessageLog, Qgis
 
 from qgis.PyQt.QtWidgets import QAction, QFileDialog
 from qgis.PyQt.QtCore import (
@@ -69,23 +71,15 @@ from .resources import *
 
 # Import the code for the DockWidget
 from .SGTool_dockwidget import SGToolDockWidget
-from .calcs.GeophysicalProcessor import GeophysicalProcessor
 from .calcs.geosoft_grid_parser import *
-from .calcs.PSplot import PowerSpectrumDock
-from .calcs.ConvolutionFilter import ConvolutionFilter
-from .calcs.ConvolutionFilter import OddPositiveIntegerValidator
-from .calcs.GridData_no_pandas import GridData
-from .calcs.GridData_no_pandas import QGISGridData
-
-from .calcs.SG_Util import SG_Util
-from .igrf.igrf_utils import igrf_utils as IGRF
 import os.path
 import numpy as np
 import subprocess
-from scipy.spatial import cKDTree
-from scipy import interpolate
-import tempfile
 
+import tempfile
+import importlib
+import sys
+import os
 from osgeo import gdal, osr
 
 from datetime import datetime
@@ -136,35 +130,94 @@ class SGTool:
         self.dlg = None
         self.last_directory = None
 
-        def install_library(library_name):
+        required_packages = ["sklearn", "shapely", "matplotlib", "scipy", "networkx"]
+        self.check_and_install_dependencies(required_packages)
+
+    def check_and_install_dependencies(self, required_packages):
+        """
+        Check if required packages are installed and install them if missing.
+
+        Args:
+            required_packages (list): List of package names to check and install
+
+        Returns:
+            bool: True if all dependencies are satisfied, False otherwise
+        """
+        missing_packages = []
+        for package in required_packages:
             try:
-                if platform.system == "Windows":
-                    subprocess.check_call(
-                        ["python", "-m", "pip", "install", library_name]
-                    )
+                importlib.import_module(package)
+                QgsMessageLog.logMessage(
+                    f"Package {package} is already installed",
+                    "DependencyManager",
+                    Qgis.Info,
+                )
+            except ImportError:
+                missing_packages.append(package)
+
+        if not missing_packages:
+            return True
+
+        # Ask user for permission to install missing packages
+        package_list = ", ".join(missing_packages)
+        reply = QMessageBox.question(
+            None,
+            "Missing Dependencies",
+            f"The following Python packages are required but not installed: {package_list}\n\nWould you like to install them now?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+
+        if reply == QMessageBox.No:
+            QgsMessageLog.logMessage(
+                "User declined to install dependencies",
+                "DependencyManager",
+                Qgis.Warning,
+            )
+            return False
+
+        # Install missing packages
+        success = True
+        for package in missing_packages:
+            try:
+
+                if package == "sklearn":
+                    package_name = "scikit-learn"
                 else:
-                    subprocess.check_call(
-                        ["python3", "-m", "pip3", "install", library_name]
-                    )
-                print(f"Successfully installed {library_name}")
-            except subprocess.CalledProcessError as e:
-                print(f"Error installing {library_name}: {e}")
+                    package_name = package
 
-        # Library shapely
-        try:
-            import shapely
+                QgsMessageLog.logMessage(
+                    f"Installing {package}...", "DependencyManager", Qgis.Info
+                )
 
-        except:
-            install_library("shapely")
-            import shapely
+                # Use pip in a way that's compatible with QGIS Python environment
+                python_executable = sys.executable
+                subprocess.check_call(
+                    [python_executable, "-m", "pip", "install", package_name]
+                )
 
-        # Library scikit-learn
-        try:
-            import sklearn
+                # Verify installation worked
+                importlib.import_module(package)
+                QgsMessageLog.logMessage(
+                    f"Successfully installed {package}",
+                    "DependencyManager",
+                    Qgis.Success,
+                )
+            except (subprocess.CalledProcessError, ImportError) as e:
+                QgsMessageLog.logMessage(
+                    f"Failed to install {package}: {str(e)}",
+                    "DependencyManager",
+                    Qgis.Critical,
+                )
+                success = False
 
-        except:
-            install_library("scikit-learn")
-            import sklearn
+        if not success:
+            QMessageBox.warning(
+                None,
+                "Installation Failed",
+                "Some dependencies could not be installed. Check the QGIS log for details.",
+            )
+
+        return success
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -685,6 +738,8 @@ class SGTool:
 
     def procRSTGridding(self):
 
+        from .calcs.GridData_no_pandas import QGISGridData
+
         gridder = QGISGridData(self.iface)
 
         layer_name = self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
@@ -696,6 +751,9 @@ class SGTool:
         gridder.launch_r_surf_rst_dialog(input, zcolumn, cell_size, mask)
 
     def procIDWGridding(self):
+
+        from .calcs.GridData_no_pandas import QGISGridData
+
         gridder = QGISGridData(self.iface)
 
         layer_name = self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
@@ -708,6 +766,9 @@ class SGTool:
         gridder.launch_idw_dialog(input, zcolumn, cell_size, mask)
 
     def procbsplineGridding(self):
+
+        from .calcs.GridData_no_pandas import QGISGridData
+
         gridder = QGISGridData(self.iface)
 
         layer_name = self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
@@ -846,7 +907,7 @@ class SGTool:
 
     def procAGC(self):
         self.new_grid = self.processor.automatic_gain_control(
-            self.raster_array, window_size=int(self.agc_window)
+            self.raster_array, window_size=float(self.agc_window)
         )
         self.suffix = "_AGC"
 
@@ -969,6 +1030,8 @@ class SGTool:
         self.suffix = "_Clean"
 
     def procNormalise(self):
+        from .calcs.GeophysicalProcessor import GeophysicalProcessor
+
         processor = GeophysicalProcessor(None, None, None)
         inpath = self.input_directory
         outpath = self.output_directory
@@ -982,6 +1045,8 @@ class SGTool:
             processor.normalise_geotiffs(inpath, outpath, order)
 
     def procBSDworms(self):
+        from .calcs.GeophysicalProcessor import GeophysicalProcessor
+
         num_levels = int(self.dlg.spinBox_levels.value())
         bottom_level = int(self.dlg.doubleSpinBox_base.text())
         delta_z = float(self.dlg.doubleSpinBox_inc.text())
@@ -1142,6 +1207,10 @@ class SGTool:
 
     def processGeophysics(self):
         process = False
+        from .calcs.ConvolutionFilter import ConvolutionFilter
+        from .calcs.GeophysicalProcessor import GeophysicalProcessor
+        from .calcs.SG_Util import SG_Util
+
         """if(os.path.exists(self.diskGridPath) and self.diskGridPath!=""):
             self.parseParams()
             self.loadGrid()
@@ -1383,6 +1452,7 @@ class SGTool:
                     )
 
     def select_grid_file(self):
+
         start_directory = self.last_directory if self.last_directory else os.getcwd()
         file_filter = "Grids (*.TIF *.tif *.TIFF *.tiff *.grd *.GRD *.ERS *.ers)"
 
@@ -1747,6 +1817,8 @@ class SGTool:
                 )
 
     def calcIGRF(self, date, alt, lat, lon):
+        from .igrf.igrf_utils import igrf_utils as IGRF
+        from scipy import interpolate
 
         igrf_gen = "14"
         itype = 1
@@ -1872,6 +1944,8 @@ class SGTool:
         return self.raster_array
 
     def display_rad_power_spectrum(self):
+        from .calcs.PSplot import PowerSpectrumDock
+
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
         if self.localGridName != "":
             self.pslayer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
@@ -2002,6 +2076,8 @@ class SGTool:
 
     def run(self):
         """Run method that loads and starts the plugin"""
+
+        from .calcs.ConvolutionFilter import OddPositiveIntegerValidator
 
         if not self.pluginIsActive:
             self.pluginIsActive = True
@@ -2481,7 +2557,7 @@ class SGTool:
 
         fields = QgsFields()
         fields.append(QgsField("LINE_ID", QVariant.Int))
-        print("data_list", data_list)
+        # print("data_list", data_list)
         for i in range(len(data_list[0]) - 3):
             fields.append(QgsField(f"data_{i}", QVariant.Double))
 
@@ -2538,6 +2614,8 @@ class SGTool:
         layer_tree.findLayer(point_layer.id()).setItemVisibilityChecked(False)
 
     def convert_RGB_to_grey(self, RGBGridPath, LUT):
+        from scipy.spatial import cKDTree
+
         result = False
 
         # Open the 3-band TIF using GDAL
@@ -2642,6 +2720,9 @@ class SGTool:
         return result, RGBGridPath_gray
 
     def convert_RGB_to_grey_rasterio(self, RGBGridPath, LUT):
+        import rasterio
+        from scipy.spatial import cKDTree
+
         result = False
         # Load the 3-band TIF
         with rasterio.open(RGBGridPath) as src:
@@ -2810,6 +2891,9 @@ class SGTool:
         return np.array(data)
 
     def gridPointData(self):
+
+        from .calcs.GridData_no_pandas import GridData
+
         self.gridFilePath = self.dlg.lineEdit_gridOutputDir.text()
         if self.gridFilePath and not os.path.exists(self.gridFilePath):
 
@@ -2890,7 +2974,6 @@ class SGTool:
     def addGridded(
         self, grid, filename_without_extension, filepath, epsg, extent, cell_size
     ):
-
         if self.is_layer_loaded(filename_without_extension):
             layer = QgsProject.instance().mapLayersByName(filename_without_extension)
 

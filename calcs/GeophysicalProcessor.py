@@ -1,14 +1,14 @@
 import numpy as np
-from scipy.fftpack import fft2, ifft2, fftfreq
-from scipy.ndimage import gaussian_filter
 from numpy.polynomial.polynomial import polyval2d
-from scipy.spatial import cKDTree
+#from scipy.spatial import cKDTree
+#from scipy.fftpack import fft2, ifft2, fftfreq
+#from scipy.ndimage import gaussian_filter
+#from shapely.geometry import LineString, Point
 from math import ceil
 import numpy as np
 
 
 from osgeo import ogr, osr
-from shapely.geometry import LineString, Point
 
 # from joblib import Parallel, delayed
 import csv
@@ -16,7 +16,7 @@ import csv
 import glob
 import os
 from osgeo import gdal
-from scipy.optimize import leastsq
+#from scipy.optimize import leastsq
 
 from ..worms.wormer import Wormer
 from ..worms.Utility import (
@@ -38,6 +38,10 @@ class GeophysicalProcessor:
             dx (float): Grid spacing in the x-direction.
             dy (float): Grid spacing in the y-direction.
         """
+        from scipy.spatial import cKDTree
+        from scipy.fftpack import fft2, ifft2, fftfreq
+        from scipy.ndimage import gaussian_filter
+        from shapely.geometry import LineString, Point
         self.dx = dx
         self.dy = dy
         self.buffer = buffer
@@ -559,6 +563,7 @@ class GeophysicalProcessor:
     def reduction_to_equator(
         self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
     ):
+        from scipy.fftpack import fft2, ifft2, fftfreq
         # Convert angles from degrees to radians
         inc, dec = np.radians(inclination), np.radians(declination)
 
@@ -668,6 +673,8 @@ class GeophysicalProcessor:
         Returns:
             numpy.ndarray: Grid after applying AGC.
         """
+        from scipy.ndimage import gaussian_filter
+
         filled_data, nan_mask = self.fill_nan(grid)
         # Take the absolute value of the grid to normalize amplitudes
         abs_grid = np.abs(filled_data)
@@ -805,6 +812,7 @@ class GeophysicalProcessor:
         """
         Apply a Fourier-domain filter with buffering and NaN handling.
         """
+        from scipy.fftpack import fft2, ifft2, fftfreq
         # inpaint NaN values
         # Handle NaN values
         filled_data, nan_mask = self.fill_nan(data)
@@ -1572,6 +1580,7 @@ class GeophysicalProcessor:
         return []
 
     def split_long_segments(self, line, max_distance):
+        from shapely.geometry import Point, LineString
         """Split a LineString into valid segments and discard only the segments longer than max_distance."""
         coords = list(line.coords)
         new_lines = []
@@ -1612,6 +1621,7 @@ class GeophysicalProcessor:
         >>> processor.xyz_to_polylines("input.csv", "output.shp", 10.0, 4326)
         """
         from sklearn.cluster import DBSCAN
+        from shapely.geometry import Point, LineString
 
         with open(csv_file, "r") as f:
             reader = csv.DictReader(f)
@@ -1686,6 +1696,7 @@ class GeophysicalProcessor:
 
     def remove_2o_gradient(self, data, mask):
         """Fit a second-order polynomial surface to the raster data and remove it."""
+        from scipy.optimize import leastsq
         rows, cols = data.shape
         X, Y = np.meshgrid(np.arange(cols), np.arange(rows))
 
@@ -1709,6 +1720,7 @@ class GeophysicalProcessor:
 
     def remove_gradient(self, data, mask):
         """Fit a plane to the raster data and remove the first-order gradient."""
+        from scipy.optimize import leastsq
         rows, cols = data.shape
         X, Y = np.meshgrid(np.arange(cols), np.arange(rows))
 
@@ -1847,7 +1859,7 @@ class GeophysicalProcessor:
 
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
+    #import matplotlib.pyplot as plt
 
     # Create synthetic data
     nx, ny = 100, 100

@@ -2474,14 +2474,15 @@ class SGTool:
                     except ValueError:
                         pass
                 else:
-                    print("Invalid line:", line)
+                    if load_ties:
+                        print("Invalid line:", line)
         # Process and create the line layer
         line_layer = QgsVectorLayer("LineString?crs=EPSG:" + crs, layer_name, "memory")
         line_provider = line_layer.dataProvider()
 
         fields = QgsFields()
         fields.append(QgsField("LINE_ID", QVariant.Int))
-        print("data_list", data_list)
+
         for i in range(len(data_list[0]) - 3):
             fields.append(QgsField(f"data_{i}", QVariant.Double))
 

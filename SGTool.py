@@ -208,7 +208,7 @@ class SGTool:
                 # Use pip in a way that's compatible with QGIS Python environment
                 python_executable = sys.executable
                 subprocess.check_call(
-                    [python_executable, "-m", "pip", "install", package_name]
+                    [python_executable, "-m", "pip3", "install", package_name]
                 )
 
                 # Verify installation worked

@@ -124,14 +124,30 @@ class SGTool:
         self.toolbar = self.iface.addToolBar("SGTool")
         self.toolbar.setObjectName("SGTool")
 
-        # print "** INITIALIZING SGTool"
-
         self.pluginIsActive = False
         self.dlg = None
         self.last_directory = None
 
-        required_packages = ["sklearn", "shapely", "matplotlib", "scipy", "networkx"]
-        self.check_and_install_dependencies(required_packages)
+        required_packages = [
+            "sklearn",
+            "shapely",
+            "matplotlib",
+            "scipy",
+            "networkx",
+        ]
+        if not self.check_and_install_dependencies(required_packages):
+            self.iface.messageBar().pushMessage(
+                "Plugin missing required python libraries",
+                level=Qgis.Warning,
+                duration=60,
+            )
+            return
+        else:
+            QgsMessageLog.logMessage(
+                "All required dependencies are installed",
+                "DependencyManager",
+                Qgis.Info,
+            )
 
     def check_and_install_dependencies(self, required_packages):
         """

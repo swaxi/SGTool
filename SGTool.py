@@ -846,7 +846,7 @@ class SGTool:
 
     def procAGC(self):
         self.new_grid = self.processor.automatic_gain_control(
-            self.raster_array, window_size=float(self.agc_window)
+            self.raster_array, window_size=int(self.agc_window)
         )
         self.suffix = "_AGC"
 
@@ -1330,7 +1330,7 @@ class SGTool:
             None,
             "Select RGB Image File",
             start_directory,
-            "Grids (*.TIF;*.tif;*.TIFF;*.tiff)",
+            "Grids (*.TIF *.tif *.TIFF *.tiff)",
         )
         if os.path.exists(self.diskRGBGridPath) and self.diskRGBGridPath != "":
             self.dlg.lineEdit_2_loadGridPath_2.setText(self.diskRGBGridPath)

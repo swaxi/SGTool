@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<plugins>
+  <pyqgis_plugin name="SGTool" version="0.2.12">
+    <description>Simple Potential Field Processing</description>
+    <homepage>https://github.com/swaxi/SGTool</homepage>
+    <qgis_minimum_version>3.34.0</qgis_minimum_version>
+    <file_name>main.zip</file_name>
+    <author_name>Mark Jessell</author_name>
+    <download_url>https://github.com/swaxi/SGTool/archive/refs/heads/main.zip</download_url>
+  </pyqgis_plugin>
+</plugins>

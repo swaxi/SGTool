@@ -1051,7 +1051,7 @@ QTabBar::tab:hover {
 }</string>
      </property>
      <attribute name="title">
-      <string>Conv</string>
+      <string>Conv + Stats</string>
      </attribute>
      <widget class="QPushButton" name="pushButton_19">
       <property name="geometry">

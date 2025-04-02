@@ -148,10 +148,10 @@ Apply directional filter (NE, N, NW, W, SW, S, SE, E)
 Computes relief shading for a digital elevation model (DEM) or other 2D grids.
 
 ## Spatial Statistics   
-Calculates 1D statistics in a windowed image
+Calculates 1D statistics in a windowed grid
    
 **Min**   
-Calculate Mnimum of values around central pixel for given window size  
+Calculate Minimum of values around central pixel for given window size  
 
 **Max**   
 Calculate Maximum of values around central pixel for given window size  

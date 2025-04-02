@@ -2255,6 +2255,7 @@ class SGTool:
 
             self.dlg.lineEdit_Mean_size.setValidator(OddPositiveIntegerValidator())
             self.dlg.lineEdit_Median_size.setValidator(OddPositiveIntegerValidator())
+            self.dlg.lineEdit_SS_Window.setValidator(OddPositiveIntegerValidator())
 
             self.directional_list = []
             self.directional_list.append("N")

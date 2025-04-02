@@ -76,6 +76,7 @@ from .calcs.ConvolutionFilter import ConvolutionFilter
 from .calcs.ConvolutionFilter import OddPositiveIntegerValidator
 from .calcs.GridData_no_pandas import GridData
 from .calcs.GridData_no_pandas import QGISGridData
+from .calcs.SpatialStats import SpatialStats
 
 from .calcs.SG_Util import SG_Util
 from .igrf.igrf_utils import igrf_utils as IGRF
@@ -527,6 +528,29 @@ class SGTool:
             "Functions preceded by dot points should be calculated on RTE or RPT data"
         )
 
+        self.dlg.checkBox_SS_Min.setToolTip(
+            "Calculate minimum of values around central pixel"
+        )
+        self.dlg.checkBox_SS_Max.setToolTip(
+            "Calculate maximum of values around central pixel"
+        )
+        self.dlg.checkBox_SS_StdDev.setToolTip(
+            "Calculate standard deviation of values around central pixel\nWill be slow for larger grids and window sizes!!"
+        )
+        self.dlg.checkBox_SS_Variance.setToolTip(
+            "Calculate variance of values around central pixel\nWill be slow for larger grids and window sizes!!"
+        )
+        self.dlg.checkBox_SS_Skewness.setToolTip(
+            "Calculate skewness of values around central pixel\nWill be VERY slow for larger grids and window sizes!!"
+        )
+        self.dlg.checkBox_SS_Kurtosis.setToolTip(
+            "Calculate kurtosis of values around central pixel\nWill be VERY slow for larger grids and window sizes!!"
+        )
+
+        self.dlg.lineEdit_SS_Window.setToolTip(
+            "Size of window for calculation of spatial statistics"
+        )
+
     def initParams(self):
         self.localGridName = ""
         self.diskGridPath = ""
@@ -649,6 +673,14 @@ class SGTool:
         self.NaN_Below = float(self.dlg.doubleSpinBox_NaN_Below.text())
 
         self.Polygons = self.dlg.checkBox_polygons.isChecked()
+
+        self.SS_Min = self.dlg.checkBox_SS_Min.isChecked()
+        self.SS_Max = self.dlg.checkBox_SS_Max.isChecked()
+        self.SS_StdDev = self.dlg.checkBox_SS_StdDev.isChecked()
+        self.SS_Variance = self.dlg.checkBox_SS_Variance.isChecked()
+        self.SS_Skewness = self.dlg.checkBox_SS_Skewness.isChecked()
+        self.SS_Kurtosis = self.dlg.checkBox_SS_Kurtosis.isChecked()
+        self.SS_window_size = int(self.dlg.lineEdit_SS_Window.text())
 
     def loadGrid(self):
         fileInfo = QFileInfo(self.diskGridPath)
@@ -1005,6 +1037,42 @@ class SGTool:
         ):
             processor.normalise_geotiffs(inpath, outpath, order)
 
+    def procSS_Min(self):
+        self.new_grid = self.SpatialStats.calculate_windowed_stats(
+            window_size=self.SS_window_size, stat_type="min"
+        )
+        self.suffix = "_SS_Min"
+
+    def procSS_Max(self):
+        self.new_grid = self.SpatialStats.calculate_windowed_stats(
+            window_size=self.SS_window_size, stat_type="max"
+        )
+        self.suffix = "_SS_Max"
+
+    def procSS_StdDev(self):
+        self.new_grid = self.SpatialStats.calculate_windowed_stats(
+            window_size=self.SS_window_size, stat_type="std"
+        )
+        self.suffix = "_SS_StdDev"
+
+    def procSS_Variance(self):
+        self.new_grid = self.SpatialStats.calculate_windowed_stats(
+            window_size=self.SS_window_size, stat_type="variance"
+        )
+        self.suffix = "_SS_Var"
+
+    def procSS_Skewness(self):
+        self.new_grid = self.SpatialStats.calculate_windowed_stats(
+            window_size=self.SS_window_size, stat_type="skewness"
+        )
+        self.suffix = "_SS_Skew"
+
+    def procSS_Kurtosis(self):
+        self.new_grid = self.SpatialStats.calculate_windowed_stats(
+            window_size=self.SS_window_size, stat_type="kurtosis"
+        )
+        self.suffix = "_SS_Kurt"
+
     def procBSDworms(self):
         num_levels = int(self.dlg.spinBox_levels.value())
         bottom_level = int(self.dlg.doubleSpinBox_base.text())
@@ -1224,6 +1292,7 @@ class SGTool:
             self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
             self.convolution = ConvolutionFilter(self.raster_array)
             self.SG_Util = SG_Util(self.raster_array)
+            self.SpatialStats = SpatialStats(self.raster_array)
             self.suffix = ""
             if self.DirClean:
                 self.procDirClean()
@@ -1281,6 +1350,26 @@ class SGTool:
             if self.NaN:
                 self.procNaN()
                 self.addNewGrid()
+
+            if self.SS_Min:
+                self.procSS_Min()
+                self.addNewGrid()
+            if self.SS_Max:
+                self.procSS_Max()
+                self.addNewGrid()
+            if self.SS_Kurtosis:
+                self.procSS_Kurtosis()
+                self.addNewGrid()
+            if self.SS_StdDev:
+                self.procSS_StdDev()
+                self.addNewGrid()
+            if self.SS_Variance:
+                self.procSS_Variance()
+                self.addNewGrid()
+            if self.SS_Skewness:
+                self.procSS_Skewness()
+                self.addNewGrid()
+
             if self.Polygons:
                 self.procPolygons()
 
@@ -1310,6 +1399,13 @@ class SGTool:
 
         self.dlg.checkBox_NaN.setChecked(False)
         self.dlg.checkBox_polygons.setChecked(False)
+
+        self.dlg.checkBox_SS_Min.setChecked(False)
+        self.dlg.checkBox_SS_Max.setChecked(False)
+        self.dlg.checkBox_SS_Kurtosis.setChecked(False)
+        self.dlg.checkBox_SS_StdDev.setChecked(False)
+        self.dlg.checkBox_SS_Variance.setChecked(False)
+        self.dlg.checkBox_SS_Skewness.setChecked(False)
 
         self.RTE_P = False
         self.TA = False

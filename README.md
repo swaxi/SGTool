@@ -146,6 +146,27 @@ Apply directional filter (NE, N, NW, W, SW, S, SE, E)
    
 **Sun Shading**   
 Computes relief shading for a digital elevation model (DEM) or other 2D grids.
+
+## Spatial Statistics   
+Calculates 1D statistics in a windowed image
+   
+**Min**   
+Calculate Mnimum of values around central pixel for given window size  
+
+**Max**   
+Calculate Maximum of values around central pixel for given window size  
+
+**Standard Deviation**   
+Calculate Standard Deviation of values around central pixel for given window size  
+
+**Variance**   
+Calculate Variance of values around central pixel for given window size  
+
+**Kurtosis**   
+Calculate Kurtosis of values around central pixel for given window size  
+
+**Skewness**   
+Calculate Skewness of values around central pixel for given window size  
    
 ## Gridding   
 **Import points**   

@@ -137,14 +137,16 @@ class SGTool:
         self.last_directory = None
 
         def install_library(library_name):
+            import sys
+
             try:
                 if platform.system == "Windows":
                     subprocess.check_call(
-                        ["python", "-m", "pip", "install", library_name]
+                        [sys.executable, "-m", "pip", "install", library_name]
                     )
                 else:
                     subprocess.check_call(
-                        ["python3", "-m", "pip3", "install", library_name]
+                        [sys.executable, "-m", "pip3", "install", library_name]
                     )
                 print(f"Successfully installed {library_name}")
             except subprocess.CalledProcessError as e:
@@ -2161,7 +2163,7 @@ class SGTool:
                 self.updateLayertoGrid2
             )
             # Connect to layer removal signal
-            QgsProject.instance().layerRemoved.connect(self.refreshComboBox)
+            # QgsProject.instance().layerRemoved.connect(self.refreshComboBox)
 
             if self.dlg.mMapLayerComboBox_selectGrid_3.currentText() != "":
                 self.updateLayertoGrid()

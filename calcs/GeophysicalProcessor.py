@@ -1,22 +1,16 @@
 import numpy as np
-from scipy.fftpack import fft2, ifft2, fftfreq
-from scipy.ndimage import gaussian_filter
 from numpy.polynomial.polynomial import polyval2d
-from scipy.spatial import cKDTree
 from math import ceil
 import numpy as np
 
 
 from osgeo import ogr, osr
-from shapely.geometry import LineString, Point
 
-# from joblib import Parallel, delayed
 import csv
 
 import glob
 import os
 from osgeo import gdal
-from scipy.optimize import leastsq
 
 from ..worms.wormer import Wormer
 from ..worms.Utility import (
@@ -38,6 +32,7 @@ class GeophysicalProcessor:
             dx (float): Grid spacing in the x-direction.
             dy (float): Grid spacing in the y-direction.
         """
+
         self.dx = dx
         self.dy = dy
         self.buffer = buffer
@@ -208,6 +203,82 @@ class GeophysicalProcessor:
         data_with_nan[nan_mask] = np.nan
         return data_with_nan
 
+    def find_optimal_fft_size(self, dimension, min_padding_each_side):
+        """
+        Find the optimal size for FFT computation that is a product of powers of 2, 3, and 5,
+        ensuring sufficient padding on each side of the grid.
+
+        Args:
+            dimension (int): Original dimension size
+            min_padding_each_side (int): Minimum padding required on each side
+
+        Returns:
+            tuple: (optimal_size, left_padding, right_padding)
+        """
+        # Minimum size needed with padding on both sides
+        min_size = dimension + 2 * min_padding_each_side
+
+        # Find the next size that is a product of powers of 2, 3, and 5
+        optimal_size = min_size
+
+        while True:
+            # Test if the current size is a product of powers of 2, 3, and 5 only
+            n = optimal_size
+            for p in [2, 3, 5]:
+                while n % p == 0:
+                    n //= p
+
+            # If n becomes 1, it means size was a product of powers of 2, 3, 5 only
+            if n == 1:
+                break
+
+            # Try the next size
+            optimal_size += 1
+
+        # Calculate the padding on each side
+        total_padding = optimal_size - dimension
+
+        # Handle asymmetric padding (for odd total_padding)
+        left_padding = total_padding // 2
+        right_padding = total_padding - left_padding
+
+        return optimal_size, left_padding, right_padding
+
+    def optimize_grid_size(self, x_dim, y_dim, min_padding):
+        """
+        Optimize a 2D grid size for FFT computation with padding on all sides.
+
+        Args:
+            x_dim (int): Original X dimension
+            y_dim (int): Original Y dimension
+            min_padding (int): Minimum required padding on each side
+
+        Returns:
+            dict: Contains optimal dimensions and padding information
+        """
+        # Find optimal sizes and padding for each dimension
+        optimal_x, left_x_pad, right_x_pad = self.find_optimal_fft_size(
+            x_dim, min_padding
+        )
+        optimal_y, top_y_pad, bottom_y_pad = self.find_optimal_fft_size(
+            y_dim, min_padding
+        )
+
+        return {
+            "original_dims": (x_dim, y_dim),
+            "optimal_dims": (optimal_x, optimal_y),
+            "padding": {
+                "left": left_x_pad,
+                "right": right_x_pad,
+                "top": top_y_pad,
+                "bottom": bottom_y_pad,
+            },
+            "total_padding": {
+                "x_axis": left_x_pad + right_x_pad,
+                "y_axis": top_y_pad + bottom_y_pad,
+            },
+        }
+
     def add_buffer(self, data, buffer_size, method="mirror"):
         """
         Add a buffer around the edges to reduce edge effects.
@@ -215,16 +286,20 @@ class GeophysicalProcessor:
         self.data_mean = np.nanmean(data)
         # data_zero = data - self.data_mean
 
-        # Determine padding sizes (20% of original dimensions)
-        pad_y = buffer_size
-        pad_x = buffer_size
+        padding_info = self.optimize_grid_size(
+            data.shape[1], data.shape[0], buffer_size
+        )
 
         # Pad the image with zeros
+
+        padding = padding_info["padding"]
         padded_image = np.pad(
             data,
-            pad_width=((pad_y, pad_y), (pad_x, pad_x)),
+            pad_width=(
+                (padding["top"], padding["bottom"]),
+                (padding["left"], padding["right"]),
+            ),
             mode="linear_ramp",
-            # constant_values=0
         )
 
         # Create a 2D Hanning window
@@ -246,7 +321,7 @@ class GeophysicalProcessor:
 
         # Apply the Tukey window
         padded_image = padded_image * tukey_window  # * modified_window
-        return padded_image
+        return padded_image, padding_info
 
     def tukey_window(self, M, alpha=0.25):
         """Create a Tukey window with length M and shape parameter alpha."""
@@ -273,12 +348,19 @@ class GeophysicalProcessor:
 
         return w
 
-    def remove_buffer(self, data, buffer_size):
+    def remove_buffer(self, data, buffer_size, padding_info):
         """
         Remove the buffer from the edges of the grid.
         """
         data = data  # + self.data_mean
-        return data[buffer_size:-buffer_size, buffer_size:-buffer_size]
+
+        # Remove the buffer
+        return data[
+            padding_info["padding"]["top"] : padding_info["padding"]["top"]
+            + padding_info["original_dims"][1],
+            padding_info["padding"]["left"] : padding_info["padding"]["left"]
+            + padding_info["original_dims"][0],
+        ]
 
     # --- Trend Removal ---
     def remove_polynomial_trend(self, x, y, z, grid_x, grid_y, degree=2):
@@ -465,143 +547,36 @@ class GeophysicalProcessor:
             data, filter_function, buffer_size, buffer_method
         )
 
-    def rte_filter_function(
-        kx,
-        ky,
-        inclination,
-        declination,
-        magnetization_inclination=None,
-        magnetization_declination=None,
+    def reduction_to_equator(
+        self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
     ):
-        """
-        Generate a Reduction to the Equator (RTE) filter in the frequency domain.
+        from scipy.fftpack import fft2, ifft2, fftfreq
 
-        Parameters
-        ----------
-        kx : array
-            Wavenumber component in x-direction.
-        ky : array
-            Wavenumber component in y-direction.
-        inclination : float
-            Inclination of the inducing geomagnetic field in degrees.
-        declination : float
-            Declination of the inducing geomagnetic field in degrees.
-        magnetization_inclination : float, optional
-            Inclination of the total magnetization of the source in degrees.
-        magnetization_declination : float, optional
-            Declination of the total magnetization of the source in degrees.
+        # Convert angles from degrees to radians
+        inc, dec = np.radians(inclination), np.radians(declination)
 
-        Returns
-        -------
-        numpy.ndarray
-            Fourier-domain filter for reduction to the equator.
-        """
-        # Convert angles to radians
-        inc_rad = np.radians(inclination)
-        dec_rad = np.radians(declination)
+        def filter_function(kx, ky):
+            k = np.sqrt(kx**2 + ky**2) + 1e-10  # Avoid division by zero
 
-        if magnetization_inclination is None:
-            magnetization_inclination = inclination
-        if magnetization_declination is None:
-            magnetization_declination = declination
+            # Directional cosines
+            cos_inc = np.cos(inc)
+            sin_inc = np.sin(inc)
+            cos_dec = np.cos(dec)
+            sin_dec = np.sin(dec)
 
-        mag_inc_rad = np.radians(magnetization_inclination)
-        mag_dec_rad = np.radians(magnetization_declination)
+            # RTP filter
+            # rte_filter = theta_f
+            with np.errstate(divide="ignore", invalid="ignore"):
+                rte_filter = (
+                    k * cos_inc * cos_dec + 1j * ky * cos_inc * sin_dec + kx * sin_inc
+                ) / (k * cos_inc * cos_dec - 1j * ky * cos_inc * sin_dec + kx * sin_inc)
 
-        # Compute wavevector magnitude and direction
-        k_squared = kx**2 + ky**2
-        k = np.sqrt(k_squared)
-        theta_k = np.arctan2(ky, kx)  # Angle of wavevector
-
-        # Avoid division by zero
-        epsilon = 1e-10
-        k[k == 0] = epsilon
-
-        # Compute field components
-        F_x = np.cos(inc_rad) * np.cos(dec_rad)
-        F_y = np.cos(inc_rad) * np.sin(dec_rad)
-        F_z = np.sin(inc_rad)
-
-        M_x = np.cos(mag_inc_rad) * np.cos(mag_dec_rad)
-        M_y = np.cos(mag_inc_rad) * np.sin(mag_dec_rad)
-        M_z = np.sin(mag_inc_rad)
-
-        # Compute denominator (instability occurs near zero inclination)
-        denominator = F_z * k + 1j * (F_x * kx + F_y * ky)
-        numerator = M_z * k + 1j * (M_x * kx + M_y * ky)
-
-        # Apply a taper for numerical stability at low inclinations
-        incl_factor = np.abs(np.cos(inc_rad))  # Stability factor
-        taper = (
-            np.exp(-((1 - incl_factor) * (k / np.max(k)) ** 2))
-            if incl_factor < 0.2
-            else 1.0
-        )
-
-        # Compute RTE filter
-        rte_filter = np.zeros_like(k, dtype=complex)
-        mask = np.abs(denominator) > epsilon
-        rte_filter[mask] = (
-            k_squared[mask] / (denominator[mask] * numerator[mask])
-        ) * taper
-
-        # Set zero frequency to zero to avoid division instability
-        rte_filter[k == 0] = 0
-        rte_filter[~np.isfinite(rte_filter)] = 0  # Remove NaNs and infinities
-        rte_filter[np.abs(rte_filter) > 1e6] = 0  # Cap large values for stability
-
-        return rte_filter
+            rte_filter[np.abs(rte_filter) > 1e6] = 0  # Stabilize extreme values
+            return rte_filter
 
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method
         )
-
-    def reduction_to_equator(
-        self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
-    ):
-        # Convert angles from degrees to radians
-        inc, dec = np.radians(inclination), np.radians(declination)
-
-        # Handle NaN values
-        filled_data, nan_mask = self.fill_nan(data)
-
-        # Add buffer
-        buffered_data = self.add_buffer(filled_data, buffer_size, buffer_method)
-
-        # Calculate frequency coordinates
-        ny, nx = buffered_data.shape
-        kx = fftfreq(nx, self.dx) * 2 * np.pi
-        ky = fftfreq(ny, self.dy) * 2 * np.pi
-        kx, ky = np.meshgrid(kx, ky, indexing="ij")
-        k = np.sqrt(kx**2 + ky**2) + 1e-10  # Avoid division by zero
-
-        # Directional cosines
-        cos_inc = np.cos(inc)
-        sin_inc = np.sin(inc)
-        cos_dec = np.cos(dec)
-        sin_dec = np.sin(dec)
-
-        # RTP filter
-        # rte_filter = theta_f
-        with np.errstate(divide="ignore", invalid="ignore"):
-            rte_filter = (
-                k * cos_inc * cos_dec + 1j * ky * cos_inc * sin_dec + kx * sin_inc
-            ) / (k * cos_inc * cos_dec - 1j * ky * cos_inc * sin_dec + kx * sin_inc)
-
-        rte_filter[np.abs(rte_filter) > 1e6] = 0  # Stabilize extreme values
-
-        # Apply max_wavenumber filtering based on cell size
-        # rte_filter[k > 1/(float(self.dx)*2)] = 0
-
-        # Apply RTP filter in the Fourier domain
-        data_fft = fft2(buffered_data)
-        data_rte_fft = data_fft * rte_filter.T
-
-        data_rte = np.real(ifft2(data_rte_fft))
-
-        # Remove buffer and restore NaNs
-        filtered_data = self.remove_buffer(data_rte, buffer_size)
-        return self.restore_nan(filtered_data, nan_mask)
 
     # --- Derivatives ---
     def compute_derivative(
@@ -668,6 +643,8 @@ class GeophysicalProcessor:
         Returns:
             numpy.ndarray: Grid after applying AGC.
         """
+        from scipy.ndimage import gaussian_filter
+
         filled_data, nan_mask = self.fill_nan(grid)
         # Take the absolute value of the grid to normalize amplitudes
         abs_grid = np.abs(filled_data)
@@ -805,14 +782,16 @@ class GeophysicalProcessor:
         """
         Apply a Fourier-domain filter with buffering and NaN handling.
         """
-        # inpaint NaN values
-        # Handle NaN values
-        filled_data, nan_mask = self.fill_nan(data)
-        # Add buffer
-        buffered_data = self.add_buffer(filled_data, buffer_size, buffer_method)
-        # self.display_grid(buffered_data)
+        from scipy.fftpack import fft2, ifft2
 
-        # buffered_data=self.apply_window(buffered_data)
+        # inpaint NaN values
+        filled_data, nan_mask = self.fill_nan(data)
+
+        # Add buffer
+        buffered_data, padding_info = self.add_buffer(
+            filled_data, buffer_size, buffer_method
+        )
+
         # Fourier transform
         data_fft = fft2(buffered_data)
 
@@ -828,8 +807,10 @@ class GeophysicalProcessor:
         filtered_data = np.real(ifft2(filtered_fft))
 
         # Remove buffer and restore NaNs
-        filtered_data = self.remove_buffer(filtered_data, buffer_size)
-        return self.restore_nan(filtered_data, nan_mask)
+        buffer_removed_data = self.remove_buffer(
+            filtered_data, buffer_size, padding_info
+        )
+        return self.restore_nan(buffer_removed_data, nan_mask)
 
     def bsdwormerttt(self, gridPath, num_levels, bottom_level, delta_z, shps, crs):
         from qgis.core import QgsTask, QgsApplication
@@ -1572,6 +1553,8 @@ class GeophysicalProcessor:
         return []
 
     def split_long_segments(self, line, max_distance):
+        from shapely.geometry import Point, LineString
+
         """Split a LineString into valid segments and discard only the segments longer than max_distance."""
         coords = list(line.coords)
         new_lines = []
@@ -1612,6 +1595,7 @@ class GeophysicalProcessor:
         >>> processor.xyz_to_polylines("input.csv", "output.shp", 10.0, 4326)
         """
         from sklearn.cluster import DBSCAN
+        from shapely.geometry import Point, LineString
 
         with open(csv_file, "r") as f:
             reader = csv.DictReader(f)
@@ -1686,6 +1670,8 @@ class GeophysicalProcessor:
 
     def remove_2o_gradient(self, data, mask):
         """Fit a second-order polynomial surface to the raster data and remove it."""
+        from scipy.optimize import leastsq
+
         rows, cols = data.shape
         X, Y = np.meshgrid(np.arange(cols), np.arange(rows))
 
@@ -1709,6 +1695,8 @@ class GeophysicalProcessor:
 
     def remove_gradient(self, data, mask):
         """Fit a plane to the raster data and remove the first-order gradient."""
+        from scipy.optimize import leastsq
+
         rows, cols = data.shape
         X, Y = np.meshgrid(np.arange(cols), np.arange(rows))
 
@@ -1847,7 +1835,7 @@ class GeophysicalProcessor:
 
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
+    # import matplotlib.pyplot as plt
 
     # Create synthetic data
     nx, ny = 100, 100

@@ -21,6 +21,9 @@ repository=https://github.com/swaxi/SGTool
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
 changelog=0.2.12 Fix loading of RGB tiffs on Linux
+      * try again for auload of libraries
+      * refactor rte so it works like other FFT
+      * recalc buffers so they are factors of powers of 2, 3 or 5 (should make large grid calcs faster)
     0.2.11 Remove path insertion in worms code
       * add relief shading option (based on Grass algorithm)
       * generalise a bit epsg parsing for GRD

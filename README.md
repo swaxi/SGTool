@@ -168,8 +168,9 @@ Calculate Kurtosis of values around central pixel for given window size
 **Skewness**   
 Calculate Skewness of values around central pixel for given window size  
 
-**DTM Curvature CLassifier**   
+**DTM Curvature Classifier**   
 Calculate DTM classification based on curvature and slope   
+Based on Curvature Threshold, Cliff Thershold, 
 Classified array where: -1 = concave up; 0 = flat; 1 = convex up and 2 = cliff  
    
 ## Gridding   

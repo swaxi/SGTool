@@ -22,7 +22,6 @@ import zlib
 
 import numpy as np
 
-# import xarray as xr
 
 # Define the valid element sizes (ES variable) for GRD files
 # (values > 1024 correspond to compressed versions of the grid)

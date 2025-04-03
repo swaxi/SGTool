@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.ndimage import convolve, median_filter, gaussian_filter
 from PyQt5.QtGui import QValidator
 
 
@@ -64,6 +63,8 @@ class ConvolutionFilter:
         :param mode: Padding mode (default is 'reflect')
         :return: Convolved grid with NaN handling
         """
+        from scipy.ndimage import convolve
+
         # Create a mask for non-NaN values
         valid_mask = ~np.isnan(self.grid)
 
@@ -139,6 +140,8 @@ class ConvolutionFilter:
         :param n: Size of the kernel (n x n, default is 3x3)
         :return: Filtered grid
         """
+        from scipy.ndimage import convolve
+
         direction_kernels = {
             "N": np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]]),
             "S": np.array([[1, 1, 1], [0, 0, 0], [-1, -1, -1]]),

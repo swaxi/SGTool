@@ -27,6 +27,7 @@ changelog=0.2.12 Fix loading of RGB tiffs on Linux
       * add tooltips to explain dotpoint
       * add plugins.xml to allow direct access via plugin manager
       * Add 1D windowed spatial stats functions
+      * Add DTM curvature classifier
     0.2.11 Remove path insertion in worms code
       * add relief shading option (based on Grass algorithm)
       * generalise a bit epsg parsing for GRD

@@ -1364,8 +1364,8 @@ font-style: italic;</string>
       </property>
       <property name="geometry">
        <rect>
-        <x>30</x>
-        <y>480</y>
+        <x>20</x>
+        <y>550</y>
         <width>131</width>
         <height>23</height>
        </rect>
@@ -1412,7 +1412,7 @@ font-style: italic;</string>
         <x>20</x>
         <y>240</y>
         <width>521</width>
-        <height>221</height>
+        <height>291</height>
        </rect>
       </property>
       <property name="title">
@@ -1422,7 +1422,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>90</y>
+         <y>110</y>
          <width>121</width>
          <height>17</height>
         </rect>
@@ -1435,7 +1435,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>30</y>
+         <y>50</y>
          <width>111</width>
          <height>17</height>
         </rect>
@@ -1448,7 +1448,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>60</y>
+         <y>80</y>
          <width>111</width>
          <height>17</height>
         </rect>
@@ -1461,7 +1461,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>190</x>
-         <y>190</y>
+         <y>20</y>
          <width>241</width>
          <height>20</height>
         </rect>
@@ -1477,7 +1477,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>440</x>
-         <y>190</y>
+         <y>20</y>
          <width>51</width>
          <height>20</height>
         </rect>
@@ -1490,7 +1490,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>120</y>
+         <y>140</y>
          <width>121</width>
          <height>17</height>
         </rect>
@@ -1503,7 +1503,7 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>150</y>
+         <y>170</y>
          <width>121</width>
          <height>17</height>
         </rect>
@@ -1516,13 +1516,113 @@ font-style: italic;</string>
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>180</y>
+         <y>200</y>
          <width>121</width>
          <height>17</height>
         </rect>
        </property>
        <property name="text">
         <string>Kurtosis</string>
+       </property>
+      </widget>
+      <widget class="QCheckBox" name="checkBox_DTM_Class">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>230</y>
+         <width>201</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>DTM Curvature Classifier</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_73">
+       <property name="geometry">
+        <rect>
+         <x>370</x>
+         <y>230</y>
+         <width>71</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Cliff Angle</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QLineEdit" name="lineEdit_DTM_Cliff">
+       <property name="geometry">
+        <rect>
+         <x>450</x>
+         <y>230</y>
+         <width>41</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>5</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_74">
+       <property name="geometry">
+        <rect>
+         <x>200</x>
+         <y>230</y>
+         <width>111</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Curve Threshold</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QLineEdit" name="lineEdit_DTM_Curve">
+       <property name="geometry">
+        <rect>
+         <x>320</x>
+         <y>230</y>
+         <width>41</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>.0001</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_75">
+       <property name="geometry">
+        <rect>
+         <x>190</x>
+         <y>260</y>
+         <width>121</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Sigma</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QLineEdit" name="lineEdit_DTM_Sigma">
+       <property name="geometry">
+        <rect>
+         <x>320</x>
+         <y>260</y>
+         <width>41</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>0</string>
        </property>
       </widget>
      </widget>

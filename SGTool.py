@@ -551,6 +551,19 @@ class SGTool:
             "Size of window for calculation of spatial statistics"
         )
 
+        self.dlg.checkBox_DTM_Class.setToolTip(
+            "Calculate DTM classification based on curvature and slope\n-1 = concave up\n0 = flat\n1 = convex up\n2 = steep slope"
+        )
+        self.dlg.lineEdit_DTM_Curve.setToolTip(
+            "Curvature threshold for DTM classification\nPositive curvature = hill, negative curvature = valley"
+        )
+        self.dlg.lineEdit_DTM_Cliff.setToolTip(
+            "Slope threshold for Steep Slope DTM classification"
+        )
+        self.dlg.lineEdit_DTM_Sigma.setToolTip(
+            "Smoothing parameter for DTM classification\nHigher values will smooth the data more"
+        )
+
     def initParams(self):
         self.localGridName = ""
         self.diskGridPath = ""
@@ -681,6 +694,11 @@ class SGTool:
         self.SS_Skewness = self.dlg.checkBox_SS_Skewness.isChecked()
         self.SS_Kurtosis = self.dlg.checkBox_SS_Kurtosis.isChecked()
         self.SS_window_size = int(self.dlg.lineEdit_SS_Window.text())
+
+        self.DTM_Class = self.dlg.checkBox_DTM_Class.isChecked()
+        self.DTM_curvature_threshold = float(self.dlg.lineEdit_DTM_Curve.text())
+        self.DTM_slope_threshold = float(self.dlg.lineEdit_DTM_Cliff.text())
+        self.DTM_sigma = float(self.dlg.lineEdit_DTM_Sigma.text())
 
     def loadGrid(self):
         fileInfo = QFileInfo(self.diskGridPath)
@@ -1073,6 +1091,25 @@ class SGTool:
         )
         self.suffix = "_SS_Kurt"
 
+    def procDTM_Class(self):
+
+        selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
+        crs = selected_layer.crs()
+        if crs.isGeographic():
+            hzscale = 110000.0
+        else:
+            hzscale = 1.0
+
+        self.new_grid = self.SpatialStats.classify_terrain_with_cell_size(
+            self.dy * hzscale,
+            self.dx * hzscale,
+            curvature_threshold=self.DTM_curvature_threshold,
+            slope_threshold=self.DTM_slope_threshold,
+            window_size=self.SS_window_size,
+            sigma=self.DTM_sigma,
+        )
+        self.suffix = "_SS_DTM_Class"
+
     def procBSDworms(self):
         num_levels = int(self.dlg.spinBox_levels.value())
         bottom_level = int(self.dlg.doubleSpinBox_base.text())
@@ -1369,6 +1406,9 @@ class SGTool:
             if self.SS_Skewness:
                 self.procSS_Skewness()
                 self.addNewGrid()
+            if self.DTM_Class:
+                self.procDTM_Class()
+                self.addNewGrid()
 
             if self.Polygons:
                 self.procPolygons()
@@ -1406,6 +1446,7 @@ class SGTool:
         self.dlg.checkBox_SS_StdDev.setChecked(False)
         self.dlg.checkBox_SS_Variance.setChecked(False)
         self.dlg.checkBox_SS_Skewness.setChecked(False)
+        self.dlg.checkBox_DTM_Class.setChecked(False)
 
         self.RTE_P = False
         self.TA = False
@@ -2362,6 +2403,13 @@ class SGTool:
             self.dlg.radioButton_NaN_Both.toggled.connect(self.update_NaN)
             self.dlg.doubleSpinBox_NaN_Above.valueChanged.connect(self.update_NaN)
             self.dlg.doubleSpinBox_NaN_Below.valueChanged.connect(self.update_NaN)
+
+            self.dlg.lineEdit_DTM_Curve.textChanged.connect(self.update_DTM_Class)
+            self.dlg.lineEdit_DTM_Cliff.textChanged.connect(self.update_DTM_Class)
+            self.dlg.lineEdit_DTM_Sigma.textChanged.connect(self.update_DTM_Class)
+
+    def update_DTM_Class(self):
+        self.dlg.checkBox_DTM_Class.setChecked(True)
 
     def update_DC(self):
         self.dlg.checkBox_3_DirClean.setChecked(True)

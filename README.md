@@ -170,7 +170,7 @@ Calculate Skewness of values around central pixel for given window size
 
 **DTM Curvature Classifier**   
 Calculate DTM classification based on curvature and slope   
-Based on Curvature Threshold, Cliff Thershold, Window Size and Smoothing Parameter   
+Based on Curvature Threshold, Cliff Threshold, Window Size and Smoothing Parameter   
 Classified array where: -1 = concave up; 0 = flat; 1 = convex up and 2 = steep slope  
    
 ## Gridding   

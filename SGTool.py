@@ -1108,7 +1108,7 @@ class SGTool:
             window_size=self.SS_window_size,
             sigma=self.DTM_sigma,
         )
-        self.suffix = "_SS_DTM_Class"
+        self.suffix = "_DTM_Class"
 
     def procBSDworms(self):
         num_levels = int(self.dlg.spinBox_levels.value())

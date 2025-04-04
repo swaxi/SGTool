@@ -33,7 +33,11 @@ class SpatialStats:
         """
         if window_size % 2 == 0:
             raise ValueError("Window size must be odd")
-
+        # Create a circular mask
+        radius = window_size // 2
+        y, x = np.ogrid[-radius:radius+1, -radius:radius+1]
+        circular_mask = x*x + y*y <= radius*radius
+        
         # Create a padded version of the grid to handle edges
         pad_size = window_size // 2
         padded_grid = np.pad(
@@ -47,6 +51,11 @@ class SpatialStats:
         def window_stat(window):
             # Reshape the window to a 2D array
             window_2d = window.reshape(window_size, window_size)
+            
+            # Remove the circular mask from the window
+            # This will create a circular window of valid values
+            window_2d[~circular_mask] = np.nan
+            
             # Remove NaN values
             valid_values = window_2d[~np.isnan(window_2d)]
 

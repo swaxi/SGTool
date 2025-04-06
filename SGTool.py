@@ -2332,20 +2332,6 @@ class SGTool:
 
             self.gridDirectory = None
 
-            # Connection to the Github site  :
-            self.dlg.pushButton_repo.clicked.connect(
-                lambda: QDesktopServices.openUrl(
-                    QUrl("https://github.com/swaxi/SGTool")
-                )
-            )
-            # Connection to the Help pdf file :
-            self.dlg.pushButton_help.clicked.connect(
-                lambda: QDesktopServices.openUrl(
-                    QUrl(
-                        "https://tectonique.net/sgtools_data/Structural%20Geophysics%20Tools.pdf"
-                    )
-                )
-            )
             # Connection to the CSS Colours site  :
             self.dlg.pushButton_CSSS_Colours.clicked.connect(
                 lambda: QDesktopServices.openUrl(

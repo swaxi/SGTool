@@ -35,9 +35,9 @@ class SpatialStats:
             raise ValueError("Window size must be odd")
         # Create a circular mask
         radius = window_size // 2
-        y, x = np.ogrid[-radius:radius+1, -radius:radius+1]
-        circular_mask = x*x + y*y <= radius*radius
-        
+        y, x = np.ogrid[-radius : radius + 1, -radius : radius + 1]
+        circular_mask = x * x + y * y <= radius * radius
+
         # Create a padded version of the grid to handle edges
         pad_size = window_size // 2
         padded_grid = np.pad(
@@ -51,11 +51,11 @@ class SpatialStats:
         def window_stat(window):
             # Reshape the window to a 2D array
             window_2d = window.reshape(window_size, window_size)
-            
+
             # Remove the circular mask from the window
             # This will create a circular window of valid values
             window_2d[~circular_mask] = np.nan
-            
+
             # Remove NaN values
             valid_values = window_2d[~np.isnan(window_2d)]
 
@@ -132,7 +132,7 @@ class SpatialStats:
             2 = cliff
         """
         dem_array = np.float32(self.grid)
-
+        nan_mask = np.isnan(dem_array)
         # Apply optional smoothing to reduce noise
         if sigma > 0:
             dem_smooth = gaussian_filter(dem_array, sigma=sigma)
@@ -255,6 +255,7 @@ class SpatialStats:
         print(f"Number of flat cells: {np.sum(flat_mask)}")
         print(f"Number of cliff cells: {np.sum(cliff_mask)}")
 
+        classified[nan_mask] = -9999
         return classified
 
     def detect_linear_cliffs(

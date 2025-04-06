@@ -235,7 +235,7 @@ class SG_Util:
 
         vector_layer = QgsVectorLayer(
             "MultiPolygon?crs=" + current_layer.crs().authid(),
-            "data_boundaries",
+            current_layer.name() + "_boundary",
             "memory",
         )
         provider = vector_layer.dataProvider()
@@ -295,7 +295,7 @@ class SG_Util:
             feature = QgsFeature()
             geom = QgsGeometry.fromPolygonXY([exterior_points] + interior_points)
             feature.setGeometry(geom)
-            feature.setAttributes([feature_id, "polygon_with_holes"])
+            feature.setAttributes([feature_id, "Multipolygon boundary"])
             features.append(feature)
             feature_id += 1
 

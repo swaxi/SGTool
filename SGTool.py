@@ -95,6 +95,15 @@ import processing
 from osgeo import gdal, osr
 import platform
 
+######################################
+import importlib
+import subprocess
+import sys
+import os
+from qgis.PyQt.QtWidgets import QMessageBox
+from qgis.core import QgsMessageLog, Qgis
+######################################
+
 
 class SGTool:
     """QGIS Plugin Implementation."""
@@ -168,6 +177,87 @@ class SGTool:
         except:
             install_library("scikit-learn")
             import sklearn
+       
+        # Define required packages
+        # required_packages = ['sklearn', 'lasio', 'matplotlib']
+        # self.test_initialize_plugin(required_packages)
+
+    def check_and_install_dependencies(self,required_packages):
+        """
+        Check if required packages are installed and install them if missing.
+        
+        Args:
+            required_packages (list): List of package names to check and install
+            
+        Returns:
+            bool: True if all dependencies are satisfied, False otherwise
+        """
+        missing_packages = []
+        for package in required_packages:
+            try:
+                importlib.import_module(package)
+                QgsMessageLog.logMessage(f"Package {package} is already installed", "DependencyManager", Qgis.Info)
+            except ImportError:
+                missing_packages.append(package)
+        
+        if not missing_packages:
+            return True
+        
+        # Ask user for permission to install missing packages
+        package_list = ", ".join(missing_packages)
+        reply = QMessageBox.question(
+            None, 
+            "Missing Dependencies", 
+            f"The following Python packages are required but not installed: {package_list}\n\nWould you like to install them now?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.No:
+            QgsMessageLog.logMessage("User declined to install dependencies", "DependencyManager", Qgis.Warning)
+            return False
+        
+        # Install missing packages
+        success = True
+        for package in missing_packages:
+            try:
+                QgsMessageLog.logMessage(f"Installing {package}...", "DependencyManager", Qgis.Info)
+                
+                # Use pip in a way that's compatible with QGIS Python environment
+                python_executable = sys.executable
+                subprocess.check_call([python_executable, '-m', 'pip', 'install', package])
+                
+                # Verify installation worked
+                importlib.import_module(package)
+                QgsMessageLog.logMessage(f"Successfully installed {package}", "DependencyManager", Qgis.Success)
+            except (subprocess.CalledProcessError, ImportError) as e:
+                QgsMessageLog.logMessage(f"Failed to install {package}: {str(e)}", "DependencyManager", Qgis.Critical)
+                success = False
+        
+        if not success:
+            QMessageBox.warning(
+                None,
+                "Installation Failed",
+                "Some dependencies could not be installed. Check the QGIS log for details."
+            )
+        
+        return success
+
+
+    # Example usage in your QGIS plugin
+    def test_initialize_plugin(self,required_packages):
+        print("required_packages",required_packages)
+        # Check and install dependencies
+        if self.check_and_install_dependencies(required_packages):
+            # Continue plugin initialization
+            pass
+        else:
+            # Handle case where dependencies couldn't be installed
+            QMessageBox.critical(
+                None,
+                "Plugin Initialization Failed",
+                "Required dependencies are missing. The plugin may not function correctly."
+            )
+
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):

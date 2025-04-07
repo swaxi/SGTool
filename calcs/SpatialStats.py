@@ -255,7 +255,7 @@ class SpatialStats:
         print(f"Number of flat cells: {np.sum(flat_mask)}")
         print(f"Number of cliff cells: {np.sum(cliff_mask)}")
 
-        classified[nan_mask] = -9999
+        classified[nan_mask] = -15
         return classified
 
     def detect_linear_cliffs(

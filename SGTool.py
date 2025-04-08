@@ -654,6 +654,14 @@ class SGTool:
             "Smoothing parameter for DTM classification\nHigher values will smooth the data more"
         )
 
+        self.dlg.lineEdit_3_DC_wavelength.setToolTip(
+            "Wavelength of high frequency noise to be filtered (degrees clockwise from North)\nSet to 4x line spacing"
+        )
+
+        self.dlg.lineEdit_3_DC_wavelength.setToolTip(
+            "Multiplier to be applied to result before subtracting from original grid"
+        )
+
     def initParams(self):
         self.localGridName = ""
         self.diskGridPath = ""
@@ -708,6 +716,8 @@ class SGTool:
 
         self.DirClean = self.dlg.checkBox_3_DirClean.isChecked()
         self.DC_azimuth = self.dlg.lineEdit_3_azimuth.text()
+        self.DC_lineSpacing = self.dlg.lineEdit_3_DC_wavelength.text()
+        self.DC_scale = float(self.dlg.lineEdit_3_DC_scale.text())
 
         self.RTE_P = self.dlg.checkBox_4_RTE_P.isChecked()
         self.RTE_P_type = self.dlg.comboBox_3_rte_p_list.currentText()
@@ -904,7 +914,7 @@ class SGTool:
                     return layer.dataProvider().dataSourceUri().split("|")[0]
         return None
 
-    def procDirClean(self):
+    def procDirClean_orig(self):
         cutoff_wavelength = 4 * float(self.DC_lineSpacing)
         # if self.unit_check(cutoff_wavelength) or True:
         self.new_grid = self.processor.combined_BHP_DirCos_filter(
@@ -914,6 +924,26 @@ class SGTool:
             degree=2.0,
             buffer_size=self.buffer,
         )
+        self.suffix = "_DirC"
+
+    def procDirClean(self):
+        cutoff_wavelength = 4 * float(self.DC_lineSpacing)
+        # if self.unit_check(cutoff_wavelength) or True:
+        self.new_grid = self.processor.directional_butterworth_band_pass(
+            self.raster_array, 
+            1e-8,  
+            float(self.DC_lineSpacing), 
+            direction_angle=float(self.DC_azimuth) , 
+            direction_width=20, 
+            order=4, 
+            buffer_size=10, 
+            buffer_method="mirror"
+        )
+        print("xxxxx")
+        nan_mask = np.isnan(self.new_grid)
+        self.new_grid[nan_mask] = 1.0
+        self.new_grid=self.raster_array-(self.new_grid*self.DC_scale)
+        self.new_grid[nan_mask] = np.nan
         self.suffix = "_DirC"
 
     def procRTP_E(self):
@@ -2448,6 +2478,12 @@ class SGTool:
             # autocheck the associated checkbox if a parameter is modified
 
             self.dlg.lineEdit_3_azimuth.textChanged.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_3_DirClean)
+            )
+            self.dlg.lineEdit_3_DC_wavelength.textChanged.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_3_DirClean)
+            )
+            self.dlg.lineEdit_3_DC_scale.textChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_3_DirClean)
             )
             self.dlg.lineEdit_6_int.textChanged.connect(

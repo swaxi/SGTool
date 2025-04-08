@@ -517,8 +517,6 @@ class GeophysicalProcessor:
         array-like
             The reduced to pole magnetic data
         """
-        # Convert angles from degrees to radians
-        inc, dec = np.radians(inclination), np.radians(declination)
 
         def filter_function(kx, ky):
             # Transform to radians
@@ -723,6 +721,150 @@ class GeophysicalProcessor:
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method
         )
+    
+    def butterworth_band_pass(
+            self, data, low_cut, high_cut, order=4, buffer_size=10, buffer_method="mirror"
+        ):
+            """
+            Apply a Butterworth band-pass filter to isolate anomalies within a wavelength range.
+            
+            Parameters
+            ----------
+            data : array-like
+                Input data to be filtered
+            low_cut : float
+                Low cut-off wavelength (features with longer wavelengths will be attenuated)
+            high_cut : float
+                High cut-off wavelength (features with shorter wavelengths will be attenuated)
+            order : int, optional
+                Order of the Butterworth filter. Higher orders create sharper transitions
+                but may introduce more ringing artifacts. Default is 4.
+            buffer_size : int
+                Size of the buffer zone for reducing edge effects
+            buffer_method : str
+                Method for handling the buffer zone ("mirror", "mean", etc.)
+                
+            Returns
+            -------
+            array-like
+                The band-pass filtered data
+            """
+
+            def filter_function(kx, ky):
+                k = np.sqrt(kx**2 + ky**2)
+                
+                # Convert wavelength cutoffs to wavenumber cutoffs
+                k_high = 2 * np.pi / high_cut  # High-pass cutoff (removes long wavelengths)
+                k_low = 2 * np.pi / low_cut    # Low-pass cutoff (removes short wavelengths)
+                
+                # Avoid division by zero
+                k = np.maximum(k, 1e-10)
+                
+                # Butterworth high-pass component (attenuates low frequencies)
+                high_pass = 1.0 / (1.0 + (k_high / k)**(2 * order))
+                
+                # Butterworth low-pass component (attenuates high frequencies)
+                low_pass = 1.0 / (1.0 + (k / k_low)**(2 * order))
+                
+                # Combine to create band-pass filter
+                band_pass = high_pass * low_pass
+                
+                return band_pass
+
+            return self._apply_fourier_filter(
+                data, filter_function, buffer_size, buffer_method
+            )
+    
+    def directional_butterworth_band_pass(
+            self, 
+            data, 
+            low_cut, 
+            high_cut, 
+            direction_angle=0, 
+            direction_width=45, 
+            order=4, 
+            buffer_size=10, 
+            buffer_method="mirror"
+        ):
+            """
+            Apply a combined Butterworth band-pass filter with directional filtering.
+            
+            Parameters
+            ----------
+            data : array-like
+                Input data to be filtered
+            low_cut : float
+                Low cut-off wavelength (features with longer wavelengths will be attenuated)
+            high_cut : float
+                High cut-off wavelength (features with shorter wavelengths will be attenuated)
+            direction_angle : float, optional
+                The primary direction to emphasize, in degrees clockwise from north (0-360)
+            direction_width : float, optional
+                Angular width parameter controlling directional sensitivity (degrees)
+            order : int, optional
+                Order of the Butterworth filter. Higher orders create sharper transitions
+                but may introduce more ringing artifacts. Default is 4.
+            buffer_size : int
+                Size of the buffer zone for reducing edge effects
+            buffer_method : str
+                Method for handling the buffer zone ("mirror", "mean", etc.)
+                
+            Returns
+            -------
+            array-like
+                The filtered data with both band-pass and directional filtering applied
+            """
+
+            def filter_function(kx, ky):
+                # Compute wavenumber magnitude for band-pass filter
+                k = np.sqrt(kx**2 + ky**2)
+                
+                # Convert wavelength cutoffs to wavenumber cutoffs
+                k_high = 2 * np.pi / high_cut  # High-pass cutoff (removes long wavelengths)
+                k_low = 2 * np.pi / low_cut    # Low-pass cutoff (removes short wavelengths)
+                
+                # Avoid division by zero
+                k = np.maximum(k, 1e-10)
+                
+                # Butterworth high-pass component (attenuates low frequencies)
+                high_pass = 1.0 / (1.0 + (k_high / k)**(2 * order))
+                
+                # Butterworth low-pass component (attenuates high frequencies)
+                low_pass = 1.0 / (1.0 + (k / k_low)**(2 * order))
+                
+                # Combine to create band-pass filter
+                band_pass = high_pass * low_pass
+                
+                # Directional filter component
+                # Convert direction angle to radians (0 is north, increases clockwise)
+                angle_rad = np.radians( direction_angle)  # Convert from N=0 to standard math orientation
+                
+                # Calculate wavenumber direction
+                # Use arctan2 to get angle in all quadrants
+                k_angle = np.arctan2(ky, kx)
+                
+                # Find smallest angular difference (handles wrap-around)
+                angle_diff = np.abs(np.mod(k_angle - angle_rad + np.pi, 2 * np.pi) - np.pi)
+                
+                # Convert width to radians
+                width_rad = np.radians(direction_width)
+                
+                # Create directional cosine filter
+                # Use cosine-squared function for smooth transitions
+                directional_filter = np.cos(angle_diff * np.pi / (2 * width_rad))**2.0
+                
+                # Apply cosine taper for angles beyond the specified width
+                directional_filter[angle_diff > width_rad] = 0
+                
+                # Combine band-pass and directional filters
+                combined_filter = band_pass * directional_filter
+                
+                return combined_filter
+
+            return self._apply_fourier_filter(
+                data, filter_function, buffer_size, buffer_method
+            )
+
 
     def total_horizontal_gradient(self, data, buffer_size=10, buffer_method="mirror"):
         """

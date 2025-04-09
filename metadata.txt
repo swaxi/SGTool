@@ -26,7 +26,7 @@ changelog=0.2.12 Fix loading of RGB tiffs on Linux
       * recalc buffers so they are factors of powers of 2, 3 or 5 (should make large grid calcs faster)
       * add tooltips to explain dotpoint
       * add plugins.xml to allow direct access via plugin manager
-      * Add 1D windowed spatial stats functions
+      * Add 2D circular windowed spatial stats functions
       * Add DTM curvature classifier
       * Added Butterworth filter and scaler to DC filter
     0.2.11 Remove path insertion in worms code

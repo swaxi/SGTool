@@ -24,12 +24,12 @@ changelog=0.2.12 Fix loading of RGB tiffs on Linux
       * try again for autoload of libraries
       * refactor rte so it works like other FFT
       * recalc buffers so they are factors of powers of 2, 3 or 5 (should make large grid calcs faster)
-      * add tooltips to explain dotpoint
-      * add plugins.xml to allow direct access via plugin manager
-      * Add 1D circular windowed spatial stats functions
-      * Add DTM curvature classifier
-      * Added Butterworth filter and scaler to DC filter
-      * Added WTMM calcs (beta!!)
+      * added tooltips to explain dotpoint
+      * added plugins.xml to allow direct access via plugin manager
+      * added 1D circular windowed spatial stats functions
+      * added DTM curvature classifier
+      * added Butterworth filter and scaler to DC filter
+      * added WTMM calcs (beta!!)
     0.2.11 Remove path insertion in worms code
       * add relief shading option (based on Grass algorithm)
       * generalise a bit epsg parsing for GRD

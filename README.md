@@ -180,9 +180,12 @@ Imports point data in csv or xyz formats
 **Gridding**   
 Grids point data using either BSpline or IDW built-in gridding algoithms   
    
-## Worming   
+## Wavelets   
 **BSDWorms**   
 Use wavelet transforms to build multilevel "worms", saves out a single csv file of points (for use in 3D visualisation), and optionally a shapefile (for use in QGIS)   
+    
+**WTMM**   
+Use wavelet transforms to build multilevel analysis (Wavelet Transform Modulus Maxima)   
     
 ## Utilities   
 **Threshold to NaN**   
@@ -228,6 +231,7 @@ There are several excellent Open Source or at least free alternatives to this pl
 - GRD Loader & Radially averaged power spectrum Fatiando a Terra crew & Mark Jessell https://www.fatiando.org/
 - Example geophysics data in image above courtesy of Mauritania Govt. https://anarpam.mr/en/     
 - Worming of grids uses Frank Horowitz's bsdwormer  https://bitbucket.org/fghorow/bsdwormer/
+- Wavelet Transform base code - https://github.com/PyWavelets/pywt 
 
 
 

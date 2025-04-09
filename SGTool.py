@@ -37,6 +37,9 @@ from qgis.core import (
     QgsFeature,
     QgsField,
     QgsProcessingFeedback,
+    QgsProcessingFeatureSourceDefinition, 
+    QgsFeatureRequest,
+    QgsWkbTypes
 )
 
 from qgis.PyQt.QtWidgets import QAction, QFileDialog
@@ -77,6 +80,7 @@ from .calcs.ConvolutionFilter import OddPositiveIntegerValidator
 from .calcs.GridData_no_pandas import GridData
 from .calcs.GridData_no_pandas import QGISGridData
 from .calcs.SpatialStats import SpatialStats
+from .calcs.WTMM import WTMM
 
 from .calcs.SG_Util import SG_Util
 from .igrf.igrf_utils import igrf_utils as IGRF
@@ -179,7 +183,7 @@ class SGTool:
             import sklearn
        
         # Define required packages
-        # required_packages = ['sklearn', 'lasio', 'matplotlib']
+        # required_packages = ['scikit-learn', 'shapely', 'scikit-image','PyWavelets']
         # self.test_initialize_plugin(required_packages)
 
     def check_and_install_dependencies(self,required_packages):
@@ -194,8 +198,16 @@ class SGTool:
         """
         missing_packages = []
         for package in required_packages:
+            if package=="scikit-image":
+                importPackage="skimage"
+            elif package=="scikit-learn":
+                importPackage="sklearn"
+            elif package=="PyWavelets":
+                importPackage="pywt"            
+            else:
+                importPackage=package
             try:
-                importlib.import_module(package)
+                importlib.import_module(importPackage)
                 QgsMessageLog.logMessage(f"Package {package} is already installed", "DependencyManager", Qgis.Info)
             except ImportError:
                 missing_packages.append(package)
@@ -224,10 +236,24 @@ class SGTool:
                 
                 # Use pip in a way that's compatible with QGIS Python environment
                 python_executable = sys.executable
-                subprocess.check_call([python_executable, '-m', 'pip', 'install', package])
-                
+                if platform.system == "Windows":
+                    pipcall="pip"
+                else:
+                    pipcall="pip3"
+                subprocess.check_call([python_executable, '-m', pipcall, 'install', package])
+
+
+                if package=="scikit-image":
+                    importPackage="skimage"
+                elif package=="scikit-learn":
+                    importPackage="sklearn"
+                elif package=="pywt":
+                    importPackage="PyWavelets"
+                else:
+                    importPackage=package
+
                 # Verify installation worked
-                importlib.import_module(package)
+                importlib.import_module(importPackage)
                 QgsMessageLog.logMessage(f"Successfully installed {package}", "DependencyManager", Qgis.Success)
             except (subprocess.CalledProcessError, ImportError) as e:
                 QgsMessageLog.logMessage(f"Failed to install {package}: {str(e)}", "DependencyManager", Qgis.Critical)
@@ -660,6 +686,15 @@ class SGTool:
 
         self.dlg.lineEdit_3_DC_scale.setToolTip(
             "Multiplier to be applied to result before subtracting from original grid"
+        )
+        self.dlg.mMapLayerComboBox_selectGrid_wtmm.setToolTip(
+            "Select grid to be processed by WTMM"
+        )
+        self.dlg.doubleSpinBox_wtmm_spacing.setToolTip(
+            "Define spacing along profile"
+        )
+        self.dlg.pushButton_wtmm.setToolTip(
+            "Calculate WTMM and display in new window\nExactly 1 polyline layer and 1 polyline must also be selected"
         )
 
     def initParams(self):
@@ -2190,6 +2225,7 @@ class SGTool:
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_wtmm.setCurrentText(self.localGridName)
         self.dlg.lineEdit_2_loadGridPath.setText("")
         self.diskGridPath = ""
         self.base_name = self.localGridName
@@ -2210,6 +2246,8 @@ class SGTool:
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_wtmm.setCurrentText(self.localGridName)
+
         self.dlg.lineEdit_2_loadGridPath.setText("")
         self.diskGridPath = ""
         self.base_name = self.localGridName
@@ -2230,6 +2268,7 @@ class SGTool:
         self.dlg.mMapLayerComboBox_selectGrid.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_wtmm.setCurrentText(self.localGridName)
 
         self.dlg.lineEdit_2_loadGridPath.setText("")
         self.diskGridPath = ""
@@ -2253,6 +2292,32 @@ class SGTool:
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_wtmm.setCurrentText(self.localGridName)
+
+        self.dlg.lineEdit_2_loadGridPath.setText("")
+        self.diskGridPath = ""
+        self.base_name = self.localGridName
+
+        if len(self.base_name) > 0:
+            selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[
+                0
+            ]
+            if selected_layer.isValid():
+                crs = selected_layer.crs()
+                if crs.isGeographic():
+                    self.dlg.label_41_units.setText("Units: deg")
+                else:
+                    self.dlg.label_41_units.setText("Units: m")
+
+    def update_paths_wtmm(self):
+        self.localGridName = self.dlg.mMapLayerComboBox_selectGrid_wtmm.currentText()
+
+        self.dlg.mMapLayerComboBox_selectGrid.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_wtmm.setCurrentText(self.localGridName)
+
         self.dlg.lineEdit_2_loadGridPath.setText("")
         self.diskGridPath = ""
         self.base_name = self.localGridName
@@ -2337,6 +2402,10 @@ class SGTool:
             self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setFilters(
                 QgsMapLayerProxyModel.RasterLayer
             )
+            
+            self.dlg.mMapLayerComboBox_selectGrid_wtmm.setFilters(
+                QgsMapLayerProxyModel.RasterLayer
+            )
             self.dlg.version_label.setText(self.show_version())
 
             self.deriv_dir_list = []
@@ -2395,7 +2464,9 @@ class SGTool:
             self.dlg.mMapLayerComboBox_selectGrid_worms.layerChanged.connect(
                 self.update_paths_worms
             )
-
+            self.dlg.mMapLayerComboBox_selectGrid_wtmm.layerChanged.connect(
+                self.update_paths_wtmm
+            )
             self.dlg.mQgsProjectionSelectionWidget.setCrs(
                 QgsCoordinateReferenceSystem("EPSG:4326")
             )
@@ -2475,6 +2546,7 @@ class SGTool:
                 self.set_normalise_out
             )
 
+            self.dlg.pushButton_wtmm.clicked.connect(self.procWTMM)
             # autocheck the associated checkbox if a parameter is modified
 
             self.dlg.lineEdit_3_azimuth.textChanged.connect(
@@ -3304,3 +3376,120 @@ class SGTool:
             print(f"Error creating raster mask: {e}")
             return None
         # replace with specific processor calls so raster clipping can be done easily...
+
+    def procWTMM(self):
+        if(self.dlg.mMapLayerComboBox_selectGrid_wtmm.currentText() != "" ):
+            raster_layer_name = self.dlg.mMapLayerComboBox_selectGrid_wtmm.currentText()
+            line_spacing=float(self.dlg.doubleSpinBox_wtmm_spacing.value())
+            line_layer = self.iface.activeLayer()
+
+            if line_layer is None:
+                print("No layer selected")
+                return None
+            
+            if (not  isinstance(line_layer, QgsVectorLayer)) or line_layer.geometryType() != QgsWkbTypes.LineGeometry:
+                print("Selected layer is not a polyline layer")
+                return None
+            
+            # Check if any features are selected
+            if line_layer.selectedFeatureCount() != 1:
+                print(f"Please select exactly one feature. Currently {line_layer.selectedFeatureCount()} features selected.")
+                return None
+            
+            # Find the specified raster layer
+            raster_layer = None
+            if raster_layer_name:
+                layers = QgsProject.instance().mapLayersByName(raster_layer_name)
+                if layers:
+                    raster_layer = layers[0]
+            else:
+                # If no name provided, try to find a raster layer in the project
+                for layer in QgsProject.instance().mapLayers().values():
+                    if isinstance(layer, QgsRasterLayer):
+                        raster_layer = layer
+                        break
+            
+            if not raster_layer:
+                print("No raster layer found")
+                return None
+                        
+            # Use the processing algorithm to create points along the geometry
+            # We'll use a temporary layer for the points
+            params = {
+                'INPUT': QgsProcessingFeatureSourceDefinition(
+                    line_layer.id(), 
+                    selectedFeaturesOnly=True, 
+                    featureLimit=-1, 
+                    geometryCheck=QgsFeatureRequest.GeometryAbortOnInvalid
+                ),
+                'DISTANCE': line_spacing,
+                'START_OFFSET': 0,
+                'END_OFFSET': 0,
+                'OUTPUT': 'memory:'
+            }
+            
+            # Run the algorithm
+            result = processing.run("native:pointsalonglines", params)
+            points_layer = result['OUTPUT']
+            
+            # Get the total number of points
+            num_points = points_layer.featureCount()
+            
+            # Create arrays to store the points and raster values
+            points_array = np.zeros((num_points, 2))
+            raster_values = np.zeros(num_points)
+            distances = np.zeros(num_points)
+            
+            # Get the raster data provider
+            provider = raster_layer.dataProvider()
+            
+            # Loop through all points and sample the raster
+            for i, point_feature in enumerate(points_layer.getFeatures()):
+                # Get the point geometry
+                point_geom = point_feature.geometry()
+                point = point_geom.asPoint()
+                
+                # Get the distance attribute (added by the processing algorithm)
+                distance = point_feature["distance"]
+                
+                # Add to our arrays
+                points_array[i] = [point.x(), point.y()]
+                
+                # Sample the raster at this point (band 1)
+                value, valid = provider.sample(QgsPointXY(point.x(), point.y()), 1)
+                
+                # Store the raster value and distance
+                raster_values[i] = value if valid else np.nan
+                distances[i] = distance
+            
+            # Clean up temporary layer
+            QgsProject.instance().removeMapLayer(points_layer.id())
+            
+            # Create a complete result with distances, coordinates, and raster values
+            result = {
+                'distances': distances,
+                'points': points_array,
+                'values': raster_values
+            }
+            data=np.array(result['values'])
+            wtmm=WTMM()      
+            results = wtmm.wtmm_1d(
+                data, 
+                wavelet='mexh',
+                num_scales=15,
+                threshold_rel=0.05,  # Lower threshold to detect more maxima
+                min_distance=3
+            )
+            import matplotlib.pyplot as plt
+
+            # Plot the D(h) vs h spectrum
+            fig, ax = plt.subplots(figsize=(8, 6))
+            wtmm.plot_Dh_vs_h(data,raster_layer_name, results, ax=ax)
+            plt.tight_layout()
+            plt.show()
+            wtmm.visualize_wtmm_1d(data, raster_layer_name,results, save_path=None)
+
+            plt.show()
+            return result
+
+            

@@ -1915,7 +1915,7 @@ font-size: 13px;
         <x>10</x>
         <y>200</y>
         <width>551</width>
-        <height>131</height>
+        <height>141</height>
        </rect>
       </property>
       <property name="title">
@@ -1925,7 +1925,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>460</x>
-         <y>20</y>
+         <y>30</y>
          <width>31</width>
          <height>16</height>
         </rect>
@@ -1943,7 +1943,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>370</x>
-         <y>20</y>
+         <y>30</y>
          <width>61</width>
          <height>16</height>
         </rect>
@@ -1963,7 +1963,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>430</x>
-         <y>20</y>
+         <y>30</y>
          <width>16</width>
          <height>16</height>
         </rect>
@@ -1984,7 +1984,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>460</x>
-         <y>50</y>
+         <y>60</y>
          <width>41</width>
          <height>16</height>
         </rect>
@@ -2002,7 +2002,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>430</x>
-         <y>50</y>
+         <y>60</y>
          <width>16</width>
          <height>16</height>
         </rect>
@@ -2023,7 +2023,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>0</x>
-         <y>90</y>
+         <y>100</y>
          <width>67</width>
          <height>16</height>
         </rect>
@@ -2044,7 +2044,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>150</x>
-         <y>20</y>
+         <y>30</y>
          <width>201</width>
          <height>21</height>
         </rect>
@@ -2054,7 +2054,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>20</y>
+         <y>30</y>
          <width>131</width>
          <height>16</height>
         </rect>
@@ -2070,7 +2070,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>50</y>
+         <y>60</y>
          <width>131</width>
          <height>20</height>
         </rect>
@@ -2086,7 +2086,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>150</x>
-         <y>50</y>
+         <y>60</y>
          <width>201</width>
          <height>22</height>
         </rect>
@@ -2096,7 +2096,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>90</x>
-         <y>90</y>
+         <y>100</y>
          <width>81</width>
          <height>22</height>
         </rect>
@@ -2121,7 +2121,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>210</x>
-         <y>90</y>
+         <y>100</y>
          <width>131</width>
          <height>23</height>
         </rect>
@@ -2140,7 +2140,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>370</x>
-         <y>90</y>
+         <y>100</y>
          <width>141</width>
          <height>23</height>
         </rect>
@@ -2160,9 +2160,9 @@ font-size: 13px;
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>340</y>
+        <y>350</y>
         <width>551</width>
-        <height>151</height>
+        <height>161</height>
        </rect>
       </property>
       <property name="title">
@@ -2172,7 +2172,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>120</x>
-         <y>50</y>
+         <y>60</y>
          <width>91</width>
          <height>22</height>
         </rect>
@@ -2188,7 +2188,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>50</y>
+         <y>60</y>
          <width>91</width>
          <height>21</height>
         </rect>
@@ -2204,7 +2204,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>80</y>
+         <y>90</y>
          <width>81</width>
          <height>21</height>
         </rect>
@@ -2220,7 +2220,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>120</x>
-         <y>110</y>
+         <y>120</y>
          <width>91</width>
          <height>22</height>
         </rect>
@@ -2245,7 +2245,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>110</y>
+         <y>120</y>
          <width>91</width>
          <height>21</height>
         </rect>
@@ -2261,7 +2261,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>400</x>
-         <y>110</y>
+         <y>120</y>
          <width>131</width>
          <height>23</height>
         </rect>
@@ -2280,7 +2280,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>110</x>
-         <y>20</y>
+         <y>30</y>
          <width>251</width>
          <height>21</height>
         </rect>
@@ -2290,7 +2290,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>20</y>
+         <y>30</y>
          <width>91</width>
          <height>20</height>
         </rect>
@@ -2306,7 +2306,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>120</x>
-         <y>80</y>
+         <y>90</y>
          <width>91</width>
          <height>22</height>
         </rect>
@@ -2331,7 +2331,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>370</x>
-         <y>20</y>
+         <y>30</y>
          <width>171</width>
          <height>17</height>
         </rect>
@@ -2341,6 +2341,105 @@ font-size: 13px;
        </property>
        <property name="checked">
         <bool>true</bool>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QGroupBox" name="groupBox_12">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>520</y>
+        <width>551</width>
+        <height>111</height>
+       </rect>
+      </property>
+      <property name="title">
+       <string>Wavelet Transform Modulus Maxima</string>
+      </property>
+      <widget class="QgsMapLayerComboBox" name="mMapLayerComboBox_selectGrid_wtmm">
+       <property name="geometry">
+        <rect>
+         <x>110</x>
+         <y>30</y>
+         <width>251</width>
+         <height>21</height>
+        </rect>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_57">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>30</y>
+         <width>91</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Select Grid</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QDoubleSpinBox" name="doubleSpinBox_wtmm_spacing">
+       <property name="geometry">
+        <rect>
+         <x>450</x>
+         <y>30</y>
+         <width>91</width>
+         <height>22</height>
+        </rect>
+       </property>
+       <property name="decimals">
+        <number>0</number>
+       </property>
+       <property name="minimum">
+        <double>0.000000000000000</double>
+       </property>
+       <property name="maximum">
+        <double>100000.000000000000000</double>
+       </property>
+       <property name="singleStep">
+        <double>100.000000000000000</double>
+       </property>
+       <property name="value">
+        <double>1000.000000000000000</double>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_61">
+       <property name="geometry">
+        <rect>
+         <x>380</x>
+         <y>30</y>
+         <width>51</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Spacing</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="pushButton_wtmm">
+       <property name="geometry">
+        <rect>
+         <x>400</x>
+         <y>80</y>
+         <width>131</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="font">
+        <font>
+         <weight>75</weight>
+         <bold>true</bold>
+        </font>
+       </property>
+       <property name="text">
+        <string>Calculate WTMM</string>
        </property>
       </widget>
      </widget>

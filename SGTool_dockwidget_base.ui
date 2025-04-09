@@ -54,8 +54,9 @@ font-size: 12px;</string>
     </property>
     <property name="font">
      <font>
-      <weight>75</weight>
-      <bold>true</bold>
+      <pointsize>7</pointsize>
+      <weight>50</weight>
+      <bold>false</bold>
      </font>
     </property>
     <property name="styleSheet">
@@ -1696,7 +1697,7 @@ font-style: italic;</string>
 }</string>
      </property>
      <attribute name="title">
-      <string>Grid + Worms</string>
+      <string>Grid + Wavelets</string>
      </attribute>
      <widget class="QPushButton" name="pushButton_22">
       <property name="geometry">

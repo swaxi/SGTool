@@ -655,7 +655,7 @@ class SGTool:
         )
 
         self.dlg.lineEdit_3_DC_wavelength.setToolTip(
-            "Wavelength of high frequency noise to be filtered (degrees clockwise from North)\nSet to 4x line spacing"
+            "Wavelength of high frequency noise to be filtered\nSet to 4x line spacing"
         )
 
         self.dlg.lineEdit_3_DC_scale.setToolTip(

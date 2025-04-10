@@ -488,7 +488,7 @@ class WTMM:
             segments = np.concatenate([points[:-1], points[1:]], axis=1)
             
             # Create a line collection with color mapped to the coefficient values
-            lc = LineCollection(segments, cmap=plt.cm.jet, norm=plt.Normalize(0, max_val))
+            lc = LineCollection(segments, cmap="viridis", norm=plt.Normalize(0, max_val))
             lc.set_array(values[:-1])
             lc.set_linewidth(3)
             
@@ -496,7 +496,7 @@ class WTMM:
             line = ax.add_collection(lc)
         
         # Add a colorbar
-        cbar = plt.colorbar(line, ax=ax)
+        cbar = plt.colorbar(line, ax=ax,orientation='horizontal',shrink=0.5)
         cbar.set_label('Wavelet Coefficient Magnitude')
         
         # Create filled triangles at the peak positions

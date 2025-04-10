@@ -1729,7 +1729,7 @@ font-size: 12px;
         <x>10</x>
         <y>20</y>
         <width>551</width>
-        <height>171</height>
+        <height>121</height>
        </rect>
       </property>
       <property name="title">
@@ -1839,7 +1839,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>330</x>
-         <y>60</y>
+         <y>30</y>
          <width>211</width>
          <height>21</height>
         </rect>
@@ -1851,8 +1851,8 @@ font-size: 13px;
        </property>
        <property name="geometry">
         <rect>
-         <x>10</x>
-         <y>130</y>
+         <x>440</x>
+         <y>80</y>
          <width>101</width>
          <height>23</height>
         </rect>
@@ -1871,7 +1871,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>330</x>
-         <y>90</y>
+         <y>60</y>
          <width>211</width>
          <height>17</height>
         </rect>
@@ -1914,7 +1914,7 @@ font-size: 13px;
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>200</y>
+        <y>150</y>
         <width>551</width>
         <height>141</height>
        </rect>
@@ -2161,9 +2161,9 @@ font-size: 13px;
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>350</y>
+        <y>340</y>
         <width>551</width>
-        <height>161</height>
+        <height>121</height>
        </rect>
       </property>
       <property name="title">
@@ -2173,7 +2173,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>120</x>
-         <y>60</y>
+         <y>30</y>
          <width>91</width>
          <height>22</height>
         </rect>
@@ -2189,7 +2189,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>60</y>
+         <y>30</y>
          <width>91</width>
          <height>21</height>
         </rect>
@@ -2205,7 +2205,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>90</y>
+         <y>60</y>
          <width>81</width>
          <height>21</height>
         </rect>
@@ -2221,7 +2221,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>120</x>
-         <y>120</y>
+         <y>90</y>
          <width>91</width>
          <height>22</height>
         </rect>
@@ -2246,7 +2246,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>120</y>
+         <y>90</y>
          <width>91</width>
          <height>21</height>
         </rect>
@@ -2262,7 +2262,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>400</x>
-         <y>120</y>
+         <y>90</y>
          <width>131</width>
          <height>23</height>
         </rect>
@@ -2277,37 +2277,11 @@ font-size: 13px;
         <string>Calculate Worms</string>
        </property>
       </widget>
-      <widget class="QgsMapLayerComboBox" name="mMapLayerComboBox_selectGrid_worms">
-       <property name="geometry">
-        <rect>
-         <x>110</x>
-         <y>30</y>
-         <width>251</width>
-         <height>21</height>
-        </rect>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_52">
-       <property name="geometry">
-        <rect>
-         <x>10</x>
-         <y>30</y>
-         <width>91</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Select Grid</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
       <widget class="QDoubleSpinBox" name="doubleSpinBox_base">
        <property name="geometry">
         <rect>
          <x>120</x>
-         <y>90</y>
+         <y>60</y>
          <width>91</width>
          <height>22</height>
         </rect>
@@ -2349,45 +2323,19 @@ font-size: 13px;
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>520</y>
+        <y>480</y>
         <width>551</width>
-        <height>111</height>
+        <height>141</height>
        </rect>
       </property>
       <property name="title">
        <string>Wavelet Transform Modulus Maxima</string>
       </property>
-      <widget class="QgsMapLayerComboBox" name="mMapLayerComboBox_selectGrid_wtmm">
-       <property name="geometry">
-        <rect>
-         <x>110</x>
-         <y>30</y>
-         <width>251</width>
-         <height>21</height>
-        </rect>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_57">
-       <property name="geometry">
-        <rect>
-         <x>10</x>
-         <y>30</y>
-         <width>91</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Select Grid</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
       <widget class="QDoubleSpinBox" name="doubleSpinBox_wtmm_spacing">
        <property name="geometry">
         <rect>
-         <x>450</x>
-         <y>30</y>
+         <x>400</x>
+         <y>40</y>
          <width>91</width>
          <height>22</height>
         </rect>
@@ -2405,14 +2353,14 @@ font-size: 13px;
         <double>100.000000000000000</double>
        </property>
        <property name="value">
-        <double>1000.000000000000000</double>
+        <double>100.000000000000000</double>
        </property>
       </widget>
       <widget class="QLabel" name="label_61">
        <property name="geometry">
         <rect>
-         <x>380</x>
-         <y>30</y>
+         <x>330</x>
+         <y>40</y>
          <width>51</width>
          <height>21</height>
         </rect>
@@ -2427,8 +2375,8 @@ font-size: 13px;
       <widget class="QPushButton" name="pushButton_wtmm">
        <property name="geometry">
         <rect>
-         <x>400</x>
-         <y>80</y>
+         <x>390</x>
+         <y>100</y>
          <width>131</width>
          <height>23</height>
         </rect>
@@ -2443,6 +2391,110 @@ font-size: 13px;
         <string>Calculate WTMM</string>
        </property>
       </widget>
+      <widget class="QLabel" name="label_57">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>30</y>
+         <width>91</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Select points/line</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QgsMapLayerComboBox" name="mMapLayerComboBox_selectVectors">
+       <property name="geometry">
+        <rect>
+         <x>120</x>
+         <y>30</y>
+         <width>121</width>
+         <height>21</height>
+        </rect>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_59">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>60</y>
+         <width>91</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Select feature</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QgsFieldComboBox" name="mFieldComboBox_data">
+       <property name="geometry">
+        <rect>
+         <x>120</x>
+         <y>90</y>
+         <width>121</width>
+         <height>21</height>
+        </rect>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_76">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>90</y>
+         <width>91</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Select data field</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QComboBox" name="mFieldComboBox_feature">
+       <property name="geometry">
+        <rect>
+         <x>120</x>
+         <y>60</y>
+         <width>121</width>
+         <height>22</height>
+        </rect>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QgsMapLayerComboBox" name="mMapLayerComboBox_selectGrid_worms">
+      <property name="geometry">
+       <rect>
+        <x>120</x>
+        <y>310</y>
+        <width>251</width>
+        <height>21</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_52">
+      <property name="geometry">
+       <rect>
+        <x>20</x>
+        <y>310</y>
+        <width>91</width>
+        <height>20</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Select Grid</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+      </property>
      </widget>
     </widget>
     <widget class="QWidget" name="Utils">
@@ -3087,6 +3139,11 @@ p, li { white-space: pre-wrap; }
    <class>QgsDoubleSpinBox</class>
    <extends>QDoubleSpinBox</extends>
    <header>qgsdoublespinbox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>QgsFieldComboBox</class>
+   <extends>QComboBox</extends>
+   <header>qgsfieldcombobox.h</header>
   </customwidget>
   <customwidget>
    <class>QgsMapLayerComboBox</class>

@@ -90,6 +90,7 @@ import subprocess
 from scipy.spatial import cKDTree
 from scipy import interpolate
 import tempfile
+from scipy.interpolate import interp1d
 
 from osgeo import gdal, osr
 
@@ -575,7 +576,7 @@ class SGTool:
         self.dlg.doubleSpinBox_inc.setToolTip("Increment in metres between levels ")
         self.dlg.groupBox_8.setToolTip("Create csv file of worms using bsdwormer code")
         self.dlg.mMapLayerComboBox_selectGrid_worms.setToolTip(
-            "Grid to be wormed\n[Must be gravity or RTP_E + Vertical Integration of mag]"
+            "Grid to be analysed by wavelet transform"
         )
 
         self.dlg.checkBox_NaN.setToolTip("Threshold background values to NaN")
@@ -687,16 +688,25 @@ class SGTool:
         self.dlg.lineEdit_3_DC_scale.setToolTip(
             "Multiplier to be applied to result before subtracting from original grid"
         )
-        self.dlg.mMapLayerComboBox_selectGrid_wtmm.setToolTip(
-            "Select grid to be processed by WTMM"
-        )
+
         self.dlg.doubleSpinBox_wtmm_spacing.setToolTip(
-            "Define spacing along profile"
+            "Define spacing along profile\n0 = median spacing for points\nfor polylines must be non-zero, and ideally greater than grid cell size"
         )
         self.dlg.pushButton_wtmm.setToolTip(
-            "Calculate WTMM and display in new window\nExactly 1 polyline layer and 1 polyline must also be selected"
+            "Calculate WTMM and display in new windows"
         )
 
+        self.dlg.mMapLayerComboBox_selectVectors.setToolTip(
+            "Select data points layer or polyline to extract data from grid"
+        )
+
+        self.dlg.mFieldComboBox_feature.setToolTip(
+            "Select object to be analysed: LINE_ID of points or FID of polyline"
+        )        
+        
+        self.dlg.mFieldComboBox_data.setToolTip(
+            "Select data field for points layer"
+        )        
     def initParams(self):
         self.localGridName = ""
         self.diskGridPath = ""
@@ -2225,7 +2235,6 @@ class SGTool:
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setCurrentText(self.localGridName)
-        self.dlg.mMapLayerComboBox_selectGrid_wtmm.setCurrentText(self.localGridName)
         self.dlg.lineEdit_2_loadGridPath.setText("")
         self.diskGridPath = ""
         self.base_name = self.localGridName
@@ -2246,7 +2255,6 @@ class SGTool:
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid.setCurrentText(self.localGridName)
-        self.dlg.mMapLayerComboBox_selectGrid_wtmm.setCurrentText(self.localGridName)
 
         self.dlg.lineEdit_2_loadGridPath.setText("")
         self.diskGridPath = ""
@@ -2268,7 +2276,6 @@ class SGTool:
         self.dlg.mMapLayerComboBox_selectGrid.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setCurrentText(self.localGridName)
-        self.dlg.mMapLayerComboBox_selectGrid_wtmm.setCurrentText(self.localGridName)
 
         self.dlg.lineEdit_2_loadGridPath.setText("")
         self.diskGridPath = ""
@@ -2292,7 +2299,6 @@ class SGTool:
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
-        self.dlg.mMapLayerComboBox_selectGrid_wtmm.setCurrentText(self.localGridName)
 
         self.dlg.lineEdit_2_loadGridPath.setText("")
         self.diskGridPath = ""
@@ -2309,29 +2315,6 @@ class SGTool:
                 else:
                     self.dlg.label_41_units.setText("Units: m")
 
-    def update_paths_wtmm(self):
-        self.localGridName = self.dlg.mMapLayerComboBox_selectGrid_wtmm.currentText()
-
-        self.dlg.mMapLayerComboBox_selectGrid.setCurrentText(self.localGridName)
-        self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
-        self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setCurrentText(self.localGridName)
-        self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
-        self.dlg.mMapLayerComboBox_selectGrid_wtmm.setCurrentText(self.localGridName)
-
-        self.dlg.lineEdit_2_loadGridPath.setText("")
-        self.diskGridPath = ""
-        self.base_name = self.localGridName
-
-        if len(self.base_name) > 0:
-            selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[
-                0
-            ]
-            if selected_layer.isValid():
-                crs = selected_layer.crs()
-                if crs.isGeographic():
-                    self.dlg.label_41_units.setText("Units: deg")
-                else:
-                    self.dlg.label_41_units.setText("Units: m")
 
     # --------------------------------------------------------------------------
     def show_version(self):
@@ -2396,6 +2379,11 @@ class SGTool:
             self.dlg.mMapLayerComboBox_selectGrid_worms.setFilters(
                 QgsMapLayerProxyModel.RasterLayer
             )
+            
+            self.dlg.mMapLayerComboBox_selectVectors.setFilters(
+                QgsMapLayerProxyModel.PointLayer | QgsMapLayerProxyModel.VectorLayer
+            )
+            
             self.dlg.mMapLayerComboBox_selectGrid_3.setFilters(
                 QgsMapLayerProxyModel.PointLayer
             )
@@ -2403,9 +2391,6 @@ class SGTool:
                 QgsMapLayerProxyModel.RasterLayer
             )
             
-            self.dlg.mMapLayerComboBox_selectGrid_wtmm.setFilters(
-                QgsMapLayerProxyModel.RasterLayer
-            )
             self.dlg.version_label.setText(self.show_version())
 
             self.deriv_dir_list = []
@@ -2438,6 +2423,8 @@ class SGTool:
             self.dlg.pushButton_3_applyProcessing.clicked.connect(
                 self.processGeophysics_fft
             )
+            self.update_wavelet_choices()
+
 
             self.dlg.pushButton_3_applyProcessing_Conv_3.clicked.connect(
                 self.processGeophysics_fft
@@ -2461,12 +2448,13 @@ class SGTool:
                 self.update_paths_utils
             )
 
+            self.dlg.mMapLayerComboBox_selectVectors.layerChanged.connect(
+                self.update_wavelet_choices
+            )
             self.dlg.mMapLayerComboBox_selectGrid_worms.layerChanged.connect(
                 self.update_paths_worms
             )
-            self.dlg.mMapLayerComboBox_selectGrid_wtmm.layerChanged.connect(
-                self.update_paths_wtmm
-            )
+
             self.dlg.mQgsProjectionSelectionWidget.setCrs(
                 QgsCoordinateReferenceSystem("EPSG:4326")
             )
@@ -3378,24 +3366,72 @@ class SGTool:
         # replace with specific processor calls so raster clipping can be done easily...
 
     def procWTMM(self):
-        if(self.dlg.mMapLayerComboBox_selectGrid_wtmm.currentText() != "" ):
-            raster_layer_name = self.dlg.mMapLayerComboBox_selectGrid_wtmm.currentText()
-            line_spacing=float(self.dlg.doubleSpinBox_wtmm_spacing.value())
-            line_layer = self.iface.activeLayer()
+        line_layer_name = self.dlg.mMapLayerComboBox_selectVectors.currentText()
+        line_layer = QgsProject.instance().mapLayersByName(line_layer_name)[0]
 
-            if line_layer is None:
-                print("No layer selected")
+        if line_layer is None:
+            print("No layer selected")
+            return None
+        print()
+        if isinstance(line_layer, QgsVectorLayer) and line_layer.geometryType() == QgsWkbTypes.LineGeometry and self.dlg.mMapLayerComboBox_selectGrid_worms.currentText() != "":  
+            raster_layer_name = self.dlg.mMapLayerComboBox_selectGrid_worms.currentText()
+            data=self.get_data_from_profile()
+            if data is None:
+                print("No data retrieved from profile")
                 return None
-            
-            if (not  isinstance(line_layer, QgsVectorLayer)) or line_layer.geometryType() != QgsWkbTypes.LineGeometry:
-                print("Selected layer is not a polyline layer")
-                return None
-            
-            # Check if any features are selected
-            if line_layer.selectedFeatureCount() != 1:
-                print(f"Please select exactly one feature. Currently {line_layer.selectedFeatureCount()} features selected.")
-                return None
-            
+            plot_layer_name=raster_layer_name
+        elif isinstance(line_layer, QgsVectorLayer) and line_layer.geometryType() == QgsWkbTypes.PointGeometry:
+            spacing=self.dlg.doubleSpinBox_wtmm_spacing.value()
+            if(self.dlg.doubleSpinBox_wtmm_spacing.value()==0):
+                spacing='auto'
+
+            new_coords, data, median_spacing=self.regularize_selected_points(line_layer.name(), "data_2", spacing=spacing, num_points=None)
+            plot_layer_name=line_layer_name
+        
+        else:
+            print("Selected layer is not a valid line or point layer.")
+            return None
+        
+        
+        wtmm=WTMM()      
+        results = wtmm.wtmm_1d(
+            data, 
+            wavelet='mexh',
+            num_scales=15,
+            threshold_rel=0.05,  # Lower threshold to detect more maxima
+            min_distance=3
+        )
+        import matplotlib.pyplot as plt
+
+        # Plot the D(h) vs h spectrum
+        fig, ax = plt.subplots(figsize=(8, 6))
+         
+        wtmm.plot_Dh_vs_h(data,plot_layer_name, results, ax=ax)
+        plt.tight_layout()
+        plt.show()
+        wtmm.visualize_wtmm_1d(data, plot_layer_name,results, save_path=None)
+
+        plt.show()
+        return results
+
+    def get_data_from_profile(self):  
+        raster_layer_name = self.dlg.mMapLayerComboBox_selectGrid_worms.currentText()
+        line_spacing=float(self.dlg.doubleSpinBox_wtmm_spacing.value())
+        if(line_spacing==0):
+            self.iface.messageBar().pushMessage(
+                "Spacing must be non-zero for extraciton from grid, and ideally greater than grid cell size", level=Qgis.Warning, duration=15
+            )
+            return
+        line_layer_name = self.dlg.mMapLayerComboBox_selectVectors.currentText()
+        line_layer = QgsProject.instance().mapLayersByName(line_layer_name)[0]
+        line_layer.selectByIds([int(self.dlg.mFieldComboBox_feature.currentText())])
+
+        if line_layer is None:
+            print("No layer selected")
+            return None
+        
+        if isinstance(line_layer, QgsVectorLayer) and line_layer.geometryType() == QgsWkbTypes.LineGeometry:
+
             # Find the specified raster layer
             raster_layer = None
             if raster_layer_name:
@@ -3472,24 +3508,243 @@ class SGTool:
                 'values': raster_values
             }
             data=np.array(result['values'])
-            wtmm=WTMM()      
-            results = wtmm.wtmm_1d(
-                data, 
-                wavelet='mexh',
-                num_scales=15,
-                threshold_rel=0.05,  # Lower threshold to detect more maxima
-                min_distance=3
-            )
-            import matplotlib.pyplot as plt
 
-            # Plot the D(h) vs h spectrum
-            fig, ax = plt.subplots(figsize=(8, 6))
-            wtmm.plot_Dh_vs_h(data,raster_layer_name, results, ax=ax)
-            plt.tight_layout()
-            plt.show()
-            wtmm.visualize_wtmm_1d(data, raster_layer_name,results, save_path=None)
+            return data
 
-            plt.show()
-            return result
+    def regularize_selected_points(self,layer_name, field_name, spacing="auto", num_points=None):
+        """
+        Convert selected points from a QGIS point layer to a NumPy array 
+        and regularize their spacing along a line
+        
+        Parameters:
+        layer_name (str): Name of the point layer in the QGIS project
+        field_name (str): Name of the field to extract
+        spacing (float or "auto", optional): Desired spacing between points or "auto" to use median spacing
+        num_points (int, optional): Desired number of points. If None and spacing is None, 
+                                original number of points is used
+        
+        Returns:
+        tuple: (numpy.ndarray of coordinates, numpy.ndarray of field values, float: spacing used)
+        """
+        # Get the layer by name
+        layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+        selection_value=self.dlg.mFieldComboBox_feature.currentText()
+        layer.selectByExpression("LINE_ID = "+selection_value)
 
+
+        if not layer:
+            print(f"Layer '{layer_name}' not found")
+            return None, None, None
+        
+        # Check if the field exists in the layer
+        fields = layer.fields()
+        field_idx = fields.indexFromName(field_name)
+        
+        if field_idx == -1:
+            print(f"Field '{field_name}' not found in layer '{layer_name}'")
+            return None, None, None
+        
+        # Get the selected features
+        selected_features = layer.selectedFeatures()
+        
+        if not selected_features:
+            print(f"No features selected in layer '{layer_name}'")
+            return None, None, None
+        
+        # Get the coordinates and field values from selected features
+        coords = []
+        field_values = []
+        
+        for feature in selected_features:
+            geom = feature.geometry()
+            point = geom.asPoint()
+            coords.append((point.x(), point.y()))
+            field_values.append(feature[field_name])
+        
+        # Convert to numpy arrays
+        coords = np.array(coords)
+        field_values = np.array(field_values)
+        
+        # Determine the dominant axis (x or y) by checking the range
+        x_range = np.max(coords[:, 0]) - np.min(coords[:, 0])
+        y_range = np.max(coords[:, 1]) - np.min(coords[:, 1])
+        
+        # Sort the points based on the dominant axis
+        if x_range >= y_range:
+            # Sort by x-coordinate
+            print("Sorting points along X axis (dominant)")
+            sort_idx = np.argsort(coords[:, 0])
+        else:
+            # Sort by y-coordinate
+            print("Sorting points along Y axis (dominant)")
+            sort_idx = np.argsort(coords[:, 1])
+        
+        coords_sorted = coords[sort_idx]
+        field_values_sorted = field_values[sort_idx]
+        
+        # Calculate distances between consecutive points
+        distances = [0]
+        point_distances = []
+        
+        for i in range(1, len(coords_sorted)):
+            prev = coords_sorted[i-1]
+            curr = coords_sorted[i]
+            d = np.sqrt((curr[0] - prev[0])**2 + (curr[1] - prev[1])**2)
+            point_distances.append(d)
+            distances.append(distances[-1] + d)
+        
+        total_length = distances[-1]
+        
+        # Determine regularization parameters
+        if spacing == "auto":
+            # Calculate median point spacing
+            median_spacing = np.median(point_distances)
+            print(f"Using auto-calculated median spacing: {median_spacing}")
+            num_new_points = int(total_length / median_spacing) + 1
+            used_spacing = median_spacing
+        elif isinstance(spacing, (int, float)):
+            num_new_points = int(total_length / spacing) + 1
+            used_spacing = spacing
+        elif num_points is not None:
+            num_new_points = num_points
+            used_spacing = total_length / (num_new_points - 1) if num_new_points > 1 else 0
+        else:
+            num_new_points = len(coords_sorted)
+            used_spacing = total_length / (num_new_points - 1) if num_new_points > 1 else 0
             
+        # Create evenly spaced points along the path
+        new_distances = np.linspace(0, total_length, num_new_points)
+        
+        # Interpolate coordinates along the path
+        x_interp = interp1d(distances, coords_sorted[:, 0], kind='linear')
+        y_interp = interp1d(distances, coords_sorted[:, 1], kind='linear')
+        
+        # Interpolate field values along the path
+        field_interp = interp1d(distances, field_values_sorted, kind='linear')
+        
+        # Calculate new coordinates and field values
+        new_coords = np.column_stack((x_interp(new_distances), y_interp(new_distances)))
+        new_field_values = field_interp(new_distances)
+        
+        return new_coords, new_field_values, used_spacing
+
+    def create_regularized_layer(self,new_coords, new_field_values, field_name, output_layer_name="RegularizedPoints"):
+        """
+        Create a new point layer with regularized points
+        
+        Parameters:
+        new_coords (numpy.ndarray): Array of coordinates (x, y)
+        new_field_values (numpy.ndarray): Array of field values
+        field_name (str): Name of the field
+        output_layer_name (str): Name for the output layer
+        
+        Returns:
+        QgsVectorLayer: The created layer
+        """
+        # Create a new memory layer
+        layer = QgsVectorLayer(f"Point?crs=EPSG:4326&field={field_name}:double", output_layer_name, "memory")
+        
+        # Get ready to add features
+        provider = layer.dataProvider()
+        
+        # Add features
+        features = []
+        for i in range(len(new_coords)):
+            feat = QgsFeature()
+            point = QgsPointXY(new_coords[i][0], new_coords[i][1])
+            feat.setGeometry(QgsGeometry.fromPointXY(point))
+            feat.setAttributes([float(new_field_values[i])])
+            features.append(feat)
+        
+        provider.addFeatures(features)
+        
+        # Add layer to the project
+        QgsProject.instance().addMapLayer(layer)
+        
+        return layer
+
+    def selected_points_to_numpy(self,layer_name, field_name):
+        """
+        Convert selected points from a QGIS point layer to a NumPy array for a specific field
+        
+        Parameters:
+        layer_name (str): Name of the point layer in the QGIS project
+        field_name (str): Name of the field to extract
+        
+        Returns:
+        tuple: (numpy.ndarray of coordinates, numpy.ndarray of field values)
+        """
+        # Get the layer by name
+        layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+        
+        if not layer:
+            print(f"Layer '{layer_name}' not found")
+            return None, None
+        
+        # Check if the field exists in the layer
+        fields = layer.fields()
+        field_idx = fields.indexFromName(field_name)
+        
+        if field_idx == -1:
+            print(f"Field '{field_name}' not found in layer '{layer_name}'")
+            return None, None
+        
+        # Get the selected features
+        selected_features = layer.selectedFeatures()
+        
+        if not selected_features:
+            print(f"No features selected in layer '{layer_name}'")
+            return None, None
+        
+        # Get the coordinates and field values from selected features
+        coords = []
+        field_values = []
+        
+        for feature in selected_features:
+            geom = feature.geometry()
+            point = geom.asPoint()
+            coords.append((point.x(), point.y()))
+            field_values.append(feature[field_name])
+        
+        # Convert to numpy arrays
+        coords = np.array(coords)
+        field_values = np.array(field_values)
+        
+        return coords, field_values
+    
+    def update_wavelet_choices(self):
+        if self.dlg.mMapLayerComboBox_selectVectors.currentText()!="":
+            line_layer_name = self.dlg.mMapLayerComboBox_selectVectors.currentText()
+            line_layer = QgsProject.instance().mapLayersByName(line_layer_name)[0]
+            self.dlg.mFieldComboBox_data.setEnabled(True)
+            if line_layer.geometryType() == QgsWkbTypes.PointGeometry:
+                self.dlg.mFieldComboBox_feature.clear()
+                unique_values = []
+
+                for feature in line_layer.getFeatures():
+                    value = str(feature['LINE_ID'])
+                    if value not in unique_values:
+                        print
+                        unique_values.append(value)
+
+                # Sort the values (optional)
+                unique_values.sort()
+
+                # Add to combo box
+                self.dlg.mFieldComboBox_feature.addItems(unique_values)
+                self.dlg.mFieldComboBox_data.setLayer(line_layer)
+            elif line_layer.geometryType() == QgsWkbTypes.LineGeometry:
+                self.dlg.mFieldComboBox_feature.clear()
+                self.dlg.mFieldComboBox_data.setEnabled(False)
+                unique_values = []
+
+                for feature in line_layer.getFeatures():
+                    value = feature.id()
+                    if value not in unique_values:
+                        unique_values.append(str(value))
+
+                # Sort the values (optional)
+                unique_values.sort()
+
+                # Add to combo box
+                self.dlg.mFieldComboBox_feature.addItems(unique_values)

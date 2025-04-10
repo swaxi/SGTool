@@ -185,7 +185,7 @@ Grids point data using either BSpline or IDW built-in gridding algoithms
 Use wavelet transforms to build multilevel "worms", saves out a single csv file of points (for use in 3D visualisation), and optionally a shapefile (for use in QGIS)   
     
 **WTMM**   
-Use wavelet transforms to build multilevel analysis (Wavelet Transform Modulus Maxima) along a selected linestring (polyline) profile. 
+Use wavelet transforms to build multilevel analysis (Wavelet Transform Modulus Maxima) along a selected linestring (polyline) profile extracted from grid or for imported XYZ data. 
     
 ## Utilities   
 **Threshold to NaN**   

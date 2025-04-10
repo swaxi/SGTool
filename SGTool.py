@@ -3728,7 +3728,7 @@ class SGTool:
                         unique_values.append(value)
 
                 # Sort the values (optional)
-                unique_values.sort()
+                unique_values=sorted(unique_values, key=int)
 
                 # Add to combo box
                 self.dlg.mFieldComboBox_feature.addItems(unique_values)
@@ -3744,7 +3744,7 @@ class SGTool:
                         unique_values.append(str(value))
 
                 # Sort the values (optional)
-                unique_values.sort()
+                unique_values=sorted(unique_values, key=int)
 
                 # Add to combo box
                 self.dlg.mFieldComboBox_feature.addItems(unique_values)

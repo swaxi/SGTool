@@ -19,7 +19,7 @@
 - added DTM curvature classifier
 - added Butterworth filter and scaler to DC filter
 - added Wavelet Transform Modulus Maxima calcs extracted from grids or for XYZ data (beta!!)
-- fix az direction for relief shading
+- fix azimuth direction for relief shading
 
 Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/metadata.txt">Metadata</a>   
    

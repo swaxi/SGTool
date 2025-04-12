@@ -9,7 +9,7 @@
 ![SGTools image](dialog.png)       
 
 # changelog 0.2.12 
-- Fix loading of RGB tiffs on Linux
+- fix loading of RGB tiffs on Linux
 - try again for autoload of libraries
 - refactor rte so it works like other FFT
 - recalc buffers so they are factors of powers of 2, 3 or 5 (should make large grid calcs faster)
@@ -18,7 +18,7 @@
 - added 1D circular windowed spatial stats functions
 - added DTM curvature classifier
 - added Butterworth filter and scaler to DC filter
-- added WTMM calcs extracted from grids or for XYZ data (beta!!)
+- added Wavelet Transform Modulus Maxima calcs extracted from grids or for XYZ data (beta!!)
 - fix az direction for relief shading
 
 Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/metadata.txt">Metadata</a>   

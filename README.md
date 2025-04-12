@@ -20,7 +20,9 @@
 - added Butterworth filter and scaler to DC filter
 - added WTMM calcs extracted from grids or for XYZ data (beta!!)
 - fix az direction for relief shading
-    
+
+Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/metadata.txt">Metadata</a>   
+   
 # Installation
 1) Either:   
 - Download the zip file from the green **<> Code** button and install the zip file in QGIS using the plugin manager for the version on github or   

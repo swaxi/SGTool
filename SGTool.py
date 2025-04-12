@@ -1163,13 +1163,7 @@ class SGTool:
 
     def procSunShade(self):
 
-        if not self.dlg.checkBox_relief.isChecked():
-            self.new_grid = self.convolution.sun_shading_filter(
-                self.raster_array,
-                sun_alt=self.sun_shade_zn,
-                sun_az=180 - self.sun_shade_az,
-            )
-        else:
+        if self.dlg.checkBox_relief.isChecked():
             selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[
                 0
             ]
@@ -1182,11 +1176,17 @@ class SGTool:
             self.new_grid = self.convolution.sun_shading_filter_grass(
                 self.raster_array,
                 altitude=self.sun_shade_zn,
-                azimuth=180 - self.sun_shade_az,
+                azimuth=self.sun_shade_az,
                 resolution_ns=self.dy * hzscale,
                 resolution_ew=self.dx * hzscale,
                 scale=1.0,
                 zscale=1.0,
+            )
+        else: 
+            self.new_grid = self.convolution.sun_shading_filter(
+                self.raster_array,
+                sun_alt=self.sun_shade_zn,
+                sun_az=180-self.sun_shade_az,
             )
         self.suffix = "_Sh"
 

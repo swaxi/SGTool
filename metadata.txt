@@ -30,6 +30,7 @@ changelog=0.2.12 Fix loading of RGB tiffs on Linux
       * added DTM curvature classifier
       * added Butterworth filter and scaler to DC filter
       * added WTMM calcs extracted from grids or for XYZ data (beta!!)
+      * fix az direction for relief shading
     0.2.11 Remove path insertion in worms code
       * add relief shading option (based on Grass algorithm)
       * generalise a bit epsg parsing for GRD

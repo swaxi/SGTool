@@ -8,6 +8,19 @@
     
 ![SGTools image](dialog.png)       
 
+# changelog 0.2.12 
+- Fix loading of RGB tiffs on Linux
+- try again for autoload of libraries
+- refactor rte so it works like other FFT
+- recalc buffers so they are factors of powers of 2, 3 or 5 (should make large grid calcs faster)
+- added tooltips to explain dotpoint
+- added plugins.xml to allow direct access via plugin manager
+- added 1D circular windowed spatial stats functions
+- added DTM curvature classifier
+- added Butterworth filter and scaler to DC filter
+- added WTMM calcs extracted from grids or for XYZ data (beta!!)
+- fix az direction for relief shading
+    
 # Installation
 1) Either:   
 - Download the zip file from the green **<> Code** button and install the zip file in QGIS using the plugin manager for the version on github or   

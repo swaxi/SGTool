@@ -382,7 +382,7 @@ class WTMM:
         
         return filtered_lines
 
-    def visualize_wtmm_1d(self,signal_data,raster_layer_name, results, save_path=None):
+    def visualize_wtmm_1d(self,signal_data,raster_layer_name, results,line_number=None, save_path=None):
         """
         Visualize the 1D WTMM analysis results.
         
@@ -402,7 +402,7 @@ class WTMM:
         # Plot the original signal
         ax1 = fig.add_subplot(gs[0])
         ax1.plot(signal_data, 'k-')
-        ax1.set_title('Original Signal: {}'.format(raster_layer_name))
+        ax1.set_title(f'Original Signal: {raster_layer_name} Line Number: {line_number}')
         ax1.set_ylim(np.min(signal_data) - 0.1, np.max(signal_data) + 0.1)
         ax1.set_xlim(0, len(signal_data))
         ax1.set_ylabel('Amplitude')

@@ -3409,7 +3409,7 @@ class SGTool:
         wtmm.plot_Dh_vs_h(data,plot_layer_name, results, ax=ax)
         plt.tight_layout()
         plt.show()
-        wtmm.visualize_wtmm_1d(data, plot_layer_name,results, save_path=None)
+        wtmm.visualize_wtmm_1d(data, plot_layer_name,results, line_number=int(self.dlg.mFieldComboBox_feature.currentText()),save_path=None)
 
         plt.show()
         return results

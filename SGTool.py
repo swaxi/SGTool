@@ -22,11 +22,8 @@
  ***************************************************************************/
 """
 
-from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
-from qgis.core import QgsMapLayerProxyModel
-from qgis.PyQt.QtCore import QUrl
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import QAction, QDockWidget, QFileDialog
 from qgis.core import (
     Qgis,
     QgsCoordinateReferenceSystem,
@@ -39,10 +36,13 @@ from qgis.core import (
     QgsProcessingFeedback,
     QgsProcessingFeatureSourceDefinition, 
     QgsFeatureRequest,
-    QgsWkbTypes
+    QgsWkbTypes,
+    QgsProject,
+    QgsGeometry,
+    QgsFields,
+    QgsPointXY,
+    QgsMapLayerProxyModel,
 )
-
-from qgis.PyQt.QtWidgets import QAction, QFileDialog
 from qgis.PyQt.QtCore import (
     QSettings,
     QTranslator,
@@ -50,21 +50,10 @@ from qgis.PyQt.QtCore import (
     QFileInfo,
     QVariant,
     Qt,
+    QUrl,
 )
-from qgis.PyQt.QtWidgets import QDockWidget
-from qgis.PyQt.QtCore import Qt
 
-from qgis.core import QgsRasterLayer
-from qgis.core import (
-    QgsProject,
-    QgsVectorLayer,
-    QgsFeature,
-    QgsGeometry,
-    QgsField,
-    QgsFields,
-    QgsPointXY,
-)
-from qgis.PyQt.QtCore import QVariant
+
 import re
 
 # Initialize Qt resources from file resources.py
@@ -89,8 +78,8 @@ import numpy as np
 import subprocess
 from scipy.spatial import cKDTree
 from scipy import interpolate
-import tempfile
 from scipy.interpolate import interp1d
+import tempfile
 
 from osgeo import gdal, osr
 
@@ -941,6 +930,21 @@ class SGTool:
         mask = None
         gridder.launch_bspline_dialog(input, zcolumn, cell_size, mask)
 
+    def procmultibsplineGridding(self):
+        gridder = QGISGridData(self.iface)
+
+        layer_name = self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
+        input = self.get_layer_path_by_name(layer_name)
+        zcolumn = self.dlg.comboBox_select_grid_data_field.currentText()
+        cell_size = self.dlg.doubleSpinBox_cellsize.text()
+
+        layer = QgsProject.instance().mapLayersByName(layer_name)[0]
+        provider = layer.dataProvider()
+        extent = provider.extent()
+
+        mask = None
+        gridder.launch_multi_bspline_dialog(input, zcolumn, cell_size, mask)
+
     def get_layer_path_by_name(self, layer_name):
         """
         Get the file path of a layer given its name.
@@ -1436,18 +1440,6 @@ class SGTool:
 
     def processGeophysics(self):
         process = False
-        """if(os.path.exists(self.diskGridPath) and self.diskGridPath!=""):
-            self.parseParams()
-            self.loadGrid()
-
-            paths = os.path.split(self.diskGridPath)
-            self.base_name = "".join(paths[1].split(".")[:-1])
-            provider = self.layer.dataProvider()
-
-            # Get raster dimensions
-            cols = provider.xSize()  # Number of columns
-            rows = provider.ySize()  # Number of rows
-            process=True"""
 
         if self.localGridName and self.localGridName != "":
             self.parseParams()
@@ -2380,10 +2372,13 @@ class SGTool:
                 QgsMapLayerProxyModel.RasterLayer
             )
             
-            self.dlg.mMapLayerComboBox_selectVectors.setFilters(
+            """self.dlg.mMapLayerComboBox_selectVectors.setFilters(
                 QgsMapLayerProxyModel.PointLayer | QgsMapLayerProxyModel.VectorLayer
+            )"""
+            self.dlg.mMapLayerComboBox_selectVectors.setFilters(
+            QgsMapLayerProxyModel.PointLayer | QgsMapLayerProxyModel.VectorLayer
             )
-            
+
             self.dlg.mMapLayerComboBox_selectGrid_3.setFilters(
                 QgsMapLayerProxyModel.PointLayer
             )
@@ -2522,7 +2517,7 @@ class SGTool:
 
             # self.dlg.pushButton_rst.clicked.connect(self.procRSTGridding)
             self.dlg.pushButton_idw_2.clicked.connect(self.procIDWGridding)
-            self.dlg.pushButton_bspline_3.clicked.connect(self.procbsplineGridding)
+            self.dlg.pushButton_bspline_3.clicked.connect(self.procmultibsplineGridding)
 
             self.dlg.pushButton_worms.clicked.connect(self.procBSDworms)
 

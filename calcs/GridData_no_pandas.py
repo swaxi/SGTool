@@ -17,14 +17,14 @@ from qgis.core import (
     QgsRasterLayer,
     QgsGeometry,
     QgsApplication,
-    QgsProcessingAlgorithm,
+    QgsApplication,
+
 )
 
 from qgis.PyQt.QtCore import QVariant
 import processing
 import numpy as np
 import csv
-
 
 class GridData:
     def __init__(self, data, nx, ny, grid_bounds=None, normalize=False):
@@ -331,6 +331,30 @@ class QGISGridData:
             },
         )["OUTPUT"]
         return filtered_layer
+
+    def launch_multi_bspline_dialog(self, input, zcolumn, cell_size, mask):
+
+        # Set up the parameters you want pre-filled
+        pre_filled_params = {
+            'SHAPES': input,  # Reference to your input layer
+            'FIELD': zcolumn,        # Z-value field
+            'TARGET_USER_SIZE': cell_size      # cell size
+        }
+
+        alg_id = "sagang:multilevelbspline"
+        try:
+            # Check if the algorithm exists
+            if QgsApplication.processingRegistry().algorithmById(alg_id):
+                # Launch the dialog
+                processing.execAlgorithmDialog(alg_id, pre_filled_params)
+            else:
+                self.iface.messageBar().pushMessage(
+                    "Error", "sagang multilevelbspline algorithm not found.\nTry installing the Plugin: Saga Processing Saga NextGen Provider", level=3
+                )
+        except Exception as e:
+            self.iface.messageBar().pushMessage("Error", str(e), level=3)  
+    
+
 
 
 class IterativeAkima2D:

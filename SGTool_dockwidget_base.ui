@@ -1885,16 +1885,16 @@ font-size: 13px;
         <string>Load Tie Lines from XYZ files</string>
        </property>
       </widget>
-      <widget class="QLabel" name="label_69">
+      <widget class="QLabel" name="label_53">
        <property name="enabled">
         <bool>true</bool>
        </property>
        <property name="geometry">
         <rect>
-         <x>20</x>
+         <x>10</x>
          <y>30</y>
-         <width>101</width>
-         <height>16</height>
+         <width>111</width>
+         <height>20</height>
         </rect>
        </property>
        <property name="styleSheet">
@@ -1903,7 +1903,7 @@ font-size: 13px;
 </string>
        </property>
        <property name="text">
-        <string>Point/Line Data</string>
+        <string>Point/Line data</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -2015,27 +2015,6 @@ font-size: 13px;
        </property>
        <property name="text">
         <string>Y</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
-      <widget class="QLabel" name="label_53">
-       <property name="geometry">
-        <rect>
-         <x>0</x>
-         <y>100</y>
-         <width>67</width>
-         <height>16</height>
-        </rect>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">font-family: Arial; 
-font-size: 13px;
-</string>
-       </property>
-       <property name="text">
-        <string>Cell Size</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -2154,6 +2133,23 @@ font-size: 13px;
        </property>
        <property name="text">
         <string>BSpline Gridding</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_77">
+       <property name="geometry">
+        <rect>
+         <x>20</x>
+         <y>100</y>
+         <width>61</width>
+         <height>31</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Cell Size
+(proj Units)</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
        </property>
       </widget>
      </widget>

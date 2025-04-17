@@ -31,6 +31,7 @@ changelog=0.2.12 Fix loading of RGB tiffs on Linux
       * added Butterworth filter and scaler to DC filter
       * added Wavelet Transform Modulus Maxima calcs extracted from grids or for XYZ data (beta!!)
       * fix azimuth direction for relief shading
+      * replace bicubic spline dialog with multilevel bicubic spline dialog (from sagang)
     0.2.11 Remove path insertion in worms code
       * add relief shading option (based on Grass algorithm)
       * generalise a bit epsg parsing for GRD

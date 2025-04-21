@@ -20,6 +20,8 @@
 - added Butterworth filter and scaler to DC filter
 - added Wavelet Transform Modulus Maxima calcs extracted from grids or for XYZ data (beta!!)
 - fix azimuth direction for relief shading
+- replace bicubic spline dialog with multilevel bicubic spline dialog (from sagang)
+- remove +1x -1y offset from Gaussian filter output
 
 Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/metadata.txt">Metadata</a>   
    

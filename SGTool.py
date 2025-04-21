@@ -1180,7 +1180,7 @@ class SGTool:
                 long,lat=self.get_grid_centroid(selected_layer)
                 dx,dy=self.SG_Util.arc_degree_to_meters( lat)
                 ave_dxdy=np.sqrt(dx**2.0+dy**2.0)/2
-                hzscale = 1/ ave_dxdy
+                hzscale = 1* ave_dxdy
             else:
                 hzscale = 1.0
 

@@ -54,7 +54,7 @@ class ConvolutionFilter:
         """
         self.padded_grid = np.pad(self.grid, pad_width, mode="reflect")
         return self.padded_grid
-
+    
     def nan_convolution(self, kernel, mode="reflect"):
         """
         Perform convolution while handling NaN values.
@@ -71,7 +71,11 @@ class ConvolutionFilter:
         # Replace NaNs with 0 for convolution
         grid_filled = np.nan_to_num(self.grid, nan=0.0)
 
-        # Convolve the filled grid and the valid mask
+        # For scipy.ndimage.convolve, we don't need to manually flip the kernel
+        # Instead, we just need to ensure the kernel is properly centered
+        
+        # Convolve the filled grid and the valid mask - using default origin=0
+        # This will center the kernel properly
         convolved_values = convolve(grid_filled, kernel, mode=mode)
         valid_counts = convolve(valid_mask.astype(float), kernel, mode=mode)
 
@@ -115,7 +119,7 @@ class ConvolutionFilter:
                 output[i, j] = nanmedian(window)
 
         return output
-
+    
     def gaussian_filter(self, sigma):
         """
         Apply Gaussian filter while handling NaN values.
@@ -125,12 +129,26 @@ class ConvolutionFilter:
         """
         # Create a Gaussian kernel
         size = int(2 * np.ceil(2 * sigma) + 1)
-        x = np.linspace(-size // 2, size // 2, size)
-        gaussian_kernel = np.exp(-(x**2 / (2 * sigma**2)))
-        gaussian_kernel = np.outer(gaussian_kernel, gaussian_kernel)
+        
+        # Ensure size is odd (required for proper centering)
+        if size % 2 == 0:
+            size += 1
+            
+        # Use meshgrid to create properly centered coordinates
+        half_size = size // 2
+        x = np.arange(-half_size, half_size + 1)
+        y = np.arange(-half_size, half_size + 1)
+        X, Y = np.meshgrid(x, y)
+        
+        # Create 2D Gaussian kernel directly
+        gaussian_kernel = np.exp(-(X**2 + Y**2) / (2 * sigma**2))
         gaussian_kernel /= gaussian_kernel.sum()
-
-        return self.nan_convolution(gaussian_kernel)
+        
+        # Let's check if the kernel shape is odd in both dimensions
+        if gaussian_kernel.shape[0] % 2 == 0 or gaussian_kernel.shape[1] % 2 == 0:
+            raise ValueError("Kernel dimensions must be odd for proper centering")
+        
+        return self.nan_convolution(gaussian_kernel)    
 
     def directional_filter(self, direction, n=3):
         """

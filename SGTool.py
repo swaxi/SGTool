@@ -1056,7 +1056,11 @@ class SGTool:
 
         crs = selected_layer.crs()
         if crs.isGeographic():
-            height = float(self.cont_height) / 110000
+            long,lat=self.get_grid_centroid(selected_layer)
+            dx,dy=self.SG_Util.arc_degree_to_meters( lat)
+            ave_dxdy=np.sqrt(dx**2.0+dy**2.0)/2
+
+            height = float(self.cont_height) / ave_dxdy
             self.iface.messageBar().pushMessage(
                 "Height roughly converted to metres, since this is a geographic projection",
                 level=Qgis.Success,
@@ -1173,7 +1177,10 @@ class SGTool:
             ]
             crs = selected_layer.crs()
             if crs.isGeographic():
-                hzscale = 110000.0
+                long,lat=self.get_grid_centroid(selected_layer)
+                dx,dy=self.SG_Util.arc_degree_to_meters( lat)
+                ave_dxdy=np.sqrt(dx**2.0+dy**2.0)/2
+                hzscale = 1/ ave_dxdy
             else:
                 hzscale = 1.0
 
@@ -1265,7 +1272,10 @@ class SGTool:
         selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
         crs = selected_layer.crs()
         if crs.isGeographic():
-            hzscale = 110000.0
+            long,lat=self.get_grid_centroid(selected_layer)
+            dx,dy=self.SG_Util.arc_degree_to_meters( lat)
+            ave_dxdy=np.sqrt(dx**2.0+dy**2.0)/2
+            hzscale = 1/ ave_dxdy
         else:
             hzscale = 1.0
 
@@ -2005,6 +2015,17 @@ class SGTool:
 
         return decimal_year
 
+    def get_grid_centroid(self,layer):
+
+            if layer.isValid():
+                extent = layer.extent()  # Get the extent of the raster layer
+
+                # calculate midpoint of grid
+                midx = extent.xMinimum() + (extent.xMaximum() - extent.xMinimum()) / 2
+                midy = extent.yMinimum() + (extent.yMaximum() - extent.yMinimum()) / 2
+            
+            return midx, midy
+
     # estimate mag field from centroid of data, date and sensor height
     def update_mag_field(self):
 
@@ -2027,11 +2048,8 @@ class SGTool:
             date = datetime(
                 self.magn_SurveyYear, self.magn_SurveyMonth, self.magn_SurveyDay
             )
-            extent = self.layer.extent()  # Get the extent of the raster layer
 
-            # calculate midpoint of grid
-            midx = extent.xMinimum() + (extent.xMaximum() - extent.xMinimum()) / 2
-            midy = extent.yMinimum() + (extent.yMaximum() - extent.yMinimum()) / 2
+            midx, midy = self.get_grid_centroid(self.layer)
 
             if self.layer.crs().authid():
                 # convert midpoint to lat/long

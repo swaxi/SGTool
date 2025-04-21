@@ -348,3 +348,4 @@ class SG_Util:
         dx = (np.pi / 180) * earth_radius * np.cos(latitude_rad)
 
         return dx, dy
+

@@ -285,7 +285,7 @@ class ConvolutionFilter:
         degrees_to_radians = np.pi / 180.0
         altitude = altitude * degrees_to_radians
         # Correct azimuth to East (GRASS convention)
-        azimuth = (azimuth - 270.0) * degrees_to_radians
+        azimuth = (azimuth - 90.0) * degrees_to_radians
 
         # Calculate distances (following GRASS implementation)
         H = resolution_ew * 4 * scale / zscale  # horizontal run for gradient

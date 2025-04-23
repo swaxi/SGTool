@@ -1043,6 +1043,8 @@ class SGTool:
         self.new_grid = self.processor.tilt_angle(
             self.raster_array, buffer_size=self.buffer
         )
+        #self.new_grid = self.processor.mtc_lml_filter(self.raster_array, 0.0,0.0,buffer_size=self.buffer
+        #)
         self.suffix = "_TA"
 
     def procAnalyticSignal(self):
@@ -3729,6 +3731,11 @@ class SGTool:
         if self.dlg.mMapLayerComboBox_selectVectors.currentText()!="":
             line_layer_name = self.dlg.mMapLayerComboBox_selectVectors.currentText()
             line_layer = QgsProject.instance().mapLayersByName(line_layer_name)[0]
+
+            if 'LINE_ID' not in [field.name() for field in line_layer.fields()]:
+                # Field doesn't exist, break out 
+                return  
+            
             self.dlg.mFieldComboBox_data.setEnabled(True)
             if line_layer.geometryType() == QgsWkbTypes.PointGeometry:
                 self.dlg.mFieldComboBox_feature.clear()

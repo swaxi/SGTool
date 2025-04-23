@@ -242,7 +242,7 @@ There are several excellent Open Source or at least free alternatives to this pl
 
 
 # Code development
-- Calcs ChatGPT and Mark Jessell
+- Calcs ChatGPT, Claude and Mark Jessell
 - Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin https://g-sherman.github.io/Qgis-Plugin-Builder/    
 - IGRF calculation -  using pyIGRF https://github.com/ciaranbe/pyIGRF
 - GRD Loader & Radially averaged power spectrum Fatiando a Terra crew & Mark Jessell https://www.fatiando.org/

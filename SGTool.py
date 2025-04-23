@@ -156,7 +156,7 @@ class SGTool:
             except subprocess.CalledProcessError as e:
                 print(f"Error installing {library_name}: {e}")
 
-        # Library shapely
+        """# Library shapely
         try:
             import shapely
 
@@ -170,11 +170,11 @@ class SGTool:
 
         except:
             install_library("scikit-learn")
-            import sklearn
+            import sklearn"""
        
         # Define required packages
-        # required_packages = ['scikit-learn', 'shapely', 'scikit-image','PyWavelets']
-        # self.test_initialize_plugin(required_packages)
+        equired_packages = ['scikit-learn', 'matplotlib', 'scikit-image','PyWavelets']
+        self.test_initialize_plugin(required_packages)
 
     def check_and_install_dependencies(self,required_packages):
         """

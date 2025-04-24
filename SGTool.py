@@ -140,38 +140,6 @@ class SGTool:
         self.dlg = None
         self.last_directory = None
 
-        def install_library(library_name):
-            import sys
-
-            try:
-                if platform.system == "Windows":
-                    subprocess.check_call(
-                        [sys.executable, "-m", "pip", "install", library_name]
-                    )
-                else:
-                    subprocess.check_call(
-                        [sys.executable, "-m", "pip3", "install", library_name]
-                    )
-                print(f"Successfully installed {library_name}")
-            except subprocess.CalledProcessError as e:
-                print(f"Error installing {library_name}: {e}")
-
-        """# Library shapely
-        try:
-            import shapely
-
-        except:
-            install_library("shapely")
-            import shapely
-
-        # Library scikit-learn
-        try:
-            import sklearn
-
-        except:
-            install_library("scikit-learn")
-            import sklearn"""
-       
         # Define required packages
         required_packages = ['scikit-learn', 'matplotlib', 'scikit-image','PyWavelets']
         self.test_initialize_plugin(required_packages)
@@ -223,15 +191,7 @@ class SGTool:
         for package in missing_packages:
             try:
                 QgsMessageLog.logMessage(f"Installing {package}...", "DependencyManager", Qgis.Info)
-                
-                # Use pip in a way that's compatible with QGIS Python environment
-                python_executable = sys.executable
-                if platform.system() == "Windows":
-                    pipcall="pip"
-                else:
-                    pipcall="pip3"
-                #subprocess.check_call([python_executable, '-m', pipcall, 'install', package])
-
+ 
                 if package=="scikit-image":
                     importPackage="skimage"
                 elif package=="scikit-learn":

@@ -143,17 +143,15 @@ class SGTool:
        
         # Define required packages
         required_packages = ['scikit-learn', 'matplotlib', 'scikit-image','PyWavelets']
-        self.test_initialize_plugin(required_packages)
+        self.check_dependencies(required_packages)
 
-    def check_and_install_dependencies(self,required_packages):
+    def check_dependencies(self,required_packages):
         """
-        Check if required packages are installed and install them if missing.
+        Check if required packages are installed.
         
         Args:
             required_packages (list): List of package names to check and install
             
-        Returns:
-            bool: True if all dependencies are satisfied, False otherwise
         """
         missing_packages = []
         for package in required_packages:
@@ -176,72 +174,19 @@ class SGTool:
         
         # Ask user for permission to install missing packages
         package_list = ", ".join(missing_packages)
-        reply = QMessageBox.question(
-            None, 
-            "Missing Dependencies", 
-            f"The following Python packages are required but not installed: {package_list}\n\nWould you like to install them now?",
-            QMessageBox.Yes | QMessageBox.No
+        if platform.system() == "Windows":
+            pipcall="pip"
+        else:
+            pipcall="pip3"
+        QMessageBox.information(
+            None,  # Parent widget
+            "Missing Packages",  # Window title
+            f"The following Python packages are required but not installed: {package_list}\n\n"
+            "Please open the QGIS Python Console and run the following command for each missing package:\n\n"
+            f"!{pipcall} install MISSING_PACKAGE_NAME",  # Message text
+            QMessageBox.Ok  # Buttons parameter
         )
         
-        if reply == QMessageBox.No:
-            QgsMessageLog.logMessage("User declined to install dependencies", "DependencyManager", Qgis.Warning)
-            return False
-        
-        # Install missing packages
-        success = True
-        for package in missing_packages:
-            try:
-                QgsMessageLog.logMessage(f"Installing {package}...", "DependencyManager", Qgis.Info)
-                
-                # Use pip in a way that's compatible with QGIS Python environment
-                python_executable = sys.executable
-
-                if platform.system() == "Windows":
-                    pipcall="pip"
-                else:
-                    pipcall="pip3"
-                    
-                if package=="scikit-image":
-                    importPackage="skimage"
-                elif package=="scikit-learn":
-                    importPackage="sklearn"
-                elif package=="pywt":
-                    importPackage="PyWavelets"
-                else:
-                    importPackage=package                
-                
-                subprocess.check_call([python_executable, '-m', pipcall, 'install', importPackage])
- 
-                # Verify installation worked
-                importlib.import_module(importPackage)
-                QgsMessageLog.logMessage(f"Successfully installed {package}", "DependencyManager", Qgis.Success)
-            except (subprocess.CalledProcessError, ImportError) as e:
-                QMessageBox.information(
-                    None,
-                    f"Couldn't install library {importPackage}",
-                    "Please open the QGIS Python Console and run the following command:\n\n"
-                    f"!{pipcall} install' {importPackage}"
-                    )
-
-                success = False
-        
-        return success
-
-
-    # Example usage in your QGIS plugin
-    def test_initialize_plugin(self,required_packages):
-        print("required_packages",required_packages)
-        # Check and install dependencies
-        if self.check_and_install_dependencies(required_packages):
-            # Continue plugin initialization
-            pass
-        else:
-            # Handle case where dependencies couldn't be installed
-            QMessageBox.critical(
-                None,
-                "Plugin Initialization Failed",
-                "Required dependencies are missing. The plugin may not function correctly."
-            )
 
 
     # noinspection PyMethodMayBeStatic

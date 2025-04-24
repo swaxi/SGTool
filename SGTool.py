@@ -173,7 +173,7 @@ class SGTool:
             import sklearn"""
        
         # Define required packages
-        equired_packages = ['scikit-learn', 'matplotlib', 'scikit-image','PyWavelets']
+        required_packages = ['scikit-learn', 'matplotlib', 'scikit-image','PyWavelets']
         self.test_initialize_plugin(required_packages)
 
     def check_and_install_dependencies(self,required_packages):
@@ -226,12 +226,11 @@ class SGTool:
                 
                 # Use pip in a way that's compatible with QGIS Python environment
                 python_executable = sys.executable
-                if platform.system == "Windows":
+                if platform.system() == "Windows":
                     pipcall="pip"
                 else:
                     pipcall="pip3"
-                subprocess.check_call([python_executable, '-m', pipcall, 'install', package])
-
+                #subprocess.check_call([python_executable, '-m', pipcall, 'install', package])
 
                 if package=="scikit-image":
                     importPackage="skimage"
@@ -241,6 +240,10 @@ class SGTool:
                     importPackage="PyWavelets"
                 else:
                     importPackage=package
+                    
+                import pip
+                from pip._internal import main as pip_main
+                pip_main(['install', importPackage])
 
                 # Verify installation worked
                 importlib.import_module(importPackage)

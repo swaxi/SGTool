@@ -194,11 +194,8 @@ class SGTool:
                 QgsMessageLog.logMessage(f"Installing {package}...", "DependencyManager", Qgis.Info)
                 
                 # Use pip in a way that's compatible with QGIS Python environment
-                if platform.system() == "Windows" or platform.system() == "Linux":
-                    python_executable = sys.executable
-                else:
-                    pass
-                
+                python_executable = sys.executable
+
                 if platform.system() == "Windows":
                     pipcall="pip"
                 else:
@@ -214,20 +211,19 @@ class SGTool:
                     importPackage=package                
                 
                 subprocess.check_call([python_executable, '-m', pipcall, 'install', importPackage])
-
+ 
                 # Verify installation worked
                 importlib.import_module(importPackage)
                 QgsMessageLog.logMessage(f"Successfully installed {package}", "DependencyManager", Qgis.Success)
             except (subprocess.CalledProcessError, ImportError) as e:
-                QgsMessageLog.logMessage(f"Failed to install {package}: {str(e)}", "DependencyManager", Qgis.Critical)
+                QMessageBox.information(
+                    None,
+                    f"Couldn't install library {importPackage}",
+                    "Please open the QGIS Python Console and run the following command:\n\n"
+                    f"!{pipcall} install' {importPackage}"
+                    )
+
                 success = False
-        
-        if not success:
-            QMessageBox.warning(
-                None,
-                "Installation Failed",
-                "Some dependencies could not be installed. Check the QGIS log for details."
-            )
         
         return success
 

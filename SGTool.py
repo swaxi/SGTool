@@ -140,6 +140,7 @@ class SGTool:
         self.dlg = None
         self.last_directory = None
 
+       
         # Define required packages
         required_packages = ['scikit-learn', 'matplotlib', 'scikit-image','PyWavelets']
         self.test_initialize_plugin(required_packages)
@@ -191,7 +192,18 @@ class SGTool:
         for package in missing_packages:
             try:
                 QgsMessageLog.logMessage(f"Installing {package}...", "DependencyManager", Qgis.Info)
- 
+                
+                # Use pip in a way that's compatible with QGIS Python environment
+                if platform.system() == "Windows" or platform.system() == "Linux":
+                    python_executable = sys.executable
+                else:
+                    pass
+                
+                if platform.system() == "Windows":
+                    pipcall="pip"
+                else:
+                    pipcall="pip3"
+                    
                 if package=="scikit-image":
                     importPackage="skimage"
                 elif package=="scikit-learn":
@@ -199,11 +211,9 @@ class SGTool:
                 elif package=="pywt":
                     importPackage="PyWavelets"
                 else:
-                    importPackage=package
-                    
-                import pip
-                from pip._internal import main as pip_main
-                pip_main(['install', importPackage])
+                    importPackage=package                
+                
+                subprocess.check_call([python_executable, '-m', pipcall, 'install', importPackage])
 
                 # Verify installation worked
                 importlib.import_module(importPackage)
@@ -1006,8 +1016,6 @@ class SGTool:
         self.new_grid = self.processor.tilt_angle(
             self.raster_array, buffer_size=self.buffer
         )
-        #self.new_grid = self.processor.mtc_lml_filter(self.raster_array, 0.0,0.0,buffer_size=self.buffer
-        #)
         self.suffix = "_TA"
 
     def procAnalyticSignal(self):
@@ -3694,11 +3702,6 @@ class SGTool:
         if self.dlg.mMapLayerComboBox_selectVectors.currentText()!="":
             line_layer_name = self.dlg.mMapLayerComboBox_selectVectors.currentText()
             line_layer = QgsProject.instance().mapLayersByName(line_layer_name)[0]
-
-            if 'LINE_ID' not in [field.name() for field in line_layer.fields()]:
-                # Field doesn't exist, break out 
-                return  
-            
             self.dlg.mFieldComboBox_data.setEnabled(True)
             if line_layer.geometryType() == QgsWkbTypes.PointGeometry:
                 self.dlg.mFieldComboBox_feature.clear()

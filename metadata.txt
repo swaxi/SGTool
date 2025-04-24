@@ -10,7 +10,7 @@ version=0.2.12
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
-about=Simple Potential Field Processing using FFT grid filters, e.g. RTP, 1VD, Band Pass, Analytic Signal, Upward Continuation etc.
+about=Simple Potential Field Processing using FFT grid filters, e.g. RTP, 1VD, Band Pass, Analytic Signal, Upward Continuation, worms etc.
 
 tracker=https://github.com/swaxi/SGTool/issues
 repository=https://github.com/swaxi/SGTool
@@ -20,8 +20,9 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.2.12 Fix loading of RGB tiffs on Linux
-      * try again for autoload of libraries
+changelog=0.2.13
+    0.2.12 Fix loading of RGB tiffs on Linux
+      * warn instead of autoload of libraries
       * refactor rte so it works like other FFT
       * recalc buffers so they are factors of powers of 2, 3 or 5 (should make large grid calcs faster)
       * added tooltips to explain dotpoint

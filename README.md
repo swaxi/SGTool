@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.2.12
+# Structural Geophysics Tool v0.2.13
  Simple Potential Field Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
@@ -8,20 +8,8 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog 0.2.12 
-- fix loading of RGB tiffs on Linux
-- try again for autoload of libraries
-- refactor rte so it works like other FFT
-- recalc buffers so they are factors of powers of 2, 3 or 5 (should make large grid calcs faster)
-- added tooltips to explain dotpoint
-- added plugins.xml to allow direct access via plugin manager
-- added 1D circular windowed spatial stats functions
-- added DTM curvature classifier
-- added Butterworth filter and scaler to DC filter
-- added Wavelet Transform Modulus Maxima calcs extracted from grids or for XYZ data (beta!!)
-- fix azimuth direction for relief shading
-- replace bicubic spline dialog with multilevel bicubic spline dialog (from sagang)
-- remove +1x -1y offset from Gaussian filter output
+# changelog 0.2.13 
+
 
 Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/metadata.txt">Metadata</a>   
    
@@ -29,14 +17,9 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
 1) Either:   
 - Download the zip file from the green **<> Code** button and install the zip file in QGIS using the plugin manager for the version on github or   
 - Install directly from the QGIS plugin manager from the plugin repository   
-2) If you get an error of the type **ModuleNotFoundError: No module named 'sklearn'** or any other module name you can install it directly from the QGIS Python Console (Menu Plugins->Python Console) and then type in (for the sklearn example):   
+2) If you get an warning of the type **The following Python packages are required but not installed: scikit-learn** or any other module name you can install it directly from the QGIS Python Console (Menu Plugins->Python Console) and then type in (for the scikit-learn example):   
    
    **!pip3 install scikit-learn**
-   
-- for other modules that may be missing, the module name to be installed with !pip3 install is generally the same as the name specified in the error (scikit-learn is a special case) so for example if **shapely** was missing the command would be:   
-   
-   **!pip3 install shapely**   
-
    
 ## Grav/Mag Filters   
    

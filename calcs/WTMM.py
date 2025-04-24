@@ -1,10 +1,6 @@
 import numpy as np
-import pywt
 import matplotlib.pyplot as plt
 from scipy import ndimage
-from skimage import feature
-from skimage.feature import peak_local_max
-from skimage.morphology import skeletonize
 from scipy import stats
 
 
@@ -52,6 +48,8 @@ class WTMM:
             'maxima_lines': Chained maxima across scales
             'wtmm_image': Visualization of WTMM result
         """
+        import pywt
+
         # Input validation
         if len(image.shape) > 2:
             # Convert RGB to grayscale if needed
@@ -251,6 +249,8 @@ class WTMM:
             'maxima': Maxima points at each scale
             'maxima_lines': Chained maxima across scales
         """
+        import pywt
+
         # Ensure signal is 1D
         signal_data = np.asarray(signal_data).flatten()
         
@@ -801,6 +801,10 @@ class WTMM:
         """
         Demonstrate WTMM on a sample image.
         """
+        from skimage import feature
+        from skimage.feature import peak_local_max
+        from skimage.morphology import skeletonize
+
         # Create a sample image or load your own
         try:
             # Try to load a sample image from scikit-image

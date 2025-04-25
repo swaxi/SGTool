@@ -27,7 +27,7 @@ The specific functionality that require the additional packages is:
 **scikit-image** DTM curvature Classifier, WTMM  
 **PyWavelets** WTMM    
 
-If you don't use these funcitons, there is no need to install the extra packages.   
+If you don't use these functions, there is no need to install the extra packages.   
    
 
 ## Grav/Mag Filters   

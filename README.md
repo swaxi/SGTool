@@ -19,8 +19,17 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
 - Install directly from the QGIS plugin manager from the plugin repository   
 2) If you get an warning of the type **The following Python packages are required but not installed: scikit-learn** or any other module name you can install it directly from the QGIS Python Console (Menu Plugins->Python Console) and then type in (for the scikit-learn example):   
    
-   **!pip3 install scikit-learn**
+   **!pip3 install scikit-learn**   
+      
+The specific functionality that require the additional plugins is:   
+**matplotlib** WTMM, Radial Power Spectrum   
+**scikit-learn** Worms   
+**scikit-image** DTM curvature Classifier, WTMM  
+**PyWavelets** WTMM    
+
+If you don't use these funcitons, there is no need to install the extra packages.   
    
+
 ## Grav/Mag Filters   
    
 **Reduction to the Pole**    

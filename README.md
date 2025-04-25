@@ -21,7 +21,7 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
    
    **!pip3 install scikit-learn**   
       
-   The specific packages required for specific functions are:   
+   The packages required for specific functions are:   
    **matplotlib** WTMM, Radial Power Spectrum   
    **scikit-learn** Worms   
    **scikit-image** DTM curvature Classifier, WTMM  

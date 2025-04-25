@@ -180,8 +180,8 @@ class SGTool:
             pipcall="pip3"
         QMessageBox.information(
             None,  # Parent widget
-            "Missing Packages for SGTool",  # Window title
-            f"The following Python packages are required but not installed: {package_list}\n\n"
+            "","Missing Packages for SGTool: "+  # Window title
+            f"The following Python packages are required for some functions, but not installed: {package_list}\n\n"
             "Please open the QGIS Python Console and run the following command for each missing package:\n\n"
             f"!{pipcall} install MISSING_PACKAGE_NAME",  # Message text
             QMessageBox.Ok  # Buttons parameter

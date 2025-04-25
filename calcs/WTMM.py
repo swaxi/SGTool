@@ -261,18 +261,9 @@ class WTMM:
             'maxima': Maxima points at each scale
             'maxima_lines': Chained maxima across scales
         """
-        try:
-            import pywt
-        except ImportError:
-            QMessageBox.information(
-            None,  # Parent widget
-            "","Missing Packages for SGTool: "+  # Window title
-            f"The following Python packages are required for some functions, but not installed: PyWavelets\n\n"
-            "Please open the QGIS Python Console and run the following command for each missing package:\n\n"
-            f"!pip3 install PyWavelets",  # Message text
-            QMessageBox.Ok  # Buttons parameter
-            )
-            return False
+        
+        import pywt
+
         # Ensure signal is 1D
         signal_data = np.asarray(signal_data).flatten()
         

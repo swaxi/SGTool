@@ -1182,7 +1182,18 @@ class SGTool:
         self.suffix = "_SS_Kurt"
 
     def procDTM_Class(self):
-
+        try:
+            from skimage import measure
+        except ImportError:
+            QMessageBox.information(
+            None,  # Parent widget
+            "","Missing Packages for SGTool: "+  # Window title
+            f"The following Python packages are required for some functions, but not installed: scikit-image\n\n"
+            "Please open the QGIS Python Console and run the following command:\n\n"
+            f"!pip3 install scikit-image",  # Message text
+            QMessageBox.Ok  # Buttons parameter
+            )
+            return False
         selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
         crs = selected_layer.crs()
         if crs.isGeographic():
@@ -3293,6 +3304,19 @@ class SGTool:
         # replace with specific processor calls so raster clipping can be done easily...
 
     def procWTMM(self):
+        try:
+            import pywt
+        except ImportError:
+            QMessageBox.information(
+            None,  # Parent widget
+            "","Missing Packages for SGTool: "+  # Window title
+            f"The following Python packages are required for some functions, but not installed: PyWavelets\n\n"
+            "Please open the QGIS Python Console and run the following command:\n\n"
+            f"!pip3 install PyWavelets",  # Message text
+            QMessageBox.Ok  # Buttons parameter
+            )
+            return False
+        
         line_layer_name = self.dlg.mMapLayerComboBox_selectVectors.currentText()
         line_layer = QgsProject.instance().mapLayersByName(line_layer_name)[0]
 

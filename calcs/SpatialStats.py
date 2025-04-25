@@ -282,9 +282,9 @@ class SpatialStats:
         numpy.ndarray
             Binary array where 1 = linear cliff feature, 0 = not cliff
         """
+        from skimage import measure
+        import numpy as np       
         try:
-            from skimage import measure
-            import numpy as np
 
             # Create binary mask of steep slopes
             steep_mask = slope_array >= slope_threshold

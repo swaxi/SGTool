@@ -142,8 +142,8 @@ class SGTool:
 
        
         # Define required packages
-        required_packages = ['scikit-learn', 'matplotlib', 'scikit-image','PyWavelets']
-        self.check_dependencies(required_packages)
+        #required_packages = ['scikit-learn', 'matplotlib', 'scikit-image','PyWavelets']
+        #self.check_dependencies(required_packages)
 
     def check_dependencies(self,required_packages):
         """
@@ -1237,6 +1237,20 @@ class SGTool:
 
                 self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
                 shps = self.dlg.checkBox_worms_shp.isChecked()
+                if shps:
+                    try:
+                        from sklearn import measure
+                    except ImportError:
+                        QMessageBox.information(
+                        None,  # Parent widget
+                        "","Missing Packages for SGTool: "+  # Window title
+                        f"The following Python packages are required for conversion to shapefile, but not installed: scikit-learn\n\n"
+                        "Please open the QGIS Python Console and run the following command:\n\n"
+                        f"!pip3 install scikit-learn",  # Message text
+                        QMessageBox.Ok  # Buttons parameter
+                        )
+                        return False
+                    
                 self.processor.bsdwormer(
                     self.diskGridPath, num_levels, bottom_level, delta_z, shps, crs
                 )
@@ -1247,6 +1261,7 @@ class SGTool:
                 )
 
             if shps:
+
                 head_tail = os.path.split(self.diskGridPath)
                 out_path = (
                     head_tail[0] + "/" + head_tail[1].split(".")[0] + "_worms.shp"

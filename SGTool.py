@@ -3328,18 +3328,19 @@ class SGTool:
             threshold_rel=0.05,  # Lower threshold to detect more maxima
             min_distance=3
         )
-        import matplotlib.pyplot as plt
+        if(results):
+            import matplotlib.pyplot as plt
 
-        # Plot the D(h) vs h spectrum
-        fig, ax = plt.subplots(figsize=(8, 6))
-         
-        wtmm.plot_Dh_vs_h(data,plot_layer_name, results, ax=ax)
-        plt.tight_layout()
-        plt.show()
-        wtmm.visualize_wtmm_1d(data, plot_layer_name,results, line_number=int(self.dlg.mFieldComboBox_feature.currentText()),save_path=None)
+            # Plot the D(h) vs h spectrum
+            fig, ax = plt.subplots(figsize=(8, 6))
+            
+            wtmm.plot_Dh_vs_h(data,plot_layer_name, results, ax=ax)
+            plt.tight_layout()
+            plt.show()
+            wtmm.visualize_wtmm_1d(data, plot_layer_name,results, line_number=int(self.dlg.mFieldComboBox_feature.currentText()),save_path=None)
 
-        plt.show()
-        return results
+            plt.show()
+            return results
 
     def get_data_from_profile(self):  
         raster_layer_name = self.dlg.mMapLayerComboBox_selectGrid_worms.currentText()

@@ -21,7 +21,7 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
    
    **!pip3 install scikit-learn**   
       
-The specific functionality that require the additional plugins is:   
+The specific functionality that require the additional packages is:   
 **matplotlib** WTMM, Radial Power Spectrum   
 **scikit-learn** Worms   
 **scikit-image** DTM curvature Classifier, WTMM  

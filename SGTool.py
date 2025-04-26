@@ -42,6 +42,8 @@ from qgis.core import (
     QgsFields,
     QgsPointXY,
     QgsMapLayerProxyModel,
+    QgsApplication,
+
 )
 from qgis.PyQt.QtCore import (
     QSettings,
@@ -857,7 +859,24 @@ class SGTool:
         extent = provider.extent()
 
         mask = None
-        gridder.launch_multi_bspline_dialog(input, zcolumn, cell_size, mask)
+        alg_id = "sagang:multilevelbspline"
+        try:
+            # Check if the algorithm exists
+            if QgsApplication.processingRegistry().algorithmById(alg_id):
+                # Launch the dialog
+                gridder.launch_multi_bspline_dialog(input, zcolumn, cell_size, mask)
+            else:
+                QMessageBox.information(
+                None,  # Parent widget
+                "","Missing Plugin for SGTool: "+  # Window title
+                f"sagang multilevelbspline algorithm not found.\nTry installing the Plugin: Saga Processing Saga NextGen Provider\n\n",
+                QMessageBox.Ok  # Buttons parameter
+                )
+
+        except Exception as e:
+            self.iface.messageBar().pushMessage("Error", str(e), level=3)  
+
+
 
     def get_layer_path_by_name(self, layer_name):
         """
@@ -1309,8 +1328,20 @@ class SGTool:
             )
 
     def util_display_grid(self, grid):
-        import matplotlib.pyplot as plt
+        try:
+            import matplotlib as plt
 
+        except ImportError:
+            QMessageBox.information(
+            None,  # Parent widget
+            "","Missing Packages for SGTool: "+  # Window title
+            f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
+            "Please open the QGIS Python Console and run the following command:\n\n"
+            f"!pip3 install matplotlib",  # Message text
+            QMessageBox.Ok  # Buttons parameter
+            )
+            return False  
+        
         plt.imshow(grid, origin="lower", cmap="viridis")
         plt.colorbar(label="Levels")
         plt.title("Grid")
@@ -2148,6 +2179,33 @@ class SGTool:
         return self.raster_array
 
     def display_rad_power_spectrum(self):
+        try:
+            import pywt
+        except ImportError:
+            QMessageBox.information(
+            None,  # Parent widget
+            "","Missing Packages for SGTool: "+  # Window title
+            f"The following Python packages are required for some functions, but not installed: PyWavelets\n\n"
+            "Please open the QGIS Python Console and run the following command:\n\n"
+            f"!pip3 install PyWavelets",  # Message text
+            QMessageBox.Ok  # Buttons parameter
+            )
+            return False
+        
+        try:
+            import matplotlib.colors as mcolors
+
+        except ImportError:
+            QMessageBox.information(
+            None,  # Parent widget
+            "","Missing Packages for SGTool: "+  # Window title
+            f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
+            "Please open the QGIS Python Console and run the following command:\n\n"
+            f"!pip3 install matplotlib",  # Message text
+            QMessageBox.Ok  # Buttons parameter
+            )
+            return False  
+
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
         if self.localGridName != "":
             self.pslayer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
@@ -3042,7 +3100,20 @@ class SGTool:
         Returns:
             list: List of [decimal index, (R, G, B)] where R, G, B are 0-255 integers.
         """
-        import matplotlib.colors as mcolors
+        try:
+            import matplotlib.colors as mcolors
+
+        except ImportError:
+            QMessageBox.information(
+            None,  # Parent widget
+            "","Missing Packages for SGTool: "+  # Window title
+            f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
+            "Please open the QGIS Python Console and run the following command:\n\n"
+            f"!pip3 install matplotlib",  # Message text
+            QMessageBox.Ok  # Buttons parameter
+            )
+            return False        
+        
 
         # Normalize indices to decimal values between 0 and 1
         decimal_indices = np.linspace(0, 1, num_entries)
@@ -3332,6 +3403,20 @@ class SGTool:
             )
             return False
         
+        try:
+            import matplotlib.pyplot as plt
+
+        except ImportError:
+            QMessageBox.information(
+            None,  # Parent widget
+            "","Missing Packages for SGTool: "+  # Window title
+            f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
+            "Please open the QGIS Python Console and run the following command:\n\n"
+            f"!pip3 install matplotlib",  # Message text
+            QMessageBox.Ok  # Buttons parameter
+            )
+            return False
+        
         line_layer_name = self.dlg.mMapLayerComboBox_selectVectors.currentText()
         line_layer = QgsProject.instance().mapLayersByName(line_layer_name)[0]
 
@@ -3368,7 +3453,6 @@ class SGTool:
             min_distance=3
         )
         if(results):
-            import matplotlib.pyplot as plt
 
             # Plot the D(h) vs h spectrum
             fig, ax = plt.subplots(figsize=(8, 6))

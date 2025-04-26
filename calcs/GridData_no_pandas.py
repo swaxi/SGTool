@@ -6,7 +6,6 @@ from scipy.interpolate import (
     Rbf,
 )
 from scipy.spatial import ConvexHull, cKDTree
-from matplotlib.path import Path
 
 from qgis.core import (
     QgsVectorLayer,
@@ -17,9 +16,9 @@ from qgis.core import (
     QgsRasterLayer,
     QgsGeometry,
     QgsApplication,
-    QgsApplication,
 
 )
+from qgis.PyQt.QtWidgets import QMessageBox
 
 from qgis.PyQt.QtCore import QVariant
 import processing
@@ -121,6 +120,20 @@ class GridData:
         return interpolated_values
 
     def idw_interpolation(self, power=2):
+        try:
+            from matplotlib.path import Path
+
+        except ImportError:
+            QMessageBox.information(
+            None,  # Parent widget
+            "","Missing Packages for SGTool: "+  # Window title
+            f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
+            "Please open the QGIS Python Console and run the following command:\n\n"
+            f"!pip3 install matplotlib",  # Message text
+            QMessageBox.Ok  # Buttons parameter
+            )
+            return False  
+        
         # Build k-D tree for the input points
         tree = cKDTree(np.c_[self.x, self.y])
         xi = np.c_[self.grid_x.ravel(), self.grid_y.ravel()]
@@ -342,17 +355,8 @@ class QGISGridData:
         }
 
         alg_id = "sagang:multilevelbspline"
-        try:
-            # Check if the algorithm exists
-            if QgsApplication.processingRegistry().algorithmById(alg_id):
-                # Launch the dialog
-                processing.execAlgorithmDialog(alg_id, pre_filled_params)
-            else:
-                self.iface.messageBar().pushMessage(
-                    "Error", "sagang multilevelbspline algorithm not found.\nTry installing the Plugin: Saga Processing Saga NextGen Provider", level=3
-                )
-        except Exception as e:
-            self.iface.messageBar().pushMessage("Error", str(e), level=3)  
+        processing.execAlgorithmDialog(alg_id, pre_filled_params)
+
     
 
 

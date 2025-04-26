@@ -1,13 +1,11 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy import ndimage
 from scipy import stats
 
 
 from scipy import signal, ndimage
 import networkx as nx
-from matplotlib.collections import LineCollection
-from matplotlib import cm
+
 from qgis.PyQt.QtWidgets import QMessageBox
 
 class WTMM:
@@ -408,6 +406,8 @@ class WTMM:
         save_path : str or None
             Path to save the visualization, if provided
         """
+        import matplotlib.pyplot as plt
+
         # Create figure and axes
         fig = plt.figure(figsize=(12, 10))
         gs = plt.GridSpec(4, 1, height_ratios=[1, 2, 1, 3])
@@ -471,6 +471,7 @@ class WTMM:
         ax : matplotlib.axes or None
             Axes to plot on, or create new if None
         """
+        import matplotlib.pyplot as plt
         if ax is None:
             fig, ax = plt.subplots(figsize=(10, 6))
         
@@ -656,6 +657,7 @@ class WTMM:
         """
         Demonstrate 1D WTMM on a sample signal.
         """
+        import matplotlib.pyplot as plt
         # Generate a test signal
         signal_data = self.generate_test_signal(length=1024, num_periods=10)
         
@@ -692,6 +694,7 @@ class WTMM:
         save_path : str or None
             Path to save the visualization, if provided
         """
+        import matplotlib.pyplot as plt
         plt.figure(figsize=(15, 10))
         
         # Number of scales
@@ -850,9 +853,6 @@ class WTMM:
 
         return results
 
-    import numpy as np
-    import matplotlib.pyplot as plt
-    from scipy import stats
 
     def simplified_multifractal_spectrum(self,results, q_values=None):
         """
@@ -948,6 +948,8 @@ class WTMM:
         --------
         matplotlib axis
         """
+        import matplotlib.pyplot as plt
+
         # Create figure if not provided
         if ax is None:
             fig, ax = plt.subplots(figsize=(8, 6))
@@ -978,7 +980,8 @@ class WTMM:
     # Example usage
     if __name__ == "__main__":
         # This should be imported from your existing code
-        
+        import matplotlib.pyplot as plt
+
         # Generate a test signal
         signal_data = generate_test_signal(length=1024, num_periods=20)
         #signal_data=example_data()

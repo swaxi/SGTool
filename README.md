@@ -22,12 +22,12 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
    **!pip3 install scikit-learn**   
       
    The packages required for specific functions are:   
-   **matplotlib** WTMM, Radial Power Spectrum   
+   **matplotlib** WTMM, Radial Power Spectrum, Convert LUT to Grayscale, IDW Interpolation   
    **scikit-learn** Worms   
    **scikit-image** DTM curvature Classifier, WTMM  
    **PyWavelets** WTMM    
-
-If you don't use these functions, there is no need to install the extra packages.   
+   If you don't use these functions, there is no need to install the extra packages.   
+3) To use the BSpline Gridding function you need to install the **Saga Processing Saga NextGen Provider** 
    
 
 ## Grav/Mag Filters   

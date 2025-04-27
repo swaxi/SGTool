@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 
 class PowerSpectrumDock:
@@ -24,6 +23,7 @@ class PowerSpectrumDock:
         """
         Plot the grid and its radially averaged power spectrum.
         """
+        import matplotlib.pyplot as plt
 
         # Compute and plot radially averaged power spectrum
         self.grid = np.nan_to_num(self.grid, nan=0.0)

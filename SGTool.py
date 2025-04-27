@@ -142,7 +142,7 @@ class SGTool:
 
        
         # Define required packages
-        #required_packages = ['scikit-learn', 'matplotlib', 'scikit-image','PyWavelets']
+        #required_packages = ['scikit-learn', 'matplotlib', 'PyWavelets']
         #self.check_dependencies(required_packages)
 
     def check_dependencies(self,required_packages):
@@ -155,9 +155,7 @@ class SGTool:
         """
         missing_packages = []
         for package in required_packages:
-            if package=="scikit-image":
-                importPackage="skimage"
-            elif package=="scikit-learn":
+            if package=="scikit-learn":
                 importPackage="sklearn"
             elif package=="PyWavelets":
                 importPackage="pywt"            
@@ -1182,18 +1180,7 @@ class SGTool:
         self.suffix = "_SS_Kurt"
 
     def procDTM_Class(self):
-        try:
-            from skimage import measure
-        except ImportError:
-            QMessageBox.information(
-            None,  # Parent widget
-            "","Missing Packages for SGTool: "+  # Window title
-            f"The following Python packages are required for some functions, but not installed: scikit-image\n\n"
-            "Please open the QGIS Python Console and run the following command:\n\n"
-            f"!pip3 install scikit-image",  # Message text
-            QMessageBox.Ok  # Buttons parameter
-            )
-            return False
+
         selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
         crs = selected_layer.crs()
         if crs.isGeographic():
@@ -1239,7 +1226,7 @@ class SGTool:
                 shps = self.dlg.checkBox_worms_shp.isChecked()
                 if shps:
                     try:
-                        from sklearn import measure
+                        import sklearn
                     except ImportError:
                         QMessageBox.information(
                         None,  # Parent widget

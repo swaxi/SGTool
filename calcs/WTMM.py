@@ -228,8 +228,187 @@ class WTMM:
         
         return filtered_lines
 
+    def wtmm_1d(self, signal_data, wavelet='mexh', scales=None, num_scales=10, 
+                threshold_rel=0.1, min_distance=3, chaining_threshold=2.0):
+        """
+        Perform 1D Wavelet Transform Modulus Maxima analysis.
+        
+        Parameters:
+        -----------
+        signal_data : numpy.ndarray
+            1D input signal
+        wavelet : str or pywt.Wavelet
+            Wavelet to use (default: 'mexh' - Mexican Hat wavelet)
+        scales : list or None
+            Specific scales to use for the wavelet transform
+            If None, generates logarithmically spaced scales
+        num_scales : int
+            Number of scales to use if scales is None
+        threshold_rel : float
+            Relative threshold for maxima detection (0.0 to 1.0)
+        min_distance : int
+            Minimum distance between detected maxima
+        chaining_threshold : float
+            Maximum distance for chaining maxima across scales
+            
+        Returns:
+        --------
+        dict: A dictionary containing:
+            'scales': The scales used
+            'cwt': Continuous wavelet transform coefficients
+            'modulus': Absolute values of wavelet coefficients
+            'maxima': Maxima points at each scale
+            'maxima_lines': Chained maxima across scales
+        """
+        
+        import pywt
+        import numpy as np
 
-    def wtmm_1d(self,signal_data, wavelet='mexh', scales=None, num_scales=10, 
+        # Ensure signal is 1D
+        signal_data = np.asarray(signal_data).flatten()
+        
+        # Normalize signal to [0, 1]
+        signal_data = (signal_data - np.min(signal_data)) / (np.max(signal_data) - np.min(signal_data))
+        
+        # Generate scales if not provided
+        if scales is None:
+            # Logarithmically spaced scales
+            scales = np.logspace(0, np.log10(len(signal_data) / 4), num_scales)
+        
+        # Storage for results
+        results = {
+            'scales': scales,
+            'cwt': [],
+            'modulus': [],
+            'maxima': [],
+            'maxima_values': []
+        }
+        
+        # Apply continuous wavelet transform
+        coeffs, frequencies = pywt.cwt(signal_data, scales, wavelet)
+        results['cwt'] = coeffs
+        
+        # Compute the modulus (absolute value of coefficients)
+        modulus = np.abs(coeffs)
+        results['modulus'] = modulus
+        
+        # Find local maxima at each scale
+        all_maxima = []
+        all_maxima_values = []
+        
+        for i, scale_modulus in enumerate(modulus):
+            # Find local maxima using custom function
+            maxima_indices = self.find_local_maxima_1d(
+                scale_modulus, 
+                min_distance=min_distance,
+                threshold_rel=threshold_rel
+            )
+            
+            # Store maxima coordinates and values
+            all_maxima.append(maxima_indices)
+            all_maxima_values.append(scale_modulus[maxima_indices])
+        
+        results['maxima'] = all_maxima
+        results['maxima_values'] = all_maxima_values
+        
+        # Chain maxima across scales
+        maxima_lines = self.chain_maxima_across_scales_1d(
+            all_maxima, 
+            all_maxima_values,
+            scales,
+            chaining_threshold
+        )
+        
+        results['maxima_lines'] = maxima_lines
+        
+        return results
+
+    def find_local_maxima_1d(self, data, min_distance=1, threshold_rel=0.0):
+        """
+        Find local maxima in 1D data using NumPy.
+        
+        Parameters:
+        -----------
+        data : numpy.ndarray
+            1D input signal where local maxima need to be found
+        min_distance : int
+            Minimum number of samples between peaks
+        threshold_rel : float
+            Minimum threshold for peak values relative to the maximum value
+            Peaks below max(data) * threshold_rel are ignored
+            
+        Returns:
+        --------
+        numpy.ndarray
+            Indices of the local maxima in the input data
+        """
+        import numpy as np
+        
+        # Validate data
+        if len(data.shape) != 1:
+            raise ValueError("Input data must be 1D")
+        
+        # Initialize
+        size = data.shape[0]
+        
+        # Calculate absolute threshold
+        if threshold_rel > 0:
+            threshold_abs = np.max(data) * threshold_rel
+        else:
+            threshold_abs = np.min(data) - 1  # Everything passes
+        
+        # Find local maxima by comparing with neighbors
+        # A point is a local maximum if it's greater than both of its neighbors
+        is_greater_than_left = np.zeros(size, dtype=bool)
+        is_greater_than_right = np.zeros(size, dtype=bool)
+        
+        # Compare with left neighbors (all except first point)
+        is_greater_than_left[1:] = data[1:] > data[:-1]
+        
+        # Compare with right neighbors (all except last point)
+        is_greater_than_right[:-1] = data[:-1] > data[1:]
+        
+        # Edge cases: first and last points
+        is_greater_than_left[0] = True  # First point has no left neighbor
+        is_greater_than_right[-1] = True  # Last point has no right neighbor
+        
+        # A point is a peak if it's greater than both neighbors and above threshold
+        peaks = (is_greater_than_left & is_greater_than_right) & (data > threshold_abs)
+        
+        # Get peak indices
+        peak_indices = np.where(peaks)[0]
+        
+        # If there are no peaks, return empty array
+        if len(peak_indices) == 0:
+            return np.array([], dtype=int)
+        
+        # Apply minimum distance between peaks
+        if min_distance > 1 and len(peak_indices) > 1:
+            # Get peak values
+            peak_values = data[peak_indices]
+            
+            # Sort peaks by value in descending order
+            sorted_idxs = np.argsort(peak_values)[::-1]
+            sorted_peaks = peak_indices[sorted_idxs]
+            
+            # Keep track of which peaks to keep
+            to_keep = np.ones(len(sorted_peaks), dtype=bool)
+            
+            # Iterate through peaks, from highest to lowest
+            for i, peak in enumerate(sorted_peaks):
+                if to_keep[i]:
+                    # Find peaks that are too close to this one
+                    too_close = np.abs(sorted_peaks - peak) < min_distance
+                    # Mark peaks that are too close and have lower values
+                    too_close[i] = False  # Keep the current peak
+                    to_keep[too_close] = False
+            
+            # Return the filtered peaks, sorted by position
+            return np.sort(sorted_peaks[to_keep])
+        
+        return peak_indices
+
+    def wtmm_1d_skimage(self,signal_data, wavelet='mexh', scales=None, num_scales=10, 
                 threshold_rel=0.1, min_distance=3, chaining_threshold=2.0):
         """
         Perform 1D Wavelet Transform Modulus Maxima analysis.
@@ -814,9 +993,7 @@ class WTMM:
         """
         Demonstrate WTMM on a sample image.
         """
-        from skimage import feature
-        from skimage.feature import peak_local_max
-        from skimage.morphology import skeletonize
+
 
         # Create a sample image or load your own
         try:

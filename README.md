@@ -10,7 +10,8 @@
 
 # changelog 0.2.13 
 
-
+      * Remove scikit-image functions as they are hard to install on macos   
+   
 Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/metadata.txt">Metadata</a>   
    
 # Installation
@@ -22,12 +23,12 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
    **!pip3 install scikit-learn**   
       
    The packages required for specific functions are:   
-   **matplotlib** WTMM, Radial Power Spectrum, Convert LUT to Grayscale, IDW Interpolation   
-   **scikit-learn** Worms   
-   **scikit-image** DTM curvature Classifier, WTMM  
+   **matplotlib** WTMM, Radial Power Spectrum   
+   **scikit-learn** BDWorms   
    **PyWavelets** WTMM    
+
    If you don't use these functions, there is no need to install the extra packages.   
-3) To use the BSpline Gridding function you need to install the **Saga Processing Saga NextGen Provider** 
+3) For BSpline Gridding you need to install the plugin **Processing Saga NextGen Provider**   
    
 
 ## Grav/Mag Filters   

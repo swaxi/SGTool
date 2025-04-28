@@ -144,7 +144,7 @@ class SGTool:
 
        
         # Define required packages
-        #required_packages = ['scikit-learn', 'matplotlib', 'scikit-image','PyWavelets']
+        #required_packages = ['scikit-learn', 'matplotlib', 'PyWavelets']
         #self.check_dependencies(required_packages)
 
     def check_dependencies(self,required_packages):
@@ -157,9 +157,7 @@ class SGTool:
         """
         missing_packages = []
         for package in required_packages:
-            if package=="scikit-image":
-                importPackage="skimage"
-            elif package=="scikit-learn":
+            if package=="scikit-learn":
                 importPackage="sklearn"
             elif package=="PyWavelets":
                 importPackage="pywt"            
@@ -1201,18 +1199,7 @@ class SGTool:
         self.suffix = "_SS_Kurt"
 
     def procDTM_Class(self):
-        try:
-            from skimage import measure
-        except ImportError:
-            QMessageBox.information(
-            None,  # Parent widget
-            "","Missing Packages for SGTool: "+  # Window title
-            f"The following Python packages are required for some functions, but not installed: scikit-image\n\n"
-            "Please open the QGIS Python Console and run the following command:\n\n"
-            f"!pip3 install scikit-image",  # Message text
-            QMessageBox.Ok  # Buttons parameter
-            )
-            return False
+
         selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
         crs = selected_layer.crs()
         if crs.isGeographic():
@@ -1258,7 +1245,7 @@ class SGTool:
                 shps = self.dlg.checkBox_worms_shp.isChecked()
                 if shps:
                     try:
-                        from sklearn import measure
+                        import sklearn
                     except ImportError:
                         QMessageBox.information(
                         None,  # Parent widget
@@ -3768,6 +3755,13 @@ class SGTool:
             line_layer_name = self.dlg.mMapLayerComboBox_selectVectors.currentText()
             line_layer = QgsProject.instance().mapLayersByName(line_layer_name)[0]
             self.dlg.mFieldComboBox_data.setEnabled(True)
+            
+            # Check if the layer has the LINE_ID field
+            if 'LINE_ID' not in [field.name() for field in line_layer.fields()]:
+                # Field doesn't exist, break out or handle the error
+                #QMessageBox.warning(None, "Field Missing", "The layer does not contain a LINE_ID field.")
+                return  # This will exit the current function
+                
             if line_layer.geometryType() == QgsWkbTypes.PointGeometry:
                 self.dlg.mFieldComboBox_feature.clear()
                 unique_values = []
@@ -3775,7 +3769,6 @@ class SGTool:
                 for feature in line_layer.getFeatures():
                     value = str(feature['LINE_ID'])
                     if value not in unique_values:
-                        print
                         unique_values.append(value)
 
                 # Sort the values (optional)

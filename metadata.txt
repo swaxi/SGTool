@@ -20,7 +20,7 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.2.13
+changelog=0.2.13 Remove scikit-image functions as they are hard to install on macos 
     0.2.12 Fix loading of RGB tiffs on Linux
       * warn instead of autoload of libraries
       * refactor rte so it works like other FFT

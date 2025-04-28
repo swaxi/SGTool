@@ -258,7 +258,7 @@ class SpatialStats:
         classified[nan_mask] = -15
         return classified
 
-    def detect_linear_cliffs(
+    def detect_linear_cliffs_skimage(
         self, slope_array, min_length=5, slope_threshold=45, connectivity=2
     ):
         """
@@ -335,6 +335,138 @@ class SpatialStats:
                 if is_linear:
                     linear_cliffs[labeled == prop.label] = 1
                     linear_count += 1
+
+            print(
+                f"Found {linear_count} linear features out of {num_features} steep regions"
+            )
+            return linear_cliffs
+
+        except Exception as e:
+            # Print the error for debugging
+            print(f"Error in detect_linear_cliffs: {str(e)}")
+            # Fall back to simple slope-based detection
+            return (slope_array >= slope_threshold).astype(np.int8)
+
+    def detect_linear_cliffs(
+        self, slope_array, min_length=5, slope_threshold=45, connectivity=2
+    ):
+        """
+        Enhanced cliff detection that finds linear cliff features.
+        Uses scipy.ndimage for connected component analysis.
+
+        Parameters:
+        -----------
+        slope_array : numpy.ndarray
+            Pre-calculated slope values in degrees
+        min_length : int, optional
+            Minimum length of feature to be classified as a cliff (default: 5)
+        slope_threshold : float, optional
+            Slope threshold in degrees (default: 45)
+        connectivity : int, optional
+            Connectivity for component analysis (1 or 2, default: 2)
+            1 = 4-connectivity, 2 = 8-connectivity in 2D images
+
+        Returns:
+        --------
+        numpy.ndarray
+            Binary array where 1 = linear cliff feature, 0 = not cliff
+        """
+        from scipy import ndimage
+        import numpy as np
+        from collections import namedtuple
+        
+        try:
+            # Create binary mask of steep slopes
+            steep_mask = slope_array >= slope_threshold
+
+            # Check if we have any steep slopes at all
+            if np.sum(steep_mask) == 0:
+                print(f"No steep slopes found above threshold {slope_threshold}°")
+                return np.zeros_like(slope_array, dtype=np.int8)
+
+            # Define structure for connectivity - 4-connectivity or 8-connectivity
+            if connectivity == 1:
+                # 4-connectivity: only adjacent pixels (not diagonals)
+                structure = ndimage.generate_binary_structure(2, 1)
+            else:
+                # 8-connectivity: adjacent and diagonal pixels
+                structure = ndimage.generate_binary_structure(2, 2)
+
+            # Find connected components
+            labeled, num_features = ndimage.label(steep_mask, structure=structure)
+
+            print(f"Found {num_features} connected steep regions")
+
+            # If no regions found, return empty array
+            if num_features == 0:
+                return np.zeros_like(slope_array, dtype=np.int8)
+
+            # Prepare output array
+            linear_cliffs = np.zeros_like(slope_array, dtype=np.int8)
+            linear_count = 0
+
+            # Process each labeled region
+            for label_value in range(1, num_features + 1):
+                # Extract region mask
+                region_mask = labeled == label_value
+                region_area = np.sum(region_mask)
+                
+                # Skip small regions
+                if region_area < min_length:
+                    continue
+                    
+                # Get region coordinates
+                coords = np.argwhere(region_mask)
+                
+                # Check if feature is linear using basic shape analysis
+                is_linear = False
+                
+                # Calculate region properties similar to skimage.measure.regionprops
+                # (1) Calculate covariance matrix for the coordinates
+                y_coords, x_coords = coords[:, 0], coords[:, 1]
+                y_mean, x_mean = np.mean(y_coords), np.mean(x_coords)
+                y_centered, x_centered = y_coords - y_mean, x_coords - x_mean
+                
+                # Covariance matrix
+                cov_xx = np.sum(x_centered * x_centered) / region_area
+                cov_yy = np.sum(y_centered * y_centered) / region_area
+                cov_xy = np.sum(x_centered * y_centered) / region_area
+                
+                cov_matrix = np.array([[cov_yy, cov_xy], [cov_xy, cov_xx]])
+                
+                # Get eigenvalues to determine shape
+                try:
+                    eigenvalues, _ = np.linalg.eigh(cov_matrix)
+                    # Ensure eigenvalues are positive and sorted
+                    eigenvalues = np.clip(eigenvalues, 1e-10, None)  # Avoid division by zero
+                    eigenvalues = np.sort(eigenvalues)[::-1]  # Sort in descending order
+                    
+                    # Calculate axis lengths (similar to major_axis_length and minor_axis_length)
+                    major_axis_length = 4 * np.sqrt(eigenvalues[0])
+                    minor_axis_length = 4 * np.sqrt(eigenvalues[1])
+                    
+                    # Calculate eccentricity
+                    if major_axis_length > 0:
+                        eccentricity = np.sqrt(1 - (minor_axis_length / major_axis_length) ** 2)
+                    else:
+                        eccentricity = 0
+                        
+                    # Check if feature is linear using eccentricity or axis ratio
+                    if eccentricity > 0.8:
+                        is_linear = True
+                        
+                    # Check axis ratio
+                    if (minor_axis_length > 0 and 
+                        major_axis_length / minor_axis_length > 3):
+                        is_linear = True
+                        
+                    if is_linear:
+                        linear_cliffs[region_mask] = 1
+                        linear_count += 1
+                        
+                except np.linalg.LinAlgError:
+                    # If eigenvalue calculation fails, skip this region
+                    continue
 
             print(
                 f"Found {linear_count} linear features out of {num_features} steep regions"

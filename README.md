@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.2.13
+# Structural Geophysics Tool v0.2.14
  Simple Potential Field Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
@@ -8,9 +8,9 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog 0.2.13 
+# changelog 0.2.14 
 
-      * Remove scikit-image functions as they are hard to install on macos   
+      * Don't try to load LINE_ID codes if they don't exist in WTMM   
    
 Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/metadata.txt">Metadata</a>   
    

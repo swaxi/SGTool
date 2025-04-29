@@ -88,16 +88,13 @@ from osgeo import gdal, osr
 from datetime import datetime
 from pyproj import Transformer
 import processing
-from osgeo import gdal, osr
 import platform
 
 ######################################
 import importlib
-import subprocess
-import sys
 import os
 from qgis.PyQt.QtWidgets import QMessageBox
-from qgis.core import QgsMessageLog, Qgis
+from qgis.core import QgsMessageLog
 ######################################
 
 
@@ -142,12 +139,7 @@ class SGTool:
         self.dlg = None
         self.last_directory = None
 
-       
-        # Define required packages
-        #required_packages = ['scikit-learn', 'matplotlib', 'PyWavelets']
-        #self.check_dependencies(required_packages)
-
-    def check_dependencies(self,required_packages):
+    def check_dependencies(self, required_packages):
         """
         Check if required packages are installed.
         
@@ -187,9 +179,6 @@ class SGTool:
             QMessageBox.Ok  # Buttons parameter
         )
         
-
-
-    # noinspection PyMethodMayBeStatic
     def tr(self, message):
         """Get the translation for a string using Qt translation API.
 
@@ -317,6 +306,7 @@ class SGTool:
         del self.toolbar
 
     def define_tips(self):
+        """Define tooltips for the GUI elements in the plugin dialog."""
         self.dlg.mMapLayerComboBox_selectGrid.setToolTip("File selected for processing")
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setToolTip(
             "File selected for processing"
@@ -610,7 +600,12 @@ class SGTool:
         self.dlg.mFieldComboBox_data.setToolTip(
             "Select data field for points layer"
         )        
+    
     def initParams(self):
+        """
+        Initializes the parameters for the SGTool plugin.
+        """
+
         self.localGridName = ""
         self.diskGridPath = ""
         self.diskPointsPath = ""
@@ -661,6 +656,9 @@ class SGTool:
         self.output_directory = ""
 
     def parseParams(self):
+        """
+        Parses and assigns parameters from the GUI elements to the corresponding class attributes.
+        """
 
         self.DirClean = self.dlg.checkBox_3_DirClean.isChecked()
         self.DC_azimuth = self.dlg.lineEdit_3_azimuth.text()
@@ -749,6 +747,31 @@ class SGTool:
         self.DTM_sigma = float(self.dlg.lineEdit_DTM_Sigma.text())
 
     def loadGrid(self):
+        """
+        Loads a raster grid from the specified file path, processes its data, and stores it as a NumPy array.
+
+        This method performs the following steps:
+        1. Loads the raster file as a QgsRasterLayer.
+        2. Adds the layer to the QGIS project if it is not already loaded.
+        3. Retrieves raster metadata such as pixel size, dimensions, and extent.
+        4. Reads the raster data into a NumPy array.
+        5. Handles NoData values by replacing them with NaN in the NumPy array.
+
+        Attributes:
+            self.diskGridPath (str): The file path to the raster grid.
+            self.layer (QgsRasterLayer): The loaded raster layer.
+            self.dx (float): The pixel size in the X direction.
+            self.dy (float): The pixel size in the Y direction.
+            self.raster_array (np.ndarray): The raster data stored as a NumPy array.
+
+        Raises:
+            ValueError: If the raster layer cannot be loaded.
+
+        Notes:
+            - The method assumes the raster file exists at `self.diskGridPath`.
+            - The raster data is read from the first band (band 1).
+            - NoData values are replaced with NaN for easier handling in numerical computations.
+        """
         fileInfo = QFileInfo(self.diskGridPath)
         baseName = fileInfo.baseName()
 
@@ -874,8 +897,6 @@ class SGTool:
         except Exception as e:
             self.iface.messageBar().pushMessage("Error", str(e), level=3)  
 
-
-
     def get_layer_path_by_name(self, layer_name):
         """
         Get the file path of a layer given its name.
@@ -907,7 +928,7 @@ class SGTool:
         self.suffix = "_DirC"
 
     def procDirClean(self):
-        cutoff_wavelength = 4 * float(self.DC_lineSpacing)
+
         # if self.unit_check(cutoff_wavelength) or True:
         self.new_grid = self.processor.directional_butterworth_band_pass(
             self.raster_array, 
@@ -1203,9 +1224,9 @@ class SGTool:
         selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
         crs = selected_layer.crs()
         if crs.isGeographic():
-            long,lat=self.get_grid_centroid(selected_layer)
-            dx,dy=self.SG_Util.arc_degree_to_meters( lat)
-            ave_dxdy=np.sqrt(dx**2.0+dy**2.0)/2
+            long, lat=self.get_grid_centroid(selected_layer)
+            dx, dy=self.SG_Util.arc_degree_to_meters( lat)
+            ave_dxdy =np.sqrt(dx**2.0+dy**2.0)/2
             hzscale = 1/ ave_dxdy
         else:
             hzscale = 1.0
@@ -1221,6 +1242,25 @@ class SGTool:
         self.suffix = "_DTM_Class"
 
     def procBSDworms(self):
+        """
+        Processes the BSD worms based on the user-defined parameters and the selected layer.
+        This method performs the following steps:
+        1. Retrieves user input for the number of levels, bottom level, and delta Z increment.
+        2. Validates the selected layer's CRS (Coordinate Reference System) to ensure it is projected.
+        3. Extracts the data source URI and pixel resolution from the selected layer.
+        4. Initializes a GeophysicalProcessor instance to process the data.
+        5. Optionally checks for the presence of the `scikit-learn` package if shapefile output is required.
+        6. Calls the `bsdwormer` method of the processor to generate worms and save them to the same directory as the original grid.
+        7. If shapefile output is enabled, loads the generated shapefile into the current QGIS project.
+        Raises:
+            ValueError: If the generated shapefile layer is invalid.
+        Returns:
+            bool: False if the CRS is geographic or required Python packages are missing, otherwise None.
+        Notes:
+            - If the CRS is geographic, a warning message is displayed, and the method exits early.
+            - If the `scikit-learn` package is missing, an informational message is displayed with installation instructions.
+            - The generated shapefile is automatically added to the QGIS project if valid.
+        """
         num_levels = int(self.dlg.spinBox_levels.value())
         bottom_level = int(self.dlg.doubleSpinBox_base.text())
         delta_z = float(self.dlg.doubleSpinBox_inc.text())
@@ -1283,6 +1323,20 @@ class SGTool:
                     QgsProject.instance().addMapLayer(layer)
 
     def set_normalise_in(self):
+        """
+        Opens a dialog for the user to select an input directory and sets the selected
+        directory path to the corresponding line edit widget. If the selected path is
+        invalid or empty, displays an error message in the QGIS message bar.
+
+        Functionality:
+        - Prompts the user to select a directory using a QFileDialog.
+        - Validates the selected directory path.
+        - Updates the line edit widget with the valid directory path.
+        - Displays an error message if the path is invalid or empty.
+
+        Raises:
+            None
+        """
         self.input_directory = QFileDialog.getExistingDirectory(
             None, "Select Input Folder"
         )
@@ -1298,6 +1352,24 @@ class SGTool:
             )
 
     def set_normalise_out(self):
+        """
+        Opens a dialog to select an output directory and sets the selected path
+        to the corresponding line edit widget. If the selected path is invalid
+        or empty, displays an error message in the QGIS message bar.
+
+        Functionality:
+        - Prompts the user to select an output folder using a QFileDialog.
+        - Validates the selected directory path.
+        - Updates the line edit widget with the selected path if valid.
+        - Displays an error message if the path is invalid or empty.
+
+        Attributes:
+        - self.output_directory: Stores the path of the selected output directory.
+
+        Error Handling:
+        - Displays a critical error message in the QGIS message bar if the path
+          is invalid or empty.
+        """
         self.output_directory = QFileDialog.getExistingDirectory(
             None, "Select Output Folder"
         )
@@ -1315,17 +1387,30 @@ class SGTool:
             )
 
     def util_display_grid(self, grid):
+        """
+        Displays a grid using matplotlib.
+        This function attempts to visualize a 2D grid using matplotlib's imshow function.
+        If matplotlib is not installed, it informs the user with a message box and provides
+        instructions to install the required package.
+        Args:
+            grid (2D array-like): The grid data to be displayed. It should be a 2D array-like
+                                  structure where each element represents a value in the grid.
+        Returns:
+            bool: Returns False if matplotlib is not installed, otherwise None.
+        Raises:
+            None: This function handles ImportError internally and does not raise exceptions.
+        """
         try:
             import matplotlib as plt
 
         except ImportError:
             QMessageBox.information(
-            None,  # Parent widget
-            "","Missing Packages for SGTool: "+  # Window title
-            f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
-            "Please open the QGIS Python Console and run the following command:\n\n"
-            f"!pip3 install matplotlib",  # Message text
-            QMessageBox.Ok  # Buttons parameter
+                None,  # Parent widget
+                "","Missing Packages for SGTool: "+  # Window title
+                f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
+                "Please open the QGIS Python Console and run the following command:\n\n"
+                f"!pip3 install matplotlib",  # Message text
+                QMessageBox.Ok  # Buttons parameter
             )
             return False  
         
@@ -1335,6 +1420,23 @@ class SGTool:
         plt.show()
 
     def unit_check(self, length):
+        """
+        Checks if the specified length is valid based on the coordinate reference system (CRS) 
+        of the selected layer.
+
+        Parameters:
+            length (float): The length to be checked.
+
+        Returns:
+            bool: 
+                - False if the CRS is geographic and the length exceeds 100, with a warning 
+                  message displayed to the user.
+                - True otherwise.
+
+        Notes:
+            - If the CRS is geographic, lengths should be specified in degrees.
+            - A warning message is displayed in the QGIS message bar if the length is invalid.
+        """
         selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
         crs = selected_layer.crs()
         if crs.isGeographic() and length > 100:
@@ -1348,6 +1450,37 @@ class SGTool:
             return True
 
     def addNewGrid(self):
+        """
+        Adds a new grid layer to the QGIS project with specified suffix and updates its renderer.
+
+        This method performs the following steps:
+        1. Checks if a layer with the specified suffix is already loaded in the project.
+           If it exists, the layer is removed.
+        2. Constructs a new file path for the grid by appending the suffix to the base path.
+           Removes any auxiliary files associated with the new grid path.
+        3. Converts a NumPy array to a raster file and saves it to the new grid path.
+        4. Loads the newly created raster file as a QgsRasterLayer and adds it to the QGIS project.
+        5. Calculates statistics for the first band of the raster layer.
+        6. Updates the renderer of the raster layer to use the calculated statistics for contrast enhancement.
+
+        Note:
+            - The method assumes that `self.suffix`, `self.base_name`, `self.diskGridPath`,
+              `self.new_grid`, and `self.layer` are properly initialized.
+            - The method uses `np.nan` as the no-data value for the raster.
+
+        Raises:
+            - Any exceptions related to file operations or QGIS API calls are not explicitly handled.
+
+        Attributes:
+            self.suffix (str): Suffix to append to the base name for the new grid layer.
+            self.base_name (str): Base name of the grid layer.
+            self.diskGridPath (str): File path of the base grid.
+            self.new_grid (numpy.ndarray): NumPy array representing the new grid data.
+            self.layer (QgsMapLayer): Reference layer for georeferencing the new grid.
+
+        Returns:
+            None
+        """
         if self.suffix:
             if self.is_layer_loaded(self.base_name + self.suffix):
                 project = QgsProject.instance()
@@ -1407,6 +1540,61 @@ class SGTool:
         self.processGeophysics()
 
     def processGeophysics(self):
+        """
+        Processes geophysical data based on the specified parameters and user inputs.
+
+        This method performs a series of operations on a raster layer, including reading
+        raster data, handling NoData values, and applying various geophysical processing
+        techniques. The results are stored and optionally added as new layers to the project.
+
+        Attributes:
+            self.localGridName (str): The name of the local grid layer to process.
+            self.layer (QgsRasterLayer): The raster layer object corresponding to the local grid.
+            self.base_name (str): The base name of the raster layer.
+            self.diskGridPath (str): The file path to the raster data source.
+            self.dx (float): The pixel size in the X direction.
+            self.dy (float): The pixel size in the Y direction.
+            self.raster_array (numpy.ndarray): A NumPy array containing the raster data.
+            self.buffer (int): The buffer size for processing, constrained by user input.
+            self.processor (GeophysicalProcessor): An instance of the geophysical processor.
+            self.convolution (ConvolutionFilter): An instance of the convolution filter.
+            self.SG_Util (SG_Util): An instance of the SG utility class.
+            self.SpatialStats (SpatialStats): An instance of the spatial statistics class.
+            self.suffix (str): A suffix to append to output file names.
+
+        Processing Steps:
+            - Parses parameters and validates the raster layer.
+            - Reads raster data into a NumPy array.
+            - Handles NoData values by replacing them with NaN.
+            - Applies various geophysical processing techniques based on user selections:
+                - Directional cleaning
+                - Reduction to pole
+                - Regional removal
+                - Derivatives
+                - Tilt angle
+                - Analytic signal
+                - Continuation
+                - Band-pass filtering
+                - Frequency cut
+                - Automatic gain control (AGC)
+                - Vertical integration
+                - Total horizontal gradient
+                - Statistical measures (mean, median, Gaussian, etc.)
+                - Sun shading
+                - NaN handling
+                - DTM classification
+            - Generates polygons if specified.
+            - Resets checkboxes after processing.
+
+        Note:
+            This method relies on several external classes and user interface elements
+            (e.g., `GeophysicalProcessor`, `ConvolutionFilter`, `SG_Util`, `SpatialStats`,
+            and `self.dlg.lineEdit_13_max_buffer`).
+
+        Raises:
+            IndexError: If the specified raster layer is not found or invalid.
+            ValueError: If required parameters are missing or invalid.
+        """
         process = False
 
         if self.localGridName and self.localGridName != "":
@@ -1541,6 +1729,14 @@ class SGTool:
             self.resetCheckBoxes()
 
     def resetCheckBoxes(self):
+        """
+        Resets the state of all checkboxes and associated variables in the dialog.
+
+        This method unchecks all checkboxes in the user interface and resets the 
+        corresponding boolean variables to False. It ensures that the dialog is 
+        returned to its default state.
+
+        """
         self.dlg.checkBox_4_RTE_P.setChecked(False)
         self.dlg.checkBox_7_tiltDerivative.setChecked(False)
         self.dlg.checkBox_8_analyticSignal.setChecked(False)
@@ -1610,6 +1806,36 @@ class SGTool:
         return False
 
     def select_RGBgrid_file(self):
+        """
+        Opens a file dialog to select an RGB grid file and updates the corresponding UI element.
+
+        This method allows the user to browse and select an RGB image file with specific extensions
+        (.TIF, .tif, .TIFF, .tiff). If a valid file is selected, its path is displayed in the 
+        associated line edit widget, and the last accessed directory is updated.
+
+        Attributes:
+            start_directory (str): The initial directory for the file dialog. Defaults to the 
+                last accessed directory or the current working directory if not set.
+            diskRGBGridPath (str): The full path of the selected RGB grid file.
+
+        Updates:
+            - Sets the selected file path in the `lineEdit_2_loadGridPath_2` widget.
+            - Updates `last_directory` to the directory of the selected file.
+
+        File Dialog:
+            Title: "Select RGB Image File"
+            Filter: "Grids (*.TIF *.tif *.TIFF *.tiff)"
+
+        Preconditions:
+            - The `last_directory` attribute should be set to a valid directory path or None.
+
+        Postconditions:
+            - If a valid file is selected, its path is displayed in the UI and `last_directory` is updated.
+            - If no file is selected or the file path is invalid, no changes are made.
+
+        Raises:
+            None
+        """
         start_directory = self.last_directory if self.last_directory else os.getcwd()
 
         self.diskRGBGridPath, _filter = QFileDialog.getOpenFileName(
@@ -1623,6 +1849,27 @@ class SGTool:
             self.last_directory = os.path.dirname(self.diskRGBGridPath)
 
     def processRGB(self):
+        """
+        Processes an RGB grid file and converts it to a grayscale raster layer using a specified CSS color list.
+
+        This method performs the following steps:
+        1. Reads the file path of the RGB grid from the user interface.
+        2. Validates the existence of the file and the presence of a CSS color list.
+        3. Converts the RGB grid to grayscale using the provided color list.
+        4. Loads the resulting grayscale raster layer into the QGIS project if it is not already loaded.
+
+        Raises warnings or informational messages in the QGIS message bar if:
+        - The file path is invalid.
+        - The CSS color list is not defined.
+        - The conversion process fails.
+
+        Attributes:
+            self.diskRGBGridPath (str): The file path of the RGB grid file.
+            self.layer (QgsRasterLayer): The resulting grayscale raster layer.
+
+        Returns:
+            None
+        """
         self.diskRGBGridPath = self.dlg.lineEdit_2_loadGridPath_2.text()
         if self.diskRGBGridPath != "":
             if os.path.exists(self.diskRGBGridPath):
@@ -1669,6 +1916,48 @@ class SGTool:
                     )
 
     def select_grid_file(self):
+        """
+        Opens a file dialog to select a grid file, processes the selected file, and updates the UI accordingly.
+
+        This method allows the user to select a grid file from the filesystem. It supports multiple file formats 
+        such as TIF, TIFF, GRD, and ERS. Depending on the file type, it performs specific operations, including 
+        extracting the CRS (Coordinate Reference System) or loading the file as a raster layer in QGIS.
+
+        Steps:
+        1. Opens a file dialog starting from the last used directory or the current working directory.
+        2. Validates the selected file and updates the UI with the file path.
+        3. Handles specific file types:
+           - For `.grd` files, attempts to extract the CRS from an accompanying `.xml` file. Defaults to EPSG:4326 
+             if no CRS is found.
+           - For `.tif` and `.ers` files, loads the file as a raster layer in QGIS.
+
+        UI Updates:
+        - Updates the line edit widget with the selected file path.
+        - Enables the "Apply Processing" button if a valid file is selected.
+
+        Parameters:
+        None
+
+        Returns:
+        None
+
+        Raises:
+        None
+
+        Notes:
+        - The method uses `QFileDialog` to open the file dialog.
+        - If the `.grd` file does not have an accompanying `.xml` file, a warning message is displayed in the QGIS 
+          message bar.
+        - The method checks if the raster layer is already loaded before adding it to the QGIS project.
+
+        File Filters:
+        - Supported file formats: `.TIF`, `.tif`, `.TIFF`, `.tiff`, `.grd`, `.GRD`, `.ERS`, `.ers`.
+
+        Dependencies:
+        - `os` module for file path operations.
+        - QGIS classes such as `QgsRasterLayer`, `QgsCoordinateReferenceSystem`, and `QgsProject`.
+        - `extract_proj_str` function for extracting CRS from `.xml` files.
+        """
         start_directory = self.last_directory if self.last_directory else os.getcwd()
         file_filter = "Grids (*.TIF *.tif *.TIFF *.tiff *.grd *.GRD *.ERS *.ers)"
 
@@ -1722,6 +2011,34 @@ class SGTool:
 
     # save grd file as geotiff
     def save_a_grid(self, epsg):
+        """
+        Saves a grid file in GeoTIFF format and loads it as a raster layer in QGIS.
+
+        This method processes a grid file, converts it to a GeoTIFF format, and sets
+        its spatial reference system based on the provided EPSG code. If the file
+        already exists, it is overwritten. The resulting raster layer is added to
+        the QGIS project if it is not already loaded.
+
+        Args:
+            epsg (int): The EPSG code representing the spatial reference system to
+                        be applied to the output GeoTIFF file.
+
+        Raises:
+            None. However, warning messages are displayed in the QGIS message bar
+            for various error conditions, such as missing files or unsupported data types.
+
+        Notes:
+            - The method assumes that `self.diskGridPath` contains the path to the
+              input grid file.
+            - The method uses the GDAL library to handle raster file creation and
+              transformation.
+            - The method checks if the layer is already loaded in QGIS before adding it.
+
+        Warning:
+            - The method does not currently support 'SHORT' or 'INT' data types.
+            - If `self.diskGridPath` is empty or the file does not exist, a warning
+              message is displayed, and the method exits without processing.
+        """
 
         # load grd file and store in memory
         if self.diskGridPath != "":
@@ -1812,6 +2129,42 @@ class SGTool:
             )
 
     def select_point_file(self):
+        """
+        Opens a file dialog to select a data file containing points or lines, processes the file,
+        and updates the UI elements accordingly.
+
+        The method supports files with extensions `.csv`, `.txt`, and `.xyz` (case-insensitive).
+        Depending on the file type, it configures the UI for either point or line data.
+
+        Steps:
+        1. Opens a file dialog starting from the last used directory or the current working directory.
+        2. Validates the selected file path.
+        3. Updates the last used directory and sets the file path in the UI.
+        4. Processes the file based on its extension:
+           - `.xyz`: Configures the UI for line data and enables relevant widgets.
+           - `.csv` or `.txt`: Reads the file header, populates combo boxes with column names,
+             and enables relevant widgets for point data.
+
+        Attributes Updated:
+        - `self.diskPointsPath`: Stores the selected file path.
+        - `self.last_directory`: Stores the directory of the selected file.
+        - `self.line_data_cols`: Stores the header columns for `.xyz` files.
+        - `self.pointType`: Indicates whether the file contains "line" or "point" data.
+
+        UI Elements Updated:
+        - `self.dlg.lineEdit_loadPointsPath`: Displays the selected file path.
+        - `self.dlg.mQgsProjectionSelectionWidget`: Enables the projection selection widget.
+        - `self.dlg.pushButton_load_point_data`: Enables the button to load point data.
+        - `self.dlg.comboBox_grid_x` and `self.dlg.comboBox_grid_y`: Populates and enables
+          combo boxes for selecting grid columns (for `.csv` or `.txt` files).
+
+        Raises:
+        - No explicit exceptions are raised, but the method assumes the file exists and is accessible.
+
+        Note:
+        - The method relies on helper functions `get_XYZ_header` and `read_csv_header` to process
+          `.xyz` and `.csv`/`.txt` files, respectively.
+        """
         start_directory = self.last_directory if self.last_directory else os.getcwd()
         file_filter = "points or lines (*.csv *.txt *.xyz *.CSV *.TXT *.XYZ)"
 
@@ -1974,18 +2327,66 @@ class SGTool:
         return decimal_year
 
     def get_grid_centroid(self,layer):
+        """
+        Calculate the centroid (midpoint) of the grid extent for a given raster layer.
+        Args:
+            layer (QgsRasterLayer): The raster layer for which the centroid is to be calculated.
+        Returns:
+            tuple: A tuple containing the x and y coordinates of the centroid (midx, midy).
+        Notes:
+            - The method assumes that the input layer is a valid QgsRasterLayer.
+            - If the layer is not valid, the behavior of the method is undefined.
+        """
 
-            if layer.isValid():
-                extent = layer.extent()  # Get the extent of the raster layer
+        if layer.isValid():
+            extent = layer.extent()  # Get the extent of the raster layer
 
-                # calculate midpoint of grid
-                midx = extent.xMinimum() + (extent.xMaximum() - extent.xMinimum()) / 2
-                midy = extent.yMinimum() + (extent.yMaximum() - extent.yMinimum()) / 2
-            
-            return midx, midy
+            # calculate midpoint of grid
+            midx = extent.xMinimum() + (extent.xMaximum() - extent.xMinimum()) / 2
+            midy = extent.yMinimum() + (extent.yMaximum() - extent.yMinimum()) / 2
+        
+        return midx, midy
 
     # estimate mag field from centroid of data, date and sensor height
     def update_mag_field(self):
+        """
+        Updates the magnetic field parameters for the selected grid layer.
+
+        This method retrieves the selected grid layer, calculates the magnetic field
+        parameters (inclination, declination, and intensity) based on the grid's
+        centroid coordinates and survey date, and updates the corresponding UI widgets.
+
+        Steps:
+        1. Checks if the grid exists locally or is selected in the UI.
+        2. Loads the grid if it exists on disk.
+        3. Retrieves the grid layer and its centroid coordinates.
+        4. Converts the centroid coordinates to latitude and longitude if the CRS is defined.
+        5. Calculates the magnetic field parameters using the IGRF model.
+        6. Updates the UI widgets with the calculated values.
+        7. Displays a warning message if the CRS is undefined.
+
+        Attributes:
+            self.localGridName (str): Name of the selected grid layer.
+            self.diskGridPath (str): Path to the grid file on disk.
+            self.layer (QgsVectorLayer): The selected grid layer.
+            self.base_name (str): Base name of the grid layer.
+            self.magn_int (str): Magnetic intensity input from the UI.
+            self.magn_SurveyDay (int): Survey day extracted from the UI date input.
+            self.magn_SurveyMonth (int): Survey month extracted from the UI date input.
+            self.magn_SurveyYear (int): Survey year extracted from the UI date input.
+            self.RTE_P_inc (float): Calculated magnetic inclination.
+            self.RTE_P_dec (float): Calculated magnetic declination.
+            self.RTE_P_int (float): Calculated magnetic intensity.
+
+        Raises:
+            IndexError: If the selected grid layer is not found in the project.
+            ValueError: If the CRS projection system cannot be interpreted.
+
+        Notes:
+            - Requires the `pyproj` library for CRS transformations.
+            - Assumes the IGRF model calculation is implemented in `self.calcIGRF`.
+            - Displays a warning message in the QGIS message bar if the CRS is undefined.
+        """
 
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
         if os.path.exists(self.diskGridPath) or self.localGridName:
@@ -2041,6 +2442,49 @@ class SGTool:
                 )
 
     def calcIGRF(self, date, alt, lat, lon):
+        """
+        Calculate the International Geomagnetic Reference Field (IGRF) parameters 
+        for a given date, altitude, latitude, and longitude.
+
+        This function computes the geomagnetic field components and related 
+        parameters such as inclination, declination, and intensity using the 
+        IGRF model.
+
+        Args:
+            date (float): The date for which the IGRF parameters are to be calculated, 
+                          expressed as a decimal year (e.g., 2023.5 for mid-2023).
+            alt (float): The altitude in kilometers above the Earth's surface.
+            lat (float): The latitude in degrees (positive for north, negative for south).
+            lon (float): The longitude in degrees (positive for east, negative for west).
+
+        Returns:
+            tuple: A tuple containing:
+                - inc (float): The inclination angle in degrees.
+                - dec (float): The declination angle in degrees.
+                - intensity (float): The total intensity of the geomagnetic field in nanoteslas (nT).
+
+        Notes:
+            - The function uses spherical harmonic coefficients from the IGRF model 
+              to compute the geomagnetic field components.
+            - The IGRF coefficients are interpolated to the specified date.
+            - The function accounts for secular variation (SV) of the geomagnetic field.
+            - The geomagnetic field components are converted to geodetic coordinates 
+              if required.
+
+        Dependencies:
+            - Requires the IGRF model coefficients file (e.g., IGRF14.SHC) to be 
+              located in the appropriate directory.
+            - Uses external libraries such as `numpy`, `scipy.interpolate`, and 
+              a custom `IGRF` class for computations.
+
+        Raises:
+            FileNotFoundError: If the IGRF coefficients file is not found.
+            ValueError: If invalid input values are provided.
+
+        Example:
+            inc, dec, intensity = calcIGRF(2023.5, 100, 45.0, -93.0)
+            print(f"Inclination: {inc}, Declination: {dec}, Intensity: {intensity}")
+        """
 
         igrf_gen = "14"
         itype = 1
@@ -2166,6 +2610,28 @@ class SGTool:
         return self.raster_array
 
     def display_rad_power_spectrum(self):
+        """
+        Displays the radial power spectrum of a selected raster layer in QGIS.
+        This method performs the following steps:
+        1. Checks for the required Python packages (`pywt` and `matplotlib`) and prompts the user to install them if missing.
+        2. Retrieves the selected raster layer from the QGIS interface.
+        3. Extracts the raster data into a NumPy array.
+        4. Computes the spatial resolution and extent of the raster layer.
+        5. Initializes and displays the power spectrum plot using the `PowerSpectrumDock` class.
+        Returns:
+            bool: False if required packages are missing or if the selected raster layer is invalid, otherwise None.
+        Raises:
+            ImportError: If the required Python packages are not installed.
+        Notes:
+            - The method assumes the presence of a QGIS plugin interface with a map layer combo box (`mMapLayerComboBox_selectGrid`).
+            - The `extract_raster_to_numpy` method is expected to convert the raster layer into a NumPy array.
+            - The `PowerSpectrumDock` class is used to handle the plotting of the grid and power spectrum.
+        Dependencies:
+            - pywt: For wavelet transformations.
+            - matplotlib: For plotting.
+        Example:
+            To use this method, ensure that the required Python packages are installed and a valid raster layer is selected in the QGIS interface.
+        """
         try:
             import pywt
         except ImportError:
@@ -2226,6 +2692,24 @@ class SGTool:
                 power_spectrum_dock.plot_grid_and_power_spectrum()
 
     def update_paths(self):
+        """
+        Updates the paths and UI elements related to the selected grid layer.
+
+        This method performs the following actions:
+        - Retrieves the name of the currently selected grid layer from the UI.
+        - Updates multiple combo boxes in the UI to reflect the selected grid layer.
+        - Clears the grid path line edit and resets the disk grid path.
+        - Sets the base name of the grid layer for further processing.
+        - Checks if the selected grid layer is valid and determines its coordinate reference system (CRS).
+        - Updates the units label in the UI based on whether the CRS is geographic (degrees) or projected (meters).
+
+        Note:
+        - This method assumes that the selected grid layer exists in the QGIS project and is valid.
+        - The CRS of the selected layer is used to determine the units displayed in the UI.
+
+        Raises:
+        - IndexError: If no layers with the selected name are found in the QGIS project.
+        """
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
@@ -2246,6 +2730,30 @@ class SGTool:
                     self.dlg.label_41_units.setText("Units: m")
 
     def update_paths_utils(self):
+        """
+        Updates the paths and UI elements related to the selected grid layer.
+
+        This method synchronizes the selected grid name across multiple UI components,
+        clears the grid path input field, and updates the units label based on the
+        coordinate reference system (CRS) of the selected grid layer.
+
+        Steps performed:
+        1. Retrieves the currently selected grid name from the UI and updates other
+           grid selection combo boxes to match.
+        2. Clears the grid path input field and resets the disk grid path.
+        3. Checks if a grid name is selected:
+           - Retrieves the corresponding layer from the QGIS project.
+           - Validates the layer and determines its CRS.
+           - Updates the units label to "deg" for geographic CRS or "m" for projected CRS.
+
+        Note:
+            This method assumes that the selected grid layer exists in the QGIS project
+            and that the layer's CRS is valid.
+
+        Raises:
+            IndexError: If no layer with the selected grid name is found in the QGIS project.
+
+        """
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid_Conv_2.currentText()
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
@@ -2267,6 +2775,31 @@ class SGTool:
                     self.dlg.label_41_units.setText("Units: m")
 
     def update_paths_conv(self):
+        """
+        Updates the paths and UI elements related to the selected grid.
+
+        This method synchronizes the selected grid name across multiple combo boxes
+        and clears the grid path input field. It also determines the coordinate 
+        reference system (CRS) of the selected grid layer and updates the units 
+        label accordingly.
+
+        Steps performed:
+        1. Retrieves the selected grid name from the UI and updates other combo boxes.
+        2. Clears the grid path input field and resets the disk grid path.
+        3. Checks if a grid name is selected:
+            - Retrieves the corresponding layer from the QGIS project.
+            - Validates the layer and determines its CRS.
+            - Updates the units label based on whether the CRS is geographic or projected.
+
+        Raises:
+            IndexError: If no layer is found with the selected grid name.
+            AttributeError: If the selected layer is invalid or lacks a CRS.
+
+        Note:
+            This method assumes that the grid name corresponds to a valid layer in the
+            QGIS project.
+
+        """
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid_Conv.currentText()
         self.dlg.mMapLayerComboBox_selectGrid.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
@@ -2288,6 +2821,36 @@ class SGTool:
                     self.dlg.label_41_units.setText("Units: m")
 
     def update_paths_worms(self):
+        """
+        Updates the paths and UI elements related to the selected grid layer.
+
+        This method synchronizes the selected grid layer across multiple combo boxes
+        in the UI, clears the grid path input field, and updates the units label
+        based on the coordinate reference system (CRS) of the selected layer.
+
+        Steps performed:
+        1. Retrieves the currently selected grid layer name from the worms combo box.
+        2. Updates the selected grid layer name across other combo boxes in the UI.
+        3. Clears the grid path input field and resets the disk grid path.
+        4. Checks if the selected grid layer is valid and determines its CRS.
+        5. Updates the units label to "deg" for geographic CRS or "m" for projected CRS.
+
+        Attributes:
+            localGridName (str): The name of the currently selected grid layer.
+            diskGridPath (str): The path to the grid file on disk (reset to empty).
+            base_name (str): The base name of the selected grid layer.
+
+        UI Elements Updated:
+            - mMapLayerComboBox_selectGrid
+            - mMapLayerComboBox_selectGrid_Conv
+            - mMapLayerComboBox_selectGrid_Conv_2
+            - mMapLayerComboBox_selectGrid_worms
+            - lineEdit_2_loadGridPath
+            - label_41_units
+
+        Raises:
+            IndexError: If no layer with the selected name exists in the project.
+        """
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid_worms.currentText()
 
         self.dlg.mMapLayerComboBox_selectGrid.setCurrentText(self.localGridName)
@@ -2310,9 +2873,19 @@ class SGTool:
                 else:
                     self.dlg.label_41_units.setText("Units: m")
 
-
     # --------------------------------------------------------------------------
     def show_version(self):
+        """
+        Reads the plugin version from the metadata.txt file located in the same directory
+        as the script and returns it.
+
+        Returns:
+            str: The version of the plugin as specified in the metadata.txt file.
+
+        Raises:
+            FileNotFoundError: If the metadata.txt file does not exist.
+            IOError: If there is an issue reading the metadata.txt file.
+        """
         metadata_path = os.path.dirname(os.path.realpath(__file__)) + "/metadata.txt"
 
         with open(metadata_path) as plugin_version_file:
@@ -2641,6 +3214,22 @@ class SGTool:
 
     # select directory to store grid
     def gridFile(self):
+        """
+        Opens a file dialog to select a save location for a grid file, ensures the file
+        has a ".tif" extension, and updates the corresponding line edit widget in the UI.
+
+        This method uses a QFileDialog to allow the user to specify the save location
+        and name for a grid file. If the user does not provide a ".tif" extension, it
+        automatically appends ".tif" to the file name. The selected file path is then
+        displayed in the `lineEdit_gridOutputDir` widget of the dialog.
+
+        Attributes:
+            self.gridFilePath (str): The full file path selected by the user, including
+                                     the ".tif" extension.
+
+        Side Effects:
+            Updates the `lineEdit_gridOutputDir` widget in the UI with the selected file path.
+        """
         self.gridFilePath = QFileDialog.getSaveFileName(None, "Save grid file as")
 
         if len(self.gridFilePath) > 1:
@@ -2680,6 +3269,27 @@ class SGTool:
             comboBox.addItem(layer.name(), layer.id())
 
     def updateLayertoGrid(self):
+        """
+        Updates the grid layer selection and calculates grid dimensions based on the selected layer.
+
+        This method performs the following tasks:
+        1. Checks if there are any layers available in the grid selection combo box.
+        2. Retrieves the selected layer from the combo box and validates its existence.
+        3. Extracts the field names from the selected layer and populates the grid data field combo box.
+        4. If the selected layer contains features, calculates the grid dimensions (nx and ny) 
+           based on the layer's extent and the specified cell size, and updates the corresponding labels.
+
+        Attributes:
+            dlg.mMapLayerComboBox_selectGrid_3 (QComboBox): Combo box for selecting the grid layer.
+            dlg.comboBox_select_grid_data_field (QComboBox): Combo box for selecting grid data fields.
+            dlg.doubleSpinBox_cellsize (QDoubleSpinBox): Input for specifying the cell size.
+            dlg.nx_label (QLabel): Label to display the calculated number of grid cells along the x-axis.
+            dlg.ny_label (QLabel): Label to display the calculated number of grid cells along the y-axis.
+
+        Raises:
+            IndexError: If no layers are found with the selected name.
+            AttributeError: If the selected layer is invalid or does not have the required attributes.
+        """
         if self.dlg.mMapLayerComboBox_selectGrid_3.count() > 0:
 
             self.selectedPoints = self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
@@ -2707,6 +3317,36 @@ class SGTool:
                     self.dlg.ny_label.setText(str(self.ny_label))
 
     def updateLayertoGrid2(self):
+        """
+        Updates the grid dimensions (nx_label and ny_label) based on the selected layer 
+        and cell size from the user interface.
+
+        This method retrieves the currently selected layer from the combo box 
+        (mMapLayerComboBox_selectGrid_3) and calculates the number of grid cells 
+        in the x and y directions based on the layer's extent and the specified cell size. 
+        The calculated values are then displayed in the user interface.
+
+        Preconditions:
+            - The combo box (mMapLayerComboBox_selectGrid_3) must contain at least one layer.
+            - The selected layer must be valid and contain features.
+
+        Steps:
+            1. Retrieve the selected layer from the combo box.
+            2. Check if the selected layer is valid.
+            3. Calculate the grid dimensions (nx_label and ny_label) using the layer's extent 
+               and the cell size specified in the doubleSpinBox_cellsize widget.
+            4. Update the nx_label and ny_label widgets in the user interface with the calculated values.
+
+        Attributes:
+            dlg.mMapLayerComboBox_selectGrid_3 (QComboBox): Combo box containing selectable layers.
+            dlg.doubleSpinBox_cellsize (QDoubleSpinBox): Widget for specifying the cell size.
+            dlg.nx_label (QLabel): Label to display the calculated number of grid cells in the x direction.
+            dlg.ny_label (QLabel): Label to display the calculated number of grid cells in the y direction.
+
+        Raises:
+            IndexError: If no layers are found with the selected name.
+            AttributeError: If the selected layer does not have a valid extent or feature count.
+        """
 
         if self.dlg.mMapLayerComboBox_selectGrid_3.count() > 0:
 
@@ -2730,6 +3370,33 @@ class SGTool:
                     self.dlg.ny_label.setText(str(self.ny_label))
 
     def import_point_line_data(self):
+        """
+        Imports point or line data as a vector file into memory.
+
+        This method handles the import of either point or line data based on the 
+        `pointType` attribute. It supports importing data from disk and loading it 
+        into memory with the specified projection and other parameters.
+
+        If the data type is "line", it imports the data as tie lines with an optional 
+        checkbox to load tie lines. If the data type is point, it imports the data 
+        as a CSV file using specified x and y fields.
+
+        Attributes:
+            diskPointsPath (str): The file path to the point or line data on disk.
+            dlg (object): The dialog object containing user interface elements 
+                          for selecting projection, fields, and options.
+            pointType (str): Specifies the type of data to import ("line" or other).
+
+        Methods:
+            import_XYZ: Handles the import of line data.
+            import_CSV: Handles the import of point data.
+
+        Parameters:
+            None
+
+        Returns:
+            None
+        """
         # import point or line data as vector file to memory
         dir_name, base_name = os.path.split(self.diskPointsPath)
         file_name, file_ext = os.path.splitext(base_name)
@@ -2806,6 +3473,34 @@ class SGTool:
                         pass
 
     def import_XYZ(self, XYZ_file, crs, layer_name="line", load_ties=True):
+        """
+        Imports an XYZ file and creates both line and point layers in QGIS.
+
+        This function reads an XYZ file containing spatial data, processes the data into 
+        line and point geometries, and adds them as layers to the QGIS project. The XYZ 
+        file can include markers for lines ("LINE:") and optional tie points ("TIE:").
+
+        Args:
+            XYZ_file (str): The file path to the XYZ file to be imported.
+            crs (str): The coordinate reference system (CRS) in EPSG code format (e.g., "4326").
+            layer_name (str, optional): The base name for the created layers. Defaults to "line".
+            load_ties (bool, optional): Whether to include tie points ("TIE:") in the data. 
+                                        Defaults to True.
+
+        Raises:
+            ValueError: If the XYZ file contains invalid data that cannot be parsed.
+
+        Notes:
+            - The function creates two layers:
+              1. A line layer with geometries representing connected points for each line ID.
+              2. A point layer with individual points for each entry in the XYZ file.
+            - Attributes for both layers include the line ID and any additional data columns 
+              from the XYZ file.
+            - The point layer is added to the QGIS project but is initially set to invisible.
+
+        Example:
+            import_XYZ("/path/to/file.xyz", "4326", layer_name="my_layer", load_ties=False)
+        """
         # Initialize variables
         data_list = []
         current_line_number = None
@@ -2894,6 +3589,29 @@ class SGTool:
         layer_tree.findLayer(point_layer.id()).setItemVisibilityChecked(False)
 
     def convert_RGB_to_grey(self, RGBGridPath, LUT):
+        """
+        Converts a 3-band RGB GeoTIFF image to a grayscale image using a specified LUT (Look-Up Table).
+
+        Args:
+            RGBGridPath (str): The file path to the input RGB GeoTIFF image.
+            LUT (str): A comma-separated string of CSS color values representing the Look-Up Table.
+
+        Returns:
+            tuple:
+                - result (bool): True if the conversion was successful, False otherwise.
+                - RGBGridPath_gray (str or int): The file path to the generated grayscale GeoTIFF image 
+                  if successful, or an error code (-3) if unsuccessful.
+
+        Notes:
+            - The input dataset must have at least 3 raster bands (Red, Green, Blue).
+            - White ([255, 255, 255]) and black ([0, 0, 0]) pixels in the input image are set to NaN in the output.
+            - The LUT is parsed and used to map RGB values to scalar grayscale values.
+            - The output grayscale values are scaled based on user-defined minimum and maximum values.
+            - The output file is saved in GeoTIFF format with the same spatial reference and geotransform as the input.
+
+        Raises:
+            Exception: If the output dataset cannot be created, possibly due to missing projection information.
+        """
         result = False
 
         # Open the 3-band TIF using GDAL
@@ -2998,6 +3716,31 @@ class SGTool:
         return result, RGBGridPath_gray
 
     def convert_RGB_to_grey_rasterio(self, RGBGridPath, LUT):
+        """
+        Converts an RGB raster image to a grayscale raster using a specified lookup table (LUT).
+
+        This function reads a 3-band RGB raster file, applies a color lookup table (LUT) to map 
+        RGB values to scalar grayscale values, and saves the resulting grayscale raster to a new file. 
+        Areas with white (255, 255, 255) or black (0, 0, 0) pixels are set to NaN in the output.
+
+        Args:
+            RGBGridPath (str): The file path to the input 3-band RGB raster file.
+            LUT (str): A comma-separated string of CSS color values representing the lookup table 
+                       (e.g., "red,green,blue").
+
+        Returns:
+            tuple: A tuple containing:
+                - result (bool): True if the conversion was successful, False otherwise.
+                - RGBGridPath_gray (str or bool): The file path to the output grayscale raster file 
+                  if successful, or False if the conversion failed.
+
+        Notes:
+            - The input raster must have at least 3 bands (red, green, blue).
+            - The LUT is reversed before being applied.
+            - The grayscale values are scaled using user-defined minimum and maximum values 
+              from the GUI (LUT_min and LUT_max).
+            - The output raster is saved with the same georeferencing information as the input raster.
+        """
         result = False
         # Load the 3-band TIF
         with rasterio.open(RGBGridPath) as src:
@@ -3259,7 +4002,30 @@ class SGTool:
     def addGridded(
         self, grid, filename_without_extension, filepath, epsg, extent, cell_size
     ):
+        """
+        Adds a gridded raster layer to the QGIS project.
 
+        This method creates a raster layer from a given grid array and adds it to the QGIS project.
+        It handles layer naming conflicts, sets georeferencing information, and applies contrast 
+        enhancement to the raster layer.
+
+        Args:
+            grid (numpy.ndarray): The 2D array representing the raster grid data.
+            filename_without_extension (str): The name of the raster layer without file extension.
+            filepath (str): The full file path where the raster file will be saved.
+            epsg (int): The EPSG code for the spatial reference system.
+            extent (QgsRectangle): The extent of the raster layer.
+            cell_size (float): The size of each cell in the raster grid.
+
+        Raises:
+            Exception: If the raster data file does not have at least 3 points.
+
+        Notes:
+            - If a layer with the same name already exists, a numeric suffix is appended to the name.
+            - The raster layer is saved as a GeoTIFF file.
+            - The method calculates statistics for the raster's first band and applies them to the renderer.
+            - If the renderer is not a QgsSingleBandGrayRenderer, a message is printed to the console.
+        """
         if self.is_layer_loaded(filename_without_extension):
             layer = QgsProject.instance().mapLayersByName(filename_without_extension)
 
@@ -3377,6 +4143,24 @@ class SGTool:
         # replace with specific processor calls so raster clipping can be done easily...
 
     def procWTMM(self):
+        """
+        Processes the Wavelet Transform Modulus Maxima (WTMM) for a selected layer in QGIS.
+        This function performs the following steps:
+        1. Checks for the required Python packages (`pywt` and `matplotlib`) and prompts the user to install them if missing.
+        2. Retrieves the selected vector layer and validates its geometry type (line or point).
+        3. Extracts or regularizes data from the selected layer based on its geometry type.
+        4. Computes the WTMM 1D analysis using the `WTMM` class.
+        5. Visualizes the results, including the D(h) vs h spectrum and WTMM maxima.
+        Returns:
+            dict: Results of the WTMM 1D analysis if successful.
+            None: If the selected layer is invalid or data retrieval fails.
+            False: If required Python packages are missing.
+        Raises:
+            ImportError: If the required Python packages (`pywt` or `matplotlib`) are not installed.
+        Notes:
+            - The function assumes the presence of a QGIS environment and specific UI elements (e.g., `mMapLayerComboBox_selectVectors`).
+            - The WTMM analysis uses the 'mexh' wavelet by default with 15 scales and a relative threshold of 0.05.
+        """
         try:
             import pywt
         except ImportError:
@@ -3424,7 +4208,7 @@ class SGTool:
                 spacing='auto'
 
             new_coords, data, median_spacing=self.regularize_selected_points(line_layer.name(), "data_2", spacing=spacing, num_points=None)
-            plot_layer_name=line_layer_name
+            plot_layer_name = line_layer_name
         
         else:
             print("Selected layer is not a valid line or point layer.")
@@ -3433,7 +4217,7 @@ class SGTool:
         
         wtmm=WTMM()      
         results = wtmm.wtmm_1d(
-            data, 
+            data,
             wavelet='mexh',
             num_scales=15,
             threshold_rel=0.05,  # Lower threshold to detect more maxima
@@ -3453,6 +4237,27 @@ class SGTool:
             return results
 
     def get_data_from_profile(self):  
+        """
+        Extracts raster values along a selected line layer at specified intervals.
+        This method retrieves data from a raster layer based on points sampled along a selected 
+        line layer. The points are generated at regular intervals defined by the user. The method 
+        returns the raster values sampled at these points.
+        Returns:
+            numpy.ndarray: An array of raster values sampled along the line layer.
+        Raises:
+            None: This method does not explicitly raise exceptions, but it may fail if required 
+            layers are not selected or if invalid inputs are provided.
+        Notes:
+            - The line layer must be a vector layer with line geometry.
+            - The raster layer must be a valid raster layer in the QGIS project.
+            - The spacing between points must be non-zero and ideally greater than the grid cell size.
+        Workflow:
+            1. Retrieve the selected line layer and raster layer from the QGIS project.
+            2. Validate the inputs and ensure the layers are correctly selected.
+            3. Generate points along the selected line layer at the specified spacing.
+            4. Sample the raster layer at the generated points.
+            5. Return the sampled raster values as a numpy array.
+        """
         raster_layer_name = self.dlg.mMapLayerComboBox_selectGrid_worms.currentText()
         line_spacing=float(self.dlg.doubleSpinBox_wtmm_spacing.value())
         if(line_spacing==0):
@@ -3751,17 +4556,39 @@ class SGTool:
         return coords, field_values
     
     def update_wavelet_choices(self):
+        """
+        Updates the wavelet choices in the user interface based on the selected vector layer.
+
+        This method checks the currently selected vector layer in the `mMapLayerComboBox_selectVectors` 
+        combo box. Depending on the geometry type of the selected layer (PointGeometry or LineGeometry), 
+        it populates the `mFieldComboBox_feature` combo box with unique values derived from the layer's 
+        features. Additionally, it enables or disables the `mFieldComboBox_data` combo box based on the 
+        geometry type.
+
+        Workflow:
+        - If the selected layer is of PointGeometry type:
+            - Extracts unique values from the 'LINE_ID' attribute of the features.
+            - Sorts the unique values numerically.
+            - Populates the `mFieldComboBox_feature` combo box with these values.
+            - Enables the `mFieldComboBox_data` combo box and sets the layer for it.
+        - If the selected layer is of LineGeometry type:
+            - Extracts unique feature IDs.
+            - Sorts the unique IDs numerically.
+            - Populates the `mFieldComboBox_feature` combo box with these IDs.
+            - Disables the `mFieldComboBox_data` combo box.
+
+        Note:
+        - The method assumes that the selected vector layer has either PointGeometry or LineGeometry.
+        - Sorting of unique values is optional and is performed numerically.
+
+        Raises:
+        - IndexError: If no layer with the selected name exists in the QgsProject instance.
+
+        """
         if self.dlg.mMapLayerComboBox_selectVectors.currentText()!="":
             line_layer_name = self.dlg.mMapLayerComboBox_selectVectors.currentText()
             line_layer = QgsProject.instance().mapLayersByName(line_layer_name)[0]
             self.dlg.mFieldComboBox_data.setEnabled(True)
-            
-            # Check if the layer has the LINE_ID field
-            if 'LINE_ID' not in [field.name() for field in line_layer.fields()]:
-                # Field doesn't exist, break out or handle the error
-                #QMessageBox.warning(None, "Field Missing", "The layer does not contain a LINE_ID field.")
-                return  # This will exit the current function
-                
             if line_layer.geometryType() == QgsWkbTypes.PointGeometry:
                 self.dlg.mFieldComboBox_feature.clear()
                 unique_values = []
@@ -3769,6 +4596,7 @@ class SGTool:
                 for feature in line_layer.getFeatures():
                     value = str(feature['LINE_ID'])
                     if value not in unique_values:
+                        print
                         unique_values.append(value)
 
                 # Sort the values (optional)

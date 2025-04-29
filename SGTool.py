@@ -34,7 +34,7 @@ from qgis.core import (
     QgsFeature,
     QgsField,
     QgsProcessingFeedback,
-    QgsProcessingFeatureSourceDefinition, 
+    QgsProcessingFeatureSourceDefinition,
     QgsFeatureRequest,
     QgsWkbTypes,
     QgsProject,
@@ -43,7 +43,6 @@ from qgis.core import (
     QgsPointXY,
     QgsMapLayerProxyModel,
     QgsApplication,
-
 )
 from qgis.PyQt.QtCore import (
     QSettings,
@@ -98,6 +97,7 @@ import sys
 import os
 from qgis.PyQt.QtWidgets import QMessageBox
 from qgis.core import QgsMessageLog, Qgis
+
 ######################################
 
 
@@ -142,52 +142,54 @@ class SGTool:
         self.dlg = None
         self.last_directory = None
 
-       
         # Define required packages
-        #required_packages = ['scikit-learn', 'matplotlib', 'PyWavelets']
-        #self.check_dependencies(required_packages)
+        # required_packages = ['scikit-learn', 'matplotlib', 'PyWavelets']
+        # self.check_dependencies(required_packages)
 
-    def check_dependencies(self,required_packages):
+    def check_dependencies(self, required_packages):
         """
         Check if required packages are installed.
-        
+
         Args:
             required_packages (list): List of package names to check and install
-            
+
         """
         missing_packages = []
         for package in required_packages:
-            if package=="scikit-learn":
-                importPackage="sklearn"
-            elif package=="PyWavelets":
-                importPackage="pywt"            
+            if package == "scikit-learn":
+                importPackage = "sklearn"
+            elif package == "PyWavelets":
+                importPackage = "pywt"
             else:
-                importPackage=package
+                importPackage = package
             try:
                 importlib.import_module(importPackage)
-                QgsMessageLog.logMessage(f"Package {package} is already installed", "DependencyManager", Qgis.Info)
+                QgsMessageLog.logMessage(
+                    f"Package {package} is already installed",
+                    "DependencyManager",
+                    Qgis.Info,
+                )
             except ImportError:
                 missing_packages.append(package)
-        
+
         if not missing_packages:
             return True
-        
+
         # Ask user for permission to install missing packages
         package_list = ", ".join(missing_packages)
         if platform.system() == "Windows":
-            pipcall="pip"
+            pipcall = "pip"
         else:
-            pipcall="pip3"
+            pipcall = "pip3"
         QMessageBox.information(
             None,  # Parent widget
-            "","Missing Packages for SGTool: "+  # Window title
-            f"The following Python packages are required for some functions, but not installed: {package_list}\n\n"
+            "",
+            "Missing Packages for SGTool: "  # Window title
+            + f"The following Python packages are required for some functions, but not installed: {package_list}\n\n"
             "Please open the QGIS Python Console and run the following command for each missing package:\n\n"
             f"!{pipcall} install MISSING_PACKAGE_NAME",  # Message text
-            QMessageBox.Ok  # Buttons parameter
+            QMessageBox.Ok,  # Buttons parameter
         )
-        
-
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -595,9 +597,7 @@ class SGTool:
         self.dlg.doubleSpinBox_wtmm_spacing.setToolTip(
             "Define spacing along profile\n0 = median spacing for points\nfor polylines must be non-zero, and ideally greater than grid cell size"
         )
-        self.dlg.pushButton_wtmm.setToolTip(
-            "Calculate WTMM and display in new windows"
-        )
+        self.dlg.pushButton_wtmm.setToolTip("Calculate WTMM and display in new windows")
 
         self.dlg.mMapLayerComboBox_selectVectors.setToolTip(
             "Select data points layer or polyline to extract data from grid"
@@ -605,11 +605,10 @@ class SGTool:
 
         self.dlg.mFieldComboBox_feature.setToolTip(
             "Select object to be analysed: LINE_ID of points or FID of polyline"
-        )        
-        
-        self.dlg.mFieldComboBox_data.setToolTip(
-            "Select data field for points layer"
-        )        
+        )
+
+        self.dlg.mFieldComboBox_data.setToolTip("Select data field for points layer")
+
     def initParams(self):
         self.localGridName = ""
         self.diskGridPath = ""
@@ -865,16 +864,15 @@ class SGTool:
                 gridder.launch_multi_bspline_dialog(input, zcolumn, cell_size, mask)
             else:
                 QMessageBox.information(
-                None,  # Parent widget
-                "","Missing Plugin for SGTool: "+  # Window title
-                f"sagang multilevelbspline algorithm not found.\nTry installing the Plugin: Saga Processing Saga NextGen Provider\n\n",
-                QMessageBox.Ok  # Buttons parameter
+                    None,  # Parent widget
+                    "",
+                    "Missing Plugin for SGTool: "  # Window title
+                    + f"sagang multilevelbspline algorithm not found.\nTry installing the Plugin: Saga Processing Saga NextGen Provider\n\n",
+                    QMessageBox.Ok,  # Buttons parameter
                 )
 
         except Exception as e:
-            self.iface.messageBar().pushMessage("Error", str(e), level=3)  
-
-
+            self.iface.messageBar().pushMessage("Error", str(e), level=3)
 
     def get_layer_path_by_name(self, layer_name):
         """
@@ -910,19 +908,19 @@ class SGTool:
         cutoff_wavelength = 4 * float(self.DC_lineSpacing)
         # if self.unit_check(cutoff_wavelength) or True:
         self.new_grid = self.processor.directional_butterworth_band_pass(
-            self.raster_array, 
-            1e-8,  
-            float(self.DC_lineSpacing), 
-            direction_angle=float(self.DC_azimuth) , 
-            direction_width=20, 
-            order=4, 
-            buffer_size=10, 
-            buffer_method="mirror"
+            self.raster_array,
+            1e-8,
+            float(self.DC_lineSpacing),
+            direction_angle=float(self.DC_azimuth),
+            direction_width=20,
+            order=4,
+            buffer_size=10,
+            buffer_method="mirror",
         )
         print("xxxxx")
         nan_mask = np.isnan(self.new_grid)
         self.new_grid[nan_mask] = 1.0
-        self.new_grid=self.raster_array-(self.new_grid*self.DC_scale)
+        self.new_grid = self.raster_array - (self.new_grid * self.DC_scale)
         self.new_grid[nan_mask] = np.nan
         self.suffix = "_DirC"
 
@@ -987,9 +985,9 @@ class SGTool:
 
         crs = selected_layer.crs()
         if crs.isGeographic():
-            long,lat=self.get_grid_centroid(selected_layer)
-            dx,dy=self.SG_Util.arc_degree_to_meters( lat)
-            ave_dxdy=np.sqrt(dx**2.0+dy**2.0)/2
+            long, lat = self.get_grid_centroid(selected_layer)
+            dx, dy = self.SG_Util.arc_degree_to_meters(lat)
+            ave_dxdy = np.sqrt(dx**2.0 + dy**2.0) / 2
 
             height = float(self.cont_height) / ave_dxdy
             self.iface.messageBar().pushMessage(
@@ -1108,10 +1106,10 @@ class SGTool:
             ]
             crs = selected_layer.crs()
             if crs.isGeographic():
-                long,lat=self.get_grid_centroid(selected_layer)
-                dx,dy=self.SG_Util.arc_degree_to_meters( lat)
-                ave_dxdy=np.sqrt(dx**2.0+dy**2.0)/2
-                hzscale = 1* ave_dxdy
+                long, lat = self.get_grid_centroid(selected_layer)
+                dx, dy = self.SG_Util.arc_degree_to_meters(lat)
+                ave_dxdy = np.sqrt(dx**2.0 + dy**2.0) / 2
+                hzscale = 1 * ave_dxdy
             else:
                 hzscale = 1.0
 
@@ -1124,11 +1122,11 @@ class SGTool:
                 scale=1.0,
                 zscale=1.0,
             )
-        else: 
+        else:
             self.new_grid = self.convolution.sun_shading_filter(
                 self.raster_array,
                 sun_alt=self.sun_shade_zn,
-                sun_az=180-self.sun_shade_az,
+                sun_az=180 - self.sun_shade_az,
             )
         self.suffix = "_Sh"
 
@@ -1203,10 +1201,10 @@ class SGTool:
         selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
         crs = selected_layer.crs()
         if crs.isGeographic():
-            long,lat=self.get_grid_centroid(selected_layer)
-            dx,dy=self.SG_Util.arc_degree_to_meters( lat)
-            ave_dxdy=np.sqrt(dx**2.0+dy**2.0)/2
-            hzscale = 1/ ave_dxdy
+            long, lat = self.get_grid_centroid(selected_layer)
+            dx, dy = self.SG_Util.arc_degree_to_meters(lat)
+            ave_dxdy = np.sqrt(dx**2.0 + dy**2.0) / 2
+            hzscale = 1 / ave_dxdy
         else:
             hzscale = 1.0
 
@@ -1248,15 +1246,16 @@ class SGTool:
                         import sklearn
                     except ImportError:
                         QMessageBox.information(
-                        None,  # Parent widget
-                        "","Missing Packages for SGTool: "+  # Window title
-                        f"The following Python packages are required for conversion to shapefile, but not installed: scikit-learn\n\n"
-                        "Please open the QGIS Python Console and run the following command:\n\n"
-                        f"!pip3 install scikit-learn",  # Message text
-                        QMessageBox.Ok  # Buttons parameter
+                            None,  # Parent widget
+                            "",
+                            "Missing Packages for SGTool: "  # Window title
+                            + f"The following Python packages are required for conversion to shapefile, but not installed: scikit-learn\n\n"
+                            "Please open the QGIS Python Console and run the following command:\n\n"
+                            f"!pip3 install scikit-learn",  # Message text
+                            QMessageBox.Ok,  # Buttons parameter
                         )
                         return False
-                    
+
                 self.processor.bsdwormer(
                     self.diskGridPath, num_levels, bottom_level, delta_z, shps, crs
                 )
@@ -1320,15 +1319,16 @@ class SGTool:
 
         except ImportError:
             QMessageBox.information(
-            None,  # Parent widget
-            "","Missing Packages for SGTool: "+  # Window title
-            f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
-            "Please open the QGIS Python Console and run the following command:\n\n"
-            f"!pip3 install matplotlib",  # Message text
-            QMessageBox.Ok  # Buttons parameter
+                None,  # Parent widget
+                "",
+                "Missing Packages for SGTool: "  # Window title
+                + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
+                "Please open the QGIS Python Console and run the following command:\n\n"
+                f"!pip3 install matplotlib",  # Message text
+                QMessageBox.Ok,  # Buttons parameter
             )
-            return False  
-        
+            return False
+
         plt.imshow(grid, origin="lower", cmap="viridis")
         plt.colorbar(label="Levels")
         plt.title("Grid")
@@ -1973,16 +1973,16 @@ class SGTool:
 
         return decimal_year
 
-    def get_grid_centroid(self,layer):
+    def get_grid_centroid(self, layer):
 
-            if layer.isValid():
-                extent = layer.extent()  # Get the extent of the raster layer
+        if layer.isValid():
+            extent = layer.extent()  # Get the extent of the raster layer
 
-                # calculate midpoint of grid
-                midx = extent.xMinimum() + (extent.xMaximum() - extent.xMinimum()) / 2
-                midy = extent.yMinimum() + (extent.yMaximum() - extent.yMinimum()) / 2
-            
-            return midx, midy
+            # calculate midpoint of grid
+            midx = extent.xMinimum() + (extent.xMaximum() - extent.xMinimum()) / 2
+            midy = extent.yMinimum() + (extent.yMaximum() - extent.yMinimum()) / 2
+
+        return midx, midy
 
     # estimate mag field from centroid of data, date and sensor height
     def update_mag_field(self):
@@ -2170,28 +2170,30 @@ class SGTool:
             import pywt
         except ImportError:
             QMessageBox.information(
-            None,  # Parent widget
-            "","Missing Packages for SGTool: "+  # Window title
-            f"The following Python packages are required for some functions, but not installed: PyWavelets\n\n"
-            "Please open the QGIS Python Console and run the following command:\n\n"
-            f"!pip3 install PyWavelets",  # Message text
-            QMessageBox.Ok  # Buttons parameter
+                None,  # Parent widget
+                "",
+                "Missing Packages for SGTool: "  # Window title
+                + f"The following Python packages are required for some functions, but not installed: PyWavelets\n\n"
+                "Please open the QGIS Python Console and run the following command:\n\n"
+                f"!pip3 install PyWavelets",  # Message text
+                QMessageBox.Ok,  # Buttons parameter
             )
             return False
-        
+
         try:
             import matplotlib.colors as mcolors
 
         except ImportError:
             QMessageBox.information(
-            None,  # Parent widget
-            "","Missing Packages for SGTool: "+  # Window title
-            f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
-            "Please open the QGIS Python Console and run the following command:\n\n"
-            f"!pip3 install matplotlib",  # Message text
-            QMessageBox.Ok  # Buttons parameter
+                None,  # Parent widget
+                "",
+                "Missing Packages for SGTool: "  # Window title
+                + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
+                "Please open the QGIS Python Console and run the following command:\n\n"
+                f"!pip3 install matplotlib",  # Message text
+                QMessageBox.Ok,  # Buttons parameter
             )
-            return False  
+            return False
 
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
         if self.localGridName != "":
@@ -2310,7 +2312,6 @@ class SGTool:
                 else:
                     self.dlg.label_41_units.setText("Units: m")
 
-
     # --------------------------------------------------------------------------
     def show_version(self):
         metadata_path = os.path.dirname(os.path.realpath(__file__)) + "/metadata.txt"
@@ -2374,12 +2375,12 @@ class SGTool:
             self.dlg.mMapLayerComboBox_selectGrid_worms.setFilters(
                 QgsMapLayerProxyModel.RasterLayer
             )
-            
+
             """self.dlg.mMapLayerComboBox_selectVectors.setFilters(
                 QgsMapLayerProxyModel.PointLayer | QgsMapLayerProxyModel.VectorLayer
             )"""
             self.dlg.mMapLayerComboBox_selectVectors.setFilters(
-            QgsMapLayerProxyModel.PointLayer | QgsMapLayerProxyModel.VectorLayer
+                QgsMapLayerProxyModel.PointLayer | QgsMapLayerProxyModel.VectorLayer
             )
 
             self.dlg.mMapLayerComboBox_selectGrid_3.setFilters(
@@ -2388,7 +2389,7 @@ class SGTool:
             self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setFilters(
                 QgsMapLayerProxyModel.RasterLayer
             )
-            
+
             self.dlg.version_label.setText(self.show_version())
 
             self.deriv_dir_list = []
@@ -2422,7 +2423,6 @@ class SGTool:
                 self.processGeophysics_fft
             )
             self.update_wavelet_choices()
-
 
             self.dlg.pushButton_3_applyProcessing_Conv_3.clicked.connect(
                 self.processGeophysics_fft
@@ -3092,15 +3092,15 @@ class SGTool:
 
         except ImportError:
             QMessageBox.information(
-            None,  # Parent widget
-            "","Missing Packages for SGTool: "+  # Window title
-            f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
-            "Please open the QGIS Python Console and run the following command:\n\n"
-            f"!pip3 install matplotlib",  # Message text
-            QMessageBox.Ok  # Buttons parameter
+                None,  # Parent widget
+                "",
+                "Missing Packages for SGTool: "  # Window title
+                + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
+                "Please open the QGIS Python Console and run the following command:\n\n"
+                f"!pip3 install matplotlib",  # Message text
+                QMessageBox.Ok,  # Buttons parameter
             )
-            return False        
-        
+            return False
 
         # Normalize indices to decimal values between 0 and 1
         decimal_indices = np.linspace(0, 1, num_entries)
@@ -3381,29 +3381,31 @@ class SGTool:
             import pywt
         except ImportError:
             QMessageBox.information(
-            None,  # Parent widget
-            "","Missing Packages for SGTool: "+  # Window title
-            f"The following Python packages are required for some functions, but not installed: PyWavelets\n\n"
-            "Please open the QGIS Python Console and run the following command:\n\n"
-            f"!pip3 install PyWavelets",  # Message text
-            QMessageBox.Ok  # Buttons parameter
+                None,  # Parent widget
+                "",
+                "Missing Packages for SGTool: "  # Window title
+                + f"The following Python packages are required for some functions, but not installed: PyWavelets\n\n"
+                "Please open the QGIS Python Console and run the following command:\n\n"
+                f"!pip3 install PyWavelets",  # Message text
+                QMessageBox.Ok,  # Buttons parameter
             )
             return False
-        
+
         try:
             import matplotlib.pyplot as plt
 
         except ImportError:
             QMessageBox.information(
-            None,  # Parent widget
-            "","Missing Packages for SGTool: "+  # Window title
-            f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
-            "Please open the QGIS Python Console and run the following command:\n\n"
-            f"!pip3 install matplotlib",  # Message text
-            QMessageBox.Ok  # Buttons parameter
+                None,  # Parent widget
+                "",
+                "Missing Packages for SGTool: "  # Window title
+                + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
+                "Please open the QGIS Python Console and run the following command:\n\n"
+                f"!pip3 install matplotlib",  # Message text
+                QMessageBox.Ok,  # Buttons parameter
             )
             return False
-        
+
         line_layer_name = self.dlg.mMapLayerComboBox_selectVectors.currentText()
         line_layer = QgsProject.instance().mapLayersByName(line_layer_name)[0]
 
@@ -3411,53 +3413,71 @@ class SGTool:
             print("No layer selected")
             return None
         print()
-        if isinstance(line_layer, QgsVectorLayer) and line_layer.geometryType() == QgsWkbTypes.LineGeometry and self.dlg.mMapLayerComboBox_selectGrid_worms.currentText() != "":  
-            raster_layer_name = self.dlg.mMapLayerComboBox_selectGrid_worms.currentText()
-            data=self.get_data_from_profile()
+        if (
+            isinstance(line_layer, QgsVectorLayer)
+            and line_layer.geometryType() == QgsWkbTypes.LineGeometry
+            and self.dlg.mMapLayerComboBox_selectGrid_worms.currentText() != ""
+        ):
+            raster_layer_name = (
+                self.dlg.mMapLayerComboBox_selectGrid_worms.currentText()
+            )
+            data = self.get_data_from_profile()
             if data is None:
                 print("No data retrieved from profile")
                 return None
-            plot_layer_name=raster_layer_name
-        elif isinstance(line_layer, QgsVectorLayer) and line_layer.geometryType() == QgsWkbTypes.PointGeometry:
-            spacing=self.dlg.doubleSpinBox_wtmm_spacing.value()
-            if(self.dlg.doubleSpinBox_wtmm_spacing.value()==0):
-                spacing='auto'
+            plot_layer_name = raster_layer_name
+        elif (
+            isinstance(line_layer, QgsVectorLayer)
+            and line_layer.geometryType() == QgsWkbTypes.PointGeometry
+        ):
+            spacing = self.dlg.doubleSpinBox_wtmm_spacing.value()
+            if self.dlg.doubleSpinBox_wtmm_spacing.value() == 0:
+                spacing = "auto"
 
-            new_coords, data, median_spacing=self.regularize_selected_points(line_layer.name(), "data_2", spacing=spacing, num_points=None)
-            plot_layer_name=line_layer_name
-        
+            new_coords, data, median_spacing = self.regularize_selected_points(
+                line_layer.name(), "data_2", spacing=spacing, num_points=None
+            )
+            plot_layer_name = line_layer_name
+
         else:
             print("Selected layer is not a valid line or point layer.")
             return None
-        
-        
-        wtmm=WTMM()      
+
+        wtmm = WTMM()
         results = wtmm.wtmm_1d(
-            data, 
-            wavelet='mexh',
+            data,
+            wavelet="mexh",
             num_scales=15,
             threshold_rel=0.05,  # Lower threshold to detect more maxima
-            min_distance=3
+            min_distance=3,
         )
-        if(results):
+        if results:
 
             # Plot the D(h) vs h spectrum
             fig, ax = plt.subplots(figsize=(8, 6))
-            
-            wtmm.plot_Dh_vs_h(data,plot_layer_name, results, ax=ax)
+
+            wtmm.plot_Dh_vs_h(data, plot_layer_name, results, ax=ax)
             plt.tight_layout()
             plt.show()
-            wtmm.visualize_wtmm_1d(data, plot_layer_name,results, line_number=int(self.dlg.mFieldComboBox_feature.currentText()),save_path=None)
+            wtmm.visualize_wtmm_1d(
+                data,
+                plot_layer_name,
+                results,
+                line_number=int(self.dlg.mFieldComboBox_feature.currentText()),
+                save_path=None,
+            )
 
             plt.show()
             return results
 
-    def get_data_from_profile(self):  
+    def get_data_from_profile(self):
         raster_layer_name = self.dlg.mMapLayerComboBox_selectGrid_worms.currentText()
-        line_spacing=float(self.dlg.doubleSpinBox_wtmm_spacing.value())
-        if(line_spacing==0):
+        line_spacing = float(self.dlg.doubleSpinBox_wtmm_spacing.value())
+        if line_spacing == 0:
             self.iface.messageBar().pushMessage(
-                "Spacing must be non-zero for extraciton from grid, and ideally greater than grid cell size", level=Qgis.Warning, duration=15
+                "Spacing must be non-zero for extraciton from grid, and ideally greater than grid cell size",
+                level=Qgis.Warning,
+                duration=15,
             )
             return
         line_layer_name = self.dlg.mMapLayerComboBox_selectVectors.currentText()
@@ -3467,8 +3487,11 @@ class SGTool:
         if line_layer is None:
             print("No layer selected")
             return None
-        
-        if isinstance(line_layer, QgsVectorLayer) and line_layer.geometryType() == QgsWkbTypes.LineGeometry:
+
+        if (
+            isinstance(line_layer, QgsVectorLayer)
+            and line_layer.geometryType() == QgsWkbTypes.LineGeometry
+        ):
 
             # Find the specified raster layer
             raster_layer = None
@@ -3482,131 +3505,132 @@ class SGTool:
                     if isinstance(layer, QgsRasterLayer):
                         raster_layer = layer
                         break
-            
+
             if not raster_layer:
                 print("No raster layer found")
                 return None
-                        
+
             # Use the processing algorithm to create points along the geometry
             # We'll use a temporary layer for the points
             params = {
-                'INPUT': QgsProcessingFeatureSourceDefinition(
-                    line_layer.id(), 
-                    selectedFeaturesOnly=True, 
-                    featureLimit=-1, 
-                    geometryCheck=QgsFeatureRequest.GeometryAbortOnInvalid
+                "INPUT": QgsProcessingFeatureSourceDefinition(
+                    line_layer.id(),
+                    selectedFeaturesOnly=True,
+                    featureLimit=-1,
+                    geometryCheck=QgsFeatureRequest.GeometryAbortOnInvalid,
                 ),
-                'DISTANCE': line_spacing,
-                'START_OFFSET': 0,
-                'END_OFFSET': 0,
-                'OUTPUT': 'memory:'
+                "DISTANCE": line_spacing,
+                "START_OFFSET": 0,
+                "END_OFFSET": 0,
+                "OUTPUT": "memory:",
             }
-            
+
             # Run the algorithm
             result = processing.run("native:pointsalonglines", params)
-            points_layer = result['OUTPUT']
-            
+            points_layer = result["OUTPUT"]
+
             # Get the total number of points
             num_points = points_layer.featureCount()
-            
+
             # Create arrays to store the points and raster values
             points_array = np.zeros((num_points, 2))
             raster_values = np.zeros(num_points)
             distances = np.zeros(num_points)
-            
+
             # Get the raster data provider
             provider = raster_layer.dataProvider()
-            
+
             # Loop through all points and sample the raster
             for i, point_feature in enumerate(points_layer.getFeatures()):
                 # Get the point geometry
                 point_geom = point_feature.geometry()
                 point = point_geom.asPoint()
-                
+
                 # Get the distance attribute (added by the processing algorithm)
                 distance = point_feature["distance"]
-                
+
                 # Add to our arrays
                 points_array[i] = [point.x(), point.y()]
-                
+
                 # Sample the raster at this point (band 1)
                 value, valid = provider.sample(QgsPointXY(point.x(), point.y()), 1)
-                
+
                 # Store the raster value and distance
                 raster_values[i] = value if valid else np.nan
                 distances[i] = distance
-            
+
             # Clean up temporary layer
             QgsProject.instance().removeMapLayer(points_layer.id())
-            
+
             # Create a complete result with distances, coordinates, and raster values
             result = {
-                'distances': distances,
-                'points': points_array,
-                'values': raster_values
+                "distances": distances,
+                "points": points_array,
+                "values": raster_values,
             }
-            data=np.array(result['values'])
+            data = np.array(result["values"])
 
             return data
 
-    def regularize_selected_points(self,layer_name, field_name, spacing="auto", num_points=None):
+    def regularize_selected_points(
+        self, layer_name, field_name, spacing="auto", num_points=None
+    ):
         """
-        Convert selected points from a QGIS point layer to a NumPy array 
+        Convert selected points from a QGIS point layer to a NumPy array
         and regularize their spacing along a line
-        
+
         Parameters:
         layer_name (str): Name of the point layer in the QGIS project
         field_name (str): Name of the field to extract
         spacing (float or "auto", optional): Desired spacing between points or "auto" to use median spacing
-        num_points (int, optional): Desired number of points. If None and spacing is None, 
+        num_points (int, optional): Desired number of points. If None and spacing is None,
                                 original number of points is used
-        
+
         Returns:
         tuple: (numpy.ndarray of coordinates, numpy.ndarray of field values, float: spacing used)
         """
         # Get the layer by name
         layer = QgsProject.instance().mapLayersByName(layer_name)[0]
-        selection_value=self.dlg.mFieldComboBox_feature.currentText()
-        layer.selectByExpression("LINE_ID = "+selection_value)
-
+        selection_value = self.dlg.mFieldComboBox_feature.currentText()
+        layer.selectByExpression("LINE_ID = " + selection_value)
 
         if not layer:
             print(f"Layer '{layer_name}' not found")
             return None, None, None
-        
+
         # Check if the field exists in the layer
         fields = layer.fields()
         field_idx = fields.indexFromName(field_name)
-        
+
         if field_idx == -1:
             print(f"Field '{field_name}' not found in layer '{layer_name}'")
             return None, None, None
-        
+
         # Get the selected features
         selected_features = layer.selectedFeatures()
-        
+
         if not selected_features:
             print(f"No features selected in layer '{layer_name}'")
             return None, None, None
-        
+
         # Get the coordinates and field values from selected features
         coords = []
         field_values = []
-        
+
         for feature in selected_features:
             geom = feature.geometry()
             point = geom.asPoint()
             coords.append((point.x(), point.y()))
             field_values.append(feature[field_name])
-        
+
         # Convert to numpy arrays
         coords = np.array(coords)
         field_values = np.array(field_values)
-        
+
         # Determine the dominant axis (x or y) by checking the range
         x_range = np.max(coords[:, 0]) - np.min(coords[:, 0])
         y_range = np.max(coords[:, 1]) - np.min(coords[:, 1])
-        
+
         # Sort the points based on the dominant axis
         if x_range >= y_range:
             # Sort by x-coordinate
@@ -3616,23 +3640,23 @@ class SGTool:
             # Sort by y-coordinate
             print("Sorting points along Y axis (dominant)")
             sort_idx = np.argsort(coords[:, 1])
-        
+
         coords_sorted = coords[sort_idx]
         field_values_sorted = field_values[sort_idx]
-        
+
         # Calculate distances between consecutive points
         distances = [0]
         point_distances = []
-        
+
         for i in range(1, len(coords_sorted)):
-            prev = coords_sorted[i-1]
+            prev = coords_sorted[i - 1]
             curr = coords_sorted[i]
-            d = np.sqrt((curr[0] - prev[0])**2 + (curr[1] - prev[1])**2)
+            d = np.sqrt((curr[0] - prev[0]) ** 2 + (curr[1] - prev[1]) ** 2)
             point_distances.append(d)
             distances.append(distances[-1] + d)
-        
+
         total_length = distances[-1]
-        
+
         # Determine regularization parameters
         if spacing == "auto":
             # Calculate median point spacing
@@ -3645,46 +3669,60 @@ class SGTool:
             used_spacing = spacing
         elif num_points is not None:
             num_new_points = num_points
-            used_spacing = total_length / (num_new_points - 1) if num_new_points > 1 else 0
+            used_spacing = (
+                total_length / (num_new_points - 1) if num_new_points > 1 else 0
+            )
         else:
             num_new_points = len(coords_sorted)
-            used_spacing = total_length / (num_new_points - 1) if num_new_points > 1 else 0
-            
+            used_spacing = (
+                total_length / (num_new_points - 1) if num_new_points > 1 else 0
+            )
+
         # Create evenly spaced points along the path
         new_distances = np.linspace(0, total_length, num_new_points)
-        
+
         # Interpolate coordinates along the path
-        x_interp = interp1d(distances, coords_sorted[:, 0], kind='linear')
-        y_interp = interp1d(distances, coords_sorted[:, 1], kind='linear')
-        
+        x_interp = interp1d(distances, coords_sorted[:, 0], kind="linear")
+        y_interp = interp1d(distances, coords_sorted[:, 1], kind="linear")
+
         # Interpolate field values along the path
-        field_interp = interp1d(distances, field_values_sorted, kind='linear')
-        
+        field_interp = interp1d(distances, field_values_sorted, kind="linear")
+
         # Calculate new coordinates and field values
         new_coords = np.column_stack((x_interp(new_distances), y_interp(new_distances)))
         new_field_values = field_interp(new_distances)
-        
+
         return new_coords, new_field_values, used_spacing
 
-    def create_regularized_layer(self,new_coords, new_field_values, field_name, output_layer_name="RegularizedPoints"):
+    def create_regularized_layer(
+        self,
+        new_coords,
+        new_field_values,
+        field_name,
+        output_layer_name="RegularizedPoints",
+    ):
         """
         Create a new point layer with regularized points
-        
+
         Parameters:
         new_coords (numpy.ndarray): Array of coordinates (x, y)
         new_field_values (numpy.ndarray): Array of field values
         field_name (str): Name of the field
         output_layer_name (str): Name for the output layer
-        
+
         Returns:
         QgsVectorLayer: The created layer
         """
         # Create a new memory layer
-        layer = QgsVectorLayer(f"Point?crs=EPSG:4326&field={field_name}:double", output_layer_name, "memory")
-        
+        layer = QgsVectorLayer(
+            f"Point?crs=EPSG:4326&field={field_name}:double",
+            output_layer_name,
+            "memory",
+        )
+
         # Get ready to add features
         provider = layer.dataProvider()
-        
+
         # Add features
         features = []
         for i in range(len(new_coords)):
@@ -3693,86 +3731,86 @@ class SGTool:
             feat.setGeometry(QgsGeometry.fromPointXY(point))
             feat.setAttributes([float(new_field_values[i])])
             features.append(feat)
-        
+
         provider.addFeatures(features)
-        
+
         # Add layer to the project
         QgsProject.instance().addMapLayer(layer)
-        
+
         return layer
 
-    def selected_points_to_numpy(self,layer_name, field_name):
+    def selected_points_to_numpy(self, layer_name, field_name):
         """
         Convert selected points from a QGIS point layer to a NumPy array for a specific field
-        
+
         Parameters:
         layer_name (str): Name of the point layer in the QGIS project
         field_name (str): Name of the field to extract
-        
+
         Returns:
         tuple: (numpy.ndarray of coordinates, numpy.ndarray of field values)
         """
         # Get the layer by name
         layer = QgsProject.instance().mapLayersByName(layer_name)[0]
-        
+
         if not layer:
             print(f"Layer '{layer_name}' not found")
             return None, None
-        
+
         # Check if the field exists in the layer
         fields = layer.fields()
         field_idx = fields.indexFromName(field_name)
-        
+
         if field_idx == -1:
             print(f"Field '{field_name}' not found in layer '{layer_name}'")
             return None, None
-        
+
         # Get the selected features
         selected_features = layer.selectedFeatures()
-        
+
         if not selected_features:
             print(f"No features selected in layer '{layer_name}'")
             return None, None
-        
+
         # Get the coordinates and field values from selected features
         coords = []
         field_values = []
-        
+
         for feature in selected_features:
             geom = feature.geometry()
             point = geom.asPoint()
             coords.append((point.x(), point.y()))
             field_values.append(feature[field_name])
-        
+
         # Convert to numpy arrays
         coords = np.array(coords)
         field_values = np.array(field_values)
-        
+
         return coords, field_values
-    
+
     def update_wavelet_choices(self):
-        if self.dlg.mMapLayerComboBox_selectVectors.currentText()!="":
+        if self.dlg.mMapLayerComboBox_selectVectors.currentText() != "":
             line_layer_name = self.dlg.mMapLayerComboBox_selectVectors.currentText()
             line_layer = QgsProject.instance().mapLayersByName(line_layer_name)[0]
             self.dlg.mFieldComboBox_data.setEnabled(True)
-            
+
             # Check if the layer has the LINE_ID field
-            if 'LINE_ID' not in [field.name() for field in line_layer.fields()]:
+            if "LINE_ID" not in [field.name() for field in line_layer.fields()]:
                 # Field doesn't exist, break out or handle the error
-                #QMessageBox.warning(None, "Field Missing", "The layer does not contain a LINE_ID field.")
+                # QMessageBox.warning(None, "Field Missing", "The layer does not contain a LINE_ID field.")
                 return  # This will exit the current function
-                
+
             if line_layer.geometryType() == QgsWkbTypes.PointGeometry:
                 self.dlg.mFieldComboBox_feature.clear()
                 unique_values = []
 
                 for feature in line_layer.getFeatures():
-                    value = str(feature['LINE_ID'])
+                    value = str(feature["LINE_ID"])
                     if value not in unique_values:
                         unique_values.append(value)
 
                 # Sort the values (optional)
-                unique_values=sorted(unique_values, key=int)
+                unique_values = sorted(unique_values, key=int)
 
                 # Add to combo box
                 self.dlg.mFieldComboBox_feature.addItems(unique_values)
@@ -3788,7 +3826,7 @@ class SGTool:
                         unique_values.append(str(value))
 
                 # Sort the values (optional)
-                unique_values=sorted(unique_values, key=int)
+                unique_values = sorted(unique_values, key=int)
 
                 # Add to combo box
                 self.dlg.mFieldComboBox_feature.addItems(unique_values)

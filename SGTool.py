@@ -635,6 +635,20 @@ class SGTool:
 
         self.dlg.mFieldComboBox_data.setToolTip("Select data field for points layer")
 
+        self.dlg.checkBox_PCA.setToolTip(
+            "Principal Component Analysis (PCA)\nReduces dimensionality of data while preserving variance\nUseful for identifying patterns and trends in large datasets"
+        )
+        self.dlg.mQgsSpinBox_PCA.setToolTip(
+            "Number of components to keep after PCA\nSet to 0 to keep all components"
+        )
+
+        self.dlg.checkBox_ICA.setToolTip(
+            "Independent Component Analysis (ICA)\nSeparates a multivariate signal into additive, independent components\nUseful for separating mixed signals and identifying underlying sources"
+        )
+        self.dlg.mQgsSpinBox_ICA.setToolTip(
+            "Number of components to keep after ICA\nSet to 0 to keep all components"
+        )
+
     def initParams(self):
         """Initialize parameters for the plugin."""
         self.localGridName = ""

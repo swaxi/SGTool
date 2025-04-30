@@ -25,7 +25,7 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
       
    The packages required for specific functions are:   
    **matplotlib** WTMM, Radial Power Spectrum   
-   **scikit-learn** BSDWorms   
+   **scikit-learn** BSDWorms, PCA, ICA   
    **PyWavelets** WTMM    
 
    If you don't use these functions, there is no need to install the extra packages.   

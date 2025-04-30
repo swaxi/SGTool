@@ -1797,7 +1797,6 @@ class SGTool:
                 self.procAGC()
                 self.addNewGrid()
             if self.VI:
-                # self.procRTP_E()
                 self.procvInt()
                 self.addNewGrid()
             if self.THG:
@@ -2672,15 +2671,15 @@ class SGTool:
         """
 
         try:
-            import pywt
+            import matplotlib
         except ImportError:
             QMessageBox.information(
                 None,  # Parent widget
                 "",
                 "Missing Packages for SGTool: "  # Window title
-                + f"The following Python packages are required for some functions, but not installed: PyWavelets\n\n"
+                + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
-                f"!pip3 install PyWavelets",  # Message text
+                f"!pip3 install matplotlib",  # Message text
                 QMessageBox.Ok,  # Buttons parameter
             )
             return False

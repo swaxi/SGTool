@@ -71,6 +71,7 @@ from .calcs.GridData_no_pandas import GridData
 from .calcs.GridData_no_pandas import QGISGridData
 from .calcs.SpatialStats import SpatialStats
 from .calcs.WTMM import WTMM
+from .calcs.PCAICA import PCAICA
 
 from .calcs.SG_Util import SG_Util
 from .igrf.igrf_utils import igrf_utils as IGRF
@@ -773,6 +774,9 @@ class SGTool:
         self.DTM_slope_threshold = float(self.dlg.lineEdit_DTM_Cliff.text())
         self.DTM_sigma = float(self.dlg.lineEdit_DTM_Sigma.text())
 
+        self.PCA = self.dlg.checkBox_PCA.isChecked()
+        self.ICA = self.dlg.checkBox_ICA.isChecked()
+
     def loadGrid(self):
         """
         Loads a raster grid from the specified file path, adds it to the QGIS project if not already loaded,
@@ -1178,6 +1182,107 @@ class SGTool:
             )
         self.suffix = "_Sh"
 
+    def procPCA(self):
+        self.suffix = "_PCA"
+        selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
+        self.diskGridPath = selected_layer.dataProvider().dataSourceUri()
+        self.diskNewGridPath = self.insert_text_before_extension(
+            self.diskGridPath, self.suffix
+        )
+        n_components = int(self.dlg.mQgsSpinBox_PCA.value())
+        self.delete_layer_and_file(self.localGridName + self.suffix)
+
+        components, variance_ratio = self.PCAICA.pca_with_nans(
+            self.diskGridPath, self.diskNewGridPath, n_components
+        )
+        if components is not None:
+            PCA_raster_layer = QgsRasterLayer(
+                self.diskNewGridPath, self.localGridName + self.suffix
+            )
+            QgsProject.instance().addMapLayer(PCA_raster_layer)
+
+    def delete_layer_and_file(self, layer_name, file_path=None):
+        """
+        Check if a layer with the given name exists in QGIS and delete it.
+        Also check if the file exists on disk and delete it.
+
+        Parameters:
+        layer_name (str): The name of the layer in QGIS
+        file_path (str, optional): The file path to check and delete. If None,
+                                will try to get the path from the layer
+
+        Returns:
+        tuple: (layer_deleted, file_deleted) indicating if layer and file were deleted
+        """
+        project = QgsProject.instance()
+        layer_deleted = False
+        file_deleted = False
+
+        # Check if layer exists in the project
+        layer = project.mapLayersByName(layer_name)
+        if layer:
+            # Layer exists in the project, get the first match
+            layer = layer[0]
+
+            # If file_path wasn't provided, try to get it from the layer
+            if file_path is None:
+                if hasattr(layer, "source"):
+                    file_path = layer.source()
+
+            # Remove layer from the project
+            layer_id = layer.id()
+            success = project.removeMapLayer(layer_id)
+            if success is None:  # removeMapLayer returns None on success
+                print(f"Layer '{layer_name}' has been removed from the project")
+                layer_deleted = True
+            else:
+                print(f"Failed to remove layer '{layer_name}' from the project")
+        else:
+            print(f"Layer '{layer_name}' not found in the project")
+
+        # Check if file exists on disk and delete it
+        if file_path:
+            if os.path.exists(file_path):
+                try:
+                    # Check if it's a directory
+                    if os.path.isdir(file_path):
+                        import shutil
+
+                        shutil.rmtree(file_path)
+                        print(f"Directory '{file_path}' has been deleted")
+                        file_deleted = True
+                    else:
+                        # It's a file
+                        os.remove(file_path)
+                        print(f"File '{file_path}' has been deleted")
+                        file_deleted = True
+                except Exception as e:
+                    print(f"Failed to delete '{file_path}': {str(e)}")
+            else:
+                print(f"File '{file_path}' not found on disk")
+
+        return layer_deleted, file_deleted
+
+    def procICA(self):
+        self.suffix = "_ICA"
+        selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
+
+        self.diskGridPath = selected_layer.dataProvider().dataSourceUri()
+        self.diskNewGridPath = self.insert_text_before_extension(
+            self.diskGridPath, self.suffix
+        )
+        n_components = int(self.dlg.mQgsSpinBox_ICA.value())
+        self.delete_layer_and_file(self.localGridName + self.suffix)
+
+        mixing_matrix, unmixing_matrix = self.PCAICA.ica_with_nans(
+            self.diskGridPath, self.diskNewGridPath, n_components
+        )
+        if mixing_matrix is not None:
+            ICA_raster_layer = QgsRasterLayer(
+                self.diskNewGridPath, self.localGridName + self.suffix
+            )
+            QgsProject.instance().addMapLayer(ICA_raster_layer)
+
     def procPolygons(self):
         if self.localGridName and self.localGridName != "":
             self.parseParams()
@@ -1491,7 +1596,7 @@ class SGTool:
                     self.diskNewGridPath, self.base_name + self.suffix
                 )
                 if con_raster_layer.isValid():
-                    QgsProject.instance().addMapLayer(con_raster_layer)
+                    # QgsProject.instance().addMapLayer(con_raster_layer)
 
                     # Add the layer to the project
                     QgsProject.instance().addMapLayer(con_raster_layer)
@@ -1618,6 +1723,8 @@ class SGTool:
             self.convolution = ConvolutionFilter(self.raster_array)
             self.SG_Util = SG_Util(self.raster_array)
             self.SpatialStats = SpatialStats(self.raster_array)
+            self.PCAICA = PCAICA(self.raster_array)
+
             self.suffix = ""
             if self.DirClean:
                 self.procDirClean()
@@ -1697,7 +1804,10 @@ class SGTool:
             if self.DTM_Class:
                 self.procDTM_Class()
                 self.addNewGrid()
-
+            if self.PCA:
+                self.procPCA()
+            if self.ICA:
+                self.procICA()
             if self.Polygons:
                 self.procPolygons()
 
@@ -1751,6 +1861,8 @@ class SGTool:
         self.dlg.checkBox_SS_Variance.setChecked(False)
         self.dlg.checkBox_SS_Skewness.setChecked(False)
         self.dlg.checkBox_DTM_Class.setChecked(False)
+        self.dlg.checkBox_PCA.setChecked(False)
+        self.dlg.checkBox_ICA.setChecked(False)
 
         self.RTE_P = False
         self.TA = False
@@ -3057,6 +3169,12 @@ class SGTool:
             )
             self.dlg.lineEdit_DTM_Sigma.textChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_DTM_Class)
+            )
+            self.dlg.mQgsSpinBox_PCA.textChanged.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_PCA)
+            )
+            self.dlg.mQgsSpinBox_ICA.textChanged.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_ICA)
             )
 
     def update_checkbox(self, checkbox):

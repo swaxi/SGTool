@@ -11,6 +11,7 @@
 # changelog 0.2.14 
 
       * Don't try to load LINE_ID codes if they don't exist in WTMM   
+      * added PCA & ICA calculations for multiband grids
    
 Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/metadata.txt">Metadata</a>   
    
@@ -24,7 +25,7 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
       
    The packages required for specific functions are:   
    **matplotlib** WTMM, Radial Power Spectrum   
-   **scikit-learn** BDWorms   
+   **scikit-learn** BSDWorms   
    **PyWavelets** WTMM    
 
    If you don't use these functions, there is no need to install the extra packages.   
@@ -182,6 +183,13 @@ Calculate Skewness of values around central pixel for given window size
 Calculate DTM classification based on curvature and slope   
 Based on Curvature Threshold, Cliff Threshold, Window Size and Smoothing Parameter   
 Classified array where: -1 = concave up; 0 = flat; 1 = convex up and 2 = steep slope  
+   
+## Component Analysis   
+**Principal Component Analysis**   
+Principal Component Analysis (PCA) transforms correlated variables into orthogonal components that maximize variance, creating a new coordinate system where the first component captures the most variance.   
+   
+**Independent Component Analysis**   
+Independent Component Analysis separates a multivariate signal into additive, statistically independent components by maximizing non-Gaussianity, often used to recover source signals from mixed observations.     
    
 ## Gridding   
 **Import points**   

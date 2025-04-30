@@ -636,14 +636,14 @@ class SGTool:
         self.dlg.mFieldComboBox_data.setToolTip("Select data field for points layer")
 
         self.dlg.checkBox_PCA.setToolTip(
-            "Principal Component Analysis (PCA)\nReduces dimensionality of data while preserving variance\nUseful for identifying patterns and trends in large datasets"
+            "Principal Component Analysis (PCA)\nOnly works on multiband grids\nReduces dimensionality of data while preserving variance\nUseful for identifying patterns and trends in large datasets"
         )
         self.dlg.mQgsSpinBox_PCA.setToolTip(
             "Number of components to keep after PCA\nSet to 0 to keep all components"
         )
 
         self.dlg.checkBox_ICA.setToolTip(
-            "Independent Component Analysis (ICA)\nSeparates a multivariate signal into additive, independent components\nUseful for separating mixed signals and identifying underlying sources"
+            "Independent Component Analysis (ICA)\nOnly works on multiband grids\nSeparates a multivariate signal into additive, independent components\nUseful for separating mixed signals and identifying underlying sources"
         )
         self.dlg.mQgsSpinBox_ICA.setToolTip(
             "Number of components to keep after ICA\nSet to 0 to keep all components"
@@ -1263,12 +1263,12 @@ class SGTool:
                         import shutil
 
                         shutil.rmtree(file_path)
-                        print(f"Directory '{file_path}' has been deleted")
+                        # print(f"Directory '{file_path}' has been deleted")
                         file_deleted = True
                     else:
                         # It's a file
                         os.remove(file_path)
-                        print(f"File '{file_path}' has been deleted")
+                        # print(f"File '{file_path}' has been deleted")
                         file_deleted = True
                 except Exception as e:
                     print(f"Failed to delete '{file_path}': {str(e)}")

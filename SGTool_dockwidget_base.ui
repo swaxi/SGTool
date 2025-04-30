@@ -1707,7 +1707,7 @@ font-style: italic;</string>
         </rect>
        </property>
        <property name="text">
-        <string>Principal Compenent Analysis</string>
+        <string>Principal Component Analysis</string>
        </property>
       </widget>
       <widget class="QCheckBox" name="checkBox_ICA">
@@ -1720,7 +1720,7 @@ font-style: italic;</string>
         </rect>
        </property>
        <property name="text">
-        <string>Indepenent Compenent Analysis</string>
+        <string>Indepenent Component Analysis</string>
        </property>
       </widget>
       <widget class="QgsSpinBox" name="mQgsSpinBox_PCA">
@@ -1743,7 +1743,7 @@ font-style: italic;</string>
         </rect>
        </property>
        <property name="text">
-        <string>Number of Compenents (0=all)</string>
+        <string>Number of Components (0=all)</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -1769,7 +1769,7 @@ font-style: italic;</string>
         </rect>
        </property>
        <property name="text">
-        <string>Number of Compenents (0=all)</string>
+        <string>Number of Components (0=all)</string>
        </property>
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>

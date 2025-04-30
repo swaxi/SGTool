@@ -1197,6 +1197,19 @@ class SGTool:
         self.suffix = "_Sh"
 
     def procPCA(self):
+        try:
+            import sklearn
+        except ImportError:
+            QMessageBox.information(
+                None,  # Parent widget
+                "",
+                "Missing Packages for SGTool: "  # Window title
+                + f"The following Python packages are required for PCAs, but not installed: scikit-learn\n\n"
+                "Please open the QGIS Python Console and run the following command:\n\n"
+                f"!pip3 install scikit-learn",  # Message text
+                QMessageBox.Ok,  # Buttons parameter
+            )
+            return False
         self.suffix = "_PCA"
         selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
         self.diskGridPath = selected_layer.dataProvider().dataSourceUri()
@@ -1278,6 +1291,19 @@ class SGTool:
         return layer_deleted, file_deleted
 
     def procICA(self):
+        try:
+            import sklearn
+        except ImportError:
+            QMessageBox.information(
+                None,  # Parent widget
+                "",
+                "Missing Packages for SGTool: "  # Window title
+                + f"The following Python packages are required for ICAs, but not installed: scikit-learn\n\n"
+                "Please open the QGIS Python Console and run the following command:\n\n"
+                f"!pip3 install scikit-learn",  # Message text
+                QMessageBox.Ok,  # Buttons parameter
+            )
+            return False
         self.suffix = "_ICA"
         selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
 

@@ -12,6 +12,7 @@
 
       * Don't try to load LINE_ID codes if they don't exist in WTMM   
       * added PCA & ICA calculations for multiband grids
+      * Speed up Grass-like relief calc
    
 Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/metadata.txt">Metadata</a>   
    

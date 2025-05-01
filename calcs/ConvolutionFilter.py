@@ -54,7 +54,7 @@ class ConvolutionFilter:
         """
         self.padded_grid = np.pad(self.grid, pad_width, mode="reflect")
         return self.padded_grid
-    
+
     def nan_convolution(self, kernel, mode="reflect"):
         """
         Perform convolution while handling NaN values.
@@ -73,7 +73,7 @@ class ConvolutionFilter:
 
         # For scipy.ndimage.convolve, we don't need to manually flip the kernel
         # Instead, we just need to ensure the kernel is properly centered
-        
+
         # Convolve the filled grid and the valid mask - using default origin=0
         # This will center the kernel properly
         convolved_values = convolve(grid_filled, kernel, mode=mode)
@@ -119,7 +119,7 @@ class ConvolutionFilter:
                 output[i, j] = nanmedian(window)
 
         return output
-    
+
     def gaussian_filter(self, sigma):
         """
         Apply Gaussian filter while handling NaN values.
@@ -129,26 +129,26 @@ class ConvolutionFilter:
         """
         # Create a Gaussian kernel
         size = int(2 * np.ceil(2 * sigma) + 1)
-        
+
         # Ensure size is odd (required for proper centering)
         if size % 2 == 0:
             size += 1
-            
+
         # Use meshgrid to create properly centered coordinates
         half_size = size // 2
         x = np.arange(-half_size, half_size + 1)
         y = np.arange(-half_size, half_size + 1)
         X, Y = np.meshgrid(x, y)
-        
+
         # Create 2D Gaussian kernel directly
         gaussian_kernel = np.exp(-(X**2 + Y**2) / (2 * sigma**2))
         gaussian_kernel /= gaussian_kernel.sum()
-        
+
         # Let's check if the kernel shape is odd in both dimensions
         if gaussian_kernel.shape[0] % 2 == 0 or gaussian_kernel.shape[1] % 2 == 0:
             raise ValueError("Kernel dimensions must be odd for proper centering")
-        
-        return self.nan_convolution(gaussian_kernel)    
+
+        return self.nan_convolution(gaussian_kernel)
 
     def directional_filter(self, direction, n=3):
         """
@@ -246,7 +246,7 @@ class ConvolutionFilter:
 
         return shading
 
-    def sun_shading_filter_grass(
+    def sun_shading_filter_grass_slow(
         self,
         elevation,
         resolution_ns,
@@ -348,4 +348,92 @@ class ConvolutionFilter:
 
         # Clip values to 0-255 range
         # output = np.clip(output, 0, 255)
+        return output
+
+    def sun_shading_filter_grass(
+        self,
+        elevation,
+        resolution_ns,
+        resolution_ew,
+        altitude=30.0,
+        azimuth=270.0,
+        scale=1.0,
+        zscale=1.0,
+    ):
+        """
+        Vectorized implementation of the GRASS r.relief algorithm for shaded relief.
+        Much faster than the original version with identical results.
+
+        Parameters:
+        -----------
+        elevation : np.ndarray
+            Input elevation data (2D array)
+        resolution_ns : float
+            North-south resolution (vertical) in same units as elevation
+        resolution_ew : float
+            East-west resolution (horizontal) in same units as elevation
+        altitude : float
+            Sun altitude in degrees above horizon (default: 30)
+        azimuth : float
+            Sun azimuth in degrees east of north (default: 270)
+        scale : float
+            Scale factor for converting meters to elevation units (default: 1.0)
+        zscale : float
+            Factor for exaggerating relief (default: 1.0)
+
+        Returns:
+        --------
+        np.ndarray
+            Shaded relief array with values 0-255
+        """
+        from scipy import ndimage
+
+        # Convert angles to radians
+        degrees_to_radians = np.pi / 180.0
+        altitude_rad = altitude * degrees_to_radians
+        # Correct azimuth to East (GRASS convention)
+        azimuth_rad = (azimuth + 90.0) * degrees_to_radians
+
+        # Calculate distances (following GRASS implementation)
+        H = resolution_ew * 4 * scale / zscale  # horizontal run for gradient
+        V = resolution_ns * 4 * scale / zscale  # vertical run for gradient
+
+        # Pad the elevation array to handle edges
+        elev_padded = np.pad(elevation, pad_width=1, mode="edge")
+
+        # Create convolution kernels for gradient calculation (matching GRASS implementation)
+        dx_kernel = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]]) / H
+        dy_kernel = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]]) / V
+
+        # Calculate gradients using convolution
+        dx = ndimage.convolve(elev_padded, dx_kernel)[1:-1, 1:-1]
+        dy = ndimage.convolve(elev_padded, dy_kernel)[1:-1, 1:-1]
+
+        # Calculate slope
+        slope = np.pi / 2.0 - np.arctan(np.sqrt(dx**2 + dy**2))
+
+        # Calculate aspect (GRASS implementation)
+        aspect = np.arctan2(dy, dx)
+
+        # Handle special cases for aspect
+        mask_zero = (dx == 0) & (dy == 0)
+        aspect[mask_zero] = degrees_to_radians
+
+        # Calculate shaded relief
+        cang = np.sin(altitude_rad) * np.sin(slope) + np.cos(altitude_rad) * np.cos(
+            slope
+        ) * np.cos(azimuth_rad - aspect)
+
+        # Scale to 0-255 range
+        output = 255.0 * cang
+
+        # Handle NaN values in the input
+        if np.any(np.isnan(elevation)):
+            # Create a mask for 3x3 windows containing NaN values
+            nan_mask = np.isnan(elev_padded)
+            # Use maximum filter to expand the mask by one pixel in all directions
+            expanded_nan_mask = ndimage.maximum_filter(nan_mask, size=3)
+            # Apply to our output, removing the padding
+            output[expanded_nan_mask[1:-1, 1:-1]] = np.nan
+
         return output

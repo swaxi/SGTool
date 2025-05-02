@@ -1695,7 +1695,7 @@ font-style: italic;</string>
        </rect>
       </property>
       <property name="title">
-       <string>Component Analysis</string>
+       <string>Multivariate Statistical Analysis</string>
       </property>
       <widget class="QCheckBox" name="checkBox_PCA">
        <property name="geometry">

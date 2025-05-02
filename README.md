@@ -185,7 +185,7 @@ Calculate DTM classification based on curvature and slope
 Based on Curvature Threshold, Cliff Threshold, Window Size and Smoothing Parameter   
 Classified array where: -1 = concave up; 0 = flat; 1 = convex up and 2 = steep slope  
    
-## Component Analysis   
+## Multivariate Statistical Analysis   
 **Principal Component Analysis**   
 Principal Component Analysis (PCA) transforms correlated variables into orthogonal components that maximize variance, creating a new coordinate system where the first component captures the most variance.   
    

@@ -46,78 +46,6 @@ class GeophysicalProcessor:
         ky = np.fft.fftfreq(ny, self.dy) * 2 * np.pi
         return np.meshgrid(kx, ky)
 
-    def fill_nanyy(self, data):
-        """
-        Replace NaN values with interpolated values from non-NaN neighbors.
-        """
-        # Make a copy of the data
-        filled_data = np.copy(data)
-        nan_mask = np.isnan(data)
-
-        # Get indices of all non-NaN points
-        non_nan_indices = np.where(~nan_mask)
-        non_nan_values = data[~nan_mask]
-
-        # Get indices of all NaN points
-        nan_indices = np.where(nan_mask)
-
-        # Only interpolate if we have some non-NaN values and some NaN values
-        if len(non_nan_values) > 0 and np.any(nan_mask):
-            # Use griddata for interpolation
-            from scipy.interpolate import griddata
-
-            # Interpolate using the non-NaN values
-            filled_values = griddata(
-                np.array(non_nan_indices).T,  # Points we know
-                non_nan_values,  # Values we know
-                np.array(nan_indices).T,  # Points to interpolate
-                method="linear",  # Linear interpolation
-                fill_value=np.nanmedian(
-                    data
-                ),  # Use median for points outside the convex hull
-            )
-
-            # Place the interpolated values back into the array
-            filled_data[nan_mask] = filled_values
-
-        return filled_data, nan_mask
-
-    def fill_nan_slow(self, data):
-        """
-        Replace NaN values with interpolated values from non-NaN neighbors.
-        """
-        # Make a copy of the data
-        filled_data = np.copy(data)
-        nan_mask = np.isnan(data)
-
-        # Get indices of all non-NaN points
-        non_nan_indices = np.where(~nan_mask)
-        non_nan_values = data[~nan_mask]
-
-        # Get indices of all NaN points
-        nan_indices = np.where(nan_mask)
-
-        # Only interpolate if we have some non-NaN values and some NaN values
-        if len(non_nan_values) > 0 and np.any(nan_mask):
-            # Use griddata for interpolation
-            from scipy.interpolate import griddata
-
-            # Interpolate using the non-NaN values
-            filled_values = griddata(
-                np.array(non_nan_indices).T,  # Points we know
-                non_nan_values,  # Values we know
-                np.array(nan_indices).T,  # Points to interpolate
-                method="linear",  # Linear interpolation
-                fill_value=np.nanmedian(
-                    data
-                ),  # Use median for points outside the convex hull
-            )
-
-            # Place the interpolated values back into the array
-            filled_data[nan_mask] = filled_values
-
-        return filled_data, nan_mask
-
     def fill_nan(self, data):
         """
         Replace NaN values with interpolated values from non-NaN neighbors
@@ -721,150 +649,151 @@ class GeophysicalProcessor:
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method
         )
-    
+
     def butterworth_band_pass(
-            self, data, low_cut, high_cut, order=4, buffer_size=10, buffer_method="mirror"
-        ):
-            """
-            Apply a Butterworth band-pass filter to isolate anomalies within a wavelength range.
-            
-            Parameters
-            ----------
-            data : array-like
-                Input data to be filtered
-            low_cut : float
-                Low cut-off wavelength (features with longer wavelengths will be attenuated)
-            high_cut : float
-                High cut-off wavelength (features with shorter wavelengths will be attenuated)
-            order : int, optional
-                Order of the Butterworth filter. Higher orders create sharper transitions
-                but may introduce more ringing artifacts. Default is 4.
-            buffer_size : int
-                Size of the buffer zone for reducing edge effects
-            buffer_method : str
-                Method for handling the buffer zone ("mirror", "mean", etc.)
-                
-            Returns
-            -------
-            array-like
-                The band-pass filtered data
-            """
+        self, data, low_cut, high_cut, order=4, buffer_size=10, buffer_method="mirror"
+    ):
+        """
+        Apply a Butterworth band-pass filter to isolate anomalies within a wavelength range.
 
-            def filter_function(kx, ky):
-                k = np.sqrt(kx**2 + ky**2)
-                
-                # Convert wavelength cutoffs to wavenumber cutoffs
-                k_high = 2 * np.pi / high_cut  # High-pass cutoff (removes long wavelengths)
-                k_low = 2 * np.pi / low_cut    # Low-pass cutoff (removes short wavelengths)
-                
-                # Avoid division by zero
-                k = np.maximum(k, 1e-10)
-                
-                # Butterworth high-pass component (attenuates low frequencies)
-                high_pass = 1.0 / (1.0 + (k_high / k)**(2 * order))
-                
-                # Butterworth low-pass component (attenuates high frequencies)
-                low_pass = 1.0 / (1.0 + (k / k_low)**(2 * order))
-                
-                # Combine to create band-pass filter
-                band_pass = high_pass * low_pass
-                
-                return band_pass
+        Parameters
+        ----------
+        data : array-like
+            Input data to be filtered
+        low_cut : float
+            Low cut-off wavelength (features with longer wavelengths will be attenuated)
+        high_cut : float
+            High cut-off wavelength (features with shorter wavelengths will be attenuated)
+        order : int, optional
+            Order of the Butterworth filter. Higher orders create sharper transitions
+            but may introduce more ringing artifacts. Default is 4.
+        buffer_size : int
+            Size of the buffer zone for reducing edge effects
+        buffer_method : str
+            Method for handling the buffer zone ("mirror", "mean", etc.)
 
-            return self._apply_fourier_filter(
-                data, filter_function, buffer_size, buffer_method
-            )
-    
+        Returns
+        -------
+        array-like
+            The band-pass filtered data
+        """
+
+        def filter_function(kx, ky):
+            k = np.sqrt(kx**2 + ky**2)
+
+            # Convert wavelength cutoffs to wavenumber cutoffs
+            k_high = 2 * np.pi / high_cut  # High-pass cutoff (removes long wavelengths)
+            k_low = 2 * np.pi / low_cut  # Low-pass cutoff (removes short wavelengths)
+
+            # Avoid division by zero
+            k = np.maximum(k, 1e-10)
+
+            # Butterworth high-pass component (attenuates low frequencies)
+            high_pass = 1.0 / (1.0 + (k_high / k) ** (2 * order))
+
+            # Butterworth low-pass component (attenuates high frequencies)
+            low_pass = 1.0 / (1.0 + (k / k_low) ** (2 * order))
+
+            # Combine to create band-pass filter
+            band_pass = high_pass * low_pass
+
+            return band_pass
+
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
+
     def directional_butterworth_band_pass(
-            self, 
-            data, 
-            low_cut, 
-            high_cut, 
-            direction_angle=0, 
-            direction_width=45, 
-            order=4, 
-            buffer_size=10, 
-            buffer_method="mirror"
-        ):
-            """
-            Apply a combined Butterworth band-pass filter with directional filtering.
-            
-            Parameters
-            ----------
-            data : array-like
-                Input data to be filtered
-            low_cut : float
-                Low cut-off wavelength (features with longer wavelengths will be attenuated)
-            high_cut : float
-                High cut-off wavelength (features with shorter wavelengths will be attenuated)
-            direction_angle : float, optional
-                The primary direction to emphasize, in degrees clockwise from north (0-360)
-            direction_width : float, optional
-                Angular width parameter controlling directional sensitivity (degrees)
-            order : int, optional
-                Order of the Butterworth filter. Higher orders create sharper transitions
-                but may introduce more ringing artifacts. Default is 4.
-            buffer_size : int
-                Size of the buffer zone for reducing edge effects
-            buffer_method : str
-                Method for handling the buffer zone ("mirror", "mean", etc.)
-                
-            Returns
-            -------
-            array-like
-                The filtered data with both band-pass and directional filtering applied
-            """
+        self,
+        data,
+        low_cut,
+        high_cut,
+        direction_angle=0,
+        direction_width=45,
+        order=4,
+        buffer_size=10,
+        buffer_method="mirror",
+    ):
+        """
+        Apply a combined Butterworth band-pass filter with directional filtering.
 
-            def filter_function(kx, ky):
-                # Compute wavenumber magnitude for band-pass filter
-                k = np.sqrt(kx**2 + ky**2)
-                
-                # Convert wavelength cutoffs to wavenumber cutoffs
-                k_high = 2 * np.pi / high_cut  # High-pass cutoff (removes long wavelengths)
-                k_low = 2 * np.pi / low_cut    # Low-pass cutoff (removes short wavelengths)
-                
-                # Avoid division by zero
-                k = np.maximum(k, 1e-10)
-                
-                # Butterworth high-pass component (attenuates low frequencies)
-                high_pass = 1.0 / (1.0 + (k_high / k)**(2 * order))
-                
-                # Butterworth low-pass component (attenuates high frequencies)
-                low_pass = 1.0 / (1.0 + (k / k_low)**(2 * order))
-                
-                # Combine to create band-pass filter
-                band_pass = high_pass * low_pass
-                
-                # Directional filter component
-                # Convert direction angle to radians (0 is north, increases clockwise)
-                angle_rad = np.radians( direction_angle)  # Convert from N=0 to standard math orientation
-                
-                # Calculate wavenumber direction
-                # Use arctan2 to get angle in all quadrants
-                k_angle = np.arctan2(ky, kx)
-                
-                # Find smallest angular difference (handles wrap-around)
-                angle_diff = np.abs(np.mod(k_angle - angle_rad + np.pi, 2 * np.pi) - np.pi)
-                
-                # Convert width to radians
-                width_rad = np.radians(direction_width)
-                
-                # Create directional cosine filter
-                # Use cosine-squared function for smooth transitions
-                directional_filter = np.cos(angle_diff * np.pi / (2 * width_rad))**2.0
-                
-                # Apply cosine taper for angles beyond the specified width
-                directional_filter[angle_diff > width_rad] = 0
-                
-                # Combine band-pass and directional filters
-                combined_filter = band_pass * directional_filter
-                
-                return combined_filter
+        Parameters
+        ----------
+        data : array-like
+            Input data to be filtered
+        low_cut : float
+            Low cut-off wavelength (features with longer wavelengths will be attenuated)
+        high_cut : float
+            High cut-off wavelength (features with shorter wavelengths will be attenuated)
+        direction_angle : float, optional
+            The primary direction to emphasize, in degrees clockwise from north (0-360)
+        direction_width : float, optional
+            Angular width parameter controlling directional sensitivity (degrees)
+        order : int, optional
+            Order of the Butterworth filter. Higher orders create sharper transitions
+            but may introduce more ringing artifacts. Default is 4.
+        buffer_size : int
+            Size of the buffer zone for reducing edge effects
+        buffer_method : str
+            Method for handling the buffer zone ("mirror", "mean", etc.)
 
-            return self._apply_fourier_filter(
-                data, filter_function, buffer_size, buffer_method
-            )
+        Returns
+        -------
+        array-like
+            The filtered data with both band-pass and directional filtering applied
+        """
 
+        def filter_function(kx, ky):
+            # Compute wavenumber magnitude for band-pass filter
+            k = np.sqrt(kx**2 + ky**2)
+
+            # Convert wavelength cutoffs to wavenumber cutoffs
+            k_high = 2 * np.pi / high_cut  # High-pass cutoff (removes long wavelengths)
+            k_low = 2 * np.pi / low_cut  # Low-pass cutoff (removes short wavelengths)
+
+            # Avoid division by zero
+            k = np.maximum(k, 1e-10)
+
+            # Butterworth high-pass component (attenuates low frequencies)
+            high_pass = 1.0 / (1.0 + (k_high / k) ** (2 * order))
+
+            # Butterworth low-pass component (attenuates high frequencies)
+            low_pass = 1.0 / (1.0 + (k / k_low) ** (2 * order))
+
+            # Combine to create band-pass filter
+            band_pass = high_pass * low_pass
+
+            # Directional filter component
+            # Convert direction angle to radians (0 is north, increases clockwise)
+            angle_rad = np.radians(
+                direction_angle
+            )  # Convert from N=0 to standard math orientation
+
+            # Calculate wavenumber direction
+            # Use arctan2 to get angle in all quadrants
+            k_angle = np.arctan2(ky, kx)
+
+            # Find smallest angular difference (handles wrap-around)
+            angle_diff = np.abs(np.mod(k_angle - angle_rad + np.pi, 2 * np.pi) - np.pi)
+
+            # Convert width to radians
+            width_rad = np.radians(direction_width)
+
+            # Create directional cosine filter
+            # Use cosine-squared function for smooth transitions
+            directional_filter = np.cos(angle_diff * np.pi / (2 * width_rad)) ** 2.0
+
+            # Apply cosine taper for angles beyond the specified width
+            directional_filter[angle_diff > width_rad] = 0
+
+            # Combine band-pass and directional filters
+            combined_filter = band_pass * directional_filter
+
+            return combined_filter
+
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
 
     def total_horizontal_gradient(self, data, buffer_size=10, buffer_method="mirror"):
         """
@@ -897,25 +826,6 @@ class GeophysicalProcessor:
         )  # Convert center direction to radians
         directional_filter = np.abs(np.cos(theta - center_radians)) ** degree
         return directional_filter
-
-    def combined_BHP_DirCos_filter(
-        self, data, cutoff_wavelength, center_direction, degree, buffer_size
-    ):
-        """
-        Apply the Directional Cosine filter to the data.
-        """
-
-        def filter_function_dc(kx, ky):
-            # Create the Direction Cosine high-pass filter
-            directional = self.directional_cosine_filter(
-                kx, ky, center_direction, degree
-            )
-
-            return directional
-
-        return self._apply_fourier_filter(
-            data, filter_function_dc, buffer_size=buffer_size, buffer_method="mirror"
-        )
 
     # --- Internal Fourier Filter Application ---
     def _apply_fourier_filter(
@@ -953,507 +863,6 @@ class GeophysicalProcessor:
             filtered_data, buffer_size, padding_info
         )
         return self.restore_nan(buffer_removed_data, nan_mask)
-
-    def bsdwormerttt(self, gridPath, num_levels, bottom_level, delta_z, shps, crs):
-        from qgis.core import QgsTask, QgsApplication
-        import numpy as np
-        from math import ceil
-        import os
-
-        print(gridPath, num_levels, bottom_level, delta_z)
-        # load grid and convert to numpy
-        image, layer = loadGrid(gridPath)
-
-        # Process initial grid setup
-        image_zero_mean = image - np.nanmean(image)
-        image_zero_mea_nonan = fill_nan(image_zero_mean)
-        pad_y = int(0.2 * image.shape[0])
-        pad_x = int(0.2 * image.shape[1])
-
-        pad_x = ceil(pad_x / 2) * 2
-        pad_y = ceil(pad_y / 2) * 2
-        padded_image = np.pad(
-            image_zero_mea_nonan,
-            pad_width=((pad_y, pad_y), (pad_x, pad_x)),
-            mode="linear_ramp",
-        )
-        print("padded_size=", padded_image.shape)
-
-        # Create and apply Hanning window
-        window_y = np.hanning(padded_image.shape[0])
-        window_x = np.hanning(padded_image.shape[1])
-        hanning_window = np.outer(window_y, window_x)
-        final_image = padded_image * hanning_window
-
-        # Setup paths
-        gridPathPadded = insert_text_before_extension(gridPath, "_padded")
-        dir_name, base_name = os.path.split(gridPath)
-        file_name, file_ext = os.path.splitext(base_name)
-        wormsPath = dir_name + "/" + file_name + "_worms.csv"
-
-        # Initialize primary Wormer instance for setup
-        initial_job = Wormer()
-        initial_job.importGdalRaster(gridPath)
-        extent = initial_job.geomat
-        extentPadded = GetExtent(initial_job.geomat, -pad_x, -pad_y)
-
-        # Save padded image
-        numpy_array_to_raster(
-            final_image,
-            gridPathPadded,
-            pad_x,
-            pad_y,
-            dx=initial_job.geomat[1],
-            xmin=extentPadded[2][0],
-            ymax=extentPadded[2][1],
-            reference_layer=layer,
-            no_data_value=np.nan,
-        )
-
-        # Clear existing worms file
-        if os.path.exists(wormsPath):
-            os.remove(wormsPath)
-
-        # Write header
-        with open(wormsPath, "w") as f:
-            f.write("y,x,z,val\n")
-
-        class WormLevelTask(QgsTask):
-            def __init__(
-                self,
-                dz,
-                gridPathPadded,
-                pad_x,
-                pad_y,
-                extent,
-                extentPadded,
-                delta_z,
-                bottom_level,
-                wormsPath,
-            ):
-                super().__init__(f"Process Worm Level {dz}", QgsTask.CanCancel)
-                self.dz = dz
-                self.gridPathPadded = gridPathPadded
-                self.pad_x = pad_x
-                self.pad_y = pad_y
-                self.extent = extent
-                self.extentPadded = extentPadded
-                self.delta_z = delta_z
-                self.bottom_level = bottom_level
-                self.wormsPath = wormsPath
-
-            def run(self):
-                try:
-                    # Create a new Wormer instance for this task
-                    job = Wormer()
-                    job.importGdalRaster(self.gridPathPadded)
-                    job.importExternallyPaddedRaster(
-                        self.gridPathPadded, self.pad_x, self.pad_y
-                    )
-
-                    dzm = (self.dz * self.delta_z) + self.bottom_level
-                    if dzm == 0:
-                        dzm = 0.01
-
-                    job.wormLevelAsPoints(dz=dzm)
-                    z = [dzm] * len(job.worm_ys)
-                    x = (job.worm_xs * job.geomat[1]) + self.extentPadded[2][0]
-                    y = (job.worm_ys * job.geomat[5]) + self.extentPadded[2][1]
-                    vals = job.worm_vals
-
-                    if len(job.worm_ys) == 0:
-                        print(f"No points generated for level {self.dz}")
-                        return True
-
-                    points = np.column_stack(
-                        (
-                            y[: len(job.worm_ys)],
-                            x[: len(job.worm_xs)],
-                            z[: len(job.worm_ys)],
-                            vals[: len(job.worm_ys)],
-                        )
-                    )
-
-                    # Apply filter conditions
-                    mask = (
-                        (points[:, 1] >= self.extent[0])
-                        & (
-                            points[:, 1]
-                            <= self.extent[0] + (job.raster_shape[1] * job.geomat[1])
-                        )
-                        & (
-                            points[:, 0]
-                            >= self.extent[3] + (job.raster_shape[0] * job.geomat[5])
-                        )
-                        & (points[:, 0] <= self.extent[3])
-                    )
-
-                    filtered_points = points[mask]
-
-                    if len(filtered_points) > 0:
-                        # Write to file with lock
-                        with open(self.wormsPath, "a") as f:
-                            np.savetxt(f, filtered_points, delimiter=",", fmt="%s")
-
-                    return True
-                except Exception as e:
-                    print(f"Error processing level {self.dz}: {str(e)}")
-                    return False
-
-        # Create and queue tasks for each level
-        task_manager = QgsApplication.taskManager()
-        tasks = []
-
-        for dz in range(0, num_levels):
-            task = WormLevelTask(
-                dz=dz,
-                gridPathPadded=gridPathPadded,
-                pad_x=pad_x,
-                pad_y=pad_y,
-                extent=extent,
-                extentPadded=extentPadded,
-                delta_z=delta_z,
-                bottom_level=bottom_level,
-                wormsPath=wormsPath,
-            )
-            task_manager.addTask(task)
-            tasks.append(task)
-
-        # Wait for all tasks to complete
-        for task in tasks:
-            task.waitForFinished()
-
-        # Process shapefile if requested
-        if shps:
-            max_distance = initial_job.geomat[1] * 4
-            in_path = wormsPath
-            out_path = wormsPath.replace(".csv", ".shp")
-            self.xyz_to_polylines(in_path, out_path, max_distance, crs)
-
-    def bsdwormertt(self, gridPath, num_levels, bottom_level, delta_z, shps, crs):
-        from qgis.core import QgsTask, QgsApplication
-        import numpy as np
-        from math import ceil
-        import os
-
-        print(gridPath, num_levels, bottom_level, delta_z)
-        # load grid and convert to numpy
-        image, layer = loadGrid(gridPath)
-
-        # Process initial grid setup
-        image_zero_mean = image - np.nanmean(image)
-        image_zero_mea_nonan = fill_nan(image_zero_mean)
-        pad_y = int(0.2 * image.shape[0])
-        pad_x = int(0.2 * image.shape[1])
-
-        pad_x = ceil(pad_x / 2) * 2
-        pad_y = ceil(pad_y / 2) * 2
-        padded_image = np.pad(
-            image_zero_mea_nonan,
-            pad_width=((pad_y, pad_y), (pad_x, pad_x)),
-            mode="linear_ramp",
-        )
-        print("padded_size=", padded_image.shape)
-
-        # Create and apply Hanning window
-        window_y = np.hanning(padded_image.shape[0])
-        window_x = np.hanning(padded_image.shape[1])
-        hanning_window = np.outer(window_y, window_x)
-        final_image = padded_image * hanning_window
-
-        # Setup paths
-        gridPathPadded = insert_text_before_extension(gridPath, "_padded")
-        dir_name, base_name = os.path.split(gridPath)
-        file_name, file_ext = os.path.splitext(base_name)
-        wormsPath = dir_name + "/" + file_name + "_worms.csv"
-
-        # Initialize primary Wormer instance for setup
-        initial_job = Wormer()
-        initial_job.importGdalRaster(gridPath)
-        extent = initial_job.geomat
-        extentPadded = GetExtent(initial_job.geomat, -pad_x, -pad_y)
-
-        # Save padded image
-        numpy_array_to_raster(
-            final_image,
-            gridPathPadded,
-            pad_x,
-            pad_y,
-            dx=initial_job.geomat[1],
-            xmin=extentPadded[2][0],
-            ymax=extentPadded[2][1],
-            reference_layer=layer,
-            no_data_value=np.nan,
-        )
-
-        # Clear existing worms file
-        if os.path.exists(wormsPath):
-            os.remove(wormsPath)
-
-        # Write header
-        with open(wormsPath, "w") as f:
-            f.write("y,x,z,val\n")
-
-        class WormLevelTask(QgsTask):
-            def __init__(
-                self,
-                dz,
-                gridPathPadded,
-                pad_x,
-                pad_y,
-                extent,
-                extentPadded,
-                delta_z,
-                bottom_level,
-                wormsPath,
-            ):
-                super().__init__(f"Process Worm Level {dz}", QgsTask.CanCancel)
-                self.dz = dz
-                self.gridPathPadded = gridPathPadded
-                self.pad_x = pad_x
-                self.pad_y = pad_y
-                self.extent = extent
-                self.extentPadded = extentPadded
-                self.delta_z = delta_z
-                self.bottom_level = bottom_level
-                self.wormsPath = wormsPath
-
-            def run(self):
-                try:
-                    # Create a new Wormer instance for this task
-                    job = Wormer()
-                    job.importGdalRaster(self.gridPathPadded)
-                    job.importExternallyPaddedRaster(
-                        self.gridPathPadded, self.pad_x, self.pad_y
-                    )
-
-                    dzm = (self.dz * self.delta_z) + self.bottom_level
-                    if dzm == 0:
-                        dzm = 0.01
-
-                    job.wormLevelAsPoints(dz=dzm)
-                    z = [dzm] * len(job.worm_ys)
-                    x = (job.worm_xs * job.geomat[1]) + self.extentPadded[2][0]
-                    y = (job.worm_ys * job.geomat[5]) + self.extentPadded[2][1]
-                    vals = job.worm_vals
-
-                    if len(job.worm_ys) == 0:
-                        print(f"No points generated for level {self.dz}")
-                        return True
-
-                    points = np.column_stack(
-                        (
-                            y[: len(job.worm_ys)],
-                            x[: len(job.worm_xs)],
-                            z[: len(job.worm_ys)],
-                            vals[: len(job.worm_ys)],
-                        )
-                    )
-
-                    # Apply filter conditions
-                    mask = (
-                        (points[:, 1] >= self.extent[0])
-                        & (
-                            points[:, 1]
-                            <= self.extent[0] + (job.raster_shape[1] * job.geomat[1])
-                        )
-                        & (
-                            points[:, 0]
-                            >= self.extent[3] + (job.raster_shape[0] * job.geomat[5])
-                        )
-                        & (points[:, 0] <= self.extent[3])
-                    )
-
-                    filtered_points = points[mask]
-
-                    if len(filtered_points) > 0:
-                        # Write to file with lock
-                        with open(self.wormsPath, "a") as f:
-                            np.savetxt(f, filtered_points, delimiter=",", fmt="%s")
-
-                    return True
-                except Exception as e:
-                    print(f"Error processing level {self.dz}: {str(e)}")
-                    return False
-
-        # Create and queue tasks for each level
-        task_manager = QgsApplication.taskManager()
-        tasks = []
-
-        for dz in range(0, num_levels):
-            task = WormLevelTask(
-                dz=dz,
-                gridPathPadded=gridPathPadded,
-                pad_x=pad_x,
-                pad_y=pad_y,
-                extent=extent,
-                extentPadded=extentPadded,
-                delta_z=delta_z,
-                bottom_level=bottom_level,
-                wormsPath=wormsPath,
-            )
-            task_manager.addTask(task)
-            tasks.append(task)
-
-        # Wait for all tasks to complete
-        for task in tasks:
-            task.waitForFinished()
-
-        # Process shapefile if requested
-        if shps:
-            max_distance = initial_job.geomat[1] * 1.3
-            in_path = wormsPath
-            out_path = wormsPath.replace(".csv", ".shp")
-            self.xyz_to_polylines(in_path, out_path, max_distance, crs)
-
-    def bsdwormerss(self, gridPath, num_levels, bottom_level, delta_z, shps, crs):
-        from qgis.core import QgsTask, QgsApplication
-        import numpy as np
-        from math import ceil
-        import os
-
-        print(gridPath, num_levels, bottom_level, delta_z)
-        # load grid and convert to numpy
-        image, layer = loadGrid(gridPath)
-
-        # Process initial grid setup (same as before)
-        image_zero_mean = image - np.nanmean(image)
-        image_zero_mea_nonan = fill_nan(image_zero_mean)
-        pad_y = int(0.2 * image.shape[0])
-        pad_x = int(0.2 * image.shape[1])
-
-        pad_x = ceil(pad_x / 2) * 2
-        pad_y = ceil(pad_y / 2) * 2
-        padded_image = np.pad(
-            image_zero_mea_nonan,
-            pad_width=((pad_y, pad_y), (pad_x, pad_x)),
-            mode="linear_ramp",
-        )
-        print("padded_size=", padded_image.shape)
-
-        # Create and apply Hanning window
-        window_y = np.hanning(padded_image.shape[0])
-        window_x = np.hanning(padded_image.shape[1])
-        hanning_window = np.outer(window_y, window_x)
-        final_image = padded_image * hanning_window
-
-        # Setup job and paths
-        job = Wormer()
-        job.importGdalRaster(gridPath)
-        extent = job.geomat
-        extentPadded = GetExtent(job.geomat, -pad_x, -pad_y)
-        gridPathPadded = insert_text_before_extension(gridPath, "_padded")
-
-        dir_name, base_name = os.path.split(gridPath)
-        file_name, file_ext = os.path.splitext(base_name)
-        wormsPath = dir_name + "/" + file_name + "_worms.csv"
-
-        # Save padded image
-        numpy_array_to_raster(
-            final_image,
-            gridPathPadded,
-            pad_x,
-            pad_y,
-            dx=job.geomat[1],
-            xmin=extentPadded[2][0],
-            ymax=extentPadded[2][1],
-            reference_layer=layer,
-            no_data_value=np.nan,
-        )
-
-        job.importExternallyPaddedRaster(gridPathPadded, pad_x, pad_y)
-
-        # Clear existing worms file
-        if os.path.exists(wormsPath):
-            os.remove(wormsPath)
-
-        # Write header
-        with open(wormsPath, "w") as f:
-            f.write("y,x,z,val\n")
-
-        # Create a task for processing each dz level
-        class WormLevelTask(QgsTask):
-            def __init__(
-                self, dz, job, extent, image, wormsPath, delta_z, bottom_level
-            ):
-                super().__init__(f"Process Worm Level {dz}", QgsTask.CanCancel)
-                self.dz = dz
-                self.job = job
-                self.extent = extent
-                self.image = image
-                self.wormsPath = wormsPath
-                self.delta_z = delta_z
-                self.bottom_level = bottom_level
-
-            def run(self):
-                try:
-                    dzm = (self.dz * self.delta_z) + self.bottom_level
-                    if dzm == 0:
-                        dzm = 0.01
-
-                    self.job.wormLevelAsPoints(dz=dzm)
-                    z = [dzm] * len(self.job.worm_ys)
-                    x = (self.job.worm_xs * self.job.geomat[1]) + extentPadded[2][0]
-                    y = (self.job.worm_ys * self.job.geomat[5]) + extentPadded[2][1]
-                    vals = self.job.worm_vals
-
-                    points = np.column_stack(
-                        (
-                            y[: len(self.job.worm_ys)],
-                            x[: len(self.job.worm_xs)],
-                            z[: len(self.job.worm_ys)],
-                            vals[: len(self.job.worm_ys)],
-                        )
-                    )
-
-                    # Apply filter conditions
-                    mask = (
-                        (points[:, 1] >= self.extent[0])
-                        & (
-                            points[:, 1]
-                            <= self.extent[0]
-                            + (self.image.shape[1] * self.job.geomat[1])
-                        )
-                        & (
-                            points[:, 0]
-                            >= self.extent[3]
-                            + (self.image.shape[0] * self.job.geomat[5])
-                        )
-                        & (points[:, 0] <= self.extent[3])
-                    )
-
-                    filtered_points = points[mask]
-
-                    # Write to file with lock to prevent concurrent writes
-                    with open(self.wormsPath, "a") as f:
-                        np.savetxt(f, filtered_points, delimiter=",", fmt="%s")
-
-                    return True
-                except Exception as e:
-                    print(f"Error processing level {self.dz}: {str(e)}")
-                    return False
-
-        # Create and queue tasks for each level
-        task_manager = QgsApplication.taskManager()
-        tasks = []
-
-        for dz in range(0, num_levels):
-            task = WormLevelTask(
-                dz, job, extent, image, wormsPath, delta_z, bottom_level
-            )
-            task_manager.addTask(task)
-            tasks.append(task)
-
-        # Wait for all tasks to complete
-        for task in tasks:
-            task.waitForFinished()
-
-        # Process shapefile if requested
-        if shps:
-            max_distance = job.geomat[1] * 1.3
-            in_path = wormsPath
-            out_path = wormsPath.replace(".csv", ".shp")
-            self.xyz_to_polylines(in_path, out_path, max_distance, crs)
 
     def bsdwormer(self, gridPath, num_levels, bottom_level, delta_z, shps, crs):
         # code borrows heavilly from bsdwormer example ipynb template example
@@ -1579,46 +988,6 @@ class GeophysicalProcessor:
         plt.colorbar()
         plt.title("Grid")
         plt.show()
-
-    def split_long_segments(self, line, max_distance):
-        """Split a LineString into segments, interpolating points where needed."""
-        from shapely.geometry import Point, LineString
-        import numpy as np
-
-        coords = list(line.coords)
-        new_lines = []
-
-        for i in range(len(coords) - 1):
-            p1 = coords[i]
-            p2 = coords[i + 1]
-
-            # Calculate distance between consecutive points
-            segment_length = Point(p1).distance(Point(p2))
-
-            if segment_length <= max_distance:
-                # If segment is within threshold, add it directly
-                new_lines.append(LineString([p1, p2]))
-            else:
-                # If segment exceeds threshold, interpolate points
-                num_segments = int(np.ceil(segment_length / max_distance))
-
-                for j in range(num_segments):
-                    # Calculate interpolated points
-                    t1 = j / num_segments
-                    t2 = (j + 1) / num_segments
-
-                    interpolated_p1 = (
-                        p1[0] + t1 * (p2[0] - p1[0]),
-                        p1[1] + t1 * (p2[1] - p1[1]),
-                    )
-                    interpolated_p2 = (
-                        p1[0] + t2 * (p2[0] - p1[0]),
-                        p1[1] + t2 * (p2[1] - p1[1]),
-                    )
-
-                    new_lines.append(LineString([interpolated_p1, interpolated_p2]))
-
-        return new_lines
 
     def process_cluster(self, points, z, max_distance):
         """Process a cluster of points to create split LineStrings with better connectivity."""
@@ -1866,22 +1235,6 @@ class GeophysicalProcessor:
         data[data < -1e38] = safe_nodata_value
         return data, safe_nodata_value
 
-    def compute_reference_stats(self, reference_tiff):
-        """Compute mean and standard deviation from the first (reference) GeoTIFF."""
-        ds = gdal.Open(reference_tiff)
-        band = ds.GetRasterBand(1)
-        data = band.ReadAsArray().astype(np.float32)
-        data, nodata_value = self.fix_extreme_values(data)
-        mask = (data == nodata_value) | np.isnan(data)
-
-        detrended_data = self.remove_gradient(data, mask)
-        valid_data = detrended_data[~mask]
-        mean, std = (
-            (np.mean(valid_data), np.std(valid_data)) if valid_data.size > 0 else (0, 1)
-        )
-
-        return mean, std
-
     def normalise_geotiffs(self, input_folder, output_folder, order):
         """
         Process multiple GeoTIFF files by normalizing them using parameters from the first GeoTIFF.
@@ -1918,9 +1271,6 @@ class GeophysicalProcessor:
             data = data.astype(np.float32)
             mask = (data == nodata_value) | np.isnan(data)
 
-            # print("nodata_value:", nodata_value)
-            # print("Unique values in data:", np.unique(data))
-
             if order:
                 detrended_data = self.remove_gradient(data, mask)
             else:
@@ -1942,9 +1292,6 @@ class GeophysicalProcessor:
                 )
                 continue
 
-            # print("nonnan", np.count_nonzero(~np.isnan(valid_data)))
-            # print("max min", np.max(valid_data), np.min(valid_data))
-
             if first:
                 first = False
                 reference_std = valid_std  # Use the non-zero std
@@ -1953,12 +1300,6 @@ class GeophysicalProcessor:
                 reference_std * (detrended_data - np.nanmean(valid_data)) / valid_std
             )
 
-            """print(
-                "reference_std, np.nanmean(valid_data), np.nanstd(valid_data)",
-                reference_std,
-                np.nanmean(valid_data),
-                valid_std,
-            )"""
             normalized_data[mask] = nodata_value
 
             driver = gdal.GetDriverByName("GTiff")

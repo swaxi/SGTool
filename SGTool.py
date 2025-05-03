@@ -23,7 +23,7 @@
 """
 
 from qgis.PyQt.QtGui import QIcon, QDesktopServices
-from qgis.PyQt.QtWidgets import QAction, QDockWidget, QFileDialog
+from qgis.PyQt.QtWidgets import QAction, QDockWidget, QFileDialog, QMessageBox
 from qgis.core import (
     Qgis,
     QgsCoordinateReferenceSystem,
@@ -43,6 +43,7 @@ from qgis.core import (
     QgsPointXY,
     QgsMapLayerProxyModel,
     QgsApplication,
+    QgsMessageLog,
 )
 from qgis.PyQt.QtCore import (
     QSettings,
@@ -54,8 +55,21 @@ from qgis.PyQt.QtCore import (
     QUrl,
 )
 
-
 import re
+import os.path
+import numpy as np
+from scipy.spatial import cKDTree
+from scipy import interpolate
+from scipy.interpolate import interp1d
+import tempfile
+from datetime import datetime
+from pyproj import Transformer
+import processing
+from osgeo import gdal, osr
+import platform
+import importlib
+import subprocess
+import os
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -67,39 +81,12 @@ from .calcs.geosoft_grid_parser import *
 from .calcs.PSplot import PowerSpectrumDock
 from .calcs.ConvolutionFilter import ConvolutionFilter
 from .calcs.ConvolutionFilter import OddPositiveIntegerValidator
-from .calcs.GridData_no_pandas import GridData
 from .calcs.GridData_no_pandas import QGISGridData
 from .calcs.SpatialStats import SpatialStats
 from .calcs.WTMM import WTMM
 from .calcs.PCAICA import PCAICA
-
 from .calcs.SG_Util import SG_Util
 from .igrf.igrf_utils import igrf_utils as IGRF
-import os.path
-import numpy as np
-import subprocess
-from scipy.spatial import cKDTree
-from scipy import interpolate
-from scipy.interpolate import interp1d
-import tempfile
-
-from osgeo import gdal, osr
-
-from datetime import datetime
-from pyproj import Transformer
-import processing
-from osgeo import gdal, osr
-import platform
-
-######################################
-import importlib
-import subprocess
-import sys
-import os
-from qgis.PyQt.QtWidgets import QMessageBox
-from qgis.core import QgsMessageLog, Qgis
-
-######################################
 
 
 class SGTool:
@@ -142,55 +129,6 @@ class SGTool:
         self.pluginIsActive = False
         self.dlg = None
         self.last_directory = None
-
-        # Define required packages
-        # required_packages = ['scikit-learn', 'matplotlib', 'PyWavelets']
-        # self.check_dependencies(required_packages)
-
-    def check_dependencies(self, required_packages):
-        """
-        Check if required packages are installed.
-
-        Args:
-            required_packages (list): List of package names to check and install
-
-        """
-        missing_packages = []
-        for package in required_packages:
-            if package == "scikit-learn":
-                importPackage = "sklearn"
-            elif package == "PyWavelets":
-                importPackage = "pywt"
-            else:
-                importPackage = package
-            try:
-                importlib.import_module(importPackage)
-                QgsMessageLog.logMessage(
-                    f"Package {package} is already installed",
-                    "DependencyManager",
-                    Qgis.Info,
-                )
-            except ImportError:
-                missing_packages.append(package)
-
-        if not missing_packages:
-            return True
-
-        # Ask user for permission to install missing packages
-        package_list = ", ".join(missing_packages)
-        if platform.system() == "Windows":
-            pipcall = "pip"
-        else:
-            pipcall = "pip3"
-        QMessageBox.information(
-            None,  # Parent widget
-            "",
-            "Missing Packages for SGTool: "  # Window title
-            + f"The following Python packages are required for some functions, but not installed: {package_list}\n\n"
-            "Please open the QGIS Python Console and run the following command for each missing package:\n\n"
-            f"!{pipcall} install MISSING_PACKAGE_NAME",  # Message text
-            QMessageBox.Ok,  # Buttons parameter
-        )
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -870,18 +808,6 @@ class SGTool:
         # Combine directory and new file name
         return os.path.join(dir_name, new_file_name)
 
-    def procRSTGridding(self):
-
-        gridder = QGISGridData(self.iface)
-
-        layer_name = self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
-        input = self.get_layer_path_by_name(layer_name)
-        zcolumn = self.dlg.comboBox_select_grid_data_field.currentText()
-        cell_size = self.dlg.doubleSpinBox_cellsize.text()
-        mask = None
-
-        gridder.launch_r_surf_rst_dialog(input, zcolumn, cell_size, mask)
-
     def procIDWGridding(self):
         gridder = QGISGridData(self.iface)
 
@@ -893,21 +819,6 @@ class SGTool:
         mask = None
 
         gridder.launch_idw_dialog(input, zcolumn, cell_size, mask)
-
-    def procbsplineGridding(self):
-        gridder = QGISGridData(self.iface)
-
-        layer_name = self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
-        input = self.get_layer_path_by_name(layer_name)
-        zcolumn = self.dlg.comboBox_select_grid_data_field.currentText()
-        cell_size = self.dlg.doubleSpinBox_cellsize.text()
-
-        layer = QgsProject.instance().mapLayersByName(layer_name)[0]
-        provider = layer.dataProvider()
-        extent = provider.extent()
-
-        mask = None
-        gridder.launch_bspline_dialog(input, zcolumn, cell_size, mask)
 
     def procmultibsplineGridding(self):
         gridder = QGISGridData(self.iface)
@@ -957,18 +868,6 @@ class SGTool:
                     # Return the file path (for file-based layers like shapefiles or rasters)
                     return layer.dataProvider().dataSourceUri().split("|")[0]
         return None
-
-    def procDirClean_orig(self):
-        cutoff_wavelength = 4 * float(self.DC_lineSpacing)
-        # if self.unit_check(cutoff_wavelength) or True:
-        self.new_grid = self.processor.combined_BHP_DirCos_filter(
-            self.raster_array,
-            cutoff_wavelength=cutoff_wavelength,
-            center_direction=float(self.DC_azimuth) + 90,
-            degree=2.0,
-            buffer_size=self.buffer,
-        )
-        self.suffix = "_DirC"
 
     def procDirClean(self):
         cutoff_wavelength = 4 * float(self.DC_lineSpacing)
@@ -3074,8 +2973,6 @@ class SGTool:
             self.dlg.comboBox_select_grid_data_field.currentTextChanged.connect(
                 self.updateLayertoGrid2
             )
-            # Connect to layer removal signal
-            # QgsProject.instance().layerRemoved.connect(self.refreshComboBox)
 
             if self.dlg.mMapLayerComboBox_selectGrid_3.currentText() != "":
                 self.updateLayertoGrid()
@@ -3093,7 +2990,6 @@ class SGTool:
                 )
             )
 
-            # self.dlg.pushButton_rst.clicked.connect(self.procRSTGridding)
             self.dlg.pushButton_idw_2.clicked.connect(self.procIDWGridding)
             self.dlg.pushButton_bspline_3.clicked.connect(self.procmultibsplineGridding)
 
@@ -3220,21 +3116,6 @@ class SGTool:
         """Generic method to set a checkbox to checked state."""
         checkbox.setChecked(True)
 
-    # select directory to store grid
-    def gridFile(self):
-        self.gridFilePath = QFileDialog.getSaveFileName(None, "Save grid file as")
-
-        if len(self.gridFilePath) > 1:
-            extension = self.gridFilePath[1]
-        else:
-            extension = ""
-        self.gridFilePath = self.gridFilePath[0]
-
-        if extension.lower() != ".tif":
-            self.gridFilePath = self.gridFilePath + ".tif"
-
-        self.dlg.lineEdit_gridOutputDir.setText(self.gridFilePath)
-
     def get_layer_fields(self, layer):
         """
         Get a list of field names from a QgsVectorLayer.
@@ -3251,14 +3132,6 @@ class SGTool:
         fields = layer.fields()
         field_names = [field.name() for field in fields]
         return field_names
-
-    # Function to refresh the combo box
-    def refreshComboBox(self):
-        return
-        comboBox = self.dlg.mMapLayerComboBox_selectGrid_3
-        comboBox.clear()
-        for layer in QgsProject.instance().mapLayers().values():
-            comboBox.addItem(layer.name(), layer.id())
 
     def updateLayertoGrid(self):
         """
@@ -3787,79 +3660,6 @@ class SGTool:
 
         # Convert to a NumPy array and return as a 3×n array
         return np.array(data)
-
-    # save new gridded data as geotiff
-    def addGridded(
-        self, grid, filename_without_extension, filepath, epsg, extent, cell_size
-    ):
-
-        if self.is_layer_loaded(filename_without_extension):
-            layer = QgsProject.instance().mapLayersByName(filename_without_extension)
-
-            if layer:
-                # Rename the layer
-                filename_without_extension = filename_without_extension + "1"
-
-        self.diskGridPath = filepath
-
-        driver = gdal.GetDriverByName("GTiff")
-        try:
-            ds = driver.Create(
-                filepath,
-                xsize=grid.shape[1],
-                ysize=grid.shape[0],
-                bands=1,
-                eType=GDALDataType["GDT_Float32"],
-            )
-
-            ds.GetRasterBand(1).WriteArray(grid)
-            geot = [
-                extent.xMinimum() - (cell_size / 2),
-                cell_size,
-                0,
-                extent.yMinimum() - (cell_size / 2),
-                0,
-                cell_size,
-            ]
-            ds.SetGeoTransform(geot)
-            srs = osr.SpatialReference()
-            srs.ImportFromEPSG(int(epsg))
-            ds.SetProjection(srs.ExportToWkt())
-            ds.FlushCache()
-            ds = None
-
-            self.layer = QgsRasterLayer(self.diskGridPath, filename_without_extension)
-            if self.is_layer_loaded(filename_without_extension):
-                project = QgsProject.instance()
-                layer = project.mapLayersByName(filename_without_extension)[0]
-                project.removeMapLayer(layer.id())
-
-            QgsProject.instance().addMapLayer(self.layer)
-            # Access the raster data provider
-            provider = self.layer.dataProvider()
-
-            # Calculate statistics for the first band
-            band = 1  # Specify the band number
-            stats = provider.bandStatistics(band)
-
-            # Create or modify the renderer
-            renderer = self.layer.renderer()
-            if isinstance(renderer, QgsSingleBandGrayRenderer):
-                # Set contrast enhancement
-                contrast_enhancement = renderer.contrastEnhancement()
-                contrast_enhancement.setMinimumValue(stats.minimumValue)
-                contrast_enhancement.setMaximumValue(stats.maximumValue)
-
-                # Refresh the layer
-                self.layer.triggerRepaint()
-            else:
-                print("Renderer is not a QgsSingleBandGrayRenderer.")
-        except:
-            self.iface.messageBar().pushMessage(
-                "Data file must have at lesat 3 points",
-                level=Qgis.Warning,
-                duration=15,
-            )
 
     def create_temp_raster_mask_from_convex_hull(
         self, vector_layer, extent, cell_size=10

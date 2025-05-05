@@ -45,6 +45,7 @@ from qgis.core import (
     QgsApplication,
     QgsMessageLog,
 )
+
 from qgis.PyQt.QtCore import (
     QSettings,
     QTranslator,
@@ -397,13 +398,13 @@ class SGTool:
         self.dlg.checkBox_SunShading.setToolTip("Sun Shading")
 
         self.dlg.pushButton_selectPoints.setToolTip(
-            "Select csv or xyz format points file"
+            "Select csv, dat or xyz format points file"
         )
         self.dlg.comboBox_grid_x.setToolTip(
-            "Define X coordinate column (for csv files)"
+            "Define X coordinate column (for csv & dat files)"
         )
         self.dlg.comboBox_grid_y.setToolTip(
-            "Define Y coordinate column (for csv files)"
+            "Define Y coordinate column (for csv & dat files)"
         )
         self.dlg.mQgsProjectionSelectionWidget.setToolTip(
             "DEfine Coordinate System of point data"
@@ -637,6 +638,8 @@ class SGTool:
         self.pointType = "point"
         self.input_directory = ""
         self.output_directory = ""
+        self.pts_columns = []
+        self.pts_data = []
 
     def parseParams(self):
         """Parse parameters from the dialog."""
@@ -2121,7 +2124,9 @@ class SGTool:
 
     def select_point_file(self):
         start_directory = self.last_directory if self.last_directory else os.getcwd()
-        file_filter = "points or lines (*.csv *.txt *.xyz *.CSV *.TXT *.XYZ)"
+        file_filter = (
+            "points or lines (*.csv *.txt *.dat *.xyz *.CSV *.DAT *.TXT *.XYZ)"
+        )
 
         self.diskPointsPath, _filter = QFileDialog.getOpenFileName(
             None,
@@ -2142,19 +2147,565 @@ class SGTool:
                 self.dlg.pushButton_load_point_data.setEnabled(True)
                 self.pointType = "line"
 
-            else:
-                columns = self.read_csv_header(self.diskPointsPath)
+            elif extension.upper() == ".TXT" or extension.upper() == ".CSV":
+                columns = self.read_header(self.diskPointsPath, ",")
                 # columns = list(points.columns)
                 self.dlg.comboBox_grid_x.setEnabled(True)
                 self.dlg.comboBox_grid_y.setEnabled(True)
                 self.dlg.mQgsProjectionSelectionWidget.setEnabled(True)
+                self.dlg.comboBox_grid_x.clear()
+                self.dlg.comboBox_grid_y.clear()
 
                 self.dlg.comboBox_grid_x.addItems(columns)
                 self.dlg.comboBox_grid_y.addItems(columns)
                 self.dlg.pushButton_load_point_data.setEnabled(True)
                 self.pointType = "point"
+            else:
+                self.pts_columns, epsg, self.pts_data = (
+                    self.extract_header_projection_data(self.diskPointsPath)
+                )
+                if self.pts_columns is None:
+                    return
 
-    def read_csv_header(self, file_path):
+                self.dlg.comboBox_grid_x.setEnabled(True)
+                self.dlg.comboBox_grid_y.setEnabled(True)
+                self.dlg.mQgsProjectionSelectionWidget.setEnabled(True)
+
+                # Create a CRS object with your specific EPSG code
+
+                if epsg is None:
+                    crs = QgsCoordinateReferenceSystem("EPSG:4326")
+                else:
+                    crs = QgsCoordinateReferenceSystem(f"EPSG:{epsg}")
+
+                # Set the CRS on the projection selection widget
+                self.dlg.mQgsProjectionSelectionWidget.setCrs(crs)
+                self.dlg.comboBox_grid_x.clear()
+                self.dlg.comboBox_grid_y.clear()
+                self.dlg.comboBox_grid_x.addItems(self.pts_columns)
+                self.dlg.comboBox_grid_y.addItems(self.pts_columns)
+                self.dlg.pushButton_load_point_data.setEnabled(True)
+                self.pointType = "point"
+
+    def extract_header_projection_data(self, dat_file_path):
+        """
+        Extract header information, projection data, and actual data from related geophysical data files.
+        Handles multiple formats including:
+        1. Files with DATA prefix and space-delimited columns
+        2. Files with indented data lines with space-delimited columns
+        """
+        # Derive paths for the .dfn and .prj files
+        base_name = dat_file_path.rsplit(".", 1)[0]
+        dfn_file_path = base_name + ".dfn"
+        prj_file_path = base_name + ".prj"
+
+        if not os.path.exists(dat_file_path):
+            self.iface.messageBar().pushMessage(
+                "DAT file not found", level=Qgis.Warning, duration=3
+            )
+            return None, None, None
+
+        if not os.path.exists(dfn_file_path):
+            self.iface.messageBar().pushMessage(
+                "DFN file not found", level=Qgis.Warning, duration=3
+            )
+            return None, None, None
+
+        # Parse the DFN file to get field definitions
+        field_defs = []
+
+        with open(dfn_file_path, "r") as dfn_file:
+            for line in dfn_file:
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Check if this line defines a data field
+                if line.startswith("DEFN") and (
+                    "ST=RECD,RT=;" in line
+                    or (line.startswith("DEFN 0") and "RT:A4;" in line)
+                ):
+                    # This is a data field definition
+                    parts = line.split(";")
+                    field_info = {}
+
+                    # Extract field index if available
+                    if " " in line:
+                        defn_parts = line.split(" ", 2)
+                        if len(defn_parts) > 1 and defn_parts[1].strip().isdigit():
+                            field_info["index"] = int(defn_parts[1].strip())
+
+                    # Extract field name and format
+                    for part in parts:
+                        if ":" in part:
+                            name_format = part.split(":", 2)
+                            if len(name_format) > 1:
+                                field_name = name_format[0].strip()
+                                field_format = (
+                                    name_format[1].strip()
+                                    if len(name_format) > 1
+                                    else ""
+                                )
+
+                                # Extract field properties
+                                if "NAME=" in part:
+                                    name_part = (
+                                        part.split("NAME=")[1].split(",")[0].strip()
+                                        if "," in part.split("NAME=")[1]
+                                        else part.split("NAME=")[1].strip()
+                                    )
+                                    field_info["name"] = name_part
+                                else:
+                                    field_info["name"] = field_name
+
+                                # Parse format
+                                if field_format and field_format[0] in [
+                                    "F",
+                                    "I",
+                                    "D",
+                                    "A",
+                                ]:
+                                    field_info["type"] = field_format[0]
+
+                                    # Extract width and precision
+                                    format_parts = field_format.split(":", 1)[0].strip()
+                                    width_parts = "".join(
+                                        [
+                                            c
+                                            for c in format_parts
+                                            if c.isdigit() or c == "."
+                                        ]
+                                    )
+
+                                    if "." in width_parts:
+                                        width, precision = width_parts.split(".")
+                                        field_info["width"] = (
+                                            int(width) if width else 10
+                                        )
+                                        field_info["precision"] = (
+                                            int(precision) if precision else 0
+                                        )
+                                    else:
+                                        field_info["width"] = (
+                                            int(width_parts)
+                                            if width_parts.isdigit()
+                                            else 10
+                                        )
+                                        field_info["precision"] = 0
+
+                                    field_defs.append(field_info)
+                                    break
+
+        # Sort field definitions by index if available
+        if field_defs and all("index" in field for field in field_defs):
+            field_defs.sort(key=lambda x: x["index"])
+
+        # Extract header list from field definitions
+        header_list = [
+            field.get("name", f"Field_{i}") for i, field in enumerate(field_defs)
+        ]
+
+        print(f"Found {len(header_list)} fields: {header_list}")
+
+        # Determine EPSG code from projection info
+        epsg = None
+
+        # First priority: Check PRJ file if it exists
+        if os.path.exists(prj_file_path):
+            with open(prj_file_path, "r") as prj_file:
+                prj_content = prj_file.read()
+                if "GDA94" in prj_content and "zone" in prj_content.lower():
+                    try:
+                        zone_text = (
+                            prj_content.lower().split("zone")[1].strip().split()[0]
+                        )
+                        zone = int("".join(c for c in zone_text if c.isdigit()))
+                        if 49 <= zone <= 56:  # Australian zones
+                            epsg = 28300 + zone
+                            print(f"Found EPSG from PRJ file: {epsg}")
+                    except (IndexError, ValueError):
+                        pass
+                elif "WGS84" in prj_content:
+                    epsg = 4326
+
+        # Second priority: Look for projection info in the DFN file
+        if epsg is None:
+            with open(dfn_file_path, "r") as dfn_file:
+                dfn_content = dfn_file.read()
+
+                # Check for explicit PROJ line
+                for line in dfn_content.splitlines():
+                    if (
+                        line.startswith("PROJ")
+                        and "GDA94" in line
+                        and "zone" in line.lower()
+                    ):
+                        try:
+                            zone_text = line.lower().split("zone")[1].strip().split()[0]
+                            zone = int("".join(c for c in zone_text if c.isdigit()))
+                            if 49 <= zone <= 56:  # Australian zones
+                                epsg = 28300 + zone
+                                print(f"Found EPSG from PROJ line: {epsg}")
+                                break
+                        except (IndexError, ValueError):
+                            pass
+
+                # Check DEFN lines with projection info
+                if epsg is None:
+                    for line in dfn_content.splitlines():
+                        if (
+                            "PROJNAME" in line
+                            and ("GDA94" in line or "MGA" in line)
+                            and "zone" in line.lower()
+                        ):
+                            try:
+                                zone_text = (
+                                    line.lower().split("zone")[1].strip().split()[0]
+                                )
+                                zone = int("".join(c for c in zone_text if c.isdigit()))
+                                if 49 <= zone <= 56:  # Australian zones
+                                    epsg = 28300 + zone
+                                    print(f"Found EPSG from DEFN line: {epsg}")
+                                    break
+                            except (IndexError, ValueError):
+                                pass
+
+        print(f"Final EPSG: {epsg}")
+
+        # Determine the file format by examining the first few lines
+        dat_format = "unknown"
+        first_value_is_data = False
+        with open(dat_file_path, "r") as dat_file:
+            for _ in range(5):  # Check first 5 lines
+                line = dat_file.readline().strip()
+                if not line:
+                    continue
+                if line.startswith("DATA"):
+                    # Check if the first field is "DATA" itself or if "DATA" is just a prefix
+                    parts = line.split(maxsplit=1)
+                    if parts[0] == "DATA":
+                        first_value_is_data = False  # "DATA" is a prefix, not a value
+                    else:
+                        first_value_is_data = True  # "DATA" is the first value
+                    dat_format = "space_delimited"
+                    break
+                elif line.startswith(" "):  # Indented data line
+                    dat_format = "space_delimited"
+                    break
+
+        print(
+            f"Detected data format: {dat_format}, first value is DATA: {first_value_is_data}"
+        )
+
+        # Read the DAT file data
+        data = []
+
+        with open(dat_file_path, "r") as dat_file:
+            for line_num, line in enumerate(dat_file):
+                line = line.strip()
+                if not line:
+                    continue
+
+                original_line = line  # Keep for debugging
+
+                # Determine how to handle the line based on format
+                if line.startswith("DATA"):
+                    if first_value_is_data:
+                        # The word "DATA" is the first value itself, don't remove it
+                        values = line.split()
+                    else:
+                        # "DATA" is a prefix to remove
+                        line = line[4:].strip()
+                        values = line.split()
+                else:
+                    # No DATA prefix, just split the line
+                    values = line.split()
+
+                # Skip if not enough values
+                if len(values) < len(header_list):
+                    print(
+                        f"Warning: Line {line_num} has fewer values ({len(values)}) than fields ({len(header_list)})"
+                    )
+                    continue
+
+                # Map values to fields
+                row_data = {}
+
+                for i, field_name in enumerate(header_list):
+                    if i < len(values):
+                        value = values[i]
+
+                        # Convert to appropriate type
+                        if i < len(field_defs):
+                            field_type = field_defs[i].get("type", "")
+
+                            if field_type in ["F", "D"]:  # Float
+                                try:
+                                    value = float(value)
+                                except (ValueError, TypeError):
+                                    pass
+                            elif field_type == "I":  # Integer
+                                try:
+                                    value = int(value)
+                                except (ValueError, TypeError):
+                                    pass
+
+                        row_data[field_name] = value
+
+                # Add this row to our data
+                data.append(row_data)
+
+                # Print sample row for debugging
+                if line_num < 2:
+                    print(
+                        f"Sample row {line_num}: First 5 items = {list(row_data.items())[:5]}"
+                    )
+                    print(f"Original line: {original_line}")
+                    print(f"Processed values: {values[:10]}")  # Show first 10 values
+
+        print(f"Processed {len(data)} data rows")
+
+        return header_list, epsg, data
+
+    def extract_epsg_from_text(self, text):
+        """Extract EPSG code from text containing projection information."""
+        if not text:
+            return None
+
+        epsg = None
+
+        if "GDA94" in text and "zone" in text.lower():
+            try:
+                # Look for zone number after "zone"
+                zone_text = text.lower().split("zone")[1].strip().split()[0]
+                # Remove any non-digit characters (like "S")
+                zone = int("".join(c for c in zone_text if c.isdigit()))
+                if 49 <= zone <= 56:  # Australian zones
+                    epsg = 28300 + zone
+            except (IndexError, ValueError):
+                pass
+        elif "WGS84" in text:
+            epsg = 4326  # WGS84
+        elif "MGA" in text and "zone" in text.lower():
+            try:
+                zone_text = text.lower().split("zone")[1].strip().split()[0]
+                zone = int("".join(c for c in zone_text if c.isdigit()))
+                if 49 <= zone <= 56:  # Australian zones
+                    epsg = 28300 + zone
+            except (IndexError, ValueError):
+                pass
+
+        return epsg
+
+    def extract_header_projection_data_last(self, dat_file_path):
+        """
+        Extract header information, projection data, and actual data from related geophysical data files.
+
+        Args:
+            dat_file_path (str): Path to the .dat file. The .prj and .dfn files should be in the same directory.
+
+        Returns:
+            tuple: (header_list, epsg, data)
+                - header_list (list): List of column names
+                - epsg (int): EPSG code for the projection
+                - data (list): List of dictionaries, where each dictionary represents a row of data
+        """
+        # Derive paths for the .dfn and .prj files
+        base_name = dat_file_path.rsplit(".", 1)[0]
+        dfn_file_path = base_name + ".dfn"
+        prj_file_path = base_name + ".prj"
+        if os.path.exists(dat_file_path) and os.path.exists(dfn_file_path):
+
+            # Parse the DFN file to get field definitions with precise positions
+            field_defs = []
+
+            with open(dfn_file_path, "r") as dfn_file:
+                for line in dfn_file:
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    if line.startswith("DEFN"):
+                        # Look for data field definitions
+                        if "ST=RECD,RT=;" in line or "RT:A4;" in line:
+                            if (
+                                "RT=PROJ;" not in line
+                                and "RT=TRNS;" not in line
+                                and "RT=COMM;" not in line
+                            ):
+                                parts = line.split(";")
+                                field_info = {}
+
+                                # Extract DEFN number to determine field order
+                                if " " in line:
+                                    defn_parts = line.split(" ", 2)
+                                    if len(defn_parts) > 1 and defn_parts[1].isdigit():
+                                        field_info["index"] = int(defn_parts[1])
+
+                                # Extract field name and format
+                                for part in parts:
+                                    if ":" in part:
+                                        name_format = part.split(":", 1)
+                                        if len(name_format) > 1:
+                                            field_name = name_format[0].strip()
+                                            field_format = name_format[1].strip()
+
+                                            # Extract the NAME= part for field name
+                                            if "NAME=" in field_format:
+                                                name_part = (
+                                                    field_format.split("NAME=", 1)[1]
+                                                    .split(",")[0]
+                                                    .strip()
+                                                )
+                                                field_info["name"] = name_part
+                                            else:
+                                                field_info["name"] = field_name
+
+                                            # Extract format details (type and width)
+                                            if field_format and field_format[0] in [
+                                                "F",
+                                                "I",
+                                                "D",
+                                                "A",
+                                            ]:
+                                                field_info["type"] = field_format[0]
+
+                                                # Parse width and precision
+                                                format_spec = field_format.split(":")[
+                                                    0
+                                                ].strip()
+                                                if format_spec[1:].isdigit():
+                                                    field_info["width"] = int(
+                                                        format_spec[1:]
+                                                    )
+                                                else:
+                                                    digits = "".join(
+                                                        [
+                                                            c
+                                                            for c in format_spec
+                                                            if c.isdigit() or c == "."
+                                                        ]
+                                                    )
+                                                    if "." in digits:
+                                                        width, precision = digits.split(
+                                                            "."
+                                                        )
+                                                        field_info["width"] = int(width)
+                                                        field_info["precision"] = int(
+                                                            precision
+                                                        )
+                                                    else:
+                                                        field_info["width"] = (
+                                                            int(digits)
+                                                            if digits
+                                                            else 10
+                                                        )
+
+                                                field_defs.append(field_info)
+                                                break
+
+            # Sort field definitions by index if available
+            if all("index" in field for field in field_defs):
+                field_defs.sort(key=lambda x: x["index"])
+
+            # Extract header list from field definitions
+            header_list = [
+                field.get("name", f"Field_{i}") for i, field in enumerate(field_defs)
+            ]
+
+            # Parse the PRJ file to determine EPSG code
+            epsg = None
+            if os.path.exists(prj_file_path):
+                with open(prj_file_path, "r") as prj_file:
+                    prj_content = prj_file.read().strip()
+
+                    # Extract projection information
+                    if "GDA94" in prj_content and "UTM zone" in prj_content:
+                        # Extract zone number
+                        zone_match = prj_content.split("UTM zone")[1].strip().split()[0]
+                        zone = (
+                            int(zone_match.split("S")[0])
+                            if "S" in zone_match
+                            else int(zone_match)
+                        )
+                        epsg = 28300 + zone
+
+                with open(prj_file_path, "r") as prj_file:
+                    prj_content = prj_file.read().strip()
+
+                    # Extract projection information
+                    if "GDA94" in prj_content and "UTM zone" in prj_content:
+                        # Extract zone number
+                        zone_match = prj_content.split("UTM zone")[1].strip().split()[0]
+                        zone = (
+                            int(zone_match.split("S")[0])
+                            if "S" in zone_match
+                            else int(zone_match)
+                        )
+                        epsg = 28300 + zone  # GDA94 / MGA zone XX is EPSG:283XX
+                    elif "WGS84" in prj_content:
+                        epsg = 4326  # WGS84
+                    elif "MGA" in prj_content:
+                        # Look for zone information
+                        zone_parts = prj_content.split()
+                        for i, part in enumerate(zone_parts):
+                            if (
+                                part.isdigit() and int(part) >= 49 and int(part) <= 56
+                            ):  # Australian zones
+                                zone = int(part)
+                                epsg = 28300 + zone
+                                break
+
+            # Read the DAT file using a different approach - split by spaces first
+            data = []
+
+            with open(dat_file_path, "r") as dat_file:
+                for line in dat_file:
+                    line = line.strip()
+                    if not line or not line.startswith("DATA"):
+                        continue
+
+                    # Remove the 'DATA' prefix
+                    line = line[4:].strip()
+
+                    # Split line into values
+                    values = line.split()
+
+                    # Map values to fields
+                    row_data = {}
+
+                    if len(values) >= len(header_list):
+                        for i, field_name in enumerate(header_list):
+                            value = values[i]
+                            # Convert to appropriate type
+                            field_def = field_defs[i] if i < len(field_defs) else {}
+                            field_type = field_def.get("type", "")
+
+                            if field_type in ["F", "D"]:  # Float
+                                try:
+                                    value = float(value)
+                                except (ValueError, TypeError):
+                                    pass
+                            elif field_type == "I":  # Integer
+                                try:
+                                    value = int(value)
+                                except (ValueError, TypeError):
+                                    pass
+
+                            row_data[field_name] = value
+
+                        data.append(row_data)
+
+            return header_list, epsg, data
+        else:
+            self.iface.messageBar().pushMessage(
+                "DAT format requires DAT and DFN files",
+                level=Qgis.Warning,
+                duration=3,
+            )
+            return None, None, None
+
+    def read_header(self, file_path, delimiter=","):
         """
         Reads the first line of a CSV file and stores the values as a list.
 
@@ -2162,7 +2713,8 @@ class SGTool:
         :return: List of header values
         """
         with open(file_path, "r") as file:
-            header = file.readline().strip().split(",")
+            header = file.readline().strip().split(delimiter)
+            header = list(filter(None, header))
         return header
 
     def numpy_array_to_raster(
@@ -3235,7 +3787,7 @@ class SGTool:
                     self.dlg.nx_label.setText(str(self.nx_label))
                     self.dlg.ny_label.setText(str(self.ny_label))
 
-    def import_point_line_data(self):
+    def import_point_line_data(self, header_list=None, data=None):
         # import point or line data as vector file to memory
         dir_name, base_name = os.path.split(self.diskPointsPath)
         file_name, file_ext = os.path.splitext(base_name)
@@ -3249,9 +3801,23 @@ class SGTool:
         else:
             x_field = self.dlg.comboBox_grid_x.currentText()
             y_field = self.dlg.comboBox_grid_y.currentText()
-            self.import_CSV(
-                self.diskPointsPath, x_field, y_field, layer_name=file_name, crs=proj
-            )
+            if file_ext.upper() == ".CSV" or file_ext.upper() == ".TXT":
+                self.import_CSV(
+                    self.diskPointsPath,
+                    x_field,
+                    y_field,
+                    layer_name=file_name,
+                    crs=proj,
+                )
+            else:  # *.DAT
+                self.create_points_layer_from_data(
+                    self.pts_columns,
+                    proj.split(":")[1],
+                    self.pts_data,
+                    x_field,
+                    y_field,
+                    layer_name=file_name,
+                )
 
     def import_CSV(
         self, file_path, x_field, y_field, layer_name="points", crs="EPSG:4326"
@@ -3270,6 +3836,10 @@ class SGTool:
             QgsVectorLayer: The loaded vector layer.
         """
         # Define the URI for the CSV file, specifying coordinate fields and CRS
+
+        basename = os.path.basename(file_path)
+        extension = os.path.splitext(basename)[1]
+
         uri = (
             f"file:///{file_path}?type=csv&xField={x_field}&yField={y_field}"
             f"&crs={crs}&detectTypes=yes&delimiter=,&quote="
@@ -3283,6 +3853,300 @@ class SGTool:
 
         # Add the layer to the current QGIS project
         QgsProject.instance().addMapLayer(layer)
+        return layer
+
+    def create_points_layer_from_data(
+        self,
+        header_list,
+        epsg,
+        data,
+        x_field_name=None,
+        y_field_name=None,
+        layer_name="Points Layer",
+    ):
+        """
+        Create a shapefile from the data dictionary and load it as a layer.
+        """
+        from qgis.core import (
+            QgsVectorFileWriter,
+            QgsField,
+            QgsFeature,
+            QgsGeometry,
+            QgsPointXY,
+            QgsProject,
+            QgsCoordinateReferenceSystem,
+            QgsFields,
+            QgsWkbTypes,
+            QgsVectorLayer,
+        )
+        from PyQt5.QtCore import QVariant
+        import os
+        import tempfile
+
+        # Determine coordinate field names if not provided
+        if x_field_name is None:
+            # Try to find X field in header list
+            for field in header_list:
+                if "X_" in field or field.endswith("_X") or "EAST" in field.upper():
+                    x_field_name = field
+                    print(f"Using {x_field_name} as X coordinate field")
+                    break
+
+        if y_field_name is None:
+            # Try to find Y field in header list
+            for field in header_list:
+                if "Y_" in field or field.endswith("_Y") or "NORTH" in field.upper():
+                    y_field_name = field
+                    print(f"Using {y_field_name} as Y coordinate field")
+                    break
+
+        # Verify we have coordinate fields
+        if x_field_name is None or y_field_name is None:
+            self.iface.messageBar().pushMessage(
+                "Could not determine coordinate fields", level=Qgis.Warning, duration=3
+            )
+            return None
+
+        # Create a CRS object
+        crs = QgsCoordinateReferenceSystem("EPSG:4326")  # Default to WGS84
+        if epsg is not None:
+            crs = QgsCoordinateReferenceSystem(f"EPSG:{epsg}")
+            print(f"Using CRS: {crs.description()}")
+
+        # Create fields
+        fields = QgsFields()
+        for field_name in header_list:
+            # Determine field type from data
+            field_type = QVariant.String  # Default to string
+
+            for row in data:
+                if field_name in row and row[field_name] is not None:
+                    value = row[field_name]
+                    if isinstance(value, int):
+                        field_type = QVariant.Int
+                        break
+                    elif isinstance(value, float):
+                        field_type = QVariant.Double
+                        break
+
+            fields.append(QgsField(field_name, field_type))
+
+        # Create a temporary shapefile
+        temp_dir = tempfile.gettempdir()
+        output_file = os.path.join(temp_dir, f"{layer_name}.shp")
+
+        print(f"Creating shapefile: {output_file}")
+
+        # Create the shapefile writer
+        writer_options = QgsVectorFileWriter.SaveVectorOptions()
+        writer_options.driverName = "ESRI Shapefile"
+        writer_options.fileEncoding = "UTF-8"
+
+        transform_context = QgsProject.instance().transformContext()
+
+        writer = QgsVectorFileWriter.create(
+            output_file,
+            fields,
+            QgsWkbTypes.Point,
+            crs,
+            transform_context,
+            writer_options,
+        )
+
+        # Add features
+        feature_count = 0
+        error_count = 0
+
+        # Verify that coordinate fields exist in the data
+        if data and (x_field_name not in data[0] or y_field_name not in data[0]):
+            print(
+                f"Warning: coordinate fields not found in data. Available fields: {list(data[0].keys())}"
+            )
+            return None
+
+        for i, row in enumerate(data):
+            try:
+                # Get coordinates
+                x_coord = float(row[x_field_name])
+                y_coord = float(row[y_field_name])
+
+                # Debug first few rows
+                if i < 5:
+                    print(f"Row {i}: X={x_coord}, Y={y_coord}")
+
+                # Create feature
+                feat = QgsFeature(fields)
+
+                # Set geometry
+                feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(x_coord, y_coord)))
+
+                # Set attributes
+                for j, field_name in enumerate(header_list):
+                    feat.setAttribute(j, row.get(field_name, None))
+
+                # Add to shapefile
+                writer.addFeature(feat)
+                feature_count += 1
+
+            except Exception as e:
+                error_count += 1
+                if error_count < 10:  # Limit the number of error messages
+                    print(f"Error with row {i}: {e}")
+
+        # Clean up writer
+        del writer
+
+        print(f"Features written to shapefile: {feature_count}")
+        print(f"Errors encountered: {error_count}")
+
+        # Load the shapefile
+        layer = QgsVectorLayer(output_file, layer_name, "ogr")
+
+        if not layer.isValid():
+            print(f"Layer is not valid! Path: {output_file}")
+            return None
+
+        print(f"Shapefile loaded with {layer.featureCount()} features")
+
+        # Add to project
+        QgsProject.instance().addMapLayer(layer)
+
+        # Try to zoom to layer
+        try:
+            self.iface.setActiveLayer(layer)
+            self.iface.zoomToActiveLayer()
+        except Exception as e:
+            print(f"Could not zoom to layer: {str(e)}")
+
+        return layer
+
+    def create_points_layer_from_data_last(
+        self,
+        header_list,
+        epsg,
+        data,
+        x_field_name="MGA_Easting",
+        y_field_name="MGA_Northing",
+        layer_name="Points Layer",
+    ):
+        """
+        Create a shapefile from the data dictionary and load it as a layer.
+        """
+        from qgis.core import (
+            QgsVectorFileWriter,
+            QgsField,
+            QgsFeature,
+            QgsGeometry,
+            QgsPointXY,
+            QgsProject,
+            QgsCoordinateReferenceSystem,
+            QgsFields,
+            QgsWkbTypes,
+            QgsVectorLayer,
+        )
+        from PyQt5.QtCore import QVariant
+        import os
+        import tempfile
+
+        # Create a CRS object
+        crs = QgsCoordinateReferenceSystem("EPSG:4326")  # Default to WGS84
+        if epsg is not None:
+            crs = QgsCoordinateReferenceSystem(f"EPSG:{epsg}")
+            print(f"Using CRS: {crs.description()}")
+
+        # Create fields with appropriate types
+        fields = QgsFields()
+        for field_name in header_list:
+            # Default to string
+            field_type = QVariant.String
+
+            # Try to determine field type from data
+            for row in data:
+                if field_name in row and row[field_name] is not None:
+                    value = row[field_name]
+                    if isinstance(value, int):
+                        field_type = QVariant.Int
+                        break
+                    elif isinstance(value, float):
+                        field_type = QVariant.Double
+                        break
+
+            # Add field with determined type
+            fields.append(QgsField(field_name, field_type))
+
+        # Create a temporary shapefile
+        temp_dir = tempfile.gettempdir()
+        output_file = os.path.join(temp_dir, f"{layer_name}.shp")
+
+        print(f"Creating shapefile: {output_file}")
+
+        # Create the shapefile writer
+        writer_options = QgsVectorFileWriter.SaveVectorOptions()
+        writer_options.driverName = "ESRI Shapefile"
+        writer_options.fileEncoding = "UTF-8"
+
+        transform_context = QgsProject.instance().transformContext()
+
+        writer = QgsVectorFileWriter.create(
+            output_file,
+            fields,
+            QgsWkbTypes.Point,
+            crs,
+            transform_context,
+            writer_options,
+        )
+
+        # Add features
+        feature_count = 0
+        for i, row in enumerate(data):
+            # Only process rows with valid coordinates
+            if x_field_name in row and y_field_name in row:
+                try:
+                    # Create a new feature
+                    feat = QgsFeature(fields)
+
+                    # Set coordinates
+                    x_coord = float(row[x_field_name])
+                    y_coord = float(row[y_field_name])
+                    point = QgsPointXY(x_coord, y_coord)
+                    feat.setGeometry(QgsGeometry.fromPointXY(point))
+
+                    # Set attributes with proper types
+                    for j, field_name in enumerate(header_list):
+                        value = row.get(field_name, None)
+                        feat.setAttribute(j, value)
+
+                    # Add the feature to the shapefile
+                    writer.addFeature(feat)
+                    feature_count += 1
+
+                except (ValueError, TypeError) as e:
+                    print(f"Error with row {i}: {e}")
+
+        # Clean up the writer
+        del writer
+
+        print(f"Features written to shapefile: {feature_count}")
+
+        # Load the shapefile as a layer
+        layer = QgsVectorLayer(output_file, layer_name, "ogr")
+
+        if not layer.isValid():
+            print(f"Layer is not valid! Path: {output_file}")
+            return None
+
+        print(f"Shapefile loaded with {layer.featureCount()} features")
+
+        # Add to project
+        QgsProject.instance().addMapLayer(layer)
+
+        # Try to zoom to layer
+        try:
+            self.iface.setActiveLayer(layer)
+            self.iface.zoomToActiveLayer()
+        except Exception as e:
+            print(f"Could not zoom to layer: {str(e)}")
+
         return layer
 
     def get_XYZ_header(self, csv_file):

@@ -39,6 +39,8 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
 - Supports data geotiff, grd, ers grid formats plus any grid format already supported  by QGIS
 - Supports csv, dat, xyz plus any point format already supported by QGIS
    
+# Capabilities   
+
 ## Grav/Mag Filters   
    
 **Reduction to the Pole**    

@@ -10,8 +10,9 @@
 
 # changelog 0.2.14 
 
+      * don't try to load LINE_ID codes if they don't exist in WTMM
       * added PCA & ICA calculations for multiband grids
-      * Speed up Grass-like relief calc
+      * speed up Grass-like relief calc
       * DAT/DFN +/- PRJ format points import added to imports (but format is loose so not tested on all flavours)
       * TA demoted to needing RTP_E first in GUI
    

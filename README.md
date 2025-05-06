@@ -221,7 +221,8 @@ Takes a 3-band registered RGB image and converts it to a monotonically increasin
       
    
 # Inputs   
-- Supports data geotiff, grd, ers formats   
+- Supports data geotiff, grd, ers grid formats plus any format supported already by QGIS
+- Supports csv, dat, xyz plus any point format supported by QGIS
    
 # How To   
 1) Load a raster image from file

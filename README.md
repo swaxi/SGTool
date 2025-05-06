@@ -34,7 +34,11 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
    If you don't use these functions, there is no need to install the extra packages.   
 3) For BSpline Gridding you need to install the plugin **Processing Saga NextGen Provider**   
    
-
+   
+# Inputs   
+- Supports data geotiff, grd, ers grid formats plus any grid format already supported  by QGIS
+- Supports csv, dat, xyz plus any point format already supported by QGIS
+   
 ## Grav/Mag Filters   
    
 **Reduction to the Pole**    
@@ -220,11 +224,7 @@ Normalise the means and standard deviations of a series of grids in a directory 
    
 **Convert LUT to grayscale**   
 Takes a 3-band registered RGB image and converts it to a monotonically increasing grayscale image if you provide the correct Look Up Table, uses matplotlib CSS Colour names: https://matplotlib.org/stable/gallery/color/named_colors.html#css-colors   
-      
-   
-# Inputs   
-- Supports data geotiff, grd, ers grid formats plus any format already supported  by QGIS
-- Supports csv, dat, xyz plus any point format already supported by QGIS
+
    
 # How To   
 1) Load a raster image from file

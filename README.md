@@ -10,9 +10,10 @@
 
 # changelog 0.2.14 
 
-      * Don't try to load LINE_ID codes if they don't exist in WTMM   
       * added PCA & ICA calculations for multiband grids
       * Speed up Grass-like relief calc
+      * DAT/DFN +/- PRJ format points import added to imports (but format is loose so not tested on all flavours)
+      * TA demoted to needing RTP_E first in GUI
    
 Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/metadata.txt">Metadata</a>   
    
@@ -221,8 +222,8 @@ Takes a 3-band registered RGB image and converts it to a monotonically increasin
       
    
 # Inputs   
-- Supports data geotiff, grd, ers grid formats plus any format supported already by QGIS
-- Supports csv, dat, xyz plus any point format supported by QGIS
+- Supports data geotiff, grd, ers grid formats plus any format already supported  by QGIS
+- Supports csv, dat, xyz plus any point format already supported by QGIS
    
 # How To   
 1) Load a raster image from file

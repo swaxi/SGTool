@@ -1009,7 +1009,7 @@ QTabBar::tab:hover {
       <widget class="QCheckBox" name="checkBox_7_tiltDerivative">
        <property name="geometry">
         <rect>
-         <x>10</x>
+         <x>30</x>
          <y>90</y>
          <width>231</width>
          <height>17</height>
@@ -1017,6 +1017,22 @@ QTabBar::tab:hover {
        </property>
        <property name="text">
         <string>Tilt Angle</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_41">
+       <property name="geometry">
+        <rect>
+         <x>10</x>
+         <y>90</y>
+         <width>16</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>●</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
        </property>
       </widget>
      </widget>

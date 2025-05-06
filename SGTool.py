@@ -2190,9 +2190,6 @@ class SGTool:
     def extract_header_projection_data(self, dat_file_path):
         """
         Extract header information, projection data, and actual data from related geophysical data files.
-        Handles multiple formats including:
-        1. Files with DATA prefix and space-delimited columns
-        2. Files with indented data lines with space-delimited columns
         """
         # Derive paths for the .dfn and .prj files
         base_name = dat_file_path.rsplit(".", 1)[0]
@@ -2213,19 +2210,26 @@ class SGTool:
 
         # Parse the DFN file to get field definitions
         field_defs = []
+        data_format_type = "unknown"
 
         with open(dfn_file_path, "r") as dfn_file:
-            for line in dfn_file:
+            dfn_content = dfn_file.readlines()
+
+            # Determine the format type by checking the first DEFN line
+            for line in dfn_content:
+                if "ST=RECD,RT=DATA;RT:A4;" in line:
+                    data_format_type = "data_as_identifier"
+                    break
+
+            # Process all field definitions
+            for line in dfn_content:
                 line = line.strip()
                 if not line:
                     continue
 
-                # Check if this line defines a data field
                 if line.startswith("DEFN") and (
-                    "ST=RECD,RT=;" in line
-                    or (line.startswith("DEFN 0") and "RT:A4;" in line)
+                    "ST=RECD,RT=;" in line or "ST=RECD,RT=DATA;" in line
                 ):
-                    # This is a data field definition
                     parts = line.split(";")
                     field_info = {}
 
@@ -2247,14 +2251,16 @@ class SGTool:
                                     else ""
                                 )
 
-                                # Extract field properties
+                                # Extract field properties - preserve exact field name
                                 if "NAME=" in part:
                                     name_part = (
                                         part.split("NAME=")[1].split(",")[0].strip()
                                         if "," in part.split("NAME=")[1]
                                         else part.split("NAME=")[1].strip()
                                     )
-                                    field_info["name"] = name_part
+                                    field_info["name"] = (
+                                        name_part  # Use exact name as defined
+                                    )
                                 else:
                                     field_info["name"] = field_name
 
@@ -2293,19 +2299,22 @@ class SGTool:
                                         )
                                         field_info["precision"] = 0
 
-                                    field_defs.append(field_info)
-                                    break
+                                    # Only add if we have valid field info
+                                    if "name" in field_info and "type" in field_info:
+                                        field_defs.append(field_info)
+                                        break
 
         # Sort field definitions by index if available
         if field_defs and all("index" in field for field in field_defs):
             field_defs.sort(key=lambda x: x["index"])
 
-        # Extract header list from field definitions
+        # Extract header list from field definitions (preserving exact names)
         header_list = [
             field.get("name", f"Field_{i}") for i, field in enumerate(field_defs)
         ]
 
         print(f"Found {len(header_list)} fields: {header_list}")
+        print(f"Data format type: {data_format_type}")
 
         # Determine EPSG code from projection info
         epsg = None
@@ -2330,96 +2339,34 @@ class SGTool:
 
         # Second priority: Look for projection info in the DFN file
         if epsg is None:
-            with open(dfn_file_path, "r") as dfn_file:
-                dfn_content = dfn_file.read()
-
-                # Check for explicit PROJ line
-                for line in dfn_content.splitlines():
-                    if (
-                        line.startswith("PROJ")
-                        and "GDA94" in line
-                        and "zone" in line.lower()
-                    ):
-                        try:
-                            zone_text = line.lower().split("zone")[1].strip().split()[0]
-                            zone = int("".join(c for c in zone_text if c.isdigit()))
-                            if 49 <= zone <= 56:  # Australian zones
-                                epsg = 28300 + zone
-                                print(f"Found EPSG from PROJ line: {epsg}")
-                                break
-                        except (IndexError, ValueError):
-                            pass
-
-                # Check DEFN lines with projection info
-                if epsg is None:
-                    for line in dfn_content.splitlines():
-                        if (
-                            "PROJNAME" in line
-                            and ("GDA94" in line or "MGA" in line)
-                            and "zone" in line.lower()
-                        ):
-                            try:
-                                zone_text = (
-                                    line.lower().split("zone")[1].strip().split()[0]
-                                )
-                                zone = int("".join(c for c in zone_text if c.isdigit()))
-                                if 49 <= zone <= 56:  # Australian zones
-                                    epsg = 28300 + zone
-                                    print(f"Found EPSG from DEFN line: {epsg}")
-                                    break
-                            except (IndexError, ValueError):
-                                pass
+            dfn_content_str = "".join(dfn_content)
+            if "GDA94" in dfn_content_str and "zone" in dfn_content_str.lower():
+                try:
+                    zone_text = (
+                        dfn_content_str.lower().split("zone")[1].strip().split()[0]
+                    )
+                    zone = int("".join(c for c in zone_text if c.isdigit()))
+                    if 49 <= zone <= 56:  # Australian zones
+                        epsg = 28300 + zone
+                        print(f"Found EPSG from DFN content: {epsg}")
+                except (IndexError, ValueError):
+                    pass
+            elif "WGS84" in dfn_content_str:
+                epsg = 4326
 
         print(f"Final EPSG: {epsg}")
-
-        # Determine the file format by examining the first few lines
-        dat_format = "unknown"
-        first_value_is_data = False
-        with open(dat_file_path, "r") as dat_file:
-            for _ in range(5):  # Check first 5 lines
-                line = dat_file.readline().strip()
-                if not line:
-                    continue
-                if line.startswith("DATA"):
-                    # Check if the first field is "DATA" itself or if "DATA" is just a prefix
-                    parts = line.split(maxsplit=1)
-                    if parts[0] == "DATA":
-                        first_value_is_data = False  # "DATA" is a prefix, not a value
-                    else:
-                        first_value_is_data = True  # "DATA" is the first value
-                    dat_format = "space_delimited"
-                    break
-                elif line.startswith(" "):  # Indented data line
-                    dat_format = "space_delimited"
-                    break
-
-        print(
-            f"Detected data format: {dat_format}, first value is DATA: {first_value_is_data}"
-        )
 
         # Read the DAT file data
         data = []
 
         with open(dat_file_path, "r") as dat_file:
             for line_num, line in enumerate(dat_file):
-                line = line.strip()
-                if not line:
+                original_line = line.strip()
+                if not original_line:
                     continue
 
-                original_line = line  # Keep for debugging
-
-                # Determine how to handle the line based on format
-                if line.startswith("DATA"):
-                    if first_value_is_data:
-                        # The word "DATA" is the first value itself, don't remove it
-                        values = line.split()
-                    else:
-                        # "DATA" is a prefix to remove
-                        line = line[4:].strip()
-                        values = line.split()
-                else:
-                    # No DATA prefix, just split the line
-                    values = line.split()
+                # Split the line into values
+                values = original_line.split()
 
                 # Skip if not enough values
                 if len(values) < len(header_list):
@@ -2428,29 +2375,71 @@ class SGTool:
                     )
                     continue
 
-                # Map values to fields
+                # Map values to fields based on the format
                 row_data = {}
 
-                for i, field_name in enumerate(header_list):
-                    if i < len(values):
-                        value = values[i]
+                # Special handling for files with "DATA" as an identifier
+                if data_format_type == "data_as_identifier" and values[0] == "DATA":
+                    # Skip the "DATA" identifier and shift all values left by one
+                    field_values = values[1:] if len(values) > 1 else []
 
-                        # Convert to appropriate type
-                        if i < len(field_defs):
-                            field_type = field_defs[i].get("type", "")
+                    # If we have fewer values than fields, skip this row
+                    if len(field_values) < len(header_list):
+                        print(
+                            f"Warning: Line {line_num} has fewer values ({len(field_values)}) than fields ({len(header_list)}) after removing DATA"
+                        )
+                        continue
 
-                            if field_type in ["F", "D"]:  # Float
-                                try:
-                                    value = float(value)
-                                except (ValueError, TypeError):
-                                    pass
-                            elif field_type == "I":  # Integer
-                                try:
-                                    value = int(value)
-                                except (ValueError, TypeError):
-                                    pass
+                    # Map each field to its value
+                    for i, field_name in enumerate(header_list):
+                        if i < len(field_values):
+                            value = field_values[i]
 
-                        row_data[field_name] = value
+                            # Convert to appropriate type
+                            if i < len(field_defs):
+                                field_type = field_defs[i].get("type", "")
+
+                                if field_type in ["F", "D"]:  # Float
+                                    try:
+                                        value = float(value)
+                                    except (ValueError, TypeError):
+                                        pass
+                                elif field_type == "I":  # Integer
+                                    try:
+                                        value = int(value)
+                                    except (ValueError, TypeError):
+                                        pass
+
+                            row_data[field_name] = value
+                else:
+                    # For files with DATA prefix to remove
+                    if original_line.startswith("DATA"):
+                        line_content = original_line[4:].strip()
+                        values = line_content.split()
+                    else:
+                        values = original_line.split()
+
+                    # Map values to fields
+                    for i, field_name in enumerate(header_list):
+                        if i < len(values):
+                            value = values[i]
+
+                            # Convert to appropriate type
+                            if i < len(field_defs):
+                                field_type = field_defs[i].get("type", "")
+
+                                if field_type in ["F", "D"]:  # Float
+                                    try:
+                                        value = float(value)
+                                    except (ValueError, TypeError):
+                                        pass
+                                elif field_type == "I":  # Integer
+                                    try:
+                                        value = int(value)
+                                    except (ValueError, TypeError):
+                                        pass
+
+                            row_data[field_name] = value
 
                 # Add this row to our data
                 data.append(row_data)
@@ -2466,244 +2455,6 @@ class SGTool:
         print(f"Processed {len(data)} data rows")
 
         return header_list, epsg, data
-
-    def extract_epsg_from_text(self, text):
-        """Extract EPSG code from text containing projection information."""
-        if not text:
-            return None
-
-        epsg = None
-
-        if "GDA94" in text and "zone" in text.lower():
-            try:
-                # Look for zone number after "zone"
-                zone_text = text.lower().split("zone")[1].strip().split()[0]
-                # Remove any non-digit characters (like "S")
-                zone = int("".join(c for c in zone_text if c.isdigit()))
-                if 49 <= zone <= 56:  # Australian zones
-                    epsg = 28300 + zone
-            except (IndexError, ValueError):
-                pass
-        elif "WGS84" in text:
-            epsg = 4326  # WGS84
-        elif "MGA" in text and "zone" in text.lower():
-            try:
-                zone_text = text.lower().split("zone")[1].strip().split()[0]
-                zone = int("".join(c for c in zone_text if c.isdigit()))
-                if 49 <= zone <= 56:  # Australian zones
-                    epsg = 28300 + zone
-            except (IndexError, ValueError):
-                pass
-
-        return epsg
-
-    def extract_header_projection_data_last(self, dat_file_path):
-        """
-        Extract header information, projection data, and actual data from related geophysical data files.
-
-        Args:
-            dat_file_path (str): Path to the .dat file. The .prj and .dfn files should be in the same directory.
-
-        Returns:
-            tuple: (header_list, epsg, data)
-                - header_list (list): List of column names
-                - epsg (int): EPSG code for the projection
-                - data (list): List of dictionaries, where each dictionary represents a row of data
-        """
-        # Derive paths for the .dfn and .prj files
-        base_name = dat_file_path.rsplit(".", 1)[0]
-        dfn_file_path = base_name + ".dfn"
-        prj_file_path = base_name + ".prj"
-        if os.path.exists(dat_file_path) and os.path.exists(dfn_file_path):
-
-            # Parse the DFN file to get field definitions with precise positions
-            field_defs = []
-
-            with open(dfn_file_path, "r") as dfn_file:
-                for line in dfn_file:
-                    line = line.strip()
-                    if not line:
-                        continue
-
-                    if line.startswith("DEFN"):
-                        # Look for data field definitions
-                        if "ST=RECD,RT=;" in line or "RT:A4;" in line:
-                            if (
-                                "RT=PROJ;" not in line
-                                and "RT=TRNS;" not in line
-                                and "RT=COMM;" not in line
-                            ):
-                                parts = line.split(";")
-                                field_info = {}
-
-                                # Extract DEFN number to determine field order
-                                if " " in line:
-                                    defn_parts = line.split(" ", 2)
-                                    if len(defn_parts) > 1 and defn_parts[1].isdigit():
-                                        field_info["index"] = int(defn_parts[1])
-
-                                # Extract field name and format
-                                for part in parts:
-                                    if ":" in part:
-                                        name_format = part.split(":", 1)
-                                        if len(name_format) > 1:
-                                            field_name = name_format[0].strip()
-                                            field_format = name_format[1].strip()
-
-                                            # Extract the NAME= part for field name
-                                            if "NAME=" in field_format:
-                                                name_part = (
-                                                    field_format.split("NAME=", 1)[1]
-                                                    .split(",")[0]
-                                                    .strip()
-                                                )
-                                                field_info["name"] = name_part
-                                            else:
-                                                field_info["name"] = field_name
-
-                                            # Extract format details (type and width)
-                                            if field_format and field_format[0] in [
-                                                "F",
-                                                "I",
-                                                "D",
-                                                "A",
-                                            ]:
-                                                field_info["type"] = field_format[0]
-
-                                                # Parse width and precision
-                                                format_spec = field_format.split(":")[
-                                                    0
-                                                ].strip()
-                                                if format_spec[1:].isdigit():
-                                                    field_info["width"] = int(
-                                                        format_spec[1:]
-                                                    )
-                                                else:
-                                                    digits = "".join(
-                                                        [
-                                                            c
-                                                            for c in format_spec
-                                                            if c.isdigit() or c == "."
-                                                        ]
-                                                    )
-                                                    if "." in digits:
-                                                        width, precision = digits.split(
-                                                            "."
-                                                        )
-                                                        field_info["width"] = int(width)
-                                                        field_info["precision"] = int(
-                                                            precision
-                                                        )
-                                                    else:
-                                                        field_info["width"] = (
-                                                            int(digits)
-                                                            if digits
-                                                            else 10
-                                                        )
-
-                                                field_defs.append(field_info)
-                                                break
-
-            # Sort field definitions by index if available
-            if all("index" in field for field in field_defs):
-                field_defs.sort(key=lambda x: x["index"])
-
-            # Extract header list from field definitions
-            header_list = [
-                field.get("name", f"Field_{i}") for i, field in enumerate(field_defs)
-            ]
-
-            # Parse the PRJ file to determine EPSG code
-            epsg = None
-            if os.path.exists(prj_file_path):
-                with open(prj_file_path, "r") as prj_file:
-                    prj_content = prj_file.read().strip()
-
-                    # Extract projection information
-                    if "GDA94" in prj_content and "UTM zone" in prj_content:
-                        # Extract zone number
-                        zone_match = prj_content.split("UTM zone")[1].strip().split()[0]
-                        zone = (
-                            int(zone_match.split("S")[0])
-                            if "S" in zone_match
-                            else int(zone_match)
-                        )
-                        epsg = 28300 + zone
-
-                with open(prj_file_path, "r") as prj_file:
-                    prj_content = prj_file.read().strip()
-
-                    # Extract projection information
-                    if "GDA94" in prj_content and "UTM zone" in prj_content:
-                        # Extract zone number
-                        zone_match = prj_content.split("UTM zone")[1].strip().split()[0]
-                        zone = (
-                            int(zone_match.split("S")[0])
-                            if "S" in zone_match
-                            else int(zone_match)
-                        )
-                        epsg = 28300 + zone  # GDA94 / MGA zone XX is EPSG:283XX
-                    elif "WGS84" in prj_content:
-                        epsg = 4326  # WGS84
-                    elif "MGA" in prj_content:
-                        # Look for zone information
-                        zone_parts = prj_content.split()
-                        for i, part in enumerate(zone_parts):
-                            if (
-                                part.isdigit() and int(part) >= 49 and int(part) <= 56
-                            ):  # Australian zones
-                                zone = int(part)
-                                epsg = 28300 + zone
-                                break
-
-            # Read the DAT file using a different approach - split by spaces first
-            data = []
-
-            with open(dat_file_path, "r") as dat_file:
-                for line in dat_file:
-                    line = line.strip()
-                    if not line or not line.startswith("DATA"):
-                        continue
-
-                    # Remove the 'DATA' prefix
-                    line = line[4:].strip()
-
-                    # Split line into values
-                    values = line.split()
-
-                    # Map values to fields
-                    row_data = {}
-
-                    if len(values) >= len(header_list):
-                        for i, field_name in enumerate(header_list):
-                            value = values[i]
-                            # Convert to appropriate type
-                            field_def = field_defs[i] if i < len(field_defs) else {}
-                            field_type = field_def.get("type", "")
-
-                            if field_type in ["F", "D"]:  # Float
-                                try:
-                                    value = float(value)
-                                except (ValueError, TypeError):
-                                    pass
-                            elif field_type == "I":  # Integer
-                                try:
-                                    value = int(value)
-                                except (ValueError, TypeError):
-                                    pass
-
-                            row_data[field_name] = value
-
-                        data.append(row_data)
-
-            return header_list, epsg, data
-        else:
-            self.iface.messageBar().pushMessage(
-                "DAT format requires DAT and DFN files",
-                level=Qgis.Warning,
-                duration=3,
-            )
-            return None, None, None
 
     def read_header(self, file_path, delimiter=","):
         """
@@ -3969,10 +3720,6 @@ class SGTool:
                 # Get coordinates
                 x_coord = float(row[x_field_name])
                 y_coord = float(row[y_field_name])
-
-                # Debug first few rows
-                if i < 5:
-                    print(f"Row {i}: X={x_coord}, Y={y_coord}")
 
                 # Create feature
                 feat = QgsFeature(fields)

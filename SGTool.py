@@ -501,9 +501,6 @@ class SGTool:
         )
 
         self.dlg.checkBox_polygons.setToolTip("Create grid outline polygon(s) layer")
-        self.dlg.checkBox_relief.setToolTip(
-            "relief option gives less agressive shading"
-        )
 
         self.dlg.label_26.setToolTip(
             "Functions preceded by dot points should be calculated on RTE or RTP mag data"
@@ -601,6 +598,18 @@ class SGTool:
         )
         self.dlg.mQgsSpinBox_ICA.setToolTip(
             "Number of components to keep after ICA\nSet to 0 to keep all components"
+        )
+        self.dlg.checkBox_SunShading.setToolTip(
+            "Sun shading of grid\nUses azimuth and zenith angles to create a shaded relief effect\nUseful for visualizing topography and enhancing features"
+        )
+        self.dlg.lineEdit_SunSh_Az.setToolTip(
+            "Azimuth angle for sun shading\n0 = North, 90 = East, 180 = South, 270 or -90 = West"
+        )
+        self.dlg.lineEdit_SunSh_Zn.setToolTip(
+            "Zenith angle for sun shading\n90 = directly overhead, 0 = horizon"
+        )
+        self.dlg.checkBox_relief.setToolTip(
+            "Uses Grass-like shading algortthm for softer shading"
         )
 
     def initParams(self):

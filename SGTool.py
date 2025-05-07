@@ -498,28 +498,28 @@ class SGTool:
         )
 
         self.dlg.label_26.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RPT data"
+            "Functions preceded by dot points should be calculated on RTE or RPT mag data"
         )
         self.dlg.label_28.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RPT data"
+            "Functions preceded by dot points should be calculated on RTE or RPT mag data"
         )
         self.dlg.label_29.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RPT data"
+            "Functions preceded by dot points should be calculated on RTE or RPT mag data"
         )
         self.dlg.label_32.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RPT data"
+            "Functions preceded by dot points should be calculated on RTE or RPT mag data"
         )
         self.dlg.label_30.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RPT data"
+            "Functions preceded by dot points should be calculated on RTE or RPT mag data"
         )
         self.dlg.label_25.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RPT data"
+            "Functions preceded by dot points should be calculated on RTE or RPT mag data"
         )
         self.dlg.label_40.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RPT data"
+            "Functions preceded by dot points should be calculated on RTE or RPT mag data"
         )
         self.dlg.label_41.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RPT data"
+            "Functions preceded by dot points should be calculated on RTE or RPT mag data"
         )
 
         self.dlg.checkBox_SS_Min.setToolTip(

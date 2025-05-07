@@ -44,7 +44,11 @@ from qgis.core import (
     QgsMapLayerProxyModel,
     QgsApplication,
     QgsMessageLog,
+    QgsVectorFileWriter,
+    QgsVectorLayer,
+    QgsCoordinateTransformContext,
 )
+
 
 from qgis.PyQt.QtCore import (
     QSettings,
@@ -2187,6 +2191,32 @@ class SGTool:
                 self.dlg.pushButton_load_point_data.setEnabled(True)
                 self.pointType = "point"
 
+    def get_XYZ_header(self, csv_file):
+        # Input file path
+        # csv_file = r"//wsl.localhost/Ubuntu-20.04/home/mark/gridding/MAG.XYZ"  # Replace with your actual file path
+
+        # Initialize variables
+        data_list = []
+        current_line_number = None
+
+        # Read the file line-by-line
+        with open(csv_file, "r") as file:
+            for line in file:
+                line = line.strip()
+                if line.startswith("LINE:"):  # Check for 'LINE:' markers
+                    current_line_number = int(
+                        re.search(r"\d+", line).group()
+                    )  # Extract the line number
+                elif current_line_number is not None:
+                    try:
+                        # Parse numerical lines
+                        parts = list(map(float, line.split()))
+                        if len(parts) >= 3:  # Ensure at least 5 components (x, y, z)
+                            data_list.append(parts + [current_line_number])
+                            return len(parts) - 2
+                    except ValueError:
+                        pass
+
     def extract_header_projection_data(self, dat_file_path):
         """
         Extract header information, projection data, and actual data from related geophysical data files.
@@ -3562,6 +3592,7 @@ class SGTool:
                 )
             else:  # *.DAT
                 self.create_points_layer_from_data(
+                    dir_name,
                     self.pts_columns,
                     proj.split(":")[1],
                     self.pts_data,
@@ -3588,8 +3619,8 @@ class SGTool:
         """
         # Define the URI for the CSV file, specifying coordinate fields and CRS
 
-        basename = os.path.basename(file_path)
-        extension = os.path.splitext(basename)[1]
+        dir_name, basename = os.path.split(file_path)
+        output_path = os.path.join(dir_name, f"{basename}.shp")
 
         uri = (
             f"file:///{file_path}?type=csv&xField={x_field}&yField={y_field}"
@@ -3598,16 +3629,53 @@ class SGTool:
 
         # Load the layer as a delimited text vector layer
         layer = QgsVectorLayer(uri, layer_name, "delimitedtext")
-
         if not layer.isValid():
             raise ValueError(f"Failed to load layer: {file_path}")
+        self.save_layer_as_shapefile(layer, output_path)
 
+        layer2 = QgsVectorLayer(output_path, layer_name)
         # Add the layer to the current QGIS project
-        QgsProject.instance().addMapLayer(layer)
-        return layer
+        QgsProject.instance().addMapLayer(layer2)
+        return layer2
+
+    def save_layer_as_shapefile(self, layer, output_path):
+        """
+        Save a vector layer as a shapefile using QgsVectorFileWriter3.
+
+        Parameters:
+        layer -- The QgsVectorLayer to save
+        output_path -- The full path where the shapefile will be saved (including .shp extension)
+
+        Returns:
+        bool -- True if successful, False otherwise
+        """
+        # Make sure the layer is valid
+        if not layer.isValid():
+            print("Layer is not valid")
+            return False
+
+        # Create the save options
+        options = QgsVectorFileWriter.SaveVectorOptions()
+        options.driverName = "ESRI Shapefile"
+        options.fileEncoding = "UTF-8"
+
+        # Save the layer using QgsVectorFileWriter3
+        write_result, error_message, new_filename, new_layer_name = (
+            QgsVectorFileWriter.writeAsVectorFormatV3(
+                layer, output_path, QgsCoordinateTransformContext(), options
+            )
+        )
+        # Check if the saving was successful
+        if write_result == QgsVectorFileWriter.NoError:
+            print(f"Layer successfully saved to {output_path}")
+            return True
+        else:
+            print(f"Error saving layer: {error_message}")
+            return False
 
     def create_points_layer_from_data(
         self,
+        dir_name,
         header_list,
         epsg,
         data,
@@ -3618,21 +3686,6 @@ class SGTool:
         """
         Create a shapefile from the data dictionary and load it as a layer.
         """
-        from qgis.core import (
-            QgsVectorFileWriter,
-            QgsField,
-            QgsFeature,
-            QgsGeometry,
-            QgsPointXY,
-            QgsProject,
-            QgsCoordinateReferenceSystem,
-            QgsFields,
-            QgsWkbTypes,
-            QgsVectorLayer,
-        )
-        from PyQt5.QtCore import QVariant
-        import os
-        import tempfile
 
         # Determine coordinate field names if not provided
         if x_field_name is None:
@@ -3683,8 +3736,8 @@ class SGTool:
             fields.append(QgsField(field_name, field_type))
 
         # Create a temporary shapefile
-        temp_dir = tempfile.gettempdir()
-        output_file = os.path.join(temp_dir, f"{layer_name}.shp")
+        # temp_dir = tempfile.gettempdir()
+        output_file = os.path.join(dir_name, f"{layer_name}.shp")
 
         print(f"Creating shapefile: {output_file}")
 
@@ -3767,174 +3820,6 @@ class SGTool:
 
         return layer
 
-    def create_points_layer_from_data_last(
-        self,
-        header_list,
-        epsg,
-        data,
-        x_field_name="MGA_Easting",
-        y_field_name="MGA_Northing",
-        layer_name="Points Layer",
-    ):
-        """
-        Create a shapefile from the data dictionary and load it as a layer.
-        """
-        from qgis.core import (
-            QgsVectorFileWriter,
-            QgsField,
-            QgsFeature,
-            QgsGeometry,
-            QgsPointXY,
-            QgsProject,
-            QgsCoordinateReferenceSystem,
-            QgsFields,
-            QgsWkbTypes,
-            QgsVectorLayer,
-        )
-        from PyQt5.QtCore import QVariant
-        import os
-        import tempfile
-
-        # Create a CRS object
-        crs = QgsCoordinateReferenceSystem("EPSG:4326")  # Default to WGS84
-        if epsg is not None:
-            crs = QgsCoordinateReferenceSystem(f"EPSG:{epsg}")
-            print(f"Using CRS: {crs.description()}")
-
-        # Create fields with appropriate types
-        fields = QgsFields()
-        for field_name in header_list:
-            # Default to string
-            field_type = QVariant.String
-
-            # Try to determine field type from data
-            for row in data:
-                if field_name in row and row[field_name] is not None:
-                    value = row[field_name]
-                    if isinstance(value, int):
-                        field_type = QVariant.Int
-                        break
-                    elif isinstance(value, float):
-                        field_type = QVariant.Double
-                        break
-
-            # Add field with determined type
-            fields.append(QgsField(field_name, field_type))
-
-        # Create a temporary shapefile
-        temp_dir = tempfile.gettempdir()
-        output_file = os.path.join(temp_dir, f"{layer_name}.shp")
-
-        print(f"Creating shapefile: {output_file}")
-
-        # Create the shapefile writer
-        writer_options = QgsVectorFileWriter.SaveVectorOptions()
-        writer_options.driverName = "ESRI Shapefile"
-        writer_options.fileEncoding = "UTF-8"
-
-        transform_context = QgsProject.instance().transformContext()
-
-        writer = QgsVectorFileWriter.create(
-            output_file,
-            fields,
-            QgsWkbTypes.Point,
-            crs,
-            transform_context,
-            writer_options,
-        )
-
-        # Add features
-        feature_count = 0
-        for i, row in enumerate(data):
-            # Only process rows with valid coordinates
-            if x_field_name in row and y_field_name in row:
-                try:
-                    # Create a new feature
-                    feat = QgsFeature(fields)
-
-                    # Set coordinates
-                    x_coord = float(row[x_field_name])
-                    y_coord = float(row[y_field_name])
-                    point = QgsPointXY(x_coord, y_coord)
-                    feat.setGeometry(QgsGeometry.fromPointXY(point))
-
-                    # Set attributes with proper types
-                    for j, field_name in enumerate(header_list):
-                        value = row.get(field_name, None)
-                        feat.setAttribute(j, value)
-
-                    # Add the feature to the shapefile
-                    writer.addFeature(feat)
-                    feature_count += 1
-
-                except (ValueError, TypeError) as e:
-                    print(f"Error with row {i}: {e}")
-
-        # Clean up the writer
-        del writer
-
-        print(f"Features written to shapefile: {feature_count}")
-
-        # Load the shapefile as a layer
-        layer = QgsVectorLayer(output_file, layer_name, "ogr")
-
-        if not layer.isValid():
-            print(f"Layer is not valid! Path: {output_file}")
-            return None
-
-        print(f"Shapefile loaded with {layer.featureCount()} features")
-
-        # Add to project
-        QgsProject.instance().addMapLayer(layer)
-
-        # Try to zoom to layer
-        try:
-            self.iface.setActiveLayer(layer)
-            self.iface.zoomToActiveLayer()
-        except Exception as e:
-            print(f"Could not zoom to layer: {str(e)}")
-
-        return layer
-
-    def get_XYZ_header(self, csv_file):
-        """
-        Extracts the header information from a given XYZ file and determines the number of
-        additional components beyond the X, Y, and Z coordinates.
-        Args:
-            csv_file (str): The file path to the XYZ file to be processed.
-        Returns:
-            int: The number of additional components (beyond X, Y, Z) in the data lines.
-        Notes:
-            - The function reads the file line-by-line and looks for lines starting with "LINE:"
-              to identify the current line number.
-            - Numerical data lines are expected to have at least three components (X, Y, Z).
-            - If a valid numerical line is found, the function calculates the number of additional
-              components and returns it.
-            - If no valid numerical line is found, the function does not return a value.
-        """
-
-        # Initialize variables
-        data_list = []
-        current_line_number = None
-
-        # Read the file line-by-line
-        with open(csv_file, "r") as file:
-            for line in file:
-                line = line.strip()
-                if line.startswith("LINE:"):  # Check for 'LINE:' markers
-                    current_line_number = int(
-                        re.search(r"\d+", line).group()
-                    )  # Extract the line number
-                elif current_line_number is not None:
-                    try:
-                        # Parse numerical lines
-                        parts = list(map(float, line.split()))
-                        if len(parts) >= 3:  # Ensure at least 5 components (x, y, z)
-                            data_list.append(parts + [current_line_number])
-                            return len(parts) - 2
-                    except ValueError:
-                        pass
-
     def import_XYZ(self, XYZ_file, crs, layer_name="line", load_ties=True):
         """
         Imports an XYZ file and creates both line and point layers in QGIS.
@@ -3962,6 +3847,8 @@ class SGTool:
         # Initialize variables
         data_list = []
         current_line_number = None
+        dir_name, basename = os.path.split(XYZ_file)
+        output_path = os.path.join(dir_name, f"{basename}.shp")
 
         # Read the file line-by-line
         with open(XYZ_file, "r") as file:
@@ -4042,9 +3929,16 @@ class SGTool:
             feature.setAttributes([line_id] + values)
             point_provider.addFeature(feature)
 
-        QgsProject.instance().addMapLayer(point_layer)
+        if not point_layer.isValid():
+            raise ValueError(f"Failed to load layer: {XYZ_file}")
+        self.save_layer_as_shapefile(point_layer, output_path)
+
+        layer2 = QgsVectorLayer(output_path, basename)
+        # Add the layer to the current QGIS project
+        QgsProject.instance().addMapLayer(layer2)
+
         layer_tree = QgsProject.instance().layerTreeRoot()
-        layer_tree.findLayer(point_layer.id()).setItemVisibilityChecked(False)
+        layer_tree.findLayer(layer2.id()).setItemVisibilityChecked(False)
 
     def convert_RGB_to_grey(self, RGBGridPath, LUT):
         """

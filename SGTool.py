@@ -518,6 +518,9 @@ class SGTool:
         self.dlg.label_40.setToolTip(
             "Functions preceded by dot points should be calculated on RTE or RPT data"
         )
+        self.dlg.label_41.setToolTip(
+            "Functions preceded by dot points should be calculated on RTE or RPT data"
+        )
 
         self.dlg.checkBox_SS_Min.setToolTip(
             "Calculate minimum of values around central pixel"

@@ -288,9 +288,11 @@ class SGTool:
         utilize the available tools effectively.
         """
 
-        self.dlg.mMapLayerComboBox_selectGrid.setToolTip("File selected for processing")
+        self.dlg.mMapLayerComboBox_selectGrid.setToolTip(
+            "Layer selected for processing"
+        )
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setToolTip(
-            "File selected for grid processing"
+            "Layer selected for grid processing"
         )
         self.dlg.pushButton_2_selectGrid.setToolTip("Load new file for processing")
         self.dlg.checkBox_3_DirClean.setToolTip(

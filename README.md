@@ -257,7 +257,7 @@ There are several excellent Open Source or at least free alternatives to this pl
 - Example geophysics data in image above courtesy of Mauritania Govt. and USGS https://anarpam.mr/en/     
 - Worming of grids uses Frank Horowitz's bsdwormer  https://bitbucket.org/fghorow/bsdwormer/
 - Wavelet Transform base code - https://github.com/PyWavelets/pywt 
-- Multilevel BSpline Gridding piggybacks off SAGA code via the plugin Processing Saga NextGen Provider   
+- Multilevel BSpline Gridding piggybacks off SAGA code via the plugin Processing Saga NextGen Provider https://github.com/north-road/qgis-processing-saga-nextgen   
 
 
 

@@ -290,11 +290,11 @@ class SGTool:
 
         self.dlg.mMapLayerComboBox_selectGrid.setToolTip("File selected for processing")
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setToolTip(
-            "File selected for processing"
+            "File selected for grid processing"
         )
         self.dlg.pushButton_2_selectGrid.setToolTip("Load new file for processing")
         self.dlg.checkBox_3_DirClean.setToolTip(
-            "Filter [DirC} a specific direction and wavelength,\nUseful for filtering flight line noise"
+            "Filter (DirC) a specific direction and wavelength,\nUseful for filtering flight line noise"
         )
 
         self.dlg.lineEdit_3_azimuth.setToolTip(
@@ -305,10 +305,10 @@ class SGTool:
             "Reduction to pole or equator\nThe reduction to the pole (RTP) or to Equator (RTE) is a process in geophysics\nwhere magnetic data are transformed to look as though\n they were measured at the magnetic pole/equator\nCorrects the asymmetry of magnetic anomalies caused by\n the Earth's field, making them appear directly above their sources"
         )
         self.dlg.pushButton_4_calcIGRF.setToolTip(
-            "Calculate IGRF Inc & Dec based on centroid of selected grid and specified survey height and date"
+            "Calculate IGRF Inclination & Declination based on centroid of selected grid and specified survey height and date"
         )
         self.dlg.comboBox_3_rte_p_list.setToolTip(
-            "Choose Pole(high mag latitudes)\n or Equator (low mag latitudes)"
+            "Choose Pole(high mag latitudes >20 degrees)\n or Equator (low mag latitudes, <20 degrees)\n for reduction to pole or equator"
         )
         self.dlg.lineEdit_6_inc.setToolTip(
             "Manually define magnetic inclination [degrees from horizontal]"
@@ -319,14 +319,14 @@ class SGTool:
         self.dlg.lineEdit_6_int.setToolTip("Survey intensity in nT")
         self.dlg.dateEdit.setToolTip("Survey date (1900-2025)")
         self.dlg.checkBox_4_PGrav.setToolTip(
-            "Vertical Integration:\nWhen applied to RTE/P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing."
+            "Vertical Integration:\nWhen applied to RTE/P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing.\nRequires a metre-based projection"
         )
 
         self.dlg.checkBox_5_regional.setToolTip(
-            "Remove regional (RR) based on wavelenth"
+            "Remove regional (RR) based on wavelenth "
         )
         self.dlg.lineEdit_9_removeReg_wavelength.setToolTip(
-            "Wavelength to define regional [m or other length unit]"
+            "Wavelength to define regional [layer units]"
         )
         self.dlg.checkBox_6_derivative.setToolTip(
             "Calculate derivate (d+power+direction) parallel to x, y or z\nHighlights near-surface/short-wavelength features"
@@ -391,15 +391,19 @@ class SGTool:
             "Provides pop-up display of grid plus Radial Averaged Power Spectrum (needs testing!)"
         )
 
-        self.dlg.checkBox_Mean.setToolTip("Mean of values around central pixel")
+        self.dlg.checkBox_Mean.setToolTip(
+            "Mean of values around central pixel\nSmooths data"
+        )
 
-        self.dlg.checkBox_Median.setToolTip("Median of values around central pixel")
+        self.dlg.checkBox_Median.setToolTip(
+            "Median of values around central pixel\Removes high frequency noise"
+        )
 
         self.dlg.checkBox_Gaussian.setToolTip("Gaussian smoothing of image")
 
-        self.dlg.checkBox_Directional.setToolTip("Directional enhancement")
-
-        self.dlg.checkBox_SunShading.setToolTip("Sun Shading")
+        self.dlg.checkBox_Directional.setToolTip(
+            "Directional enhancement\nHighlights high frequency data in a particular direction"
+        )
 
         self.dlg.pushButton_selectPoints.setToolTip(
             "Select csv, dat or xyz format points file"
@@ -420,7 +424,7 @@ class SGTool:
             "Load points file and convert to layer\nWith polyline layer of lines for xyz format files"
         )
         self.dlg.mMapLayerComboBox_selectGrid_3.setToolTip(
-            "Select from currently loaded points files for gridding"
+            "Select from currently loaded points layers for gridding"
         )
         self.dlg.comboBox_select_grid_data_field.setToolTip("Select field to grid")
         self.dlg.doubleSpinBox_cellsize.setToolTip("Define cell size in layer units")
@@ -434,10 +438,10 @@ class SGTool:
             "Number of cells in x & y directions based on spatial extent of points and Cell Size"
         )
         self.dlg.pushButton_2_selectGrid_RGB.setToolTip(
-            "Select RGB image that you want to attempt to convert to a monotonic grayscale image"
+            "Select RGB image that you want to convert to a monotonic grayscale image"
         )
         self.dlg.textEdit_2_colour_list.setToolTip(
-            "Comma separated list of CSS colours, leave blank to get link to list of colours"
+            "Comma separated list of CSS colours"
         )
         self.dlg.groupBox_7.setToolTip(
             "1) Load a RGB raster image,\n2) Define a Look Up Table by defining a comma separated sequence of colours using CSS colour names and\n3) Convert to monotonically increasing greyscale image\n\nDo not use if any shading has been applied to the image!"

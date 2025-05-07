@@ -16,6 +16,7 @@
       * DAT/DFN +/- PRJ format points import added to imports (but format is loose so not tested on all flavours)
       * TA demoted to needing RTP_E first in GUI
       * save all CSV/XYZ/DAT imports as shapefiles
+      * fix import matplotlib bug and test for LINE_ID for points in WTMM code
    
 Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/metadata.txt">Metadata</a>   
    

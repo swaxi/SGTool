@@ -43,12 +43,11 @@ from qgis.core import (
     QgsPointXY,
     QgsMapLayerProxyModel,
     QgsApplication,
-    QgsMessageLog,
     QgsVectorFileWriter,
     QgsVectorLayer,
     QgsCoordinateTransformContext,
+    QgsMapLayerType,
 )
-
 
 from qgis.PyQt.QtCore import (
     QSettings,
@@ -3213,14 +3212,7 @@ class SGTool:
             )
 
             self.dlg.mMapLayerComboBox_selectVectors.setFilters(
-                QgsMapLayerProxyModel.PointLayer | QgsMapLayerProxyModel.VectorLayer
-            )
-
-            self.dlg.mMapLayerComboBox_selectGrid_3.setFilters(
-                QgsMapLayerProxyModel.PointLayer
-            )
-            self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setFilters(
-                QgsMapLayerProxyModel.RasterLayer
+                Qgis.LayerFilter.VectorLayer | Qgis.LayerFilter.PointLayer
             )
 
             self.dlg.version_label.setText(self.show_version())
@@ -4718,13 +4710,13 @@ class SGTool:
             line_layer = QgsProject.instance().mapLayersByName(line_layer_name)[0]
             self.dlg.mFieldComboBox_data.setEnabled(True)
 
-            # Check if the layer has the LINE_ID field
-            if "LINE_ID" not in [field.name() for field in line_layer.fields()]:
-                # Field doesn't exist, break out or handle the error
-                # QMessageBox.warning(None, "Field Missing", "The layer does not contain a LINE_ID field.")
-                return  # This will exit the current function
-
             if line_layer.geometryType() == QgsWkbTypes.PointGeometry:
+                # Check if the layer has the LINE_ID field
+                if "LINE_ID" not in [field.name() for field in line_layer.fields()]:
+                    # Field doesn't exist, break out or handle the error
+                    # QMessageBox.warning(None, "Field Missing", "The layer does not contain a LINE_ID field.")
+                    return  # This will exit the current function
+
                 self.dlg.mFieldComboBox_feature.clear()
                 unique_values = []
 

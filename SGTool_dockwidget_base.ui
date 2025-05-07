@@ -1355,7 +1355,7 @@ font-style: italic;</string>
         </rect>
        </property>
        <property name="text">
-        <string>45</string>
+        <string>-45</string>
        </property>
       </widget>
       <widget class="QLabel" name="label_67">
@@ -2034,7 +2034,7 @@ font-size: 13px;
         <rect>
          <x>460</x>
          <y>30</y>
-         <width>31</width>
+         <width>71</width>
          <height>16</height>
         </rect>
        </property>
@@ -2093,7 +2093,7 @@ font-size: 13px;
         <rect>
          <x>460</x>
          <y>60</y>
-         <width>41</width>
+         <width>71</width>
          <height>16</height>
         </rect>
        </property>
@@ -2577,8 +2577,8 @@ font-size: 13px;
      <widget class="QgsMapLayerComboBox" name="mMapLayerComboBox_selectGrid_worms">
       <property name="geometry">
        <rect>
-        <x>120</x>
-        <y>310</y>
+        <x>180</x>
+        <y>320</y>
         <width>251</width>
         <height>21</height>
        </rect>
@@ -2587,8 +2587,8 @@ font-size: 13px;
      <widget class="QLabel" name="label_52">
       <property name="geometry">
        <rect>
-        <x>20</x>
-        <y>310</y>
+        <x>80</x>
+        <y>320</y>
         <width>91</width>
         <height>20</height>
        </rect>

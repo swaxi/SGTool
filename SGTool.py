@@ -424,7 +424,15 @@ class SGTool:
         )
         self.dlg.comboBox_select_grid_data_field.setToolTip("Select field to grid")
         self.dlg.doubleSpinBox_cellsize.setToolTip("Define cell size in layer units")
-
+        self.dlg.pushButton_idw_2.setToolTip(
+            "Perform Inverse Distance Weighting (IDW) gridding\nOpens Standard QGIS Dialog"
+        )
+        self.dlg.pushButton_bspline_3.setToolTip(
+            "Perform Multilevel B-Spline gridding\nRequires SAGAProcessing Saga NextGen Provider plugin to be installed"
+        )
+        self.dlg.label_51.setToolTip(
+            "Number of cells in x & y directions based on spatial extent of points and Cell Size"
+        )
         self.dlg.pushButton_2_selectGrid_RGB.setToolTip(
             "Select RGB image that you want to attempt to convert to a monotonic grayscale image"
         )

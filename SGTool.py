@@ -398,7 +398,7 @@ class SGTool:
         )
 
         self.dlg.checkBox_Median.setToolTip(
-            "Median of values around central pixel\Removes high frequency noise"
+            "Median of values around central pixel\nRemoves high frequency noise"
         )
 
         self.dlg.checkBox_Gaussian.setToolTip("Gaussian smoothing of image")

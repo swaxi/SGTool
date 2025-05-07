@@ -254,9 +254,10 @@ There are several excellent Open Source or at least free alternatives to this pl
 - Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin https://g-sherman.github.io/Qgis-Plugin-Builder/    
 - IGRF calculation -  using pyIGRF https://github.com/ciaranbe/pyIGRF
 - GRD Loader & Radially averaged power spectrum Fatiando a Terra crew & Mark Jessell https://www.fatiando.org/
-- Example geophysics data in image above courtesy of Mauritania Govt. https://anarpam.mr/en/     
+- Example geophysics data in image above courtesy of Mauritania Govt. and USGS https://anarpam.mr/en/     
 - Worming of grids uses Frank Horowitz's bsdwormer  https://bitbucket.org/fghorow/bsdwormer/
 - Wavelet Transform base code - https://github.com/PyWavelets/pywt 
+- Multilevel BSpline Gridding piggybacks off SAGA code via the plugin Processing Saga NextGen Provider   
 
 
 

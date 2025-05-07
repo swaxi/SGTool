@@ -3210,7 +3210,15 @@ class SGTool:
             self.dlg.mMapLayerComboBox_selectGrid_worms.setFilters(
                 QgsMapLayerProxyModel.RasterLayer
             )
-
+            """
+            replace code below once new QGIS version is available
+            
+            self.dlg.mMapLayerComboBox_selectVectors.setAllowedTypes(
+                [Qgis.LayerType.Vector]
+            )
+            self.dlg.mMapLayerComboBox_selectVectors.setGeometryTypes(
+                [QgsWkbTypes.PointGeometry]
+            )"""
             self.dlg.mMapLayerComboBox_selectVectors.setFilters(
                 Qgis.LayerFilter.VectorLayer | Qgis.LayerFilter.PointLayer
             )

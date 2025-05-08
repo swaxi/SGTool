@@ -3592,7 +3592,7 @@ class SGTool:
 
     def import_point_line_data(self, header_list=None, data=None):
         # import point or line data as vector file to memory
-        self.diskPointsPath = self.dlg.lineEdit_2_loadGridPath.text()
+        self.diskPointsPath = self.dlg.lineEdit_loadPointsPath.text()
         if os.path.exists(self.diskPointsPath) and self.diskPointsPath != "":
 
             dir_name, base_name = os.path.split(self.diskPointsPath)

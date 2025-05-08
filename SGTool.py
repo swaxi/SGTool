@@ -3592,36 +3592,41 @@ class SGTool:
 
     def import_point_line_data(self, header_list=None, data=None):
         # import point or line data as vector file to memory
-        dir_name, base_name = os.path.split(self.diskPointsPath)
-        file_name, file_ext = os.path.splitext(base_name)
+        self.diskPointsPath = self.dlg.lineEdit_2_loadGridPath.text()
+        if os.path.exists(self.diskPointsPath) and self.diskPointsPath != "":
 
-        proj = self.dlg.mQgsProjectionSelectionWidget.crs().authid()
+            dir_name, base_name = os.path.split(self.diskPointsPath)
+            file_name, file_ext = os.path.splitext(base_name)
 
-        if self.pointType == "line":
-            crs = proj.split(":")[1]
-            load_ties = self.dlg.checkBox_load_tie_lines.isChecked()
-            self.import_XYZ(self.diskPointsPath, crs, file_name, load_ties=load_ties)
-        else:
-            x_field = self.dlg.comboBox_grid_x.currentText()
-            y_field = self.dlg.comboBox_grid_y.currentText()
-            if file_ext.upper() == ".CSV" or file_ext.upper() == ".TXT":
-                self.import_CSV(
-                    self.diskPointsPath,
-                    x_field,
-                    y_field,
-                    layer_name=file_name,
-                    crs=proj,
+            proj = self.dlg.mQgsProjectionSelectionWidget.crs().authid()
+
+            if self.pointType == "line":
+                crs = proj.split(":")[1]
+                load_ties = self.dlg.checkBox_load_tie_lines.isChecked()
+                self.import_XYZ(
+                    self.diskPointsPath, crs, file_name, load_ties=load_ties
                 )
-            else:  # *.DAT
-                self.create_points_layer_from_data(
-                    dir_name,
-                    self.pts_columns,
-                    proj.split(":")[1],
-                    self.pts_data,
-                    x_field,
-                    y_field,
-                    layer_name=file_name,
-                )
+            else:
+                x_field = self.dlg.comboBox_grid_x.currentText()
+                y_field = self.dlg.comboBox_grid_y.currentText()
+                if file_ext.upper() == ".CSV" or file_ext.upper() == ".TXT":
+                    self.import_CSV(
+                        self.diskPointsPath,
+                        x_field,
+                        y_field,
+                        layer_name=file_name,
+                        crs=proj,
+                    )
+                else:  # *.DAT
+                    self.create_points_layer_from_data(
+                        dir_name,
+                        self.pts_columns,
+                        proj.split(":")[1],
+                        self.pts_data,
+                        x_field,
+                        y_field,
+                        layer_name=file_name,
+                    )
 
     def import_CSV(
         self, file_path, x_field, y_field, layer_name="points", crs="EPSG:4326"

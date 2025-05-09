@@ -91,6 +91,7 @@ from .calcs.WTMM import WTMM
 from .calcs.PCAICA import PCAICA
 from .calcs.SG_Util import SG_Util
 from .igrf.igrf_utils import igrf_utils as IGRF
+from .calcs.aseggdf2parser import AsegGdf2Parser
 
 
 class SGTool:
@@ -2190,10 +2191,24 @@ class SGTool:
                 self.dlg.pushButton_load_point_data.setEnabled(True)
                 self.pointType = "point"
             else:
-                self.pts_columns, epsg, self.pts_data = (
-                    self.extract_header_projection_data(self.diskPointsPath)
+                self.parser = AsegGdf2Parser()
+                # self.pts_columns, epsg, self.pts_data = (
+                # self.extract_header_projection_data(self.diskPointsPath)
+                # )
+                directory_path = os.path.dirname(self.diskPointsPath)
+                basename = os.path.basename(self.diskPointsPath)
+                filename_without_extension = os.path.splitext(basename)[0]
+                extension = os.path.splitext(basename)[1]
+                if extension == ".dat":
+                    dfnPath = directory_path + "/" + filename_without_extension + ".dfn"
+                else:
+                    dfnPath = directory_path + "/" + filename_without_extension + ".DFN"
+
+                self.header_list, self.field_defs, self.points_epsg = (
+                    self.parser.parse_dfn_file(dfnPath)
                 )
-                if self.pts_columns is None:
+                print("self.header_list", self.header_list)
+                if self.header_list is None:
                     return
 
                 self.dlg.comboBox_grid_x.setEnabled(True)
@@ -2202,17 +2217,17 @@ class SGTool:
 
                 # Create a CRS object with your specific EPSG code
 
-                if epsg is None:
+                if self.points_epsg is None:
                     crs = QgsCoordinateReferenceSystem("EPSG:4326")
                 else:
-                    crs = QgsCoordinateReferenceSystem(f"EPSG:{epsg}")
+                    crs = QgsCoordinateReferenceSystem(f"EPSG:{self.points_epsg}")
 
                 # Set the CRS on the projection selection widget
                 self.dlg.mQgsProjectionSelectionWidget.setCrs(crs)
                 self.dlg.comboBox_grid_x.clear()
                 self.dlg.comboBox_grid_y.clear()
-                self.dlg.comboBox_grid_x.addItems(self.pts_columns)
-                self.dlg.comboBox_grid_y.addItems(self.pts_columns)
+                self.dlg.comboBox_grid_x.addItems(self.header_list)
+                self.dlg.comboBox_grid_y.addItems(self.header_list)
                 self.dlg.pushButton_load_point_data.setEnabled(True)
                 self.pointType = "point"
 
@@ -3617,8 +3632,30 @@ class SGTool:
                         layer_name=file_name,
                         crs=proj,
                     )
-                else:  # *.DAT
-                    self.create_points_layer_from_data(
+                elif file_ext.upper() == ".DAT":
+                    data = self.parser.parse_dat_file(
+                        self.diskPointsPath, self.header_list, self.field_defs
+                    )
+
+                    if not self.points_epsg:
+                        self.points_epsg = proj.split(":")[1]
+
+                    if data:
+
+                        output_file = os.path.join(dir_name, file_name + ".shp")
+
+                        self.parser.export_to_shapefile(
+                            data,
+                            self.header_list,
+                            x_field,
+                            y_field,
+                            output_file,
+                            self.points_epsg,
+                        )
+                    else:
+                        print("Error: No data found in the file.")
+
+                    """self.create_points_layer_from_data(
                         dir_name,
                         self.pts_columns,
                         proj.split(":")[1],
@@ -3626,7 +3663,7 @@ class SGTool:
                         x_field,
                         y_field,
                         layer_name=file_name,
-                    )
+                    )"""
 
     def import_CSV(
         self, file_path, x_field, y_field, layer_name="points", crs="EPSG:4326"

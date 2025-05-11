@@ -52,11 +52,6 @@ class AsegGdf2Parser:
             print(f"Error reading DFN file: {str(e)}")
             return [], {}, None
 
-        # Print the first few lines for debugging
-        """print(f"First 5 lines of DFN file:")
-        for i, line in enumerate(lines[:5]):
-            print(f"Line {i+1}: {line.strip()}")"""
-
         # Process all DEFN lines
         current_rt = None
         for line in lines:
@@ -72,8 +67,10 @@ class AsegGdf2Parser:
                     current_rt = rt_match.group(1).strip()
 
                 # Extract field name and format
-                field_match = re.search(r";\s*([^:]*):([^:]*)", line)
-                if field_match and "END DEFN" not in line:
+                # Critical fix: Changed regex to properly handle fields on the same line as END DEFN
+                field_match = re.search(r";\s*([^:]*):([^:;]*)", line)
+
+                if field_match:
                     field_name = field_match.group(1).strip()
                     field_format = field_match.group(2).strip()
 
@@ -88,6 +85,7 @@ class AsegGdf2Parser:
                     # Add to header list if it's a regular data field
                     if current_rt == "" and field_name not in header_list:
                         header_list.append(field_name)
+                        print(f"Added field to header list: {field_name}")
 
                     # Extract field type from format
                     field_type = QVariant.String  # Default to string
@@ -109,7 +107,14 @@ class AsegGdf2Parser:
                     epsg_match = re.search(r"epsgcode=(\d+)", line)
                     if epsg_match and (
                         field_name.lower()
-                        in ["longitude", "latitude", "easting", "northing"]
+                        in [
+                            "longitude",
+                            "latitude",
+                            "easting",
+                            "northing",
+                            "x_gda94",
+                            "y_gda94",
+                        ]
                     ):
                         epsg = epsg_match.group(1)
                         print(f"Found EPSG code {epsg} for field {field_name}")
@@ -127,9 +132,23 @@ class AsegGdf2Parser:
 
         # Check if we found fields
         if header_list:
-            print(f"Found {len(header_list)} fields in DFN file: {header_list}")
+            print(f"Found {len(header_list)} fields in DFN file:")
+            for i, field in enumerate(header_list):
+                field_def = field_defs.get(field, {})
+                field_type = "String"
+                if field_def.get("type") == QVariant.Int:
+                    field_type = "Integer"
+                elif field_def.get("type") == QVariant.Double:
+                    field_type = "Double"
+                print(f"  {i+1}. {field} ({field_type})")
         else:
             print("No fields found in DFN file")
+
+        # Debug - check specifically for Y_GDA94
+        if "Y_GDA94" in header_list:
+            print(f"Y_GDA94 found at position {header_list.index('Y_GDA94') + 1}")
+        else:
+            print("WARNING: Y_GDA94 field not found in DFN file!")
 
         return header_list, field_defs, epsg
 
@@ -155,10 +174,9 @@ class AsegGdf2Parser:
             print(f"Error reading DAT file: {str(e)}")
             return []
 
-        # Print the first few lines for debugging
-        """ print(f"First 5 lines of DAT file:")
-        for i, line in enumerate(lines[:5]):
-            print(f"Line {i+1}: {line.strip()}")"""
+        # Track stats for reporting
+        processed_lines = 0
+        skipped_lines = 0
 
         # Check if records include a record type identifier
         has_rt = False
@@ -175,7 +193,8 @@ class AsegGdf2Parser:
 
         for line_num, line in enumerate(lines):
             line = line.strip()
-            if not line:
+            if not line:  # Skip empty lines
+                skipped_lines += 1
                 continue
 
             try:
@@ -187,6 +206,7 @@ class AsegGdf2Parser:
                     print(
                         f"Warning: Line {line_num+1} has {len(fields)} fields, expected {len(header_list)}"
                     )
+                    skipped_lines += 1
                     continue
 
                 # Create data row
@@ -231,15 +251,58 @@ class AsegGdf2Parser:
                         row[field_name] = None
 
                 data.append(row)
+                processed_lines += 1
 
-                # Print first row for debugging
-                """if line_num == 0:
-                    print(f"First data row: {row}")"""
+                # Debug first and last row for verification
+                if processed_lines == 1 or line_num == len(lines) - 1:
+                    field_samples = [
+                        f"{field_name}={row.get(field_name, 'N/A')}"
+                        for field_name in header_list[-2:]
+                    ]
+                    print(
+                        f"{'First' if processed_lines == 1 else 'Last'} data row processed: FID={row.get('FID', 'N/A')}, {', '.join(field_samples)}"
+                    )
 
             except Exception as e:
                 print(f"Error parsing line {line_num+1}: {str(e)}")
+                skipped_lines += 1
 
-        print(f"Parsed {len(data)} rows from DAT file")
+        print(
+            f"Parsed {len(data)} rows from DAT file (Processed: {processed_lines}, Skipped: {skipped_lines})"
+        )
+
+        # Additional verification for last record
+        if data and len(lines) > 0:
+            last_line = lines[-1].strip()
+            last_fields = last_line.split()
+            last_fid = last_fields[2] if len(last_fields) > 2 else "unknown"
+
+            # Verify the last record was processed
+            last_record_processed = any(
+                str(row.get("FID", "")).startswith(last_fid) for row in data[-1:]
+            )
+            if not last_record_processed:
+                print(
+                    f"WARNING: Last record (FID={last_fid}) may not have been processed!"
+                )
+
+        # Verify Y_GDA94 field in all rows
+        missing_y_gda94_count = sum(
+            1 for row in data if "Y_GDA94" not in row or row["Y_GDA94"] is None
+        )
+        if missing_y_gda94_count > 0:
+            print(
+                f"WARNING: {missing_y_gda94_count} rows are missing the Y_GDA94 field value"
+            )
+
+        # Report on coordinate field values (for debugging)
+        last_row = data[-1] if data else {}
+        x_field = "X_GDA94"
+        y_field = "Y_GDA94"
+        print(
+            f"Last row coordinates: {x_field}={last_row.get(x_field, 'N/A')}, {y_field}={last_row.get(y_field, 'N/A')}"
+        )
+
         return data
 
     def process_aseg_gdf2_data(
@@ -301,6 +364,7 @@ class AsegGdf2Parser:
                     or "x_" in field.lower()
                     or field.lower().endswith("_x")
                     or "east" in field.lower()
+                    or field.lower() == "x_gda94"
                 ):
                     x_field_name = field
                     print(f"Using {x_field_name} as X coordinate field")
@@ -316,6 +380,7 @@ class AsegGdf2Parser:
                     or "y_" in field.lower()
                     or field.lower().endswith("_y")
                     or "north" in field.lower()
+                    or field.lower() == "y_gda94"
                 ):
                     y_field_name = field
                     print(f"Using {y_field_name} as Y coordinate field")
@@ -341,6 +406,17 @@ class AsegGdf2Parser:
         print(f"  Y coordinate field: {y_field_name}")
         if epsg:
             print(f"  EPSG code: {epsg}")
+
+        # Verify coordinate values in the data
+        if data:
+            first_row = data[0]
+            last_row = data[-1]
+            print(
+                f"  First row coordinates: {x_field_name}={first_row.get(x_field_name)}, {y_field_name}={first_row.get(y_field_name)}"
+            )
+            print(
+                f"  Last row coordinates: {x_field_name}={last_row.get(x_field_name)}, {y_field_name}={last_row.get(y_field_name)}"
+            )
 
         # Return the processed data
         return data, header_list, x_field_name, y_field_name, epsg
@@ -444,6 +520,7 @@ class AsegGdf2Parser:
                         break
 
             fields.append(QgsField(field_name, field_type))
+            print(f"Adding field to shapefile: {field_name} (Type: {field_type})")
 
         print(f"Creating shapefile: {output_file}")
 
@@ -463,22 +540,43 @@ class AsegGdf2Parser:
             writer_options,
         )
 
+        if writer.hasError() != QgsVectorFileWriter.NoError:
+            print(f"Error creating shapefile writer: {writer.errorMessage()}")
+            return None
+
         # Add features
         feature_count = 0
         error_count = 0
+        missing_coord_count = 0
 
         for i, row in enumerate(data):
             try:
                 # Check if coordinate fields have values
                 if x_field_name not in row or y_field_name not in row:
+                    print(
+                        f"Warning: Row {i+1} missing coordinate field. Available fields: {list(row.keys())}"
+                    )
+                    missing_coord_count += 1
                     continue
 
                 if row[x_field_name] is None or row[y_field_name] is None:
+                    print(
+                        f"Warning: Row {i+1} has null coordinate values: {x_field_name}={row[x_field_name]}, {y_field_name}={row[y_field_name]}"
+                    )
+                    missing_coord_count += 1
                     continue
 
                 # Get coordinates
-                x_coord = float(row[x_field_name])
-                y_coord = float(row[y_field_name])
+                try:
+                    x_coord = float(row[x_field_name])
+                    y_coord = float(row[y_field_name])
+                except (ValueError, TypeError) as e:
+                    print(
+                        f"Warning: Row {i+1} has invalid coordinate values: {x_field_name}={row[x_field_name]}, {y_field_name}={row[y_field_name]}"
+                    )
+                    print(f"Error: {str(e)}")
+                    missing_coord_count += 1
+                    continue
 
                 # Create feature
                 feat = QgsFeature(fields)
@@ -491,8 +589,21 @@ class AsegGdf2Parser:
                     feat.setAttribute(j, row.get(field_name, None))
 
                 # Add to shapefile
-                writer.addFeature(feat)
-                feature_count += 1
+                if writer.addFeature(feat):
+                    feature_count += 1
+                    # Log first and last feature for verification
+                    if feature_count == 1 or i == len(data) - 1:
+                        coord_msg = f"({x_coord}, {y_coord})"
+                        field_samples = [
+                            f"{field_name}={row.get(field_name, 'N/A')}"
+                            for field_name in header_list[-2:]
+                        ]
+                        print(
+                            f"{'First' if feature_count == 1 else 'Last'} feature written: FID={row.get('FID', 'N/A')}, Coords={coord_msg}, {', '.join(field_samples)}"
+                        )
+                else:
+                    error_count += 1
+                    print(f"Error adding feature {i+1}")
 
             except Exception as e:
                 error_count += 1
@@ -504,6 +615,18 @@ class AsegGdf2Parser:
 
         print(f"Features written to shapefile: {feature_count}")
         print(f"Errors encountered: {error_count}")
+        print(f"Records skipped due to missing coordinates: {missing_coord_count}")
+
+        # Verify the last row was written
+        if data and feature_count > 0:
+            last_row = data[-1]
+            last_fid = last_row.get("FID", "N/A")
+            print(f"Last data row FID: {last_fid}")
+
+            if feature_count < len(data):
+                print(
+                    f"Warning: Not all records were written to the shapefile ({feature_count} of {len(data)})"
+                )
 
         # Load the shapefile
         layer = QgsVectorLayer(output_file, layer_name, "ogr")

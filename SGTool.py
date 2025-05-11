@@ -408,7 +408,7 @@ class SGTool:
         )
 
         self.dlg.pushButton_selectPoints.setToolTip(
-            "Select csv, dat or xyz format points file"
+            "Select csv, dat (ASEG-GDF2) or xyz format points file"
         )
         self.dlg.comboBox_grid_x.setToolTip(
             "Define X coordinate column (for csv & dat files)"
@@ -4330,6 +4330,9 @@ class SGTool:
             return False
 
         line_layer_name = self.dlg.mMapLayerComboBox_selectVectors.currentText()
+        data_name = self.dlg.mFieldComboBox_data.currentText()
+        if line_layer_name.split(".")[-1].lower() == "xyz":
+            data_name = "data_2"
         line_layer = QgsProject.instance().mapLayersByName(line_layer_name)[0]
 
         if line_layer is None:
@@ -4358,7 +4361,7 @@ class SGTool:
                 spacing = "auto"
 
             new_coords, data, median_spacing = self.regularize_selected_points(
-                line_layer.name(), "data_2", spacing=spacing, num_points=None
+                line_layer.name(), data_name, spacing=spacing, num_points=None
             )
             plot_layer_name = line_layer_name
 
@@ -4533,7 +4536,10 @@ class SGTool:
         # Get the layer by name
         layer = QgsProject.instance().mapLayersByName(layer_name)[0]
         selection_value = self.dlg.mFieldComboBox_feature.currentText()
-        layer.selectByExpression("LINE_ID = " + selection_value)
+        if "LINE_ID" in [field.name() for field in layer.fields()]:
+            layer.selectByExpression("LINE_ID = " + selection_value)
+        else:
+            layer.selectByExpression("LINE = " + selection_value)
 
         if not layer:
             print(f"Layer '{layer_name}' not found")
@@ -4758,7 +4764,9 @@ class SGTool:
 
             if line_layer.geometryType() == QgsWkbTypes.PointGeometry:
                 # Check if the layer has the LINE_ID field
-                if "LINE_ID" not in [field.name() for field in line_layer.fields()]:
+                if "LINE_ID" not in [
+                    field.name() for field in line_layer.fields()
+                ] and "LINE" not in [field.name() for field in line_layer.fields()]:
                     # Field doesn't exist, break out or handle the error
                     # QMessageBox.warning(None, "Field Missing", "The layer does not contain a LINE_ID field.")
                     return  # This will exit the current function
@@ -4767,7 +4775,11 @@ class SGTool:
                 unique_values = []
 
                 for feature in line_layer.getFeatures():
-                    value = str(feature["LINE_ID"])
+                    if "LINE_ID" in [field.name() for field in line_layer.fields()]:
+                        value = str(feature["LINE_ID"])
+                    else:
+                        value = str(feature["LINE"])
+
                     if value not in unique_values:
                         unique_values.append(value)
 

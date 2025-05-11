@@ -1959,7 +1959,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>440</x>
-         <y>80</y>
+         <y>90</y>
          <width>101</width>
          <height>23</height>
         </rect>
@@ -2014,6 +2014,24 @@ font-size: 13px;
        </property>
        <property name="alignment">
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QCheckBox" name="checkBox_load_tie_lines_2">
+       <property name="geometry">
+        <rect>
+         <x>330</x>
+         <y>80</y>
+         <width>101</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="font">
+        <font>
+         <pointsize>9</pointsize>
+        </font>
+       </property>
+       <property name="text">
+        <string>Legacy DAT</string>
        </property>
       </widget>
      </widget>

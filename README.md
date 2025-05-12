@@ -13,7 +13,7 @@
       * don't try to load LINE_ID codes if they don't exist in WTMM
       * added PCA & ICA calculations for multiband grids
       * speed up Grass-like relief calc
-      * added DAT format points import based on ASEG-GDF2 standard
+      * added DAT format points import based on legacy or ASEG-GDF2 standard
       * TA demoted to needing RTP_E first in GUI
       * save all CSV/XYZ/DAT imports as shapefiles
       * fix import matplotlib bug and test for LINE_ID for points in WTMM code

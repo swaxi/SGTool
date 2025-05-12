@@ -1834,9 +1834,9 @@ font-size: 12px;
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>20</y>
+        <y>10</y>
         <width>551</width>
-        <height>121</height>
+        <height>151</height>
        </rect>
       </property>
       <property name="title">
@@ -1846,7 +1846,7 @@ font-size: 12px;
        <property name="geometry">
         <rect>
          <x>142</x>
-         <y>31</y>
+         <y>57</y>
          <width>131</width>
          <height>20</height>
         </rect>
@@ -1856,7 +1856,7 @@ font-size: 12px;
        <property name="geometry">
         <rect>
          <x>280</x>
-         <y>31</y>
+         <y>57</y>
          <width>31</width>
          <height>23</height>
         </rect>
@@ -1872,7 +1872,7 @@ font-size: 12px;
        <property name="geometry">
         <rect>
          <x>19</x>
-         <y>58</y>
+         <y>84</y>
          <width>38</width>
          <height>16</height>
         </rect>
@@ -1896,7 +1896,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>19</x>
-         <y>84</y>
+         <y>110</y>
          <width>28</width>
          <height>16</height>
         </rect>
@@ -1920,7 +1920,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>100</x>
-         <y>58</y>
+         <y>84</y>
          <width>211</width>
          <height>20</height>
         </rect>
@@ -1933,7 +1933,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>100</x>
-         <y>84</y>
+         <y>110</y>
          <width>211</width>
          <height>20</height>
         </rect>
@@ -1946,7 +1946,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>330</x>
-         <y>30</y>
+         <y>56</y>
          <width>211</width>
          <height>21</height>
         </rect>
@@ -1959,7 +1959,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>440</x>
-         <y>90</y>
+         <y>116</y>
          <width>101</width>
          <height>23</height>
         </rect>
@@ -1977,8 +1977,8 @@ font-size: 13px;
       <widget class="QCheckBox" name="checkBox_load_tie_lines">
        <property name="geometry">
         <rect>
-         <x>330</x>
-         <y>60</y>
+         <x>170</x>
+         <y>20</y>
          <width>211</width>
          <height>17</height>
         </rect>
@@ -1999,7 +1999,7 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>30</y>
+         <y>56</y>
          <width>111</width>
          <height>20</height>
         </rect>
@@ -2016,11 +2016,11 @@ font-size: 13px;
         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
        </property>
       </widget>
-      <widget class="QCheckBox" name="checkBox_load_tie_lines_2">
+      <widget class="QCheckBox" name="checkBox_legacy_dat">
        <property name="geometry">
         <rect>
-         <x>330</x>
-         <y>80</y>
+         <x>30</x>
+         <y>20</y>
          <width>101</width>
          <height>17</height>
         </rect>
@@ -2039,7 +2039,7 @@ font-size: 13px;
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>150</y>
+        <y>170</y>
         <width>551</width>
         <height>141</height>
        </rect>
@@ -2282,7 +2282,7 @@ font-size: 13px;
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>340</y>
+        <y>360</y>
         <width>551</width>
         <height>121</height>
        </rect>
@@ -2444,7 +2444,7 @@ font-size: 13px;
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>480</y>
+        <y>490</y>
         <width>551</width>
         <height>141</height>
        </rect>
@@ -2596,7 +2596,7 @@ font-size: 13px;
       <property name="geometry">
        <rect>
         <x>180</x>
-        <y>320</y>
+        <y>330</y>
         <width>251</width>
         <height>21</height>
        </rect>
@@ -2606,7 +2606,7 @@ font-size: 13px;
       <property name="geometry">
        <rect>
         <x>80</x>
-        <y>320</y>
+        <y>330</y>
         <width>91</width>
         <height>20</height>
        </rect>

@@ -54,102 +54,208 @@ class AsegGdf2Parser:
             return [], {}, None
 
         # Process all DEFN lines
-        current_rt = None
         for line in lines:
             line = line.strip()
-            if not line or not line.startswith("DEFN"):
+            if not line:
                 continue
 
-            # Parse the DEFN line according to ASEG-GDF2 standard
-            try:
-                # Extract RT (Record Type)
-                rt_match = re.search(r"RT=([^;]*)", line)
-                if rt_match:
-                    current_rt = rt_match.group(1).strip()
+            # Skip lines that don't start with DEFN
+            if not line.startswith("DEFN"):
+                continue
 
-                # Extract field name and format
-                # Critical fix: Changed regex to properly handle fields on the same line as END DEFN
-                field_match = re.search(r";\s*([^:]*):([^:;]*)", line)
+            # Skip END DEFN lines
+            if "END DEFN" in line:
+                continue
 
-                if field_match:
-                    field_name = field_match.group(1).strip()
-                    field_format = field_match.group(2).strip()
+            # Check different DEFN formats
+            defn_pattern = r"DEFN\s*(\d+)?\s*ST=REC[ORD]*"
+            defn_match = re.match(defn_pattern, line, re.IGNORECASE)
 
-                    # Skip record type field itself
-                    if field_name.upper() == "RT":
-                        continue
+            if defn_match:
+                # Extract field information
+                parts = line.split(";")
 
-                    # Skip DEFN end markers
-                    if field_name.upper() == "END DEFN":
-                        continue
+                for part in parts[1:]:  # Skip the first part (DEFN...)
+                    # Look for field:format pattern
+                    field_pattern = r"([^:;]+):([^:;,]+)"
+                    field_match = re.match(field_pattern, part.strip())
 
-                    # Add to header list if it's a regular data field
-                    if current_rt == "" and field_name not in header_list:
-                        header_list.append(field_name)
-                        print(f"Added field to header list: {field_name}")
+                    if field_match:
+                        field_name = field_match.group(1).strip()
+                        field_format = field_match.group(2).strip()
 
-                    # Extract field type from format
-                    field_type = QVariant.String  # Default to string
-                    if field_format:
-                        if field_format.startswith("I"):  # Integer
-                            field_type = QVariant.Int
-                        elif field_format.startswith(("F", "E", "D")):  # Float
-                            field_type = QVariant.Double
+                        # Skip RT field
+                        if field_name.upper() == "RT":
+                            continue
 
-                    # Extract NULL value if provided
-                    null_match = re.search(r"NULL=([^,]*)", line)
-                    null_value = null_match.group(1) if null_match else None
+                        # Check for NAME= attribute in the rest of the part
+                        name_match = re.search(r"NAME=([^,;]+)", part)
+                        display_name = (
+                            name_match.group(1).strip() if name_match else field_name
+                        )
 
-                    # Extract units if provided
-                    unit_match = re.search(r"UNIT=([^,]*)", line)
-                    unit = unit_match.group(1) if unit_match else None
+                        # Check for array format (e.g., 256f5.0)
+                        array_match = re.match(r"(\d+)([A-Za-z]+.*)", field_format)
+                        if array_match:
+                            count = int(array_match.group(1))
+                            base_format = array_match.group(2)
 
-                    # Check for EPSG code (for coordinate fields)
-                    epsg_match = re.search(r"epsgcode=(\d+)", line)
-                    if epsg_match and (
-                        field_name.lower()
-                        in [
-                            "longitude",
-                            "latitude",
-                            "easting",
-                            "northing",
-                            "x_gda94",
-                            "y_gda94",
-                        ]
-                    ):
-                        epsg = epsg_match.group(1)
-                        print(f"Found EPSG code {epsg} for field {field_name}")
+                            # Handle large arrays as a single field with a special name
+                            if (
+                                count > 20
+                            ):  # Consider arrays with more than 20 elements as "large"
+                                print(
+                                    f"Found large array field: {display_name} with {count} elements"
+                                )
 
-                    # Create field definition
-                    field_defs[field_name] = {
-                        "type": field_type,
-                        "format": field_format,
-                        "null": null_value,
-                        "unit": unit,
-                    }
-            except Exception as e:
-                print(f"Error parsing DEFN line: {line}")
-                print(f"Error details: {str(e)}")
+                                # Use the display name with _array suffix
+                                array_field_name = f"{display_name}_array"
+                                header_list.append(array_field_name)
+
+                                # Extract field type from format, but use string for the array
+                                field_type = (
+                                    QVariant.String
+                                )  # Store as string for arrays
+
+                                # Extract NULL value if provided
+                                null_match = re.search(r"NULL=([^,;]+)", part)
+                                null_value = (
+                                    null_match.group(1).strip() if null_match else None
+                                )
+
+                                # Extract units if provided
+                                unit_match = re.search(r"UNIT=([^,;]+)", part)
+                                unit = (
+                                    unit_match.group(1).strip() if unit_match else None
+                                )
+
+                                # Store additional array info
+                                field_defs[array_field_name] = {
+                                    "type": field_type,
+                                    "format": field_format,
+                                    "null": null_value,
+                                    "unit": unit,
+                                    "original_name": field_name,
+                                    "is_array": True,
+                                    "array_count": count,
+                                    "array_base_format": base_format,
+                                }
+                            else:
+                                # Create multiple fields for smaller arrays - use shorter names for shapefile compatibility
+                                # Truncate the base name to leave room for the index
+                                base_name = (
+                                    display_name[:6]
+                                    if len(display_name) > 6
+                                    else display_name
+                                )
+
+                                for i in range(count):
+                                    # Create field name that fits in 10 characters
+                                    if count > 999:  # Need more compact format
+                                        array_field_name = f"{base_name[:4]}_{i:04d}"
+                                    elif count > 99:
+                                        array_field_name = f"{base_name[:5]}_{i:03d}"
+                                    else:
+                                        array_field_name = f"{base_name}_{i:02d}"
+
+                                    header_list.append(array_field_name)
+
+                                    # Extract field type from format
+                                    field_type = QVariant.String
+                                    if base_format.startswith("I"):
+                                        field_type = QVariant.Int
+                                    elif base_format.startswith(("F", "E", "D")):
+                                        field_type = QVariant.Double
+
+                                    field_defs[array_field_name] = {
+                                        "type": field_type,
+                                        "format": base_format,
+                                        "null": None,
+                                        "unit": None,
+                                        "original_name": field_name,
+                                        "is_array": False,  # Not treating as special array
+                                    }
+                        else:
+                            # Regular single field
+                            header_list.append(display_name)
+                            print(
+                                f"Added field to header list: {display_name} (original: {field_name})"
+                            )
+
+                            # Extract field type from format
+                            field_type = QVariant.String
+                            if field_format.startswith("I"):
+                                field_type = QVariant.Int
+                            elif field_format.startswith(("F", "E", "D")):
+                                field_type = QVariant.Double
+                            elif field_format.startswith("A"):
+                                field_type = QVariant.String
+
+                            # Extract NULL value if provided
+                            null_match = re.search(r"NULL=([^,;]+)", part)
+                            null_value = (
+                                null_match.group(1).strip() if null_match else None
+                            )
+
+                            # Extract units if provided
+                            unit_match = re.search(r"UNIT=([^,;]+)", part)
+                            unit = unit_match.group(1).strip() if unit_match else None
+
+                            # Check for EPSG code
+                            epsg_match = re.search(
+                                r"epsgcode=(\d+)", part, re.IGNORECASE
+                            )
+                            if epsg_match and display_name.lower() in [
+                                "longitude",
+                                "latitude",
+                                "easting",
+                                "northing",
+                                "x_gda94",
+                                "y_gda94",
+                                "long",
+                                "lat",
+                                "x",
+                                "y",
+                            ]:
+                                epsg = epsg_match.group(1)
+                                print(
+                                    f"Found EPSG code {epsg} for field {display_name}"
+                                )
+
+                            # Create field definition
+                            field_defs[display_name] = {
+                                "type": field_type,
+                                "format": field_format,
+                                "null": null_value,
+                                "unit": unit,
+                                "original_name": field_name,
+                                "is_array": False,
+                            }
+
+                        # Only process the first field in this part
+                        break
 
         # Check if we found fields
         if header_list:
             print(f"Found {len(header_list)} fields in DFN file:")
-            for i, field in enumerate(header_list):
+            for i, field in enumerate(header_list[:20]):  # Show first 20 fields
                 field_def = field_defs.get(field, {})
                 field_type = "String"
                 if field_def.get("type") == QVariant.Int:
                     field_type = "Integer"
                 elif field_def.get("type") == QVariant.Double:
                     field_type = "Double"
+
+                # Show if it's an array field
+                if field_def.get("is_array", False):
+                    array_count = field_def.get("array_count", 0)
+                    field_type = f"{field_type} Array[{array_count}]"
+
                 print(f"  {i+1}. {field} ({field_type})")
+            if len(header_list) > 20:
+                print(f"  ... and {len(header_list) - 20} more fields")
         else:
             print("No fields found in DFN file")
-
-        # Debug - check specifically for Y_GDA94
-        if "Y_GDA94" in header_list:
-            print(f"Y_GDA94 found at position {header_list.index('Y_GDA94') + 1}")
-        else:
-            print("WARNING: Y_GDA94 field not found in DFN file!")
 
         return header_list, field_defs, epsg
 
@@ -179,18 +285,103 @@ class AsegGdf2Parser:
         processed_lines = 0
         skipped_lines = 0
 
-        # Check if records include a record type identifier
-        has_rt = False
-        if lines and len(lines) > 0:
-            first_line = lines[0].strip()
-            # ASEG-GDF2 allows one record type to have no identifier
-            # Check if the first word is a 4-character RT identifier
-            words = first_line.split()
-            if words and len(words[0]) <= 4 and not words[0][0].isdigit():
-                has_rt = True
+        # Make a working copy of the header list and field definitions
+        working_header_list = header_list.copy()
+        working_field_defs = field_defs.copy()
+
+        # Find array fields
+        array_fields = {}
+        for field_name in working_header_list:
+            field_def = working_field_defs.get(field_name, {})
+            if field_def.get("is_array", False):
+                array_fields[field_name] = {
+                    "count": field_def.get("array_count", 0),
+                    "base_format": field_def.get("array_base_format", ""),
+                }
                 print(
-                    f"Data appears to have record type identifiers. First RT: {words[0]}"
+                    f"Found array field {field_name} with {field_def.get('array_count', 0)} elements"
                 )
+
+        # Check if this file has COMMENTS field
+        has_comments_field = "COMMENTS" in working_header_list
+
+        # Check the structure of the first few lines to determine format
+        if lines:
+            # Sample the first few non-empty lines
+            sample_lines = []
+            for line in lines[:10]:
+                line = line.strip()
+                if line:
+                    sample_lines.append(line)
+
+            if sample_lines:
+                # Check if last character of each line is consistently an asterisk (*)
+                has_trailing_asterisk = all(line.endswith("*") for line in sample_lines)
+
+                # Check field counts
+                field_counts = [len(line.split()) for line in sample_lines]
+                most_common_count = max(set(field_counts), key=field_counts.count)
+
+                # Calculate expected field count in data file
+                # Start with regular fields (non-array)
+                regular_fields = [
+                    f
+                    for f in working_header_list
+                    if f not in array_fields and f != "COMMENTS"
+                ]
+                expected_count = len(regular_fields)
+
+                # Add count for array fields - each array takes its full number of elements in the data
+                for field_name, array_info in array_fields.items():
+                    expected_count += array_info["count"]
+
+                # Handle comments field
+                if has_comments_field and has_trailing_asterisk:
+                    expected_count += 0  # No extra column for COMMENTS with asterisk
+                elif has_comments_field and not has_trailing_asterisk:
+                    expected_count += 1  # One column for COMMENTS field
+
+                print(
+                    f"Header has {len(working_header_list)} fields (expecting {expected_count} columns), data has {most_common_count} fields"
+                )
+
+                # Data format determination
+                if has_trailing_asterisk:
+                    print(f"Detected trailing asterisk (*) at the end of each line")
+
+                    # If there's no COMMENTS field but we need one for the asterisk
+                    if not has_comments_field:
+                        print(
+                            f"Adding COMMENTS field to header list for trailing asterisk"
+                        )
+                        working_header_list.append("COMMENTS")
+                        working_field_defs["COMMENTS"] = {
+                            "type": QVariant.String,
+                            "format": "A1",
+                            "null": None,
+                            "unit": None,
+                            "is_array": False,
+                        }
+                        has_comments_field = True
+
+                    # Make sure COMMENTS is the last field
+                    if working_header_list[-1] != "COMMENTS":
+                        working_header_list.remove("COMMENTS")
+                        working_header_list.append("COMMENTS")
+                        print(f"Moved COMMENTS field to the end of header list")
+
+                # Missing COMMENTS field in data
+                elif has_comments_field and most_common_count < expected_count:
+                    # The data doesn't have a COMMENTS field, so remove it from the header
+                    if (
+                        "COMMENTS" in working_header_list
+                        and "COMMENTS" not in array_fields
+                    ):
+                        working_header_list.remove("COMMENTS")
+                        print(
+                            f"Removed COMMENTS field from header list as it's not in the data"
+                        )
+                        has_comments_field = False
 
         for line_num, line in enumerate(lines):
             line = line.strip()
@@ -202,36 +393,65 @@ class AsegGdf2Parser:
                 # Split line into fields
                 fields = line.split()
 
-                # Skip if not enough fields
-                if len(fields) < len(header_list):
-                    print(
-                        f"Warning: Line {line_num+1} has {len(fields)} fields, expected {len(header_list)}"
-                    )
-                    skipped_lines += 1
-                    continue
+                # Handle trailing asterisk if present
+                has_trailing_asterisk_in_line = False
+                if len(fields) > 0 and fields[-1] == "*":
+                    has_trailing_asterisk_in_line = True
+                    fields.pop()  # Remove the asterisk from fields
 
                 # Create data row
                 row = {}
-                for i, field_name in enumerate(header_list):
-                    if i < len(fields):
-                        value = fields[i]
 
-                        # Convert to appropriate type based on field definition
-                        if field_name in field_defs:
-                            field_def = field_defs[field_name]
+                # Process normal fields first (non-array fields)
+                current_field_index = 0  # Index in the data fields
 
-                            # Check for NULL value
-                            if field_def["null"] and value == field_def["null"]:
+                for field_name in working_header_list:
+                    if field_name == "COMMENTS":
+                        # Handle COMMENTS field separately
+                        if has_trailing_asterisk_in_line:
+                            row["COMMENTS"] = "*"
+                        continue
+
+                    field_def = working_field_defs.get(field_name, {})
+                    if field_def.get("is_array", False):
+                        # This is an array field
+                        array_count = field_def.get("array_count", 0)
+
+                        # Make sure we don't go out of bounds
+                        if current_field_index + array_count <= len(fields):
+                            # Collect array values
+                            array_values = fields[
+                                current_field_index : current_field_index + array_count
+                            ]
+                            row[field_name] = ";".join(array_values)
+                            current_field_index += array_count
+                        else:
+                            # Not enough fields for this array
+                            print(
+                                f"Warning: Line {line_num+1} doesn't have enough fields for array {field_name}"
+                            )
+                            if current_field_index < len(fields):
+                                # Use what we have
+                                array_values = fields[current_field_index:]
+                                row[field_name] = ";".join(array_values)
+                                current_field_index = len(fields)
+                            else:
+                                row[field_name] = ""  # Empty array
+                    else:
+                        # Regular field
+                        if current_field_index < len(fields):
+                            value = fields[current_field_index]
+                            current_field_index += 1
+
+                            # Convert to appropriate type based on field definition
+                            if field_def.get("null") and value == field_def.get("null"):
                                 row[field_name] = None
-                                continue
-
-                            # Convert based on type
-                            if field_def["type"] == QVariant.Int:
+                            elif field_def.get("type") == QVariant.Int:
                                 try:
-                                    row[field_name] = int(value)
+                                    row[field_name] = int(float(value))
                                 except ValueError:
                                     row[field_name] = value
-                            elif field_def["type"] == QVariant.Double:
+                            elif field_def.get("type") == QVariant.Double:
                                 try:
                                     row[field_name] = float(value)
                                 except ValueError:
@@ -239,401 +459,208 @@ class AsegGdf2Parser:
                             else:
                                 row[field_name] = value
                         else:
-                            # Default handling if field not defined
-                            try:
-                                # Try to convert to numeric if possible
-                                if "." in value or "e" in value.lower():
-                                    row[field_name] = float(value)
-                                else:
-                                    row[field_name] = int(value)
-                            except ValueError:
-                                row[field_name] = value
-                    else:
-                        row[field_name] = None
+                            # Not enough fields in data
+                            row[field_name] = None
 
                 data.append(row)
                 processed_lines += 1
 
-                # Debug first and last row for verification
-                if processed_lines == 1 or line_num == len(lines) - 1:
-                    field_samples = [
-                        f"{field_name}={row.get(field_name, 'N/A')}"
-                        for field_name in header_list[-2:]
-                    ]
-                    print(
-                        f"{'First' if processed_lines == 1 else 'Last'} data row processed: FID={row.get('FID', 'N/A')}, {', '.join(field_samples)}"
-                    )
+                # Debug first few rows
+                if processed_lines <= 3:
+                    field_samples = []
+                    for j, field_name in enumerate(working_header_list[:5]):
+                        if field_name in row:
+                            value = row[field_name]
+                            # For array fields, show just the length or first few elements
+                            if field_name in array_fields:
+                                if value:
+                                    elements = value.split(";")
+                                    value = f"[Array with {len(elements)} elements]"
+                                else:
+                                    value = "[Empty array]"
+                            field_samples.append(f"{field_name}={value}")
+                    print(f"Row {processed_lines}: {', '.join(field_samples)}...")
 
             except Exception as e:
                 print(f"Error parsing line {line_num+1}: {str(e)}")
+                print(f"Line content: {line[:100]}...")
                 skipped_lines += 1
 
         print(
             f"Parsed {len(data)} rows from DAT file (Processed: {processed_lines}, Skipped: {skipped_lines})"
         )
 
-        # Additional verification for last record
-        if data and len(lines) > 0:
-            last_line = lines[-1].strip()
-            last_fields = last_line.split()
-            last_fid = last_fields[2] if len(last_fields) > 2 else "unknown"
-
-            # Verify the last record was processed
-            last_record_processed = any(
-                str(row.get("FID", "")).startswith(last_fid) for row in data[-1:]
-            )
-            if not last_record_processed:
-                print(
-                    f"WARNING: Last record (FID={last_fid}) may not have been processed!"
-                )
-
-        # Verify Y_GDA94 field in all rows
-        missing_y_gda94_count = sum(
-            1 for row in data if "Y_GDA94" not in row or row["Y_GDA94"] is None
-        )
-        if missing_y_gda94_count > 0:
-            print(
-                f"WARNING: {missing_y_gda94_count} rows are missing the Y_GDA94 field value"
-            )
-
-        # Report on coordinate field values (for debugging)
-        last_row = data[-1] if data else {}
-        x_field = "X_GDA94"
-        y_field = "Y_GDA94"
-        print(
-            f"Last row coordinates: {x_field}={last_row.get(x_field, 'N/A')}, {y_field}={last_row.get(y_field, 'N/A')}"
-        )
-
+        # Always return just the data (list of dictionaries)
         return data
 
-    def process_aseg_gdf2_data(
-        self, dat_file_path, dfn_file_path=None, x_field_name=None, y_field_name=None
-    ):
-        """
-        Process ASEG-GDF2 format files and return the parsed data
-
-        Args:
-            dat_file_path (str): Path to the .dat file
-            dfn_file_path (str, optional): Path to the .dfn file (if None, derived from dat_file_path)
-            x_field_name (str, optional): Field name for X/longitude coordinate
-            y_field_name (str, optional): Field name for Y/latitude coordinate
-
-        Returns:
-            tuple: (data, header_list, x_field, y_field, epsg)
-        """
-        # Input validation
-        if not dat_file_path:
-            print("Error: No DAT file path provided")
-            return None, None, None, None, None
-
-        # Derive paths if not provided
-        if not dfn_file_path:
-            dfn_file_path = dat_file_path.rsplit(".", 1)[0] + ".dfn"
-
-        print(f"Processing ASEG-GDF2 files:")
-        print(f"  DAT file: {dat_file_path}")
-        print(f"  DFN file: {dfn_file_path}")
-
-        # Check if files exist
-        if not os.path.exists(dat_file_path):
-            print(f"Error: DAT file not found: {dat_file_path}")
-            return None, None, None, None, None
-
-        if not os.path.exists(dfn_file_path):
-            print(f"Error: DFN file not found: {dfn_file_path}")
-            return None, None, None, None, None
-
-        # Parse the DFN file to get field definitions
-        header_list, field_defs, epsg = self.parse_dfn_file(dfn_file_path)
-
-        # Parse the DAT file to get the data
-        data = self.parse_dat_file(dat_file_path, header_list, field_defs)
-
-        # If no data was found, return None
-        if not data:
-            print("Error: No data found in the file")
-            return None, None, None, None, None
-
-        # Determine coordinate field names if not provided
-        if x_field_name is None:
-            # Try to find X/longitude field in header list
-            for field in header_list:
-                if (
-                    field.lower() == "longitude"
-                    or field.lower() == "x"
-                    or field.lower() == "easting"
-                    or "x_" in field.lower()
-                    or field.lower().endswith("_x")
-                    or "east" in field.lower()
-                    or field.lower() == "x_gda94"
-                ):
-                    x_field_name = field
-                    print(f"Using {x_field_name} as X coordinate field")
-                    break
-
-        if y_field_name is None:
-            # Try to find Y/latitude field in header list
-            for field in header_list:
-                if (
-                    field.lower() == "latitude"
-                    or field.lower() == "y"
-                    or field.lower() == "northing"
-                    or "y_" in field.lower()
-                    or field.lower().endswith("_y")
-                    or "north" in field.lower()
-                    or field.lower() == "y_gda94"
-                ):
-                    y_field_name = field
-                    print(f"Using {y_field_name} as Y coordinate field")
-                    break
-
-        # Verify we have coordinate fields
-        if x_field_name is None or y_field_name is None:
-            print(f"Error: Could not determine coordinate fields in {header_list}")
-            return None, None, None, None, None
-
-        # Verify that coordinate fields exist in the data
-        if data and (x_field_name not in data[0] or y_field_name not in data[0]):
-            print(
-                f"Warning: coordinate fields {x_field_name}, {y_field_name} not found in data. Available fields: {list(data[0].keys())}"
-            )
-            return None, None, None, None, None
-
-        # Print some summary information
-        print(f"Data successfully processed:")
-        print(f"  Number of fields: {len(header_list)}")
-        print(f"  Number of records: {len(data)}")
-        print(f"  X coordinate field: {x_field_name}")
-        print(f"  Y coordinate field: {y_field_name}")
-        if epsg:
-            print(f"  EPSG code: {epsg}")
-
-        # Verify coordinate values in the data
-        if data:
-            first_row = data[0]
-            last_row = data[-1]
-            print(
-                f"  First row coordinates: {x_field_name}={first_row.get(x_field_name)}, {y_field_name}={first_row.get(y_field_name)}"
-            )
-            print(
-                f"  Last row coordinates: {x_field_name}={last_row.get(x_field_name)}, {y_field_name}={last_row.get(y_field_name)}"
-            )
-
-        # Return the processed data
-        return data, header_list, x_field_name, y_field_name, epsg
-
-    def export_to_csv(self, data, header_list, output_file):
-        """
-        Export data to a CSV file
-
-        Args:
-            data (list): List of dictionaries containing the data
-            header_list (list): List of field names for the header
-            output_file (str): Path to the output file
-
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        if not data or not header_list:
-            print("Error: No data to export")
-            return False
-
-        try:
-            import csv
-
-            # Create output directory if it doesn't exist
-            output_dir = os.path.dirname(output_file)
-            if output_dir and not os.path.exists(output_dir):
-                os.makedirs(output_dir)
-
-            with open(output_file, "w", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=header_list)
-                writer.writeheader()
-                writer.writerows(data)
-
-            print(f"Data exported to CSV: {output_file}")
-            print(f"  {len(data)} records written")
-            return True
-        except Exception as e:
-            print(f"Error exporting to CSV: {str(e)}")
-            return False
-
     def export_to_shapefile(
-        self, data, header_list, x_field_name, y_field_name, output_file, epsg=None
+        self, data, field_defs, output_path, file_name, x_field, y_field, epsg_code=None
     ):
         """
-        Export data to a shapefile using QGIS API
+        Export parsed data to shapefile
 
         Args:
             data (list): List of dictionaries containing the data
             header_list (list): List of field names
-            x_field_name (str): Field name for X coordinate
-            y_field_name (str): Field name for Y coordinate
-            output_file (str): Path to the output shapefile (with or without .shp extension)
-            epsg (str, optional): EPSG code for the projection
-
-        Returns:
-            QgsVectorLayer: The created layer
+            field_defs (dict): Dictionary of field definitions
+            output_path (str): Path for output shapefile
+            x_field, y_field (str,str):   coordinate fields
+            epsg_code (str): EPSG code for the coordinate system (e.g., "4326", "28356")
         """
+        print(f"Exporting to shapefile: {output_path}")
 
-        # Check if we have data
-        if not data or not header_list:
-            print("Error: No data to export")
-            return None
+        if output_path:
+            if os.path.exists(output_path):
+                try:
+                    os.remove(output_path)
+                    # print(f"File '{file_path}' has been deleted")
+                    file_deleted = True
+                except Exception as e:
+                    print(f"Failed to delete '{output_path}': {str(e)}")
 
-        # Get output directory
-        output_dir = os.path.dirname(output_file)
-        if output_dir and not os.path.exists(output_dir):
-            try:
-                os.makedirs(output_dir)
-                print(f"Created output directory: {output_dir}")
-            except Exception as e:
-                print(f"Error creating output directory: {str(e)}")
-                return None
+        # Ensure data is a list of dictionaries
+        if not data or not isinstance(data[0], dict):
+            raise ValueError("Data must be a list of dictionaries")
 
-        # Make sure output_file has .shp extension
-        if not output_file.lower().endswith(".shp"):
-            output_file = output_file + ".shp"
+        if not x_field or not y_field:
+            raise ValueError("Coordinate fields must be specified")
 
-        # Get layer name from the file path
-        layer_name = os.path.splitext(os.path.basename(output_file))[0]
+        # Check if coordinate fields exist in data
+        first_row = data[0]
+        if x_field not in first_row or y_field not in first_row:
+            print(f"Available fields in data: {list(first_row.keys())}")
+            raise ValueError(
+                f"Coordinate fields '{x_field}' and/or '{y_field}' not found in data"
+            )
 
-        # Create CRS
-        crs = QgsCoordinateReferenceSystem("EPSG:4326")  # Default to WGS84
-        if epsg:
-            crs = QgsCoordinateReferenceSystem(f"EPSG:{epsg}")
-            print(f"Using CRS: {crs.description()}")
+        # Create CRS from EPSG code
+        if epsg_code:
+            crs = QgsCoordinateReferenceSystem(f"EPSG:{epsg_code}")
+            if not crs.isValid():
+                print(f"Warning: Invalid EPSG code {epsg_code}. Using default WGS84.")
+                crs = QgsCoordinateReferenceSystem("EPSG:4326")
+        else:
+            print("No EPSG code provided. Using default WGS84.")
+            crs = QgsCoordinateReferenceSystem("EPSG:4326")
 
-        # Create fields
-        fields = QgsFields()
-        for field_name in header_list:
-            # Determine field type from data
-            field_type = QVariant.String  # Default to string
+        print(f"Using CRS: {crs.authid()} - {crs.description()}")
 
-            for row in data:
-                if field_name in row and row[field_name] is not None:
-                    value = row[field_name]
-                    if isinstance(value, int):
-                        field_type = QVariant.Int
-                        break
-                    elif isinstance(value, float):
-                        field_type = QVariant.Double
-                        break
+        # Create fields for the shapefile - use actual fields from data
+        qgs_fields = QgsFields()
+        field_name_mapping = {}  # Map original names to truncated names
 
-            fields.append(QgsField(field_name, field_type))
-            print(f"Adding field to shapefile: {field_name} (Type: {field_type})")
+        # Use the actual fields from the data
+        for field_name in first_row.keys():
+            field_def = field_defs.get(field_name, {})
+            field_type = field_def.get("type", QVariant.String)
 
-        print(f"Creating shapefile: {output_file}")
+            # Ensure field name fits shapefile limits (10 characters)
+            if len(field_name) > 10:
+                # For array fields that were already shortened, keep them as is
+                if "_" in field_name and field_name.count("_") == 1:
+                    truncated_name = field_name
+                else:
+                    # Truncate other long field names
+                    truncated_name = field_name[:10]
 
-        # Create the shapefile writer
-        writer_options = QgsVectorFileWriter.SaveVectorOptions()
-        writer_options.driverName = "ESRI Shapefile"
-        writer_options.fileEncoding = "UTF-8"
+                # Handle duplicates by adding a number
+                original_truncated = truncated_name
+                counter = 1
+                while truncated_name in field_name_mapping.values():
+                    truncated_name = f"{original_truncated[:8]}{counter:02d}"
+                    counter += 1
+            else:
+                truncated_name = field_name
 
-        transform_context = QgsProject.instance().transformContext()
+            field_name_mapping[field_name] = truncated_name
 
-        writer = QgsVectorFileWriter.create(
-            output_file,
-            fields,
+            qgs_field = QgsField(truncated_name, field_type)
+            qgs_fields.append(qgs_field)
+
+        # Create the shapefile writer with the specified CRS
+        writer = QgsVectorFileWriter(
+            output_path,
+            "UTF-8",
+            qgs_fields,
             QgsWkbTypes.Point,
-            crs,
-            transform_context,
-            writer_options,
+            crs,  # Use the CRS from the EPSG code
+            "ESRI Shapefile",
         )
 
         if writer.hasError() != QgsVectorFileWriter.NoError:
-            print(f"Error creating shapefile writer: {writer.errorMessage()}")
-            return None
+            raise Exception(f"Error creating shapefile writer: {writer.errorMessage()}")
 
-        # Add features
-        feature_count = 0
-        error_count = 0
-        missing_coord_count = 0
+        # Write features
+        features_written = 0
+        errors = 0
 
-        for i, row in enumerate(data):
+        for row_num, row in enumerate(data):
             try:
-                # Check if coordinate fields have values
-                if x_field_name not in row or y_field_name not in row:
-                    print(
-                        f"Warning: Row {i+1} missing coordinate field. Available fields: {list(row.keys())}"
-                    )
-                    missing_coord_count += 1
-                    continue
-
-                if row[x_field_name] is None or row[y_field_name] is None:
-                    print(
-                        f"Warning: Row {i+1} has null coordinate values: {x_field_name}={row[x_field_name]}, {y_field_name}={row[y_field_name]}"
-                    )
-                    missing_coord_count += 1
-                    continue
-
-                # Get coordinates
-                try:
-                    x_coord = float(row[x_field_name])
-                    y_coord = float(row[y_field_name])
-                except (ValueError, TypeError) as e:
-                    print(
-                        f"Warning: Row {i+1} has invalid coordinate values: {x_field_name}={row[x_field_name]}, {y_field_name}={row[y_field_name]}"
-                    )
-                    print(f"Error: {str(e)}")
-                    missing_coord_count += 1
-                    continue
-
                 # Create feature
-                feat = QgsFeature(fields)
+                feature = QgsFeature()
+                feature.setFields(qgs_fields)
 
                 # Set geometry
-                feat.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(x_coord, y_coord)))
+                x_val = row.get(x_field)
+                y_val = row.get(y_field)
 
-                # Set attributes
-                for j, field_name in enumerate(header_list):
-                    feat.setAttribute(j, row.get(field_name, None))
-
-                # Add to shapefile
-                if writer.addFeature(feat):
-                    feature_count += 1
-                    # Log first and last feature for verification
-                    if feature_count == 1 or i == len(data) - 1:
-                        coord_msg = f"({x_coord}, {y_coord})"
-                        field_samples = [
-                            f"{field_name}={row.get(field_name, 'N/A')}"
-                            for field_name in header_list[-2:]
-                        ]
-                        print(
-                            f"{'First' if feature_count == 1 else 'Last'} feature written: FID={row.get('FID', 'N/A')}, Coords={coord_msg}, {', '.join(field_samples)}"
-                        )
+                if x_val is not None and y_val is not None:
+                    try:
+                        x_coord = float(x_val)
+                        y_coord = float(y_val)
+                        point = QgsPointXY(x_coord, y_coord)
+                        feature.setGeometry(QgsGeometry.fromPointXY(point))
+                    except (ValueError, TypeError) as e:
+                        print(f"Row {row_num}: Invalid coordinates: {x_val}, {y_val}")
+                        errors += 1
+                        continue
                 else:
-                    error_count += 1
-                    print(f"Error adding feature {i+1}")
+                    print(f"Row {row_num}: Missing coordinates")
+                    errors += 1
+                    continue
+
+                # Set attributes using the mapped field names
+                for original_name, truncated_name in field_name_mapping.items():
+                    if original_name in row and row[original_name] is not None:
+                        value = row[original_name]
+
+                        # Get field index by truncated name
+                        field_idx = qgs_fields.indexFromName(truncated_name)
+                        if field_idx >= 0:
+                            # Convert value to appropriate type
+                            field = qgs_fields.at(field_idx)
+                            if field.type() == QVariant.Int:
+                                try:
+                                    value = int(float(value))
+                                except (ValueError, TypeError):
+                                    value = None
+                            elif field.type() == QVariant.Double:
+                                try:
+                                    value = float(value)
+                                except (ValueError, TypeError):
+                                    value = None
+
+                            feature.setAttribute(field_idx, value)
+
+                # Add feature to shapefile
+                writer.addFeature(feature)
+                features_written += 1
 
             except Exception as e:
-                error_count += 1
-                if error_count < 10:  # Limit the number of error messages
-                    print(f"Error with row {i}: {e}")
+                print(f"Error writing row {row_num}: {str(e)}")
+                errors += 1
 
-        # Clean up writer
+        # Clean up
         del writer
 
-        print(f"Features written to shapefile: {feature_count}")
-        print(f"Errors encountered: {error_count}")
-        print(f"Records skipped due to missing coordinates: {missing_coord_count}")
-
-        # Verify the last row was written
-        if data and feature_count > 0:
-            last_row = data[-1]
-            last_fid = last_row.get("FID", "N/A")
-            print(f"Last data row FID: {last_fid}")
-
-            if feature_count < len(data):
-                print(
-                    f"Warning: Not all records were written to the shapefile ({feature_count} of {len(data)})"
-                )
-
+        print(
+            f"Shapefile export complete: {features_written} features written, {errors} errors"
+        )
         # Load the shapefile
-        layer = QgsVectorLayer(output_file, layer_name, "ogr")
+        layer = QgsVectorLayer(output_path, file_name, "ogr")
 
         if not layer.isValid():
-            print(f"Layer is not valid! Path: {output_file}")
+            print(f"Layer is not valid! Path: {output_path}")
             return None
 
         print(f"Shapefile loaded with {layer.featureCount()} features")

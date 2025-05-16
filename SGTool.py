@@ -425,9 +425,6 @@ class SGTool:
         self.dlg.pushButton_load_point_data.setToolTip(
             "Load points file and convert to layer\nWith polyline layer of lines for xyz format files"
         )
-        self.dlg.checkBox_legacy_dat.setToolTip(
-            "Use legacy (pre-ASEG-GDF2) dat format\n(only for dat files)\nImportant: Must be checked before file is selected"
-        )
         self.dlg.mMapLayerComboBox_selectGrid_3.setToolTip(
             "Select from currently loaded points layers for gridding"
         )
@@ -2195,35 +2192,22 @@ class SGTool:
                 self.pointType = "point"
             else:  # DAT format
                 self.parser = AsegGdf2Parser()
-                if self.dlg.checkBox_legacy_dat.isChecked():
-                    (
-                        self.header_list,
-                        self.field_defs,
-                        self.points_epsg,
-                        self.data_format_type,
-                    ) = self.parser.parse_legacy_headers(self.diskPointsPath)
-                    print("header parsed", self.header_list)
-                else:
-                    print("not checked")
-                    directory_path = os.path.dirname(self.diskPointsPath)
-                    basename = os.path.basename(self.diskPointsPath)
-                    filename_without_extension = os.path.splitext(basename)[0]
-                    extension = os.path.splitext(basename)[1]
-                    if extension == ".dat":
-                        dfnPath = (
-                            directory_path + "/" + filename_without_extension + ".dfn"
-                        )
-                    else:
-                        dfnPath = (
-                            directory_path + "/" + filename_without_extension + ".DFN"
-                        )
 
-                    self.header_list, self.field_defs, self.points_epsg = (
-                        self.parser.parse_dfn_file(dfnPath)
-                    )
-                    print("self.header_list", self.header_list)
-                    if self.header_list is None:
-                        return
+                directory_path = os.path.dirname(self.diskPointsPath)
+                basename = os.path.basename(self.diskPointsPath)
+                filename_without_extension = os.path.splitext(basename)[0]
+                extension = os.path.splitext(basename)[1]
+                if extension == ".dat":
+                    dfnPath = directory_path + "/" + filename_without_extension + ".dfn"
+                else:
+                    dfnPath = directory_path + "/" + filename_without_extension + ".DFN"
+
+                self.header_list, self.field_defs, self.points_epsg = (
+                    self.parser.parse_dfn_file(dfnPath)
+                )
+                print("self.header_list", self.header_list)
+                if self.header_list is None:
+                    return
 
                 self.dlg.comboBox_grid_x.setEnabled(True)
                 self.dlg.comboBox_grid_y.setEnabled(True)
@@ -3378,33 +3362,58 @@ class SGTool:
                         crs=proj,
                     )
                 elif file_ext.upper() == ".DAT":
-                    if self.dlg.checkBox_legacy_dat.isChecked():
-                        data = self.parser.parse_legacy_data(
-                            self.diskPointsPath,
-                            self.header_list,
-                            self.field_defs,
-                            self.data_format_type,
-                        )
-                    else:
-                        data = self.parser.parse_dat_file(
-                            self.diskPointsPath, self.header_list, self.field_defs
-                        )
+                    data = self.parser.parse_dat_file(
+                        self.diskPointsPath, self.header_list, self.field_defs
+                    )
 
                     if not self.points_epsg:
                         self.points_epsg = proj.split(":")[1]
 
                     if data:
+                        # Check if the layer exists, delete if it does
+                        previous_layer = QgsProject.instance().mapLayersByName(
+                            file_name
+                        )
+                        print("previous_layer", previous_layer)
+                        if len(previous_layer) > 0:
+                            previous_layer = previous_layer[0]
+                            if previous_layer.isValid():
+                                # Store the layer ID
+                                layer_id = previous_layer.id()
+
+                                # Remove the layer from registry but don't delete it yet
+                                QgsProject.instance().removeMapLayer(layer_id)
+                                print("previous layer id removed", layer_id)
+
+                                # Force garbage collection to release file locks
+                                import gc
+
+                                previous_layer = None  # Remove reference to the layer
+                                gc.collect()  # Force garbage collection
+                                import time
+
+                                time.sleep(0.5)  # Wait half a second
 
                         output_file = os.path.join(dir_name, file_name + ".shp")
 
-                        self.parser.export_to_shapefile(
+                        layer = self.parser.export_to_shapefile(
                             data,
-                            self.header_list,
+                            self.field_defs,
+                            output_file,
+                            file_name,
                             x_field,
                             y_field,
-                            output_file,
                             self.points_epsg,
                         )
+                        canvas = (
+                            self.iface.mapCanvas() if hasattr(self, "iface") else None
+                        )
+                        extent = layer.extent()
+                        buffer_amount = max(extent.width(), extent.height()) * 0.05
+                        buffered_extent = extent.buffered(buffer_amount)
+                        canvas.setExtent(buffered_extent)
+                        canvas.refresh()
+
                     else:
                         print("Error: No data found in the file.")
 
@@ -4488,6 +4497,27 @@ class SGTool:
 
         return coords, field_values
 
+    def safe_numeric_sort_key(self, value):
+        """
+        A safe sorting key function that can handle both integers and floats.
+        This also handles cases where the value might be a string representation of a number.
+
+        Args:
+            value: The value to convert to a numeric type for sorting
+
+        Returns:
+            float or original value: The numeric value for sorting or the original value if conversion fails
+        """
+        if value is None:
+            return float("-inf")  # None values come first in sorting
+
+        # Try to convert to float first
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            # If it can't be converted to a number, return the original value
+            return value
+
     def update_wavelet_choices(self):
         """
         Updates the wavelet choices in the user interface based on the selected vector layer.
@@ -4537,7 +4567,7 @@ class SGTool:
                         unique_values.append(value)
 
                 # Sort the values (optional)
-                unique_values = sorted(unique_values, key=int)
+                unique_values = sorted(unique_values, key=self.safe_numeric_sort_key)
 
                 # Add to combo box
                 self.dlg.mFieldComboBox_feature.addItems(unique_values)

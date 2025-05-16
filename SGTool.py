@@ -2954,6 +2954,9 @@ class SGTool:
             self.dlg.mMapLayerComboBox_selectGrid_worms.setFilters(
                 QgsMapLayerProxyModel.RasterLayer
             )
+            self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setFilters(
+                QgsMapLayerProxyModel.RasterLayer
+            )
 
             self.dlg.mMapLayerComboBox_selectVectors.setFilters(
                 QgsMapLayerProxyModel.PointLayer | QgsMapLayerProxyModel.VectorLayer

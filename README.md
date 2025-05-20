@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.2.14
+# Structural Geophysics Tool v0.2.15
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
@@ -8,8 +8,9 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog 0.2.14 
-
+# changelog 0.2.15
+      * Macos GUI fixes
+      0.2.14 
       * don't try to load LINE_ID codes if they don't exist in WTMM
       * added PCA & ICA calculations for multiband grids
       * speed up Grass-like relief calc

@@ -1536,7 +1536,7 @@ class SGTool:
         else:
             return True
 
-    def addNewGrid(self):
+    def addNewGrid(self, stdClip=True):
         """
         Adds a new grid layer to the QGIS project. If a layer with the same name already exists,
         it removes the existing layer before adding the new one. The method also handles raster
@@ -1606,9 +1606,21 @@ class SGTool:
                     renderer = con_raster_layer.renderer()
                     if isinstance(renderer, QgsSingleBandGrayRenderer):
                         # Set contrast enhancement
-                        contrast_enhancement = renderer.contrastEnhancement()
-                        contrast_enhancement.setMinimumValue(stats.minimumValue)
-                        contrast_enhancement.setMaximumValue(stats.maximumValue)
+                        # Get mean and standard deviation
+
+                        if stdClip:
+                            # Calculate min and max values using Mean ± (stddev × 2)
+                            mean = stats.mean
+                            stddev = stats.stdDev
+                            min_value = mean - (stddev * 2)
+                            max_value = mean + (stddev * 2)
+                            contrast_enhancement = renderer.contrastEnhancement()
+                            contrast_enhancement.setMinimumValue(min_value)
+                            contrast_enhancement.setMaximumValue(max_value)
+                        else:
+                            contrast_enhancement = renderer.contrastEnhancement()
+                            contrast_enhancement.setMinimumValue(stats.minimumValue)
+                            contrast_enhancement.setMaximumValue(stats.maximumValue)
 
                         # Refresh the layer
                         con_raster_layer.triggerRepaint()
@@ -1722,81 +1734,81 @@ class SGTool:
             self.suffix = ""
             if self.DirClean:
                 self.procDirClean()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.RTE_P:
                 self.procRTP_E()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.RemRegional:
                 self.procRemRegional()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.Derivative:
                 self.procDerivative()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.TA:
                 self.procTiltAngle()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.AS:
                 self.procAnalyticSignal()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.Continuation:
                 self.procContinuation()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.BandPass:
                 self.procBandPass()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.FreqCut:
                 self.procFreqCut()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.AGC:
                 self.procAGC()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.VI:
                 self.procvInt()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.THG:
                 self.procTHG()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
 
             if self.Mean:
                 self.procMean()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.Median:
                 self.procMedian()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.Gaussian:
                 self.procGaussian()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.Direction:
                 self.procDirectional()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.SunShade:
                 self.procSunShade()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=False)
             if self.NaN:
                 self.procNaN()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
 
             if self.SS_Min:
                 self.procSS_Min()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.SS_Max:
                 self.procSS_Max()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.SS_Kurtosis:
                 self.procSS_Kurtosis()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.SS_StdDev:
                 self.procSS_StdDev()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.SS_Variance:
                 self.procSS_Variance()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.SS_Skewness:
                 self.procSS_Skewness()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.DTM_Class:
                 self.procDTM_Class()
-                self.addNewGrid()
+                self.addNewGrid(stdClip=True)
             if self.PCA:
                 self.procPCA()
             if self.ICA:

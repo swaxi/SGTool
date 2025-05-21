@@ -119,10 +119,7 @@ The low-pass filter suppresses high-frequency components (short wavelengths) whi
 Where: k<sub>c</sub> : The cutoff frequency where the filter begins attenuating higher frequencies.   
 
 **Remove Regional**   
-$`H(k) = e^{-k^2 / (2 k_c^2)}`$
-The low-pass filter suppresses high-frequency components (short wavelengths) while preserving low-frequency components (long wavelengths).
-Where    
-k<sub>c</sub> : The cutoff frequency where the filter begins attenuating higher frequencies.   
+Remove a 1st order (dipping plane) or 2nd order (parabolic plane) regional from data. 
    
 **Automatic Gain Control**    
 $`AGC(x, y) = \frac{f(x, y)}{\text{RMS}(f(x, y), w)}`$   

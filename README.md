@@ -99,7 +99,7 @@ k : Wavenumber (spatial frequency).
 k<sub>c</sub> : Cutoff wavenumber, related to the cutoff wavelength by k<sub>c</sub> = \frac{1}{\text{cutoff wavelength}}.    
 n : Filter order, determining the sharpness of the transition. Higher \( n \) makes the filter more selective.   
     
-Directional Cosine Filter   
+**Directional Cosine Filter**       
 $`H(k_x, k_y) = \left| \cos(\theta - \theta_c) \right|^p`$   
 The Directional Cosine Filter emphasizes or suppresses frequency components along a specific direction.   
 H(k<sub>x</sub>, k<sub>y</sub>): Filter response as a function of wavenumber components k<sub>x</sub> and k<sub>y</sub>.   

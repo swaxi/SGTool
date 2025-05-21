@@ -296,7 +296,7 @@ class SGTool:
         )
         self.dlg.pushButton_2_selectGrid.setToolTip("Load new file for processing")
         self.dlg.checkBox_3_DirClean.setToolTip(
-            "Filter (DirC) a specific direction and wavelength,\nUseful for filtering flight line noise"
+            "Filter (DirCos + Butterworth) remove a specific direction and wavelength,\nUseful for filtering flight line noise"
         )
 
         self.dlg.lineEdit_3_azimuth.setToolTip(
@@ -392,7 +392,7 @@ class SGTool:
             "Maximum buffer to be applied to grid to reduce edge effects"
         )
         self.dlg.checkBox_11_tot_hz_grad.setToolTip(
-            "Total Horizontal Gradient Calculation"
+            "Total Horizontal Gradient Calculation (THG)"
         )
         self.dlg.pushButton_rad_power_spectrum.setToolTip(
             "Provides pop-up display of grid plus Radial Averaged Power Spectrum (needs testing!)"

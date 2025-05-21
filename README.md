@@ -8,9 +8,11 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog 0.2.15
-      * Macos GUI fixes
-      0.2.14 
+# changelog 0.2.15 
+      0.2.15 
+      * Use cosine rolloff for high/low and bandpass filters to reduce ringing
+      * Change Remove Regional to 1st or 2nd order polynomial
+      0.2.14
       * don't try to load LINE_ID codes if they don't exist in WTMM
       * added PCA & ICA calculations for multiband grids
       * speed up Grass-like relief calc

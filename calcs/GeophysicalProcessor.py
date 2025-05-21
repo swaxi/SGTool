@@ -1,6 +1,6 @@
 import numpy as np
 from numpy.polynomial.polynomial import polyval2d
-from math import ceil
+from math import ceil, fabs
 import numpy as np
 
 
@@ -598,6 +598,77 @@ class GeophysicalProcessor:
         return self.restore_nan(agc_grid, nan_mask)
 
     def low_pass_filter(
+        self,
+        data,
+        cutoff_wavelength,
+        transition_width=None,
+        buffer_size=10,
+        buffer_method="mirror",
+    ):
+        """
+        Apply a low-pass filter to remove high-frequency noise.
+
+        Parameters
+        ----------
+        data : array-like
+            Input data to be filtered
+        cutoff_wavelength : float
+            Cutoff wavelength - features with shorter wavelengths will be attenuated
+        transition_width : float or None
+            Width of transition zone in the same units as cutoff_wavelength.
+            If None, no transition is applied (sharp cutoff).
+            Only needed if experiencing ringing artifacts.
+        buffer_size : int
+            Size of the buffer zone for reducing edge effects
+        buffer_method : str
+            Method for handling the buffer zone ("mirror", "mean", etc.)
+
+        Returns
+        -------
+        array-like
+            The low-pass filtered data
+        """
+
+        def filter_function(kx, ky):
+            k = np.sqrt(kx**2 + ky**2)
+            cutoff_k = 2 * np.pi / (cutoff_wavelength + 1e-10)
+
+            if transition_width is None or transition_width <= 0:
+                # Traditional binary filter (no transition)
+                return k <= cutoff_k
+
+            # Calculate transition boundaries
+            inner_k = 2 * np.pi / (cutoff_wavelength + transition_width / 2 + 1e-10)
+            outer_k = 2 * np.pi / (cutoff_wavelength - transition_width / 2 + 1e-10)
+            if cutoff_wavelength - transition_width / 2 <= 0:
+                outer_k = cutoff_k * 1.5  # Fallback
+
+            # Create filter with smooth transition
+            filter_values = np.zeros_like(k)
+
+            # Frequencies below inner_k are fully passed
+            mask_pass = k <= inner_k
+            filter_values[mask_pass] = 1.0
+
+            # Frequencies above outer_k are fully blocked
+            mask_block = k >= outer_k
+            filter_values[mask_block] = 0.0
+
+            # Frequencies in transition zone get smooth cosine taper
+            mask_transition = np.logical_and(k > inner_k, k < outer_k)
+            if np.any(mask_transition):
+                # Normalize position within transition zone to [0, 1]
+                pos = (k[mask_transition] - inner_k) / (outer_k - inner_k)
+                # Apply cosine taper (decreasing from 1 to 0)
+                filter_values[mask_transition] = 0.5 * (1 + np.cos(np.pi * pos))
+
+            return filter_values
+
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
+
+    def low_pass_filterx(
         self, data, cutoff_wavelength, buffer_size=10, buffer_method="mirror"
     ):
         """
@@ -614,6 +685,74 @@ class GeophysicalProcessor:
         )
 
     def high_pass_filter(
+        self,
+        data,
+        cutoff_wavelength,
+        transition_width=20000,
+        buffer_size=10,
+        buffer_method="mirror",
+    ):
+        """
+        Apply a high-pass filter to remove regional trends with smoothed transition to reduce ringing.
+
+        Parameters:
+        -----------
+        data : numpy.ndarray
+            Input raster data
+        cutoff_wavelength : float
+            Wavelength at which to cut off low frequencies (in real-world units)
+        transition_width : float or None
+            Width of transition zone in the same units as cutoff_wavelength.
+            If None, defaults to 20% of the cutoff_wavelength.
+        buffer_size : int
+            Size of the buffer to add around the edges
+        buffer_method : str
+            Method to use for buffering ('mirror', 'wrap', etc.)
+        """
+
+        # Default transition width if not specified
+        if transition_width is None:
+            transition_width = 0.2 * cutoff_wavelength
+
+        def filter_function(kx, ky):
+            k = np.sqrt(kx**2 + ky**2)
+
+            # Convert wavelengths to wave numbers
+            cutoff_k = 2 * np.pi / (cutoff_wavelength + 1e-10)
+            # Define transition zone boundaries in wave numbers
+            lower_k = 2 * np.pi / (cutoff_wavelength + transition_width / 2 + 1e-10)
+            upper_k = 2 * np.pi / (cutoff_wavelength - transition_width / 2 + 1e-10)
+
+            # Handle case where transition_width is too large
+            if cutoff_wavelength - transition_width / 2 <= 0:
+                upper_k = cutoff_k * 1.5  # Fallback to avoid division by zero
+
+            # Create smooth transition using cosine taper
+            filter_values = np.ones_like(k)
+
+            # Values below lower_k are 0 (low frequencies)
+            mask_low = k <= lower_k
+            filter_values[mask_low] = 0
+
+            # Values above upper_k are 1 (high frequencies)
+            mask_high = k >= upper_k
+            filter_values[mask_high] = 1
+
+            # Values in between get a smooth transition
+            mask_transition = np.logical_and(k > lower_k, k < upper_k)
+            if np.any(mask_transition):
+                # Normalize position within transition zone to [0, 1]
+                pos = (k[mask_transition] - lower_k) / (upper_k - lower_k)
+                # Apply cosine taper (smoother than linear)
+                filter_values[mask_transition] = 0.5 * (1 - np.cos(np.pi * pos))
+
+            return filter_values
+
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
+
+    def high_pass_filterx(
         self, data, cutoff_wavelength, buffer_size=10, buffer_method="mirror"
     ):
         """
@@ -629,7 +768,7 @@ class GeophysicalProcessor:
             data, filter_function, buffer_size, buffer_method
         )
 
-    def band_pass_filter(
+    def band_pass_filterx(
         self, data, low_cut, high_cut, buffer_size=10, buffer_method="mirror"
     ):
         """
@@ -645,6 +784,126 @@ class GeophysicalProcessor:
             filter_mask = (k <= low_cut_k) & (k >= high_cut_k)
 
             return filter_mask  # Band-pass filter mask
+
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method
+        )
+
+    def band_pass_filter(
+        self,
+        data,
+        low_cut,
+        high_cut,
+        high_transition_width=None,
+        low_transition_width=None,
+        buffer_size=10,
+        buffer_method="mirror",
+    ):
+        """
+        Apply a band-pass filter to isolate anomalies within a wavelength range,
+        with smooth transitions to reduce ringing artifacts.
+
+        Parameters
+        ----------
+        data : array-like
+            Input data to be filtered
+        low_cut : float
+            Low cut-off wavelength (features with longer wavelengths will be attenuated)
+        high_cut : float
+            High cut-off wavelength (features with shorter wavelengths will be attenuated)
+        high_transition_width : float or None
+            Width of transition zone for the high-pass component in the same units as high_cut.
+            If None, defaults to 20% of the high_cut wavelength.
+        low_transition_width : float or None
+            Width of transition zone for the low-pass component in the same units as low_cut.
+            If None, defaults to 20% of the low_cut wavelength.
+        buffer_size : int
+            Size of the buffer zone for reducing edge effects
+        buffer_method : str
+            Method for handling the buffer zone ("mirror", "mean", etc.)
+
+        Returns
+        -------
+        array-like
+            The band-pass filtered data
+        """
+
+        # Default transition widths if not specified
+        if high_transition_width is None:
+            high_transition_width = 0.2 * high_cut
+        if low_transition_width is None:
+            low_transition_width = 0.2 * low_cut
+
+        if low_cut - high_transition_width < 0.001:
+            low_cut = low_cut + 0.001
+        if fabs(low_cut + high_transition_width) < 0.001:
+            low_cut = low_cut + 0.001
+
+        if high_cut - low_transition_width < 0.001:
+            high_cut = high_cut + 0.001
+        if fabs(high_cut + low_transition_width) < 0.001:
+            high_cut = high_cut + 0.001
+
+        if low_cut == 0.0:
+            low_cut = 0.001
+        if high_cut == 0.0:
+            high_cut = 0.001
+
+        def filter_function(kx, ky):
+            k = np.sqrt(kx**2 + ky**2)
+
+            # Convert wavelength cutoffs to wavenumber cutoffs
+            high_cut_k = (
+                2 * np.pi / low_cut
+            )  # High-pass cutoff (removes long wavelengths)
+            low_cut_k = (
+                2 * np.pi / high_cut
+            )  # Low-pass cutoff (removes short wavelengths)
+
+            # Create transition zone boundaries for high-pass component
+            high_cut_k_lower = 2 * np.pi / (low_cut + high_transition_width / 2)
+            high_cut_k_upper = 2 * np.pi / (low_cut - high_transition_width / 2)
+            if low_cut - high_transition_width / 2 <= 0:
+                high_cut_k_upper = high_cut_k * 1.5  # Fallback
+
+            # Create transition zone boundaries for low-pass component
+            low_cut_k_lower = 2 * np.pi / (high_cut + low_transition_width / 2)
+            low_cut_k_upper = 2 * np.pi / (high_cut - low_transition_width / 2)
+            if high_cut - low_transition_width / 2 <= 0:
+                low_cut_k_upper = low_cut_k * 1.5  # Fallback
+
+            # Initialize filter with zeros
+            filter_values = np.zeros_like(k)
+
+            # Inside the passband (fully passed frequencies)
+            mask_passband = np.logical_and(k >= high_cut_k_upper, k <= low_cut_k_lower)
+            filter_values[mask_passband] = 1.0
+
+            # High-pass transition zone
+            mask_high_transition = np.logical_and(
+                k >= high_cut_k_lower, k < high_cut_k_upper
+            )
+            if np.any(mask_high_transition):
+                # Normalize position within transition zone to [0, 1]
+                pos = (k[mask_high_transition] - high_cut_k_lower) / (
+                    high_cut_k_upper - high_cut_k_lower
+                )
+                # Apply cosine taper
+                filter_values[mask_high_transition] = 0.5 * (1 - np.cos(np.pi * pos))
+
+            # Low-pass transition zone
+            mask_low_transition = np.logical_and(
+                k > low_cut_k_lower, k <= low_cut_k_upper
+            )
+            if np.any(mask_low_transition):
+                # Normalize position within transition zone to [0, 1]
+                pos = (k[mask_low_transition] - low_cut_k_lower) / (
+                    low_cut_k_upper - low_cut_k_lower
+                )
+                # Apply cosine taper (reversed direction)
+                filter_values[mask_low_transition] = 0.5 * (1 + np.cos(np.pi * pos))
+
+            return filter_values
 
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method

@@ -325,11 +325,9 @@ class SGTool:
         )
 
         self.dlg.checkBox_5_regional.setToolTip(
-            "Remove regional (RR) based on wavelenth "
+            "Remove regional (RR) based on 1st or 2nd order polynomial "
         )
-        self.dlg.lineEdit_9_removeReg_wavelength.setToolTip(
-            "Wavelength to define regional [layer units]"
-        )
+
         self.dlg.checkBox_6_derivative.setToolTip(
             "Calculate derivate (d+power+direction) parallel to x, y or z\nHighlights near-surface/short-wavelength features"
         )
@@ -364,6 +362,13 @@ class SGTool:
         self.dlg.lineEdit_11_bandPassHigh.setToolTip(
             "High wavelength cutoff [m or other length unit]"
         )
+        self.dlg.lineEdit_3_HLP_width.setToolTip(
+            "Width of cosine rolloff [m or other length unit]\nStart with cutoff value and increase to reduce ringing\n0 is step cutoff"
+        )
+        self.dlg.lineEdit_3_BP_width.setToolTip(
+            "Width of cosine rolloff [m or other length unit]\nStart with cutoff value and increase to reduce ringing\n0 is step cutoff"
+        )
+
         self.dlg.checkBox_10_freqCut.setToolTip(
             "High or Low pass filter\nIsolates specific short wavelength (HP) or long wavelength (LP) features."
         )
@@ -688,7 +693,10 @@ class SGTool:
         self.RTE_P_date = [int(date_split[2]), int(date_split[1]), int(date_split[0])]
 
         self.RemRegional = self.dlg.checkBox_5_regional.isChecked()
-        self.remReg_wavelength = self.dlg.lineEdit_9_removeReg_wavelength.text()
+        if self.dlg.radioButton_RR_1st.isChecked():
+            self.RemRegional_order = 1
+        else:
+            self.RemRegional_order = 2
 
         self.Derivative = self.dlg.checkBox_6_derivative.isChecked()
         self.derive_direction = self.dlg.comboBox_derivDirection.currentText()
@@ -707,13 +715,14 @@ class SGTool:
         if float(self.band_low) <= 0.0:
             self.band_low = 1e-10
         self.band_high = self.dlg.lineEdit_11_bandPassHigh.text()
-
+        self.band_width = self.dlg.lineEdit_3_BP_width.text()
         self.AGC = self.dlg.checkBox_11_1vd_agc.isChecked()
         self.agc_window = self.dlg.lineEdit_13_agc_window.text()
 
         self.FreqCut = self.dlg.checkBox_10_freqCut.isChecked()
         self.FreqCut_type = self.dlg.comboBox_2_FreqCutType.currentText()
         self.FreqCut_cut = self.dlg.lineEdit_12_FreqPass.text()
+        self.FreqCut_width = self.dlg.lineEdit_3_HLP_width.text()
 
         self.VI = self.dlg.checkBox_4_PGrav.isChecked()
         self.THG = self.dlg.checkBox_11_tot_hz_grad.isChecked()
@@ -949,13 +958,22 @@ class SGTool:
     def procRemRegional(self):
         cutoff_wavelength = float(self.remReg_wavelength)
         if self.unit_check(cutoff_wavelength):
-            self.new_grid = self.processor.remove_regional_trend_fourier(
+            """self.new_grid = self.processor.remove_regional_trend_fourier(
                 self.raster_array,
                 cutoff_wavelength=cutoff_wavelength,
                 buffer_size=self.buffer,
             )
-            self.new_grid = self.raster_array - self.new_grid
-            self.suffix = "_RR" + "_" + str(self.remReg_wavelength)
+            self.new_grid = self.raster_array - self.new_grid"""
+            data, nodata_value = self.processor.fix_extreme_values(self.raster_array)
+            data = data.astype(np.float32)
+            mask = (data == nodata_value) | np.isnan(data)
+
+            if self.RemRegional_order == 1:
+                self.new_grid = self.processor.remove_gradient(data, mask)
+            else:
+                self.new_grid = self.processor.remove_2o_gradient(data, mask)
+
+            self.suffix = "_RR" + "_" + str(self.RemRegional_order) + "o"
 
     def procDerivative(self):
         self.new_grid = self.processor.compute_derivative(
@@ -1014,6 +1032,8 @@ class SGTool:
                 self.raster_array,
                 low_cut=low_cut,
                 high_cut=high_cut,
+                high_transition_width=float(self.band_width),
+                low_transition_width=float(self.band_width),
                 buffer_size=self.buffer,
             )
             self.suffix = "_BP" + "_" + str(self.band_low) + "_" + str(self.band_high)
@@ -1056,6 +1076,7 @@ class SGTool:
                 self.new_grid = self.processor.low_pass_filter(
                     self.raster_array,
                     cutoff_wavelength=cutoff_wavelength,
+                    transition_width=float(self.FreqCut_width),
                     buffer_size=self.buffer,
                 )
                 self.suffix = "_LP" + "_" + str(self.FreqCut_cut)
@@ -1063,6 +1084,7 @@ class SGTool:
                 self.new_grid = self.processor.high_pass_filter(
                     self.raster_array,
                     cutoff_wavelength=cutoff_wavelength,
+                    transition_width=float(self.FreqCut_width),
                     buffer_size=self.buffer,
                 )
                 self.suffix = "_HP" + "_" + str(self.FreqCut_cut)
@@ -3138,7 +3160,10 @@ class SGTool:
             self.dlg.lineEdit_10_continuationHeight.textChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_9_continuation)
             )
-            self.dlg.lineEdit_9_removeReg_wavelength.textChanged.connect(
+            self.dlg.radioButton_RR_1st.clicked.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_5_regional)
+            )
+            self.dlg.radioButton_RR_2nd.clicked.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_5_regional)
             )
             self.dlg.lineEdit_12_bandPassLow.textChanged.connect(
@@ -3146,6 +3171,12 @@ class SGTool:
             )
             self.dlg.lineEdit_11_bandPassHigh.textChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_10_bandPass)
+            )
+            self.dlg.lineEdit_3_BP_width.textChanged.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_10_bandPass)
+            )
+            self.dlg.lineEdit_3_HLP_width.textChanged.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_10_freqCut)
             )
             self.dlg.lineEdit_12_FreqPass.textChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_10_freqCut)

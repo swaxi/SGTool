@@ -20,7 +20,8 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.2.15 Macos GUI fixes
+changelog=0.2.15 Use cosine rolloff for high/low and bandpass filters to reduce ringing
+      * Change Remove Regional to 1st or 2nd order polynomial
     0.2.14 Don't try to load LINE_ID or LINE codes if they don't exist in WTMM
       * added PCA & ICA calculations for multiband grids
       * Speed up Grass-like relief calc

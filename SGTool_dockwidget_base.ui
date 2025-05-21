@@ -201,10 +201,10 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_35">
        <property name="geometry">
         <rect>
-         <x>190</x>
+         <x>140</x>
          <y>160</y>
-         <width>61</width>
-         <height>16</height>
+         <width>41</width>
+         <height>20</height>
         </rect>
        </property>
        <property name="text">
@@ -301,7 +301,7 @@ QTabBar::tab:hover {
       <widget class="QLineEdit" name="lineEdit_12_bandPassLow">
        <property name="geometry">
         <rect>
-         <x>260</x>
+         <x>210</x>
          <y>130</y>
          <width>71</width>
          <height>20</height>
@@ -316,7 +316,7 @@ QTabBar::tab:hover {
         <rect>
          <x>20</x>
          <y>100</y>
-         <width>191</width>
+         <width>121</width>
          <height>17</height>
         </rect>
        </property>
@@ -369,23 +369,10 @@ QTabBar::tab:hover {
         <string>0</string>
        </property>
       </widget>
-      <widget class="QLineEdit" name="lineEdit_9_removeReg_wavelength">
-       <property name="geometry">
-        <rect>
-         <x>370</x>
-         <y>100</y>
-         <width>71</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>50000</string>
-       </property>
-      </widget>
       <widget class="QLineEdit" name="lineEdit_12_FreqPass">
        <property name="geometry">
         <rect>
-         <x>490</x>
+         <x>380</x>
          <y>160</y>
          <width>71</width>
          <height>20</height>
@@ -398,7 +385,7 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_24">
        <property name="geometry">
         <rect>
-         <x>230</x>
+         <x>240</x>
          <y>190</y>
          <width>131</width>
          <height>20</height>
@@ -414,10 +401,10 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_22">
        <property name="geometry">
         <rect>
-         <x>140</x>
+         <x>120</x>
          <y>130</y>
-         <width>111</width>
-         <height>16</height>
+         <width>81</width>
+         <height>20</height>
         </rect>
        </property>
        <property name="text">
@@ -430,7 +417,7 @@ QTabBar::tab:hover {
       <widget class="QComboBox" name="comboBox_2_FreqCutType">
        <property name="geometry">
         <rect>
-         <x>260</x>
+         <x>190</x>
          <y>160</y>
          <width>71</width>
          <height>22</height>
@@ -440,7 +427,7 @@ QTabBar::tab:hover {
       <widget class="QLineEdit" name="lineEdit_13_agc_window">
        <property name="geometry">
         <rect>
-         <x>370</x>
+         <x>380</x>
          <y>190</y>
          <width>71</width>
          <height>20</height>
@@ -450,26 +437,10 @@ QTabBar::tab:hover {
         <string>10</string>
        </property>
       </widget>
-      <widget class="QLabel" name="label_17">
-       <property name="geometry">
-        <rect>
-         <x>200</x>
-         <y>100</y>
-         <width>161</width>
-         <height>20</height>
-        </rect>
-       </property>
-       <property name="text">
-        <string>Wavelength (proj units)</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-       </property>
-      </widget>
       <widget class="QLineEdit" name="lineEdit_11_bandPassHigh">
        <property name="geometry">
         <rect>
-         <x>490</x>
+         <x>380</x>
          <y>130</y>
          <width>71</width>
          <height>20</height>
@@ -482,9 +453,9 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_34">
        <property name="geometry">
         <rect>
-         <x>350</x>
+         <x>270</x>
          <y>160</y>
-         <width>131</width>
+         <width>101</width>
          <height>21</height>
         </rect>
        </property>
@@ -498,9 +469,9 @@ QTabBar::tab:hover {
       <widget class="QLabel" name="label_23">
        <property name="geometry">
         <rect>
-         <x>360</x>
+         <x>280</x>
          <y>130</y>
-         <width>121</width>
+         <width>91</width>
          <height>21</height>
         </rect>
        </property>
@@ -580,6 +551,93 @@ QTabBar::tab:hover {
        </property>
        <property name="text">
         <string>3</string>
+       </property>
+      </widget>
+      <widget class="QLineEdit" name="lineEdit_3_BP_width">
+       <property name="geometry">
+        <rect>
+         <x>510</x>
+         <y>130</y>
+         <width>51</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>5000</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_39">
+       <property name="geometry">
+        <rect>
+         <x>450</x>
+         <y>130</y>
+         <width>51</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Width</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QLineEdit" name="lineEdit_3_HLP_width">
+       <property name="geometry">
+        <rect>
+         <x>510</x>
+         <y>160</y>
+         <width>51</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>5000</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_69">
+       <property name="geometry">
+        <rect>
+         <x>450</x>
+         <y>160</y>
+         <width>51</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Width</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       </property>
+      </widget>
+      <widget class="QRadioButton" name="radioButton_RR_2nd">
+       <property name="geometry">
+        <rect>
+         <x>280</x>
+         <y>100</y>
+         <width>131</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>2nd order fit</string>
+       </property>
+      </widget>
+      <widget class="QRadioButton" name="radioButton_RR_1st">
+       <property name="geometry">
+        <rect>
+         <x>150</x>
+         <y>100</y>
+         <width>101</width>
+         <height>17</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>1st order fit</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
        </property>
       </widget>
      </widget>

@@ -84,15 +84,77 @@ k = sqrt{k<sub>x</sub><sup>2</sup> + k<sub>y</sub><sup>2</sup>} .
    
 ## Frequency Filters   
    
-**Band Pass**
-$`H(k) = e^{-(k - k_c)^2 / (2 \sigma^2)} - e^{-(k + k_c)^2 / (2 \sigma^2)}`$   
-The band-pass filter retains frequencies within a specified range, suppressing both low and high frequencies outside this range.
-Where   
-k<sub>c</sub> : The central frequency of the band.
-sigma : The width of the frequency band.   
+**High Pass Filter**
+
+$$H(k) = \begin{cases} 
+0 & \text{if } k \leq k_{low} \\
+\frac{1}{2}\left(1 - \cos\left(\pi \frac{k - k_{low}}{k_{high} - k_{low}}\right)\right) & \text{if } k_{low} < k < k_{high} \\
+1 & \text{if } k \geq k_{high}
+\end{cases}$$
+
+The high-pass filter removes low-frequency components (long wavelengths) while retaining high-frequency components (short wavelengths) with a smooth transition to reduce ringing artifacts.
+
+Where:
+- $k$ : Current wavenumber magnitude $\sqrt{k_x^2 + k_y^2}$
+- $k_{low} = \frac{2\pi}{\lambda_c + w/2}$ : Lower transition boundary
+- $k_{high} = \frac{2\pi}{\lambda_c - w/2}$ : Upper transition boundary  
+- $\lambda_c$ : Cutoff wavelength
+- $w$ : Transition width (in same units as wavelength)
+
+**Low Pass Filter**
+
+$$H(k) = \begin{cases} 
+1 & \text{if } k \leq k_{inner} \\
+\frac{1}{2}\left(1 + \cos\left(\pi \frac{k - k_{inner}}{k_{outer} - k_{inner}}\right)\right) & \text{if } k_{inner} < k < k_{outer} \\
+0 & \text{if } k \geq k_{outer}
+\end{cases}$$
+
+The low-pass filter removes high-frequency components (short wavelengths) while retaining low-frequency components (long wavelengths). Optional smooth transition reduces potential ringing artifacts.
+
+Where:
+- $k$ : Current wavenumber magnitude $\sqrt{k_x^2 + k_y^2}$
+- $k_{inner} = \frac{2\pi}{\lambda_c + w/2}$ : Inner transition boundary
+- $k_{outer} = \frac{2\pi}{\lambda_c - w/2}$ : Outer transition boundary
+- $\lambda_c$ : Cutoff wavelength
+- $w$ : Transition width (optional, in same units as wavelength)
+
+**Band Pass Filter**
+
+$$H(k) = H_{high}(k) \times H_{low}(k)$$
+
+Where:
+
+***High-pass component:***
+$$H_{high}(k) = \begin{cases} 
+0 & \text{if } k \leq k_{h,low} \\
+\frac{1}{2}\left(1 - \cos\left(\pi \frac{k - k_{h,low}}{k_{h,high} - k_{h,low}}\right)\right) & \text{if } k_{h,low} < k < k_{h,high} \\
+1 & \text{if } k \geq k_{h,high}
+\end{cases}$$
+
+***Low-pass component:***
+$$H_{low}(k) = \begin{cases} 
+1 & \text{if } k \leq k_{l,inner} \\
+\frac{1}{2}\left(1 + \cos\left(\pi \frac{k - k_{l,inner}}{k_{l,outer} - k_{l,inner}}\right)\right) & \text{if } k_{l,inner} < k < k_{l,outer} \\
+0 & \text{if } k \geq k_{l,outer}
+\end{cases}$$
+
+The band-pass filter isolates features within a specific wavelength range by combining high-pass and low-pass components with smooth transitions.
+
+Where:
+- $k$ : Current wavenumber magnitude $\sqrt{k_x^2 + k_y^2}$
+- $k_{h,low} = \frac{2\pi}{\lambda_{low} + w_h/2}$ : High-pass lower transition boundary
+- $k_{h,high} = \frac{2\pi}{\lambda_{low} - w_h/2}$ : High-pass upper transition boundary
+- $k_{l,inner} = \frac{2\pi}{\lambda_{high} + w_l/2}$ : Low-pass inner transition boundary
+- $k_{l,outer} = \frac{2\pi}{\lambda_{high} - w_l/2}$ : Low-pass outer transition boundary
+- $\lambda_{low}$ : Low cutoff wavelength (removes longer wavelengths)
+- $\lambda_{high}$ : High cutoff wavelength (removes shorter wavelengths)
+- $w_h$ : High-pass transition width
+- $w_l$ : Low-pass transition width
 
 **Directional Band Pass**   
-Butterworth High-Pass Filter
+Removes combined directional and high pass filtered data from original data, with scaling function modify extent of feature suppression.   
+   
+***Butterworth High-Pass Filter***
 $`H(k) = \frac{1}{1 + \left(\frac{k_c}{k}\right)^{2n}}`$    
 The Butterworth filter attenuates frequencies below the cutoff k<sub>c</sub> while preserving higher frequencies.    
 H(k) : Filter response as a function of wavenumber k.    
@@ -100,24 +162,13 @@ k : Wavenumber (spatial frequency).
 k<sub>c</sub> : Cutoff wavenumber, related to the cutoff wavelength by k<sub>c</sub> = \frac{1}{\text{cutoff wavelength}}.    
 n : Filter order, determining the sharpness of the transition. Higher \( n \) makes the filter more selective.   
     
-**Directional Cosine Filter**       
+***Directional Cosine Filter***    
 $`H(k_x, k_y) = \left| \cos(\theta - \theta_c) \right|^p`$   
 The Directional Cosine Filter emphasizes or suppresses frequency components along a specific direction.   
 H(k<sub>x</sub>, k<sub>y</sub>): Filter response as a function of wavenumber components k<sub>x</sub> and k<sub>y</sub>.   
 theta = \arctan\left(\frac{k_y}{k_x}\right) : Angle of the frequency component.   
 theta<sub>c</sub> : Center direction (in radians), representing the direction to emphasize.   
 p : Degree of the cosine function. Higher \( p \) sharpens the directional emphasis.   
-   
-**High Pass**    
-$`H(k) = 1 - e^{-k^2 / (2 k_c^2)}`$   
-The high-pass filter removes low-frequency components (long wavelengths) while retaining high-frequency components (short wavelengths).
-Where    
-k<sub>c</sub> : The cutoff frequency where the filter begins attenuating lower frequencies.   
-
-**Low Pass**    
-$`H(k) = e^{-k^2 / (2 k_c^2)}`$   
-The low-pass filter suppresses high-frequency components (short wavelengths) while preserving low-frequency components (long wavelengths).
-Where: k<sub>c</sub> : The cutoff frequency where the filter begins attenuating higher frequencies.   
 
 **Remove Regional**   
 Remove a 1st order (dipping plane) or 2nd order (parabolic plane) regional from data. 

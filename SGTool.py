@@ -1028,6 +1028,9 @@ class SGTool:
         low_cut = float(self.band_low)
         high_cut = float(self.band_high)
         if self.unit_check(low_cut) and self.unit_check(high_cut):
+            """self.new_grid = self.processor.butterworth_band_pass(
+                self.raster_array, low_cut, high_cut, order=4, buffer_size=self.buffer
+            )"""
             self.new_grid = self.processor.band_pass_filter(
                 self.raster_array,
                 low_cut=low_cut,

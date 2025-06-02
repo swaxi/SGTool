@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.2.15
+# Structural Geophysics Tool v0.2.16
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
@@ -8,7 +8,9 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog 0.2.15 
+# changelog 0.2.16
+      0.2.16
+      * Add Euler Deconvolution from https://github.com/ffigura/Euler-deconvolution-python
       0.2.15 
       * Use cosine rolloff for high/low and bandpass filters to reduce ringing
       * Change Remove Regional to 1st or 2nd order polynomial
@@ -254,6 +256,13 @@ Principal Component Analysis (PCA) transforms correlated variables into orthogon
 **Independent Component Analysis**   
 Independent Component Analysis separates a multivariate signal into additive, statistically independent components by maximizing non-Gaussianity, often used to recover source signals from mixed observations.     
    
+## Euler Deconvolution   
+**Euler Deconvolution**   
+Reliable Euler Deconvolution provides estimates of depth to gravity or magnetic sources based on analysis of gradients. Code derived from Reliable Euler Deconvolution by Felipe F. Melo and Valéria C.F. Barbosa https://github.com/ffigura/Euler-deconvolution-python.   
+   
+**Independent Component Analysis**   
+Independent Component Analysis separates a multivariate signal into additive, statistically independent components by maximizing non-Gaussianity, often used to recover source signals from mixed observations.     
+   
 ## Gridding   
 **Import points**   
 Imports point data in csv, ASEG-GDF2 dat or xyz formats   
@@ -263,7 +272,7 @@ Grids point data using either BSpline or IDW built-in gridding algoithms
    
 ## Wavelets   
 **BSDWorms**   
-Use wavelet transforms to build multilevel "worms", saves out a single csv file of points (for use in 3D visualisation), and optionally a shapefile (for use in QGIS)   
+Use wavelet transforms to build multilevel "worms", saves out a single csv file of points (for use in 3D visualisation), and optionally a shapefile (for use in QGIS). Code from Frank Horowitz's bsdwormer  https://bitbucket.org/fghorow/bsdwormer/   
     
 **WTMM**   
 Use wavelet transforms to build multilevel analysis (Wavelet Transform Modulus Maxima) along a selected linestring (polyline) profile extracted from grid or for imported XYZ data. 
@@ -311,6 +320,8 @@ There are several excellent Open Source or at least free alternatives to this pl
 - Worming of grids uses Frank Horowitz's bsdwormer  https://bitbucket.org/fghorow/bsdwormer/
 - Wavelet Transform base code - https://github.com/PyWavelets/pywt 
 - Multilevel BSpline Gridding piggybacks off SAGA code via the plugin Processing Saga NextGen Provider https://github.com/north-road/qgis-processing-saga-nextgen   
+- Euler Deconvolution derived from Felipe F. Melo and Valéria C.F. Barbosa's Reliable Euler method https://github.com/ffigura/Euler-deconvolution-python   
+
 
 
 

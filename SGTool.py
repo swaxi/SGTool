@@ -93,6 +93,9 @@ from .calcs.SG_Util import SG_Util
 from .igrf.igrf_utils import igrf_utils as IGRF
 from .calcs.aseggdf2parser import AsegGdf2Parser
 
+from .euler.euler_python import euler_deconv, euler_deconv_opt
+from .euler.estimates_statistics import classic, window_stats
+
 
 class SGTool:
     """QGIS Plugin Implementation."""
@@ -770,6 +773,7 @@ class SGTool:
 
         self.PCA = self.dlg.checkBox_PCA.isChecked()
         self.ICA = self.dlg.checkBox_ICA.isChecked()
+        self.ED = self.dlg.checkBox_ED.isChecked()
 
     def loadGrid(self):
         """
@@ -1153,6 +1157,94 @@ class SGTool:
             )
         self.suffix = "_Sh"
 
+    def procEulerDeconvolution(self, data):
+        selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
+        self.diskGridPath = selected_layer.dataProvider().dataSourceUri()
+        crs = selected_layer.crs()
+
+        if crs.isGeographic():
+            self.iface.messageBar().pushMessage(
+                "This is a geographic projection, you need to convert it to a projected CRS",
+                level=Qgis.Warning,
+                duration=15,
+            )
+            return False
+        else:
+            data, mask = self.processor.fill_nan(data)
+
+            shape = data.shape
+            provider = selected_layer.dataProvider()
+
+            # Get raster dimensions
+            area = provider.extent()
+            # use south, north, west, east order
+            area = [area.yMinimum(), area.yMaximum(), area.xMinimum(), area.xMaximum()]
+
+            # Assuming your data array is called 'data'
+            rows, cols = data.shape
+
+            # Create 1D coordinate arrays
+            x_coords_1d = np.linspace(area[2], area[3], cols)
+            y_coords_1d = np.linspace(area[0], area[1], rows)
+
+            # Create 2D coordinate grids
+            xi, yi = np.meshgrid(x_coords_1d, y_coords_1d)
+            zi = np.zeros(data.shape)
+
+            # moving data window size
+            winsize = int(self.dlg.lineEdit_ED_Window.text())
+            # percentage of the solutions that will be keep
+            filt = float(self.dlg.doubleSpinBox_ED_Threshold.text())
+            # empty array for multiple SIs
+            est_classic = []
+            # Define below the SIs to be tested
+            SI_vet = [0.001, 1, 2, 3]
+            # prism (SI = 0), a line of poles (SI = 1), a single pole (SI = 2), and a di-pole (SI = 3)
+            """
+            Euler deconvolution for multiple SIs
+            """
+            for SI in SI_vet:
+                classic_result = euler_deconv_opt(
+                    data, xi, yi, zi, shape, area, SI, winsize, filt
+                )
+                classic_result[:, 1] = (
+                    area[1] - classic_result[:, 1] + area[0]
+                )  # Flip y-coordinates
+                est_classic.append(classic_result)
+
+            area_classic = area
+
+            head_tail = os.path.split(self.diskGridPath)
+            # convert the list to an array
+            output = np.asarray(est_classic)
+            # save the estimates in distinct files according to the SI
+            for i in range(len(SI_vet)):
+                np.savetxt(
+                    head_tail[0]
+                    + "/"
+                    + self.localGridName
+                    + "_estimates_SI_"
+                    + str(i)
+                    + ".txt",
+                    output[i],
+                    delimiter=",",
+                    header="x_source, y_source, z_source, base_level",
+                    comments="",  # This removes the # prefix
+                )
+            # optional windowed stats
+            if self.dlg.checkBox_ED_Stats.isChecked():
+                # classic(est_classic, area_classic, SI_vet, self.localGridName, head_tail[0])
+                window_results = window_stats(
+                    est_classic,
+                    area,
+                    SI_vet,
+                    self.localGridName,
+                    head_tail[0],
+                    shape,
+                    winsize,
+                    detailed_stats=True,
+                )
+
     def procPCA(self):
         try:
             import sklearn
@@ -1377,7 +1469,7 @@ class SGTool:
 
         if crs.isGeographic():
             self.iface.messageBar().pushMessage(
-                "This is a geographic projection, you need to specify convert it to a projected CRS",
+                "This is a geographic projection, you need to convert it to a projected CRS",
                 level=Qgis.Warning,
                 duration=15,
             )
@@ -1818,6 +1910,8 @@ class SGTool:
                 self.procICA()
             if self.Polygons:
                 self.procPolygons()
+            if self.ED:
+                self.procEulerDeconvolution(self.raster_array)
 
             self.resetCheckBoxes()
 
@@ -1871,6 +1965,8 @@ class SGTool:
         self.dlg.checkBox_DTM_Class.setChecked(False)
         self.dlg.checkBox_PCA.setChecked(False)
         self.dlg.checkBox_ICA.setChecked(False)
+        self.dlg.checkBox_ED.setChecked(False)
+        self.dlg.checkBox_ED_Stats.setChecked(False)
 
         self.RTE_P = False
         self.TA = False
@@ -3087,6 +3183,7 @@ class SGTool:
             self.dlg.lineEdit_Mean_size.setValidator(OddPositiveIntegerValidator())
             self.dlg.lineEdit_Median_size.setValidator(OddPositiveIntegerValidator())
             self.dlg.lineEdit_SS_Window.setValidator(OddPositiveIntegerValidator())
+            self.dlg.lineEdit_ED_Window.setValidator(OddPositiveIntegerValidator())
 
             self.directional_list = []
             self.directional_list.append("N")
@@ -3258,6 +3355,15 @@ class SGTool:
             )
             self.dlg.mQgsSpinBox_ICA.textChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_ICA)
+            )
+            self.dlg.checkBox_ED_Stats.toggled.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_ED)
+            )
+            self.dlg.doubleSpinBox_ED_Threshold.valueChanged.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_ED)
+            )
+            self.dlg.lineEdit_ED_Window.textChanged.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_ED)
             )
 
     def update_checkbox(self, checkbox):

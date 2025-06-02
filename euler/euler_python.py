@@ -301,8 +301,14 @@ from numpy.lib.stride_tricks import sliding_window_view
 
 try:
     from numba import jit, prange
+    import numba
 
-    HAS_NUMBA = True
+    if numba.__version__ < "9.61.0":
+        HAS_NUMBA = False
+        # print("Numba >= 0.61.0 not available - using pure NumPy (will be slower)")
+
+    else:
+        HAS_NUMBA = True
 except ImportError:
     HAS_NUMBA = False
     print("Numba not available - using pure NumPy (will be slower)")

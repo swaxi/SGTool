@@ -93,8 +93,8 @@ from .calcs.SG_Util import SG_Util
 from .igrf.igrf_utils import igrf_utils as IGRF
 from .calcs.aseggdf2parser import AsegGdf2Parser
 
-from .euler.euler_python import euler_deconv, euler_deconv_opt
-from .euler.estimates_statistics import classic, window_stats
+from .euler.euler_python import euler_deconv_opt
+from .euler.estimates_statistics import window_stats
 
 
 class SGTool:
@@ -1170,6 +1170,7 @@ class SGTool:
             )
             return False
         else:
+            print("Processing NaNs")
             data, mask = self.processor.fill_nan(data)
 
             shape = data.shape
@@ -1204,6 +1205,7 @@ class SGTool:
             Euler deconvolution for multiple SIs
             """
             for SI in SI_vet:
+                print(f"Processing Euler Deconvolution for SI = {SI}")
                 classic_result = euler_deconv_opt(
                     data, xi, yi, zi, shape, area, SI, winsize, filt
                 )
@@ -1244,6 +1246,12 @@ class SGTool:
                     winsize,
                     detailed_stats=True,
                 )
+
+            self.iface.messageBar().pushMessage(
+                "Euler Solutions saved to same directory as input grid",
+                level=Qgis.Success,
+                duration=15,
+            )
 
     def procPCA(self):
         try:
@@ -1965,8 +1973,8 @@ class SGTool:
         self.dlg.checkBox_DTM_Class.setChecked(False)
         self.dlg.checkBox_PCA.setChecked(False)
         self.dlg.checkBox_ICA.setChecked(False)
-        self.dlg.checkBox_ED.setChecked(False)
         self.dlg.checkBox_ED_Stats.setChecked(False)
+        self.dlg.checkBox_ED.setChecked(False)
 
         self.RTE_P = False
         self.TA = False

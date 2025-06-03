@@ -221,8 +221,11 @@ def window_stats(
                 "window_row, window_col, center_x, center_y, n_estimates, "
                 "mean_x, mean_y, mean_depth_km, mean_base_level"
             )
+        SI_name = SI
+        if SI_name == 0.001:
+            SI_name = 0
 
-        output_filename = f"{path}/{name}_window_stats_SI_{SI}.txt"
+        output_filename = f"{path}/{name}_window_stats_SI_{SI_name}.txt"
         np.savetxt(
             output_filename,
             window_results,

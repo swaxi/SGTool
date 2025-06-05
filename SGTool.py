@@ -960,24 +960,17 @@ class SGTool:
                 self.suffix = "_RTE"
 
     def procRemRegional(self):
-        cutoff_wavelength = float(self.remReg_wavelength)
-        if self.unit_check(cutoff_wavelength):
-            """self.new_grid = self.processor.remove_regional_trend_fourier(
-                self.raster_array,
-                cutoff_wavelength=cutoff_wavelength,
-                buffer_size=self.buffer,
-            )
-            self.new_grid = self.raster_array - self.new_grid"""
-            data, nodata_value = self.processor.fix_extreme_values(self.raster_array)
-            data = data.astype(np.float32)
-            mask = (data == nodata_value) | np.isnan(data)
 
-            if self.RemRegional_order == 1:
-                self.new_grid = self.processor.remove_gradient(data, mask)
-            else:
-                self.new_grid = self.processor.remove_2o_gradient(data, mask)
+        data, nodata_value = self.processor.fix_extreme_values(self.raster_array)
+        data = data.astype(np.float32)
+        mask = (data == nodata_value) | np.isnan(data)
 
-            self.suffix = "_RR" + "_" + str(self.RemRegional_order) + "o"
+        if self.RemRegional_order == 1:
+            self.new_grid = self.processor.remove_gradient(data, mask)
+        else:
+            self.new_grid = self.processor.remove_2o_gradient(data, mask)
+
+        self.suffix = "_RR" + "_" + str(self.RemRegional_order) + "o"
 
     def procDerivative(self):
         self.new_grid = self.processor.compute_derivative(

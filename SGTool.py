@@ -1969,7 +1969,7 @@ class SGTool:
         self.dlg.checkBox_ED_Stats.setChecked(False)
         self.dlg.checkBox_ED.setChecked(False)
 
-        self.RTE_P = False
+        """self.RTE_P = False
         self.TA = False
         self.AS = False
 
@@ -1988,7 +1988,7 @@ class SGTool:
         self.Gaussian = False
         self.Direction = False
         self.SunShade = False
-        self.Polygons = False
+        self.Polygons = False"""
 
     def is_layer_loaded(self, layer_name):
         """

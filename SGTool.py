@@ -93,6 +93,10 @@ from .calcs.SG_Util import SG_Util
 from .igrf.igrf_utils import igrf_utils as IGRF
 from .calcs.aseggdf2parser import AsegGdf2Parser
 
+from .euler.euler_python_optimised import euler_deconv_opt
+from .euler.euler_python import euler_deconv
+from .euler.estimates_statistics import window_stats
+
 
 class SGTool:
     """QGIS Plugin Implementation."""
@@ -770,6 +774,7 @@ class SGTool:
 
         self.PCA = self.dlg.checkBox_PCA.isChecked()
         self.ICA = self.dlg.checkBox_ICA.isChecked()
+        self.ED = self.dlg.checkBox_ED.isChecked()
 
     def loadGrid(self):
         """
@@ -956,24 +961,17 @@ class SGTool:
                 self.suffix = "_RTE"
 
     def procRemRegional(self):
-        cutoff_wavelength = float(self.remReg_wavelength)
-        if self.unit_check(cutoff_wavelength):
-            """self.new_grid = self.processor.remove_regional_trend_fourier(
-                self.raster_array,
-                cutoff_wavelength=cutoff_wavelength,
-                buffer_size=self.buffer,
-            )
-            self.new_grid = self.raster_array - self.new_grid"""
-            data, nodata_value = self.processor.fix_extreme_values(self.raster_array)
-            data = data.astype(np.float32)
-            mask = (data == nodata_value) | np.isnan(data)
 
-            if self.RemRegional_order == 1:
-                self.new_grid = self.processor.remove_gradient(data, mask)
-            else:
-                self.new_grid = self.processor.remove_2o_gradient(data, mask)
+        data, nodata_value = self.processor.fix_extreme_values(self.raster_array)
+        data = data.astype(np.float32)
+        mask = (data == nodata_value) | np.isnan(data)
 
-            self.suffix = "_RR" + "_" + str(self.RemRegional_order) + "o"
+        if self.RemRegional_order == 1:
+            self.new_grid = self.processor.remove_gradient(data, mask)
+        else:
+            self.new_grid = self.processor.remove_2o_gradient(data, mask)
+
+        self.suffix = "_RR" + "_" + str(self.RemRegional_order) + "o"
 
     def procDerivative(self):
         self.new_grid = self.processor.compute_derivative(
@@ -1152,6 +1150,127 @@ class SGTool:
                 sun_az=180 - self.sun_shade_az,
             )
         self.suffix = "_Sh"
+
+    def procEulerDeconvolution(self, data):
+        selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
+        self.diskGridPath = selected_layer.dataProvider().dataSourceUri()
+        crs = selected_layer.crs()
+
+        if crs.isGeographic():
+            self.iface.messageBar().pushMessage(
+                "This is a geographic projection, you need to convert it to a projected CRS",
+                level=Qgis.Warning,
+                duration=15,
+            )
+            return False
+        else:
+            print("Processing NaNs")
+            data, mask = self.processor.fill_nan(data)
+
+            shape = (data.shape[0], data.shape[1])
+            provider = selected_layer.dataProvider()
+
+            # Get raster dimensions
+            area = provider.extent()
+            # use south, north, west, east order
+            area = [area.yMinimum(), area.yMaximum(), area.xMinimum(), area.xMaximum()]
+            # print("area", area)
+            # Assuming your data array is called 'data'
+            rows, cols = data.shape
+            # print("rows,cols", rows, cols)
+            # print("data.shape", data.shape)
+            # Create 1D coordinate arrays
+            x_coords_1d = np.linspace(area[2], area[3], cols)
+            y_coords_1d = np.linspace(area[0], area[1], rows)
+
+            # Create 2D coordinate grids
+            yi, xi = np.meshgrid(x_coords_1d, y_coords_1d)
+            zi = np.ones(shape)
+            # zi = zi * -100.0
+            xi = xi.flatten()
+            yi = yi.flatten()
+            zi = zi.flatten()
+            data = np.flipud(data)
+            data = data.flatten()
+            # print("data,xi,yi,zi", data.shape, xi.shape, yi.shape, zi.shape)
+            # print("data[:200]", data[:200])
+            # print("xi[:200]", xi[:200])
+            # print("yi[:200]", yi[:200])
+            # print("zi[:200]", zi[:200])
+            # moving data window size
+            winsize = int(self.dlg.lineEdit_ED_Window.text())
+            # percentage of the solutions that will be keep
+            filt = float(self.dlg.doubleSpinBox_ED_Threshold.text())
+
+            # print("winsize,filt", winsize, filt)
+            # empty array for multiple SIs
+            est_classic = []
+            # Define below the SIs to be tested
+            SI_vet = [0.001, 1, 2, 3]
+            # prism (SI = 0), a line of poles (SI = 1), a single pole (SI = 2), and a di-pole (SI = 3)
+            """print(
+                "data, xi, yi, zi, shape, area, SI, winsize, filt",
+                data.shape,
+                xi.shape,
+                yi.shape,
+                zi.shape,
+                shape,
+                area,
+                SI_vet,
+                winsize,
+                filt,
+            )"""
+            """
+            Euler deconvolution for multiple SIs
+            """
+            for SI in SI_vet:
+                print(f"Processing Euler Deconvolution for SI = {SI}")
+                classic_result = euler_deconv(
+                    data, xi, yi, zi, shape, area, SI, winsize, filt
+                )
+                classic_result[1, :] = (
+                    area[0] - classic_result[1, :] + area[1]
+                )  # Flip x-coordinates
+                est_classic.append(classic_result)
+
+            area_classic = area
+
+            head_tail = os.path.split(self.diskGridPath)
+            # convert the list to an array
+            output = np.asarray(est_classic)
+            # save the estimates in distinct files according to the SI
+            for i in range(len(SI_vet)):
+                np.savetxt(
+                    head_tail[0]
+                    + "/"
+                    + self.localGridName
+                    + "_estimates_SI_"
+                    + str(i)
+                    + ".txt",
+                    output[i],
+                    delimiter=",",
+                    header="y_source, x_source, z_source, base_level",
+                    comments="",  # This removes the # prefix
+                )
+            # optional windowed stats
+            if self.dlg.checkBox_ED_Stats.isChecked():
+                # classic(est_classic, area_classic, SI_vet, self.localGridName, head_tail[0])
+                window_results = window_stats(
+                    est_classic,
+                    area,
+                    SI_vet,
+                    self.localGridName,
+                    head_tail[0],
+                    shape,
+                    winsize,
+                    detailed_stats=True,
+                )
+
+            self.iface.messageBar().pushMessage(
+                "Euler Solutions saved to same directory as input grid",
+                level=Qgis.Success,
+                duration=15,
+            )
 
     def procPCA(self):
         try:
@@ -1377,7 +1496,7 @@ class SGTool:
 
         if crs.isGeographic():
             self.iface.messageBar().pushMessage(
-                "This is a geographic projection, you need to specify convert it to a projected CRS",
+                "This is a geographic projection, you need to convert it to a projected CRS",
                 level=Qgis.Warning,
                 duration=15,
             )
@@ -1818,6 +1937,8 @@ class SGTool:
                 self.procICA()
             if self.Polygons:
                 self.procPolygons()
+            if self.ED:
+                self.procEulerDeconvolution(self.raster_array)
 
             self.resetCheckBoxes()
 
@@ -1871,6 +1992,8 @@ class SGTool:
         self.dlg.checkBox_DTM_Class.setChecked(False)
         self.dlg.checkBox_PCA.setChecked(False)
         self.dlg.checkBox_ICA.setChecked(False)
+        self.dlg.checkBox_ED_Stats.setChecked(False)
+        self.dlg.checkBox_ED.setChecked(False)
 
         self.RTE_P = False
         self.TA = False
@@ -3087,6 +3210,7 @@ class SGTool:
             self.dlg.lineEdit_Mean_size.setValidator(OddPositiveIntegerValidator())
             self.dlg.lineEdit_Median_size.setValidator(OddPositiveIntegerValidator())
             self.dlg.lineEdit_SS_Window.setValidator(OddPositiveIntegerValidator())
+            self.dlg.lineEdit_ED_Window.setValidator(OddPositiveIntegerValidator())
 
             self.directional_list = []
             self.directional_list.append("N")
@@ -3258,6 +3382,15 @@ class SGTool:
             )
             self.dlg.mQgsSpinBox_ICA.textChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_ICA)
+            )
+            self.dlg.checkBox_ED_Stats.toggled.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_ED)
+            )
+            self.dlg.doubleSpinBox_ED_Threshold.valueChanged.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_ED)
+            )
+            self.dlg.lineEdit_ED_Window.textChanged.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_ED)
             )
 
     def update_checkbox(self, checkbox):

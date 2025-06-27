@@ -320,7 +320,7 @@ There are several excellent Open Source or at least free alternatives to this pl
 - Worming of grids uses Frank Horowitz's bsdwormer  https://bitbucket.org/fghorow/bsdwormer/
 - Wavelet Transform base code - https://github.com/PyWavelets/pywt 
 - Multilevel BSpline Gridding piggybacks off SAGA code via the plugin Processing Saga NextGen Provider https://github.com/north-road/qgis-processing-saga-nextgen   
-- Euler Deconvolution derived from Felipe F. Melo and Valéria C.F. Barbosa's Reliable Euler method https://github.com/ffigura/Euler-deconvolution-python   
+- Euler Deconvolution uses Felipe F. Melo and Valéria C.F. Barbosa's Reliable Euler method https://github.com/ffigura/Euler-deconvolution-python   
 
 
 

@@ -134,10 +134,10 @@ def window_stats(
 
                 # Filter estimates within this window
                 in_window = (
-                    (estimates[:, 0] >= win_west)
-                    & (estimates[:, 0] < win_east)
-                    & (estimates[:, 1] >= win_south)
-                    & (estimates[:, 1] < win_north)
+                    (estimates[:, 1] >= win_west)
+                    & (estimates[:, 1] < win_east)
+                    & (estimates[:, 0] >= win_south)
+                    & (estimates[:, 0] < win_north)
                 )
 
                 window_estimates = estimates[in_window]
@@ -212,14 +212,14 @@ def window_stats(
         if detailed_stats:
             header = (
                 "window_row, window_col, center_x, center_y, n_estimates, "
-                "mean_x, mean_y, mean_depth_km, mean_base_level, "
+                "mean_y, mean_x, mean_depth_km, mean_base_level, "
                 "std_x, std_y, std_depth_km, std_base_level, "
                 "min_depth_km, max_depth_km"
             )
         else:
             header = (
                 "window_row, window_col, center_x, center_y, n_estimates, "
-                "mean_x, mean_y, mean_depth_km, mean_base_level"
+                "mean_y, mean_x, mean_depth_km, mean_base_level"
             )
         SI_name = SI
         if SI_name == 0.001:

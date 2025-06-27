@@ -27,8 +27,9 @@ import os
 from qgis.PyQt import QtGui, QtWidgets, uic
 from qgis.PyQt.QtCore import pyqtSignal
 
-FORM_CLASS, _ = uic.loadUiType(os.path.join(
-    os.path.dirname(__file__), 'SGTool_dockwidget_base.ui'))
+FORM_CLASS, _ = uic.loadUiType(
+    os.path.join(os.path.dirname(__file__), "SGTool_dockwidget_base.ui")
+)
 
 
 class SGToolDockWidget(QtWidgets.QDockWidget, FORM_CLASS):

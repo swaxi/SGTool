@@ -93,7 +93,8 @@ from .calcs.SG_Util import SG_Util
 from .igrf.igrf_utils import igrf_utils as IGRF
 from .calcs.aseggdf2parser import AsegGdf2Parser
 
-from .euler.euler_python import euler_deconv_opt
+from .euler.euler_python_optimised import euler_deconv_opt
+from .euler.euler_python import euler_deconv
 from .euler.estimates_statistics import window_stats
 
 
@@ -1166,45 +1167,70 @@ class SGTool:
             print("Processing NaNs")
             data, mask = self.processor.fill_nan(data)
 
-            shape = data.shape
+            shape = (data.shape[0], data.shape[1])
             provider = selected_layer.dataProvider()
 
             # Get raster dimensions
             area = provider.extent()
             # use south, north, west, east order
             area = [area.yMinimum(), area.yMaximum(), area.xMinimum(), area.xMaximum()]
-
+            # print("area", area)
             # Assuming your data array is called 'data'
             rows, cols = data.shape
-
+            # print("rows,cols", rows, cols)
+            # print("data.shape", data.shape)
             # Create 1D coordinate arrays
             x_coords_1d = np.linspace(area[2], area[3], cols)
             y_coords_1d = np.linspace(area[0], area[1], rows)
 
             # Create 2D coordinate grids
-            xi, yi = np.meshgrid(x_coords_1d, y_coords_1d)
-            zi = np.zeros(data.shape)
-
+            yi, xi = np.meshgrid(x_coords_1d, y_coords_1d)
+            zi = np.ones(shape)
+            # zi = zi * -100.0
+            xi = xi.flatten()
+            yi = yi.flatten()
+            zi = zi.flatten()
+            data = np.flipud(data)
+            data = data.flatten()
+            # print("data,xi,yi,zi", data.shape, xi.shape, yi.shape, zi.shape)
+            # print("data[:200]", data[:200])
+            # print("xi[:200]", xi[:200])
+            # print("yi[:200]", yi[:200])
+            # print("zi[:200]", zi[:200])
             # moving data window size
             winsize = int(self.dlg.lineEdit_ED_Window.text())
             # percentage of the solutions that will be keep
             filt = float(self.dlg.doubleSpinBox_ED_Threshold.text())
+
+            # print("winsize,filt", winsize, filt)
             # empty array for multiple SIs
             est_classic = []
             # Define below the SIs to be tested
             SI_vet = [0.001, 1, 2, 3]
             # prism (SI = 0), a line of poles (SI = 1), a single pole (SI = 2), and a di-pole (SI = 3)
+            """print(
+                "data, xi, yi, zi, shape, area, SI, winsize, filt",
+                data.shape,
+                xi.shape,
+                yi.shape,
+                zi.shape,
+                shape,
+                area,
+                SI_vet,
+                winsize,
+                filt,
+            )"""
             """
             Euler deconvolution for multiple SIs
             """
             for SI in SI_vet:
                 print(f"Processing Euler Deconvolution for SI = {SI}")
-                classic_result = euler_deconv_opt(
+                classic_result = euler_deconv(
                     data, xi, yi, zi, shape, area, SI, winsize, filt
                 )
-                classic_result[:, 1] = (
-                    area[1] - classic_result[:, 1] + area[0]
-                )  # Flip y-coordinates
+                classic_result[1, :] = (
+                    area[0] - classic_result[1, :] + area[1]
+                )  # Flip x-coordinates
                 est_classic.append(classic_result)
 
             area_classic = area
@@ -1223,7 +1249,7 @@ class SGTool:
                     + ".txt",
                     output[i],
                     delimiter=",",
-                    header="x_source, y_source, z_source, base_level",
+                    header="y_source, x_source, z_source, base_level",
                     comments="",  # This removes the # prefix
                 )
             # optional windowed stats
@@ -1969,7 +1995,7 @@ class SGTool:
         self.dlg.checkBox_ED_Stats.setChecked(False)
         self.dlg.checkBox_ED.setChecked(False)
 
-        """self.RTE_P = False
+        self.RTE_P = False
         self.TA = False
         self.AS = False
 
@@ -1988,7 +2014,7 @@ class SGTool:
         self.Gaussian = False
         self.Direction = False
         self.SunShade = False
-        self.Polygons = False"""
+        self.Polygons = False
 
     def is_layer_loaded(self, layer_name):
         """

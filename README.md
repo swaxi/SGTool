@@ -309,6 +309,8 @@ There are several excellent Open Source or at least free alternatives to this pl
 - UBC Toolkit https://toolkit.geosci.xyz/content/Demos/SyntheticFilters.html
 - gravmag https://github.com/birocoles/gravmag
 - Fourpot https://sites.google.com/view/markkussoftware/gravity-and-magnetic-software/fourpot
+- GridMerge https://www.gridmerge.com.au/home
+- GammaSpec https://www.gammaspec.com.au/ 
 
 
 # Code development

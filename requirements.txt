@@ -2,4 +2,4 @@ onecode>=1,<2
 numpy 
 scipy
 networkx
-gdal==3.8.4
+rasterio

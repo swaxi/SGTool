@@ -20,4 +20,4 @@ def run():
         #####################################################################
         """
     )
-    Logger.info(f"Hello {text_input('your name', 'OneCoder')}!")
+    onecode.Logger.info(f"Hello {text_input('your name', 'OneCoder')}!")

@@ -1,5 +1,5 @@
 onecode>=1,<2
 numpy 
-gdal 
 scipy
 networkx
+gdal==3.8.4

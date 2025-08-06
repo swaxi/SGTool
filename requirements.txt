@@ -1,8 +1,6 @@
 onecode>=1,<2
 PyQt5
-estimates_statistics
 euler_python
-future
 rasterio
 matplotlib
 networkx

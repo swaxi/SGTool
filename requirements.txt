@@ -1,8 +1,6 @@
 onecode>=1,<2
 numpy 
-math 
 osgeo 
 csv
 glob
 os
-osgeo

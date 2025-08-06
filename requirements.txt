@@ -8,7 +8,6 @@ matplotlib
 networkx
 numba
 numpy
-onecode
 plot_functions
 plotly
 processing

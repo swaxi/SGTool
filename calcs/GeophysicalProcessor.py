@@ -1,16 +1,10 @@
 import numpy as np
 from numpy.polynomial.polynomial import polyval2d
 from math import ceil, fabs
-import numpy as np
-
-
-from osgeo import ogr, osr
-
+from osgeo import ogr, osr, gdal
 import csv
-
 import glob
 import os
-from osgeo import gdal
 
 from ..worms.wormer import Wormer
 from ..worms.Utility import (

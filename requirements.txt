@@ -1,5 +1,5 @@
 onecode>=1,<2
 numpy 
-osgeo 
+gdal 
 scipy
 networkx

@@ -6,7 +6,6 @@ networkx
 numba
 numpy
 plotly
-processing
 pyproj
 pywt
 qgis

@@ -7,7 +7,7 @@ numba
 numpy
 plotly
 pyproj
-pywt
+PyWavelets
 qgis
 scipy
 shapely

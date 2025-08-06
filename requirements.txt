@@ -1,6 +1,5 @@
 onecode>=1,<2
 numpy 
 osgeo 
-csv
-glob
-os
+scipy
+networkx

@@ -1,6 +1,5 @@
 onecode>=1,<2
 PyQt5
-euler_python
 rasterio
 matplotlib
 networkx

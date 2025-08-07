@@ -15,7 +15,7 @@ import numpy as np
 from PIL import Image
 
 
-def geotiff_to_png(input_path, output_path, band=1):
+def geotiff_to_png(input_path, band=1):
     """
     Convert a single band GeoTIFF to PNG
 
@@ -73,7 +73,7 @@ def run():
     )
     par = read_input_parameters()
 
-    geotiff_to_png(par.input_path, par.output_path, band=1)
+    geotiff_to_png(par.input_path, band=1)
 
 
 class InputParameters:
@@ -89,7 +89,7 @@ class InputParameters:
 
         self.input_path = file_input(
             key="my_file",
-            value="uploads/ogrm_usgs_mag_tmi.tif",
+            value="/mnt/c/Users/00073294/Dropbox/WAXI4/gis/SGTool_comparison/mrt_example_data/ogrm_usgs_mag_tmi.tif",
             label="Select an grid",
             # types=["GeoTIFF files,(.tif .tiff)"],
             make_path=True,  # will create the uploads folder if doesn't exist)

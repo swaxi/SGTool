@@ -8,7 +8,6 @@ numpy
 plotly
 pyproj
 PyWavelets
-scipy
 shapely
+sklearn==1.7.1
 skimage
-sklearn

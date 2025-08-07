@@ -12,3 +12,4 @@ shapely
 scikit-learn
 scikit-image
 scipy
+PIL

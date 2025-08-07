@@ -9,5 +9,6 @@ plotly
 pyproj
 PyWavelets
 shapely
-sklearn<=0.0.post12
-skimage
+scikit-learn
+scikit-image
+scipy

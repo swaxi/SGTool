@@ -53,6 +53,12 @@ def geotiff_to_png(input_path, output_path, band=1):
 
     # Convert to PIL Image
     image = Image.fromarray(normalized, mode="L")  # 'L' for grayscale
+
+    output_path = file_output(
+        key="output_image",
+        value="my_image.png",
+        make_path=True,  # will create the model folder if doesn't exist
+    )
     image.save(output_path, format="PNG")
 
 
@@ -80,17 +86,12 @@ class InputParameters:
         # Section 'FilePaths'.
         # -------------------------------
         #
-        self.output_path = file_output(
-            key="output_image",
-            value="model/my_image.png",
-            make_path=True,  # will create the model folder if doesn't exist
-        )
 
         self.input_path = file_input(
             key="my_file",
             value="uploads/ogrm_usgs_mag_tmi.tif",
             label="Select an grid",
-            types=["GeoTIFF files,(.tif .tiff)"],
+            # types=["GeoTIFF files,(.tif .tiff)"],
             make_path=True,  # will create the uploads folder if doesn't exist)
         )
 

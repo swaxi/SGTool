@@ -8,8 +8,8 @@
 # Alternatively, ask for help at https://github.com/deeplime-io/onecode/issues
 
 import onecode
-from onecode import Logger, file_input, plt, file_output
-
+from onecode import Logger, file_input, file_output
+from matplotlib import pyplot as plt
 import rasterio
 import numpy as np
 from PIL import Image
@@ -75,10 +75,10 @@ def run():
     )
     image_obj = geotiff_to_png(input_path, "./uploads", band=1)
 
-    image = file_output(
+    """image = file_output(
         key="output_image",
         value="model/my_image.png",
         make_path=True,  # will create the model folder if doesn't exist
-    )
+    )"""
 
-    plt.savefig(image)
+    plt.savefig(image_obj, format="png")

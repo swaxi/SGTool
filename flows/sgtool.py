@@ -8,7 +8,7 @@
 # Alternatively, ask for help at https://github.com/deeplime-io/onecode/issues
 
 import onecode
-from onecode import Logger, text_input, file_input
+from onecode import Logger, file_input, plt, file_output
 
 import rasterio
 import numpy as np
@@ -59,7 +59,7 @@ def geotiff_to_png(input_path, output_path, band=1):
 
 
 def run():
-    onecode.Logger.info(
+    Logger.info(
         """
         #####################################################################
         ###> Hello from SGTool!
@@ -73,4 +73,12 @@ def run():
         label="Select an grid",
         types=["GeoTIFF files (*.tif;*.tiff)"],
     )
-    geotiff_to_png(input_path, "./uploads", band=1)
+    image_obj = geotiff_to_png(input_path, "./uploads", band=1)
+
+    image = file_output(
+        key="output_image",
+        value="model/my_image.png",
+        make_path=True,  # will create the model folder if doesn't exist
+    )
+
+    plt.savefig(image)

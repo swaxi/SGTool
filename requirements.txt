@@ -9,5 +9,5 @@ plotly
 pyproj
 PyWavelets
 shapely
-sklearn==1.7.1
+sklearn>=1
 skimage

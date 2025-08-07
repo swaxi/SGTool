@@ -91,7 +91,7 @@ class InputParameters:
             key="my_file",
             value="/mnt/c/Users/00073294/Dropbox/WAXI4/gis/SGTool_comparison/mrt_example_data/ogrm_usgs_mag_tmi.tif",
             label="Select an grid",
-            # types=["GeoTIFF files,(.tif .tiff)"],
+            types=[("GeoTIFF files", ".tif .tiff")],
             make_path=True,  # will create the uploads folder if doesn't exist)
         )
 

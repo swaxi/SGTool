@@ -51,11 +51,9 @@ def geotiff_to_png(input_path, output_path, band=1):
         if hasattr(normalized, "filled"):
             normalized = normalized.filled(0)
 
-    # Convert to PIL Image and save as PNG
+    # Convert to PIL Image
     image = Image.fromarray(normalized, mode="L")  # 'L' for grayscale
-    image.save(output_path)
-
-    print(f"Successfully converted {input_path} to {output_path}")
+    return image
 
 
 def run():
@@ -67,18 +65,37 @@ def run():
         #####################################################################
         """
     )
-    input_path = file_input(
-        key="my_file",
-        value="uploads/",
-        label="Select an grid",
-        types=["GeoTIFF files (*.tif;*.tiff)"],
-    )
-    image_obj = geotiff_to_png(input_path, "./uploads", band=1)
+    par = read_input_parameters()
 
-    """image = file_output(
-        key="output_image",
-        value="model/my_image.png",
-        make_path=True,  # will create the model folder if doesn't exist
-    )"""
+    image_obj = geotiff_to_png(par.input_path, "./uploads", band=1)
 
     plt.savefig(image_obj, format="png")
+
+
+class InputParameters:
+    """
+    A class to contains all input parameters.
+    """
+
+    def __init__(self):
+        # -------------------------------
+        # Section 'FilePaths'.
+        # -------------------------------
+        #
+        self.image = file_output(
+            key="output_image",
+            value="model/my_image.png",
+            make_path=True,  # will create the model folder if doesn't exist
+        )
+
+        self.input_path = file_input(
+            key="my_file",
+            value="uploads/ogrm_usgs_mag_tmi.tif",
+            label="Select an grid",
+            types=["GeoTIFF files,(.tif .tiff)"],
+            make_path=True,  # will create the uploads folder if doesn't exist)
+        )
+
+
+def read_input_parameters():
+    return InputParameters()

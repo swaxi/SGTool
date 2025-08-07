@@ -8,7 +8,6 @@ numpy
 plotly
 pyproj
 PyWavelets
-qgis
 scipy
 shapely
 skimage

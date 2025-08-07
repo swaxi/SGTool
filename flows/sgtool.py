@@ -69,7 +69,7 @@ def run():
     )
     input_path = file_input(
         key="my_file",
-        value="uploads/my_image.tif",
+        value="uploads/",
         label="Select an grid",
         types=["GeoTIFF files (*.tif;*.tiff)"],
     )

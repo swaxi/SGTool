@@ -53,7 +53,7 @@ def geotiff_to_png(input_path, output_path, band=1):
 
     # Convert to PIL Image
     image = Image.fromarray(normalized, mode="L")  # 'L' for grayscale
-    return image
+    image.save(output_path, format="PNG")
 
 
 def run():
@@ -67,9 +67,7 @@ def run():
     )
     par = read_input_parameters()
 
-    image_obj = geotiff_to_png(par.input_path, "./uploads", band=1)
-
-    plt.savefig(image_obj, format="png")
+    geotiff_to_png(par.input_path, par.output_path, band=1)
 
 
 class InputParameters:
@@ -82,7 +80,7 @@ class InputParameters:
         # Section 'FilePaths'.
         # -------------------------------
         #
-        self.image = file_output(
+        self.output_path = file_output(
             key="output_image",
             value="model/my_image.png",
             make_path=True,  # will create the model folder if doesn't exist

@@ -47,6 +47,8 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
 # Inputs   
 - Supports data geotiff, grd, ers and Noddy (grv & mag) grid formats plus any grid format already supported by QGIS
 - Supports csv, dat, xyz plus any point format already supported by QGIS
+- Existing Noddy mag and grav files can be found at the Atlas of Structural Geophsyics: https://tectonique.net/asg/
+- New Noddy models can be calulated using the Windows version at https://tectonique.net/noddy/OpenNoddy_installer.exe or a python wrapper at https://github.com/cgre-aachen/pynoddy
    
 # Capabilities   
 

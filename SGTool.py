@@ -299,7 +299,7 @@ class SGTool:
             "Layer selected for grid processing"
         )
         self.dlg.pushButton_2_selectGrid.setToolTip(
-            "Load new file for processing\n*.grd *.tif *.ers *.grv *.mag, for other formats use normal QGIS grod loader"
+            "Load new file for processing\n*.grd *.tif *.ers *.grv *.mag, for other formats use normal QGIS grid loader"
         )
         self.dlg.checkBox_3_DirClean.setToolTip(
             "Filter (DirCos + Butterworth) remove a specific direction and wavelength,\nUseful for filtering flight line noise"

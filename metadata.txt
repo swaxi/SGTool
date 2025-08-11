@@ -22,6 +22,7 @@ hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
 changelog=0.2.16
       * Add Euler Deconvolution derived from https://github.com/ffigura/Euler-deconvolution-python
+      * Add Noddy grid (grv & mag) import
     0.2.15 Use cosine rolloff for high/low and bandpass filters to reduce ringing
       * Change Remove Regional to 1st or 2nd order polynomial
       * New grids use stdev scaling of grid to better highlight features

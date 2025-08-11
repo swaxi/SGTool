@@ -2188,6 +2188,154 @@ class SGTool:
                     self.layer.setCrs(new_crs)"""
                 if not self.is_layer_loaded(self.diskGridPath):
                     QgsProject.instance().addMapLayer(self.layer)
+            elif suffix == "mag" or suffix == "grv":
+                self.loadNoddyGrid(self.diskGridPath)
+
+    def loadNoddyGrid(self, input_file=None):
+        """
+        Reads an ASCII file with magnetic/gravity data and converts it to GeoTIFF format.
+        Also creates a text file with inclination and declination information.
+
+        Parameters:
+        input_file (str): Path to the input ASCII file
+
+        Returns:
+        tuple: (geotiff_path, ntxt_path) - paths to the created files
+        """
+
+        # Read the file
+        with open(input_file, "r") as f:
+            lines = f.readlines()
+
+        # Find the start of the header data by skipping comment lines
+        header_start = 0
+        for i, line in enumerate(lines):
+            if not line.strip().startswith("#") and line.strip():
+                header_start = i
+                break
+
+        # Parse header information (6 lines after file code and comments)
+        file_code = int(lines[header_start].strip())
+        if file_code == 333:
+            dataType = "mag"
+        else:
+            dataType = "grv"
+
+        # Skip any additional comment lines after file code
+        data_line_index = header_start + 1
+        while data_line_index < len(lines) and lines[
+            data_line_index
+        ].strip().startswith("#"):
+            data_line_index += 1
+
+        # Now read the 6 header lines
+        calc_range, cols, rows, layers = map(
+            int, lines[data_line_index].strip().split()
+        )
+        inclination, declination, intensity = map(
+            float, lines[data_line_index + 1].strip().split()
+        )
+        sw_x, sw_y, sw_z = map(float, lines[data_line_index + 2].strip().split())
+        ne_x, ne_y, ne_z = map(float, lines[data_line_index + 3].strip().split())
+        cell_size, survey_height = map(
+            float, lines[data_line_index + 4].strip().split()
+        )
+
+        # load grid data
+        data_array = mag = np.loadtxt(input_file, skiprows=8)
+        actual_rows = mag.shape[0]
+        actual_cols = mag.shape[1]
+
+        # Calculate geotransform parameters
+        # [top_left_x, pixel_width, rotation, top_left_y, rotation, pixel_height]
+        pixel_width = (ne_x - sw_x) / actual_cols
+        pixel_height = (
+            -(ne_y - sw_y) / actual_rows
+        )  # Negative because Y decreases from north to south
+
+        # Top-left corner coordinates (GDAL convention)
+        top_left_x = sw_x
+        top_left_y = ne_y  # Start from the north (top)
+
+        geotransform = [top_left_x, pixel_width, 0, top_left_y, 0, pixel_height]
+
+        # Set up file paths
+        base_name = os.path.splitext(input_file)[0]
+        geotiff_path = f"{base_name}_{dataType}.tif"
+        head_tail = os.path.split(input_file)
+        layer_name = head_tail[1].split(".")[0] + f"_{dataType}"
+
+        if os.path.exists(geotiff_path):
+            try:
+                os.remove(geotiff_path)
+                if os.path.exists(geotiff_path + "aux.xml"):
+                    os.remove(geotiff_path + "aux.xml")
+            except:
+                self.iface.messageBar().pushMessage(
+                    "Couldn't delete layer, may be open in another program? On windows files on non-C: drive may be hard to delete",
+                    level=Qgis.Warning,
+                    duration=15,
+                )
+                return -1
+
+        # Create the GeoTIFF using GDAL
+        driver = gdal.GetDriverByName("GTiff")
+
+        # Create the dataset
+        dataset = driver.Create(
+            geotiff_path,
+            actual_cols,
+            actual_rows,
+            1,
+            gdal.GDT_Float32,  # Number of bands
+        )
+
+        if dataset is None:
+            raise RuntimeError(f"Could not create {geotiff_path}")
+
+        # Set the geotransform
+        dataset.SetGeoTransform(geotransform)
+
+        # Set the projection (UTM29N)
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(32629)  # UTM29N
+        dataset.SetProjection(srs.ExportToWkt())
+
+        # Write the data to the band
+        band = dataset.GetRasterBand(1)
+        band.WriteArray(data_array)
+
+        # Set nodata value if needed
+        # band.SetNoDataValue(-9999)
+
+        # Set metadata
+        metadata = {
+            "file_code": str(file_code),
+            "calculation_range": str(calc_range),
+            "original_rows": str(rows),
+            "original_cols": str(cols),
+            "layers": str(layers),
+            "intensity": str(intensity),
+            "inclination": str(inclination),
+            "declination": str(declination),
+            "sw_corner_x": str(sw_x),
+            "sw_corner_y": str(sw_y),
+            "sw_corner_z": str(sw_z),
+            "ne_corner_x": str(ne_x),
+            "ne_corner_y": str(ne_y),
+            "ne_corner_z": str(ne_z),
+            "cube_size": str(cell_size),
+            "survey_height": str(survey_height),
+        }
+        dataset.SetMetadata(metadata)
+
+        # Properly close the dataset
+        dataset.FlushCache()
+        dataset = None
+
+        self.layer = QgsRasterLayer(geotiff_path, layer_name)
+        if not self.is_layer_loaded(layer_name):
+            QgsProject.instance().addMapLayer(self.layer)
 
     # save grd file as geotiff
     def save_a_grid(self, epsg):
@@ -2600,59 +2748,116 @@ class SGTool:
             - Assumes the grid layer has a valid CRS (Coordinate Reference System).
             - Displays a warning message if the CRS is invalid or undefined.
         """
-
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
+        self.layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
+        self.diskGridPath = self.layer.dataProvider().dataSourceUri()
+
         if os.path.exists(self.diskGridPath) or self.localGridName:
-            if os.path.exists(self.diskGridPath):
-                self.loadGrid()
+            inc, dec, inten = self.getMagParamGeotiff(self.diskGridPath)
+            if inc is not None and dec is not None and inten is not None:
 
-            self.layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-            self.base_name = self.localGridName
-
-            # retrieve parameters
-            self.magn_int = self.dlg.lineEdit_6_int.text()
-            date_text = str(self.dlg.dateEdit.date().toPyDate())
-
-            date_split = date_text.split("-")
-            self.magn_SurveyDay = int(date_split[2])
-            self.magn_SurveyMonth = int(date_split[1])
-            self.magn_SurveyYear = int(date_split[0])
-            date = datetime(
-                self.magn_SurveyYear, self.magn_SurveyMonth, self.magn_SurveyDay
-            )
-
-            midx, midy = self.get_grid_centroid(self.layer)
-
-            if self.layer.crs().authid():
-                # convert midpoint to lat/long
-                magn_proj = self.layer.crs().authid().split(":")[1]
-                from pyproj import CRS
-
-                crs_proj = CRS.from_user_input(int(magn_proj))
-                crs_ll = CRS.from_user_input(4326)
-                proj = Transformer.from_crs(crs_proj, crs_ll, always_xy=True)
-                long, lat = proj.transform(midx, midy)
-
-                date = self.day_month_to_decimal_year(
-                    self.magn_SurveyYear, self.magn_SurveyMonth, self.magn_SurveyDay
-                )
-
-                I, D, intensity = self.calcIGRF(date, float(100.0), lat, long)
-
-                self.RTE_P_inc = I
-                self.RTE_P_dec = D
-                self.RTE_P_int = intensity
+                self.RTE_P_inc = float(inc)
+                self.RTE_P_dec = float(dec)
+                self.RTE_P_int = float(inten)
 
                 # update widgets
                 self.dlg.lineEdit_5_dec.setText(str(round(self.RTE_P_dec, 1)))
                 self.dlg.lineEdit_6_inc.setText(str(round(self.RTE_P_inc, 1)))
                 self.dlg.lineEdit_6_int.setText(str(int(self.RTE_P_int)))
+
             else:
-                self.iface.messageBar().pushMessage(
-                    "Sorry, I couldn't interpret the projection system of this layer, try either saving out grid or define the Inc/Dec manually.",
-                    level=Qgis.Warning,
-                    duration=15,
+                self.loadGrid()
+
+                self.base_name = self.localGridName
+
+                # retrieve parameters
+                self.magn_int = self.dlg.lineEdit_6_int.text()
+                date_text = str(self.dlg.dateEdit.date().toPyDate())
+
+                date_split = date_text.split("-")
+                self.magn_SurveyDay = int(date_split[2])
+                self.magn_SurveyMonth = int(date_split[1])
+                self.magn_SurveyYear = int(date_split[0])
+                date = datetime(
+                    self.magn_SurveyYear, self.magn_SurveyMonth, self.magn_SurveyDay
                 )
+
+                midx, midy = self.get_grid_centroid(self.layer)
+
+                if self.layer.crs().authid():
+                    # convert midpoint to lat/long
+                    magn_proj = self.layer.crs().authid().split(":")[1]
+                    from pyproj import CRS
+
+                    crs_proj = CRS.from_user_input(int(magn_proj))
+                    crs_ll = CRS.from_user_input(4326)
+                    proj = Transformer.from_crs(crs_proj, crs_ll, always_xy=True)
+                    long, lat = proj.transform(midx, midy)
+
+                    date = self.day_month_to_decimal_year(
+                        self.magn_SurveyYear, self.magn_SurveyMonth, self.magn_SurveyDay
+                    )
+
+                    I, D, intensity = self.calcIGRF(date, float(100.0), lat, long)
+
+                    self.RTE_P_inc = I
+                    self.RTE_P_dec = D
+                    self.RTE_P_int = intensity
+
+                    # update widgets
+                    self.dlg.lineEdit_5_dec.setText(str(round(self.RTE_P_dec, 1)))
+                    self.dlg.lineEdit_6_inc.setText(str(round(self.RTE_P_inc, 1)))
+                    self.dlg.lineEdit_6_int.setText(str(int(self.RTE_P_int)))
+                else:
+                    self.iface.messageBar().pushMessage(
+                        "Sorry, I couldn't interpret the projection system of this layer, try either saving out grid or define the Inc/Dec manually.",
+                        level=Qgis.Warning,
+                        duration=15,
+                    )
+
+    def getMagParamGeotiff(self, geotiff_path):
+        """
+        Extract inclination, declination, and intensity from GeoTIFF metadata.
+
+        Parameters:
+        geotiff_path (str): Path to the GeoTIFF file
+
+        Returns:
+        tuple: (inclination, declination, intensity) as floats, or (None, None, None) if metadata missing
+
+        Raises:
+        RuntimeError: If file cannot be opened
+        KeyError: If specific metadata keys are missing (unless return_none_if_missing=True)
+        """
+
+        # Open the dataset
+        dataset = gdal.Open(geotiff_path, gdal.GA_ReadOnly)
+
+        if dataset is None:
+            raise RuntimeError(f"Could not open {geotiff_path}")
+
+        # Get metadata dictionary
+        metadata = dataset.GetMetadata()
+
+        # Close dataset
+        dataset = None
+
+        # Check if required metadata exists
+        required_keys = ["inclination", "declination", "intensity"]
+        missing_keys = [key for key in required_keys if key not in metadata]
+
+        if missing_keys:
+            return None, None, None  # Return None if any key is missing
+
+        # Extract the three parameters and convert to float
+        try:
+            inclination = float(metadata["inclination"])
+            declination = float(metadata["declination"])
+            intensity = float(metadata["intensity"])
+        except ValueError as e:
+            return None, None, None  # Return None if any key is missing
+
+        return inclination, declination, intensity
 
     def calcIGRF(self, date, alt, lat, lon):
         """

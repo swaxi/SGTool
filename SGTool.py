@@ -311,7 +311,7 @@ class SGTool:
             "Reduction to pole or equator\nThe reduction to the pole (RTP) or to Equator (RTE) is a process in geophysics\nwhere magnetic data are transformed to look as though\n they were measured at the magnetic pole/equator\nCorrects the asymmetry of magnetic anomalies caused by\n the Earth's field, making them appear directly above their sources"
         )
         self.dlg.pushButton_4_calcIGRF.setToolTip(
-            "Calculate IGRF Inclination & Declination based on centroid of selected grid and specified survey height and date"
+            "Calculate IGRF Inclination & Declination based on centroid of selected grid and specified survey height and date\nIf a grid originated from a Noddy calculation, the info is read from the geotiff metadata"
         )
         self.dlg.comboBox_3_rte_p_list.setToolTip(
             "Choose Pole(high mag latitudes >20 degrees)\n or Equator (low mag latitudes, <20 degrees)\n for reduction to pole or equator"

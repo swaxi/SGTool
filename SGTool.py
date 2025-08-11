@@ -2132,14 +2132,14 @@ class SGTool:
         - self.last_directory: Updates to the directory of the selected file for future use.
         - self.layer: Stores the loaded raster layer for `.tif` and `.ers` files.
         File Filters:
-        - Supports the following file extensions: `.TIF`, `.tif`, `.TIFF`, `.tiff`, `.grd`, `.GRD`, `.ERS`, `.ers`.
+        - Supports the following file extensions (upper or lower case) :  `.tif`,  `.tiff`, `.grd`,  `.ers`, 'mag', 'grv'
         Note:
         - The method assumes the presence of an XML file for `.grd` files to extract CRS information.
         - If the layer is not already loaded, it adds the raster layer to the QGIS project.
         """
 
         start_directory = self.last_directory if self.last_directory else os.getcwd()
-        file_filter = "Grids (*.TIF *.tif *.TIFF *.tiff *.grd *.GRD *.ERS *.ers)"
+        file_filter = "Grids (*.TIF *.tif *.TIFF *.tiff *.grd *.GRD *.ERS *.ers *.mag *.MAG *.grv *.GRV)"
 
         self.diskGridPath, _filter = QFileDialog.getOpenFileName(
             None,

@@ -2751,71 +2751,74 @@ class SGTool:
             - Displays a warning message if the CRS is invalid or undefined.
         """
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
-        self.layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-        self.diskGridPath = self.layer.dataProvider().dataSourceUri()
+        if self.localGridName != "":
+            self.layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
+            self.diskGridPath = self.layer.dataProvider().dataSourceUri()
 
-        if os.path.exists(self.diskGridPath) or self.localGridName:
-            inc, dec, inten = self.getMagParamGeotiff(self.diskGridPath)
-            if inc is not None and dec is not None and inten is not None:
+            if os.path.exists(self.diskGridPath) or self.localGridName:
+                inc, dec, inten = self.getMagParamGeotiff(self.diskGridPath)
+                if inc is not None and dec is not None and inten is not None:
 
-                self.RTE_P_inc = float(inc)
-                self.RTE_P_dec = float(dec)
-                self.RTE_P_int = float(inten)
-
-                # update widgets
-                self.dlg.lineEdit_5_dec.setText(str(round(self.RTE_P_dec, 1)))
-                self.dlg.lineEdit_6_inc.setText(str(round(self.RTE_P_inc, 1)))
-                self.dlg.lineEdit_6_int.setText(str(int(self.RTE_P_int)))
-
-            else:
-                self.loadGrid()
-
-                self.base_name = self.localGridName
-
-                # retrieve parameters
-                self.magn_int = self.dlg.lineEdit_6_int.text()
-                date_text = str(self.dlg.dateEdit.date().toPyDate())
-
-                date_split = date_text.split("-")
-                self.magn_SurveyDay = int(date_split[2])
-                self.magn_SurveyMonth = int(date_split[1])
-                self.magn_SurveyYear = int(date_split[0])
-                date = datetime(
-                    self.magn_SurveyYear, self.magn_SurveyMonth, self.magn_SurveyDay
-                )
-
-                midx, midy = self.get_grid_centroid(self.layer)
-
-                if self.layer.crs().authid():
-                    # convert midpoint to lat/long
-                    magn_proj = self.layer.crs().authid().split(":")[1]
-                    from pyproj import CRS
-
-                    crs_proj = CRS.from_user_input(int(magn_proj))
-                    crs_ll = CRS.from_user_input(4326)
-                    proj = Transformer.from_crs(crs_proj, crs_ll, always_xy=True)
-                    long, lat = proj.transform(midx, midy)
-
-                    date = self.day_month_to_decimal_year(
-                        self.magn_SurveyYear, self.magn_SurveyMonth, self.magn_SurveyDay
-                    )
-
-                    I, D, intensity = self.calcIGRF(date, float(100.0), lat, long)
-
-                    self.RTE_P_inc = I
-                    self.RTE_P_dec = D
-                    self.RTE_P_int = intensity
+                    self.RTE_P_inc = float(inc)
+                    self.RTE_P_dec = float(dec)
+                    self.RTE_P_int = float(inten)
 
                     # update widgets
                     self.dlg.lineEdit_5_dec.setText(str(round(self.RTE_P_dec, 1)))
                     self.dlg.lineEdit_6_inc.setText(str(round(self.RTE_P_inc, 1)))
                     self.dlg.lineEdit_6_int.setText(str(int(self.RTE_P_int)))
+
                 else:
-                    self.iface.messageBar().pushMessage(
-                        "Sorry, I couldn't interpret the projection system of this layer, try either saving out grid or define the Inc/Dec manually.",
-                        level=Qgis.Warning,
-                        duration=15,
+                    self.loadGrid()
+
+                    self.base_name = self.localGridName
+
+                    # retrieve parameters
+                    self.magn_int = self.dlg.lineEdit_6_int.text()
+                    date_text = str(self.dlg.dateEdit.date().toPyDate())
+
+                    date_split = date_text.split("-")
+                    self.magn_SurveyDay = int(date_split[2])
+                    self.magn_SurveyMonth = int(date_split[1])
+                    self.magn_SurveyYear = int(date_split[0])
+                    date = datetime(
+                        self.magn_SurveyYear, self.magn_SurveyMonth, self.magn_SurveyDay
                     )
+
+                    midx, midy = self.get_grid_centroid(self.layer)
+
+                    if self.layer.crs().authid():
+                        # convert midpoint to lat/long
+                        magn_proj = self.layer.crs().authid().split(":")[1]
+                        from pyproj import CRS
+
+                        crs_proj = CRS.from_user_input(int(magn_proj))
+                        crs_ll = CRS.from_user_input(4326)
+                        proj = Transformer.from_crs(crs_proj, crs_ll, always_xy=True)
+                        long, lat = proj.transform(midx, midy)
+
+                        date = self.day_month_to_decimal_year(
+                            self.magn_SurveyYear,
+                            self.magn_SurveyMonth,
+                            self.magn_SurveyDay,
+                        )
+
+                        I, D, intensity = self.calcIGRF(date, float(100.0), lat, long)
+
+                        self.RTE_P_inc = I
+                        self.RTE_P_dec = D
+                        self.RTE_P_int = intensity
+
+                        # update widgets
+                        self.dlg.lineEdit_5_dec.setText(str(round(self.RTE_P_dec, 1)))
+                        self.dlg.lineEdit_6_inc.setText(str(round(self.RTE_P_inc, 1)))
+                        self.dlg.lineEdit_6_int.setText(str(int(self.RTE_P_int)))
+                    else:
+                        self.iface.messageBar().pushMessage(
+                            "Sorry, I couldn't interpret the projection system of this layer, try either saving out grid or define the Inc/Dec manually.",
+                            level=Qgis.Warning,
+                            duration=15,
+                        )
 
     def getMagParamGeotiff(self, geotiff_path):
         """

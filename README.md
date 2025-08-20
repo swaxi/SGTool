@@ -2,7 +2,7 @@
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
- This plugin is available directly within QGIS using the Plugin Manager, however for the latest ArcGIS Pro version or QGIS version with all new bugs will always be at this site.   
+ This plugin is available directly within QGIS using the Plugin Manager, however the latest ArcGIS Pro version or QGIS version with all new bugs will always be at this site.   
 
 **<a href="https://github.com/swaxi/SGTool-Docs">Online Docs</a>**&nbsp;**&nbsp;|&nbsp;&nbsp;&nbsp; <a href="https://tectonique.net/sgtools_data/Structural%20Geophysics%20Tools.pdf">Download Basic Help Document</a>**&nbsp;&nbsp;&nbsp; |&nbsp;&nbsp;&nbsp;  **<a href="https://tectonique.net/sgtools_data/SGTools_large.mp4">Ctrl-click on link to watch demo video</a>**
     

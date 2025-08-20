@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<metadata xml:lang="en">
+    <Esri>
+        <CreaDate>20250820</CreaDate>
+        <CreaTime>15495500</CreaTime>
+        <ArcGISFormat>1.0</ArcGISFormat>
+        <SyncOnce>TRUE</SyncOnce>
+        <ModDate>20250820</ModDate>
+        <ModTime>16055000</ModTime>
+        <scaleRange>
+            <minScale>150000000</minScale>
+            <maxScale>5000</maxScale>
+        </scaleRange>
+        <ArcGISProfile>ItemDescription</ArcGISProfile>
+    </Esri>
+    <tool name="AnalyticSignal" displayname="Analytic Signal" toolboxalias="geophysics" xmlns="">
+        <arcToolboxHelpPath>c:\program files\arcgis\pro\Resources\Help\gp</arcToolboxHelpPath>
+        <parameters>
+            <param name="input_raster" displayname="Input Raster" type="Required" direction="Input" datatype="Raster Layer" expression="input_raster">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Input magnetic or gravity raster dataset for analytic signal calculation.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="buffer_size" displayname="Buffer Size (pixels)" type="Optional" direction="Input" datatype="Long" expression="{buffer_size}">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Buffer zone size for edge effect reduction during derivative calculations.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="output_raster" displayname="Output Analytic Signal Raster" type="Required" direction="Output" datatype="Raster Dataset" expression="output_raster"/>
+        </parameters>
+        <summary>Calculate analytic signal amplitude for source location and edge detection</summary>
+        <usage>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;The analytic signal amplitude is calculated as sqrt(dx² + dy² + dz²) where dx, dy, dz are the first derivatives in x, y, and z directions. This transformation produces anomalies that are symmetric and directly over their causative sources.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Advantages:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Independent of magnetic field direction&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Independent of source magnetization direction&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Peaks directly over source edges and contacts&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Always positive values&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</usage>
+    </tool>
+    <dataIdInfo>
+        <idCitation>
+            <resTitle>Analytic Signal</resTitle>
+        </idCitation>
+        <idAbs>The analytic signal amplitude transforms geophysical data to locate sources and edges independent of magnetic field direction and source magnetization. Results are always positive.</idAbs>
+        <idPurp>Source location, edge detection, and structural interpretation in magnetic and gravity surveys.</idPurp>
+        <idCredit>Nabighian (1972, 1984), Roest et al. (1992)</idCredit>
+        <searchKeys>
+            <keyword>analytic signal</keyword>
+            <keyword>AS</keyword>
+            <keyword>amplitude</keyword>
+            <keyword>source location</keyword>
+            <keyword>edge detection</keyword>
+            <keyword>magnetic</keyword>
+            <keyword>gravity</keyword>
+            <keyword>derivatives</keyword>
+        </searchKeys>
+        <useLimit>Works best with magnetic data but can be applied to gravity data. May amplify noise - consider filtering input data first. Results are always positive values.</useLimit>
+    </dataIdInfo>
+    <distInfo>
+        <distributor>
+            <distorFormat>
+                <formatName>ArcToolbox Tool</formatName>
+            </distorFormat>
+        </distributor>
+    </distInfo>
+    <mdHrLv>
+        <ScopeCd value="005"></ScopeCd>
+    </mdHrLv>
+    <mdDateSt Sync="TRUE">20250820</mdDateSt>
+</metadata>

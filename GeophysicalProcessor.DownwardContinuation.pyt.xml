@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+<metadata xml:lang="en">
+    <Esri>
+        <CreaDate>20250820</CreaDate>
+        <CreaTime>15495500</CreaTime>
+        <ArcGISFormat>1.0</ArcGISFormat>
+        <SyncOnce>TRUE</SyncOnce>
+        <ModDate>20250820</ModDate>
+        <ModTime>16055000</ModTime>
+        <scaleRange>
+            <minScale>150000000</minScale>
+            <maxScale>5000</maxScale>
+        </scaleRange>
+        <ArcGISProfile>ItemDescription</ArcGISProfile>
+    </Esri>
+    <tool name="DownwardContinuation" displayname="Downward Continuation" toolboxalias="geophysics" xmlns="">
+        <arcToolboxHelpPath>c:\program files\arcgis\pro\Resources\Help\gp</arcToolboxHelpPath>
+        <parameters>
+            <param name="input_raster" displayname="Input Raster" type="Required" direction="Input" datatype="Raster Layer" expression="input_raster">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Input magnetic or gravity raster dataset for downward continuation processing.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="height" displayname="Continuation Height (meters)" type="Required" direction="Input" datatype="Double" expression="height">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Downward continuation distance. Use small values as this process amplifies noise significantly.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="buffer_size" displayname="Buffer Size (pixels)" type="Optional" direction="Input" datatype="Long" expression="{buffer_size}">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Buffer zone size for edge effect reduction.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="output_raster" displayname="Output Continued Raster" type="Required" direction="Output" datatype="Raster Dataset" expression="output_raster"/>
+        </parameters>
+        <summary>Downward continue magnetic/gravity data to enhance shallow sources (use with caution - amplifies noise)</summary>
+        <usage>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Downward continuation enhances high-frequency signals and shallow anomalies by simulating the field at a lower observation level. This process is inherently unstable and dramatically amplifies noise.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;WARNING: Use very small continuation heights (typically &amp;lt;200m).&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Applications:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Enhance shallow geological features&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Increase resolution of near-surface anomalies&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Should only be applied to high-quality, low-noise data&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</usage>
+    </tool>
+    <dataIdInfo>
+        <idCitation>
+            <resTitle>Downward Continuation</resTitle>
+        </idCitation>
+        <idAbs>Downward continuation enhances high-frequency signals by simulating field measurements at lower observation levels. This unstable process dramatically amplifies noise.</idAbs>
+        <idPurp>Enhancement of shallow geological features and near-surface anomaly resolution in high-quality geophysical data.</idPurp>
+        <idCredit>Based on potential field theory with stabilization techniques</idCredit>
+        <searchKeys>
+            <keyword>downward continuation</keyword>
+            <keyword>magnetic</keyword>
+            <keyword>gravity</keyword>
+            <keyword>enhancement</keyword>
+            <keyword>shallow sources</keyword>
+            <keyword>high frequency</keyword>
+            <keyword>geophysics</keyword>
+        </searchKeys>
+        <useLimit>WARNING: Amplifies noise significantly. Use only on high-quality, low-noise data with small continuation heights (&lt;200m). Results may be unstable for noisy datasets.</useLimit>
+    </dataIdInfo>
+    <distInfo>
+        <distributor>
+            <distorFormat>
+                <formatName>ArcToolbox Tool</formatName>
+            </distorFormat>
+        </distributor>
+    </distInfo>
+    <mdHrLv>
+        <ScopeCd value="005"></ScopeCd>
+    </mdHrLv>
+    <mdDateSt Sync="TRUE">20250820</mdDateSt>
+</metadata>

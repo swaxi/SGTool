@@ -1,0 +1,70 @@
+<?xml version="1.0"?>
+<metadata xml:lang="en">
+    <Esri>
+        <CreaDate>20250820</CreaDate>
+        <CreaTime>15495500</CreaTime>
+        <ArcGISFormat>1.0</ArcGISFormat>
+        <SyncOnce>TRUE</SyncOnce>
+        <ModDate>20250820</ModDate>
+        <ModTime>16055000</ModTime>
+        <scaleRange>
+            <minScale>150000000</minScale>
+            <maxScale>5000</maxScale>
+        </scaleRange>
+        <ArcGISProfile>ItemDescription</ArcGISProfile>
+    </Esri>
+    <tool name="BandPassFilter" displayname="Band Pass Filter" toolboxalias="geophysics" xmlns="">
+        <arcToolboxHelpPath>c:\program files\arcgis\pro\Resources\Help\gp</arcToolboxHelpPath>
+        <parameters>
+            <param name="input_raster" displayname="Input Raster" type="Required" direction="Input" datatype="Raster Layer" expression="input_raster">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Input geophysical raster dataset for band-pass filtering.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="low_cut" displayname="Low Cutoff Wavelength (map units)" type="Required" direction="Input" datatype="Double" expression="low_cut">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Wavelengths longer than this will be attenuated (regional removal). Typical values: 20000-100000 meters.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="high_cut" displayname="High Cutoff Wavelength (map units)" type="Required" direction="Input" datatype="Double" expression="high_cut">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Wavelengths shorter than this will be attenuated (noise removal). Typical values: 1000-10000 meters.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="high_transition_width" displayname="High Transition Width (map units)" type="Optional" direction="Input" datatype="Double" expression="{high_transition_width}">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Transition width for high-pass component to reduce ringing artifacts.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="low_transition_width" displayname="Low Transition Width (map units)" type="Optional" direction="Input" datatype="Double" expression="{low_transition_width}">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Transition width for low-pass component to reduce ringing artifacts.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="buffer_size" displayname="Buffer Size (pixels)" type="Optional" direction="Input" datatype="Long" expression="{buffer_size}"/>
+            <param name="output_raster" displayname="Output Filtered Raster" type="Required" direction="Output" datatype="Raster Dataset" expression="output_raster"/>
+        </parameters>
+        <summary>Isolate anomalies within specific wavelength ranges by removing regional trends and noise</summary>
+        <usage>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Band-pass filtering isolates geophysical anomalies within a specific wavelength range by removing both long-wavelength regional trends and short-wavelength noise. The filter uses smooth transitions to minimize ringing artifacts.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Filter design:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Low cutoff removes longer wavelengths (regional trends)&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• High cutoff removes shorter wavelengths (noise, shallow sources)&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Transition widths create smooth cutoffs to reduce ringing&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Choose cutoff wavelengths based on target source dimensions and survey characteristics.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</usage>
+    </tool>
+    <dataIdInfo>
+        <idCitation>
+            <resTitle>Band Pass Filter</resTitle>
+        </idCitation>
+        <idAbs>Band-pass filtering isolates geophysical anomalies within specific wavelength ranges by removing regional trends and noise using frequency domain techniques.</idAbs>
+        <idPurp>Isolation of anomalies within specific wavelength ranges for targeted geophysical interpretation.</idPurp>
+        <idCredit>Standard Fourier domain filtering methods</idCredit>
+        <searchKeys>
+            <keyword>band pass</keyword>
+            <keyword>BP</keyword>
+            <keyword>filtering</keyword>
+            <keyword>wavelength</keyword>
+            <keyword>frequency domain</keyword>
+            <keyword>regional removal</keyword>
+            <keyword>noise reduction</keyword>
+            <keyword>geophysics</keyword>
+        </searchKeys>
+        <useLimit>Cutoff wavelengths should be chosen based on target source dimensions. Very narrow bands may amplify noise. Test different parameters on subsets first.</useLimit>
+    </dataIdInfo>
+    <distInfo>
+        <distributor>
+            <distorFormat>
+                <formatName>ArcToolbox Tool</formatName>
+            </distorFormat>
+        </distributor>
+    </distInfo>
+    <mdHrLv>
+        <ScopeCd value="005"></ScopeCd>
+    </mdHrLv>
+    <mdDateSt Sync="TRUE">20250820</mdDateSt>
+</metadata>

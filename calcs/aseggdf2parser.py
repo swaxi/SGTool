@@ -1,24 +1,13 @@
 import os
 import re
-from qgis.core import (
-    Qgis,
-    QgsVectorLayer,
-    QgsProject,
-    QgsFeature,
-    QgsWkbTypes,
-    QgsProject,
-    QgsGeometry,
-    QgsPointXY,
-    QgsVectorFileWriter,
-    QgsVectorLayer,
-    QgsFields,
-    QgsField,
-    QgsCoordinateReferenceSystem,
-)
+from osgeo import ogr, osr
+from collections import defaultdict
 
-from qgis.PyQt.QtCore import (
-    QVariant,
-)
+
+# GDAL/OGR type constants to replace QGIS QVariant
+OFTString = ogr.OFTString
+OFTInteger = ogr.OFTInteger
+OFTReal = ogr.OFTReal
 
 
 class AsegGdf2Parser:
@@ -113,9 +102,7 @@ class AsegGdf2Parser:
                                 header_list.append(array_field_name)
 
                                 # Extract field type from format, but use string for the array
-                                field_type = (
-                                    QVariant.String
-                                )  # Store as string for arrays
+                                field_type = OFTString  # Store as string for arrays
 
                                 # Extract NULL value if provided
                                 null_match = re.search(r"NULL=([^,;]+)", part)
@@ -161,11 +148,11 @@ class AsegGdf2Parser:
                                     header_list.append(array_field_name)
 
                                     # Extract field type from format
-                                    field_type = QVariant.String
+                                    field_type = OFTString
                                     if base_format.startswith("I"):
-                                        field_type = QVariant.Int
+                                        field_type = ogr.OFTInteger
                                     elif base_format.startswith(("F", "E", "D")):
-                                        field_type = QVariant.Double
+                                        field_type = ogr.OFTReal
 
                                     field_defs[array_field_name] = {
                                         "type": field_type,
@@ -183,13 +170,13 @@ class AsegGdf2Parser:
                             )
 
                             # Extract field type from format
-                            field_type = QVariant.String
+                            field_type = OFTString
                             if field_format.startswith("I"):
-                                field_type = QVariant.Int
+                                field_type = ogr.OFTInteger
                             elif field_format.startswith(("F", "E", "D")):
-                                field_type = QVariant.Double
+                                field_type = ogr.OFTReal
                             elif field_format.startswith("A"):
-                                field_type = QVariant.String
+                                field_type = OFTString
 
                             # Extract NULL value if provided
                             null_match = re.search(r"NULL=([^,;]+)", part)
@@ -241,9 +228,9 @@ class AsegGdf2Parser:
             for i, field in enumerate(header_list[:20]):  # Show first 20 fields
                 field_def = field_defs.get(field, {})
                 field_type = "String"
-                if field_def.get("type") == QVariant.Int:
+                if field_def.get("type") == ogr.OFTInteger:
                     field_type = "Integer"
-                elif field_def.get("type") == QVariant.Double:
+                elif field_def.get("type") == ogr.OFTReal:
                     field_type = "Double"
 
                 # Show if it's an array field
@@ -356,7 +343,7 @@ class AsegGdf2Parser:
                         )
                         working_header_list.append("COMMENTS")
                         working_field_defs["COMMENTS"] = {
-                            "type": QVariant.String,
+                            "type": OFTString,
                             "format": "A1",
                             "null": None,
                             "unit": None,
@@ -446,12 +433,12 @@ class AsegGdf2Parser:
                             # Convert to appropriate type based on field definition
                             if field_def.get("null") and value == field_def.get("null"):
                                 row[field_name] = None
-                            elif field_def.get("type") == QVariant.Int:
+                            elif field_def.get("type") == ogr.OFTInteger:
                                 try:
                                     row[field_name] = int(float(value))
                                 except ValueError:
                                     row[field_name] = value
-                            elif field_def.get("type") == QVariant.Double:
+                            elif field_def.get("type") == ogr.OFTReal:
                                 try:
                                     row[field_name] = float(value)
                                 except ValueError:
@@ -498,25 +485,30 @@ class AsegGdf2Parser:
     ):
         """
         Export parsed data to shapefile
+        ONLY this method changes - replace QGIS with GDAL
 
         Args:
             data (list): List of dictionaries containing the data
-            header_list (list): List of field names
             field_defs (dict): Dictionary of field definitions
             output_path (str): Path for output shapefile
-            x_field, y_field (str,str):   coordinate fields
+            file_name (str): Name for the layer
+            x_field, y_field (str,str): coordinate fields
             epsg_code (str): EPSG code for the coordinate system (e.g., "4326", "28356")
         """
         print(f"Exporting to shapefile: {output_path}")
 
-        if output_path:
-            if os.path.exists(output_path):
-                try:
-                    os.remove(output_path)
-                    # print(f"File '{file_path}' has been deleted")
-                    file_deleted = True
-                except Exception as e:
-                    print(f"Failed to delete '{output_path}': {str(e)}")
+        # Remove existing file if it exists
+        if os.path.exists(output_path):
+            try:
+                # Remove all associated files (.shp, .shx, .dbf, .prj, etc.)
+                base_path = os.path.splitext(output_path)[0]
+                extensions = [".shp", ".shx", ".dbf", ".prj", ".cpg", ".qpj"]
+                for ext in extensions:
+                    file_path = base_path + ext
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+            except Exception as e:
+                print(f"Failed to delete existing files: {str(e)}")
 
         # Ensure data is a list of dictionaries
         if not data or not isinstance(data[0], dict):
@@ -533,26 +525,45 @@ class AsegGdf2Parser:
                 f"Coordinate fields '{x_field}' and/or '{y_field}' not found in data"
             )
 
-        # Create CRS from EPSG code
+        # Create CRS from EPSG code - replace QgsCoordinateReferenceSystem with osr
+        srs = osr.SpatialReference()
         if epsg_code:
-            crs = QgsCoordinateReferenceSystem(f"EPSG:{epsg_code}")
-            if not crs.isValid():
-                print(f"Warning: Invalid EPSG code {epsg_code}. Using default WGS84.")
-                crs = QgsCoordinateReferenceSystem("EPSG:4326")
+            try:
+                srs.ImportFromEPSG(int(epsg_code))
+                if not srs.IsProjected() and not srs.IsGeographic():
+                    print(
+                        f"Warning: Invalid EPSG code {epsg_code}. Using default WGS84."
+                    )
+                    srs.ImportFromEPSG(4326)
+            except Exception as e:
+                print(
+                    f"Warning: Error with EPSG code {epsg_code}: {str(e)}. Using default WGS84."
+                )
+                srs.ImportFromEPSG(4326)
         else:
             print("No EPSG code provided. Using default WGS84.")
-            crs = QgsCoordinateReferenceSystem("EPSG:4326")
+            srs.ImportFromEPSG(4326)
 
-        print(f"Using CRS: {crs.authid()} - {crs.description()}")
+        print(f"Using CRS: EPSG:{srs.GetAuthorityCode(None) or 'Unknown'}")
 
-        # Create fields for the shapefile - use actual fields from data
-        qgs_fields = QgsFields()
+        # Create the output driver - replace QgsVectorFileWriter with ogr
+        driver = ogr.GetDriverByName("ESRI Shapefile")
+        data_source = driver.CreateDataSource(output_path)
+        if not data_source:
+            raise Exception(f"Could not create data source: {output_path}")
+
+        # Create the layer - replace QgsVectorFileWriter with ogr
+        layer = data_source.CreateLayer(file_name, srs, ogr.wkbPoint)
+        if not layer:
+            raise Exception("Could not create layer")
+
+        # Create fields for the shapefile - replace QgsFields with ogr field creation
         field_name_mapping = {}  # Map original names to truncated names
 
         # Use the actual fields from the data
         for field_name in first_row.keys():
             field_def = field_defs.get(field_name, {})
-            field_type = field_def.get("type", QVariant.String)
+            field_type = field_def.get("type", OFTString)
 
             # Ensure field name fits shapefile limits (10 characters)
             if len(field_name) > 10:
@@ -574,33 +585,31 @@ class AsegGdf2Parser:
 
             field_name_mapping[field_name] = truncated_name
 
-            qgs_field = QgsField(truncated_name, field_type)
-            qgs_fields.append(qgs_field)
+            # Create field definition - replace QgsField with ogr.FieldDefn
+            field_defn = ogr.FieldDefn(truncated_name, field_type)
 
-        # Create the shapefile writer with the specified CRS
-        writer = QgsVectorFileWriter(
-            output_path,
-            "UTF-8",
-            qgs_fields,
-            QgsWkbTypes.Point,
-            crs,  # Use the CRS from the EPSG code
-            "ESRI Shapefile",
-        )
+            # Set field width and precision
+            if field_type == OFTReal:
+                field_defn.SetWidth(15)
+                field_defn.SetPrecision(6)
+            elif field_type == OFTInteger:
+                field_defn.SetWidth(10)
+            else:  # String
+                field_defn.SetWidth(50)
 
-        if writer.hasError() != QgsVectorFileWriter.NoError:
-            raise Exception(f"Error creating shapefile writer: {writer.errorMessage()}")
+            layer.CreateField(field_defn)
 
-        # Write features
+        # Write features - replace QgsVectorFileWriter with ogr feature creation
+        layer_defn = layer.GetLayerDefn()
         features_written = 0
         errors = 0
 
         for row_num, row in enumerate(data):
             try:
-                # Create feature
-                feature = QgsFeature()
-                feature.setFields(qgs_fields)
+                # Create feature - replace QgsFeature with ogr.Feature
+                feature = ogr.Feature(layer_defn)
 
-                # Set geometry
+                # Set geometry - replace QgsPointXY/QgsGeometry with ogr.Geometry
                 x_val = row.get(x_field)
                 y_val = row.get(y_field)
 
@@ -608,8 +617,11 @@ class AsegGdf2Parser:
                     try:
                         x_coord = float(x_val)
                         y_coord = float(y_val)
-                        point = QgsPointXY(x_coord, y_coord)
-                        feature.setGeometry(QgsGeometry.fromPointXY(point))
+
+                        # Create point geometry
+                        point = ogr.Geometry(ogr.wkbPoint)
+                        point.AddPoint(x_coord, y_coord)
+                        feature.SetGeometry(point)
                     except (ValueError, TypeError) as e:
                         print(f"Row {row_num}: Invalid coordinates: {x_val}, {y_val}")
                         errors += 1
@@ -625,25 +637,26 @@ class AsegGdf2Parser:
                         value = row[original_name]
 
                         # Get field index by truncated name
-                        field_idx = qgs_fields.indexFromName(truncated_name)
+                        field_idx = layer_defn.GetFieldIndex(truncated_name)
                         if field_idx >= 0:
                             # Convert value to appropriate type
-                            field = qgs_fields.at(field_idx)
-                            if field.type() == QVariant.Int:
+                            field_defn = layer_defn.GetFieldDefn(field_idx)
+                            if field_defn.GetType() == OFTInteger:
                                 try:
                                     value = int(float(value))
                                 except (ValueError, TypeError):
                                     value = None
-                            elif field.type() == QVariant.Double:
+                            elif field_defn.GetType() == OFTReal:
                                 try:
                                     value = float(value)
                                 except (ValueError, TypeError):
                                     value = None
 
-                            feature.setAttribute(field_idx, value)
+                            if value is not None:
+                                feature.SetField(field_idx, value)
 
-                # Add feature to shapefile
-                writer.addFeature(feature)
+                # Add feature to shapefile - replace writer.addFeature with layer.CreateFeature
+                layer.CreateFeature(feature)
                 features_written += 1
 
             except Exception as e:
@@ -651,24 +664,14 @@ class AsegGdf2Parser:
                 errors += 1
 
         # Clean up
-        del writer
+        data_source = None
 
         print(
             f"Shapefile export complete: {features_written} features written, {errors} errors"
         )
-        # Load the shapefile
-        layer = QgsVectorLayer(output_path, file_name, "ogr")
 
-        if not layer.isValid():
-            print(f"Layer is not valid! Path: {output_path}")
-            return None
-
-        print(f"Shapefile loaded with {layer.featureCount()} features")
-
-        # Add to project
-        QgsProject.instance().addMapLayer(layer)
-
-        return layer
+        # Return the output path instead of loading into QGIS
+        return output_path
 
     def parse_legacy_headers(self, dat_file_path):
         """
@@ -684,15 +687,11 @@ class AsegGdf2Parser:
             prj_file_path = base_name + ".prj"
 
         if not os.path.exists(dat_file_path):
-            self.iface.messageBar().pushMessage(
-                "DAT/dat file not found", level=Qgis.Warning, duration=3
-            )
+            print("DAT/dat file not found")
             return None, None, None, None
 
         if not os.path.exists(dfn_file_path):
-            self.iface.messageBar().pushMessage(
-                "DFN/dfn file not found", level=Qgis.Warning, duration=3
-            )
+            print("DFN/dfn file not found")
             return None, None, None, None
 
         # Parse the DFN file to get field definitions

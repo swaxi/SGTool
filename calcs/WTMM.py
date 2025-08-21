@@ -1,12 +1,7 @@
 import numpy as np
 from scipy import ndimage
 from scipy import stats
-
-
-from scipy import signal, ndimage
-import networkx as nx
-
-from qgis.PyQt.QtWidgets import QMessageBox
+from scipy import ndimage
 
 
 class WTMM:
@@ -56,7 +51,7 @@ class WTMM:
             'maxima_lines': Chained maxima across scales
             'wtmm_image': Visualization of WTMM result
         """
-        try:
+        """try:
             import pywt
         except ImportError:
             QMessageBox.information(
@@ -68,7 +63,7 @@ class WTMM:
                 f"!pip3 install PyWavelets",  # Message text
                 QMessageBox.Ok,  # Buttons parameter
             )
-            return
+            return"""
 
         # Input validation
         if len(image.shape) > 2:
@@ -620,7 +615,7 @@ class WTMM:
         save_path : str or None
             Path to save the visualization, if provided
         """
-        try:
+        """try:
             import matplotlib.pyplot as plt
         except ImportError:
             QMessageBox.information(
@@ -632,7 +627,7 @@ class WTMM:
                 f"!pip3 install matplotlib",  # Message text
                 QMessageBox.Ok,  # Buttons parameter
             )
-            return
+            return"""
 
         # Create figure and axes
         fig = plt.figure(figsize=(12, 10))

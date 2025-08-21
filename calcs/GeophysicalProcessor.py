@@ -2,7 +2,7 @@ import numpy as np
 from numpy.polynomial.polynomial import polyval2d
 from math import ceil, fabs
 import numpy as np
-
+import matplotlib.pyplot as plt
 
 from osgeo import ogr, osr
 
@@ -15,7 +15,6 @@ from osgeo import gdal
 from ..worms.wormer import Wormer
 from ..worms.Utility import (
     GetExtent,
-    loadGrid,
     numpy_array_to_raster,
     insert_text_before_extension,
     fill_nan,
@@ -1123,13 +1122,14 @@ class GeophysicalProcessor:
         )
         return self.restore_nan(buffer_removed_data, nan_mask)
 
-    def bsdwormer(self, gridPath, num_levels, bottom_level, delta_z, shps, crs):
+    def bsdwormer(
+        self, image, layer, gridPath, num_levels, bottom_level, delta_z, shps, crs
+    ):
         # code borrows heavilly from bsdwormer example ipynb template example
         # adds on the fly calc of padded grid
 
         print(gridPath, num_levels, bottom_level, delta_z)
         # load grid and convert to numpy
-        image, layer = loadGrid(gridPath)
 
         # add padding and save to file
 

@@ -10,6 +10,7 @@
 
 # changelog 0.2.17
       * Add ArcPro Toolbox support (very Beta!!)
+      * Remove all QGIS library calls from calc engines
       0.2.16
       * Add Euler Deconvolution from https://github.com/ffigura/Euler-deconvolution-python
       * Add Noddy grid (grv & mag) import

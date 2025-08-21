@@ -1,21 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
-import sys
 import os
-
-# sys.path += [
-#    "/Users/frank/Documents/Src/Git Stuff/BSDWormer/src/Py3Vtk/pyvtk/build/lib/pyvtk"
-# ]
-# import pyvtk as
-from osgeo import gdal, ogr, osr
-
-from qgis.core import (
-    QgsProject,
-    QgsRasterLayer,
-)
-from qgis.PyQt.QtCore import (
-    QFileInfo,
-)
+from osgeo import gdal, osr
 
 
 def viewRaster(numpy_grid):
@@ -223,16 +209,8 @@ def ReprojectCoords(coords, src_srs, tgt_srs):
 """
 
 
-def is_layer_loaded(layer_name):
-    """
-    Check if a layer with the specified name is already loaded in QGIS.
-
-    Parameters:
-        layer_name (str): The name of the layer to check.
-
-    Returns:
-        bool: True if the layer is loaded, False otherwise.
-    """
+"""def is_layer_loaded(layer_name):
+# check if layer is laoded into qgis
     for layer in QgsProject.instance().mapLayers().values():
         if layer.name() == layer_name:
             return True
@@ -275,7 +253,7 @@ def loadGrid(diskGridPath):
     if no_data_value is not None:
         raster_array[raster_array == no_data_value] = np.nan
     print("mean", np.nanmean(raster_array))
-    return raster_array, layer
+    return raster_array, layer"""
 
 
 def numpy_array_to_raster(

@@ -58,6 +58,7 @@ from qgis.PyQt.QtCore import (
     Qt,
     QUrl,
 )
+from PyQt5.QtGui import QValidator
 
 import re
 import os.path
@@ -84,7 +85,8 @@ from .calcs.GeophysicalProcessor import GeophysicalProcessor
 from .calcs.geosoft_grid_parser import *
 from .calcs.PSplot import PowerSpectrumDock
 from .calcs.ConvolutionFilter import ConvolutionFilter
-from .calcs.ConvolutionFilter import OddPositiveIntegerValidator
+
+# from .calcs.ConvolutionFilter import OddPositiveIntegerValidator
 from .calcs.GridData_no_pandas import QGISGridData
 from .calcs.SpatialStats import SpatialStats
 from .calcs.WTMM import WTMM
@@ -866,8 +868,18 @@ class SGTool:
         cell_size = self.dlg.doubleSpinBox_cellsize.text()
 
         mask = None
-
-        gridder.launch_idw_dialog(input, zcolumn, cell_size, mask)
+        alg_id = "grass7:v.surf.idw"
+        try:
+            # Check if the algorithm exists
+            if QgsApplication.processingRegistry().algorithmById(alg_id):
+                # Launch the dialog
+                gridder.launch_idw_dialog(input, zcolumn, cell_size, mask)
+            else:
+                self.iface.messageBar().pushMessage(
+                    "Error", "GRASS v.surf.rst algorithm not found.", level=3
+                )
+        except Exception as e:
+            self.iface.messageBar().pushMessage("Error", str(e), level=3)
 
     def procmultibsplineGridding(self):
         gridder = QGISGridData(self.iface)
@@ -1297,6 +1309,10 @@ class SGTool:
         n_components = int(self.dlg.mQgsSpinBox_PCA.value())
         self.delete_layer_and_file(self.localGridName + self.suffix)
 
+        raster_layer = QgsRasterLayer(self.diskGridPath, "Input Raster")
+        if not raster_layer.isValid():
+            raise ValueError(f"Failed to load raster layer: {self.diskGridPath}")
+
         components, variance_ratio = self.PCAICA.pca_with_nans(
             self.diskGridPath, self.diskNewGridPath, n_components
         )
@@ -1392,6 +1408,10 @@ class SGTool:
         n_components = int(self.dlg.mQgsSpinBox_ICA.value())
         self.delete_layer_and_file(self.localGridName + self.suffix)
 
+        raster_layer = QgsRasterLayer(self.diskGridPath, "Input Raster")
+        if not raster_layer.isValid():
+            raise ValueError(f"Failed to load raster layer: {self.diskGridPath}")
+
         mixing_matrix, unmixing_matrix = self.PCAICA.ica_with_nans(
             self.diskGridPath, self.diskNewGridPath, n_components
         )
@@ -1406,8 +1426,17 @@ class SGTool:
             self.parseParams()
 
             self.layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-
-            self.SG_Util.create_data_boundary_lines(self.layer)
+            input_raster_path = self.layer.dataProvider().dataSourceUri()
+            output_path = self.insert_text_before_extension(
+                input_raster_path, "_boundary"
+            )
+            self.SG_Util.create_data_boundary_lines(input_raster_path, output_path)
+            layer = QgsVectorLayer(output_path, self.localGridName + "_boundary")
+            if not layer.isValid():
+                raise ValueError(f"Failed to load layer: {output_path}")
+            else:
+                # Add the layer to the current QGIS project
+                QgsProject.instance().addMapLayer(layer)
 
     def procNaN(self):
         self.new_grid = self.SG_Util.Threshold2Nan(
@@ -1527,8 +1556,35 @@ class SGTool:
                         )
                         return False
 
+                # Access the raster data provider
+                provider = selected_layer.dataProvider()
+
+                # Get raster dimensions
+                cols = provider.xSize()  # Number of columns
+                rows = provider.ySize()  # Number of rows
+
+                # Read raster data as a block
+                band = 1  # Specify the band number (1-based index)
+                raster_block = provider.block(band, provider.extent(), cols, rows)
+
+                # Copy the block data into a NumPy array
+                extent = self.layer.extent()
+                rows, cols = self.layer.height(), self.layer.width()
+                raster_block = provider.block(1, extent, cols, rows)  # !!!!!
+                self.raster_array = np.zeros((rows, cols))
+                for i in range(rows):
+                    for j in range(cols):
+                        self.raster_array[i, j] = raster_block.value(i, j)
+
                 self.processor.bsdwormer(
-                    self.diskGridPath, num_levels, bottom_level, delta_z, shps, crs
+                    self.raster_array,
+                    selected_layer,
+                    self.diskGridPath,
+                    num_levels,
+                    bottom_level,
+                    delta_z,
+                    shps,
+                    crs,
                 )
                 self.iface.messageBar().pushMessage(
                     "Worms saved to same directory as original grid",
@@ -1613,7 +1669,7 @@ class SGTool:
 
     def util_display_grid(self, grid):
         try:
-            import matplotlib as plt
+            import matplotlib.pyplot as plt
 
         except ImportError:
             QMessageBox.information(
@@ -3788,7 +3844,7 @@ class SGTool:
 
                         output_file = os.path.join(dir_name, file_name + ".shp")
 
-                        layer = self.parser.export_to_shapefile(
+                        output_path = self.parser.export_to_shapefile(
                             data,
                             self.field_defs,
                             output_file,
@@ -3797,6 +3853,11 @@ class SGTool:
                             y_field,
                             self.points_epsg,
                         )
+
+                        layer = QgsVectorLayer(output_path, file_name)
+                        # Add the layer to the current QGIS project
+                        QgsProject.instance().addMapLayer(layer)
+
                         canvas = (
                             self.iface.mapCanvas() if hasattr(self, "iface") else None
                         )
@@ -4492,7 +4553,7 @@ class SGTool:
         if line_layer is None:
             print("No layer selected")
             return None
-        print()
+
         if (
             isinstance(line_layer, QgsVectorLayer)
             and line_layer.geometryType() == QgsWkbTypes.LineGeometry
@@ -4979,3 +5040,36 @@ class SGTool:
 
                 # Add to combo box
                 self.dlg.mFieldComboBox_feature.addItems(unique_values)
+
+
+class OddPositiveIntegerValidator(QValidator):
+    def validate(self, input_text, pos):
+        """
+        Validates the text input to allow only odd positive integers.
+        """
+        if not input_text:  # Allow empty input (to clear the field)
+            return QValidator.Intermediate, input_text, pos
+
+        if not input_text.isdigit():  # Only digits are allowed
+            return QValidator.Invalid, input_text, pos
+
+        value = int(input_text)
+        if value > 0 and value % 2 == 1:  # Check for positive odd numbers
+            return QValidator.Acceptable, input_text, pos
+        else:
+            return QValidator.Intermediate, input_text, pos
+
+    def fixup(self, input_text):
+        """
+        Corrects invalid input to the nearest odd positive integer.
+        """
+        try:
+            value = int(input_text)
+            if value <= 0:  # Make it a positive number
+                return "1"
+            elif value % 2 == 0:  # Make it odd
+                return str(value + 1)
+            else:
+                return input_text
+        except ValueError:
+            return "1"  # Default to 1 if the input cannot be converted

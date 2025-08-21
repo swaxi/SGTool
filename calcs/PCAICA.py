@@ -1,6 +1,5 @@
 import numpy as np
 from osgeo import gdal
-from qgis.core import QgsRasterLayer
 import os
 
 
@@ -29,9 +28,9 @@ class PCAICA:
         from sklearn.preprocessing import StandardScaler
 
         # Load raster using PyQGIS to access metadata
-        raster_layer = QgsRasterLayer(input_raster_path, "Input Raster")
+        """raster_layer = QgsRasterLayer(input_raster_path, "Input Raster")
         if not raster_layer.isValid():
-            raise ValueError(f"Failed to load raster layer: {input_raster_path}")
+            raise ValueError(f"Failed to load raster layer: {input_raster_path}")"""
 
         # Also open with GDAL for data access
         ds = gdal.Open(input_raster_path)
@@ -180,9 +179,9 @@ class PCAICA:
         from sklearn.preprocessing import StandardScaler
 
         # Load raster using PyQGIS to access metadata
-        raster_layer = QgsRasterLayer(input_raster_path, "Input Raster")
+        """raster_layer = QgsRasterLayer(input_raster_path, "Input Raster")
         if not raster_layer.isValid():
-            raise ValueError(f"Failed to load raster layer: {input_raster_path}")
+            raise ValueError(f"Failed to load raster layer: {input_raster_path}")"""
 
         # Also open with GDAL for data access
         ds = gdal.Open(input_raster_path)

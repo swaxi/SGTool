@@ -1,4 +1,4 @@
-# GeophysicsTools.pyt - Complete version with all methods
+# GeophysicsTools.pyt - Simplified version
 
 import arcpy
 import numpy as np
@@ -20,34 +20,35 @@ def get_processor_class():
         # Get directories
         toolbox_dir = os.path.dirname(os.path.abspath(__file__))
         calcs_dir = os.path.join(toolbox_dir, "calcs")
+        worms_dir = os.path.join(toolbox_dir, "worms")  # worms is at same level as .pyt
 
-        # Add to Python path
-        if calcs_dir not in sys.path:
-            sys.path.insert(0, calcs_dir)
-        if toolbox_dir not in sys.path:
-            sys.path.insert(0, toolbox_dir)
-
-        # Check if GeophysicalProcessor.py exists
+        # Verify the GeophysicalProcessor.py file exists
         gp_file = os.path.join(calcs_dir, "GeophysicalProcessor.py")
         if not os.path.exists(gp_file):
             arcpy.AddError(f"GeophysicalProcessor.py not found at: {gp_file}")
             return None
 
-        # Read and modify the file content
+        # Add to Python path - put calcs_dir first to prioritize it
+        if calcs_dir not in sys.path:
+            sys.path.insert(0, calcs_dir)
+        if worms_dir not in sys.path:
+            sys.path.insert(0, worms_dir)
+        if toolbox_dir not in sys.path:
+            sys.path.insert(0, toolbox_dir)
+
+        # Read and modify the file content to handle relative imports
         with open(gp_file, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # Simple replacements to handle problematic imports
+        # Replace problematic relative imports
         content = content.replace(
             "from ..worms.wormer import Wormer", "# from ..worms.wormer import Wormer"
         )
         content = content.replace(
             "from ..worms.Utility import", "# from ..worms.Utility import"
         )
-        content = content.replace("from qgis", "# from qgis")
-        content = content.replace("import qgis", "# import qgis")
 
-        # Replace other problematic relative imports
+        # Handle multi-line imports from worms.Utility
         lines = content.split("\n")
         modified_lines = []
         skip_next = False
@@ -67,6 +68,7 @@ def get_processor_class():
                 modified_lines.append(f"# {line}")
                 continue
 
+            # Comment out any other relative imports
             if line.strip().startswith("from .."):
                 modified_lines.append(f"# {line}")
                 continue
@@ -75,7 +77,7 @@ def get_processor_class():
 
         modified_content = "\n".join(modified_lines)
 
-        # Create execution namespace
+        # Create execution namespace with required dependencies
         namespace = {
             "__name__": "GeophysicalProcessor",
             "__file__": gp_file,
@@ -114,13 +116,11 @@ def get_processor_class():
             pass
 
         def fill_nan_simple(data):
-            """Simple NaN filling"""
-            mask = np.isnan(data)
-            if not np.any(mask):
+            """Simple NaN filling for missing fill_nan function"""
+            if not np.any(np.isnan(data)):
                 return data
-
             filled = np.copy(data)
-            # Simple linear interpolation
+            # Simple linear interpolation along rows
             for i in range(data.shape[0]):
                 row = filled[i, :]
                 valid = ~np.isnan(row)
@@ -129,7 +129,7 @@ def get_processor_class():
                     filled[i, ~valid] = np.interp(
                         indices[~valid], indices[valid], row[valid]
                     )
-
+            # Simple linear interpolation along columns
             for j in range(data.shape[1]):
                 col = filled[:, j]
                 valid = ~np.isnan(col)
@@ -138,10 +138,9 @@ def get_processor_class():
                     filled[~valid, j] = np.interp(
                         indices[~valid], indices[valid], col[valid]
                     )
-
             return filled
 
-        # Add dummy implementations
+        # Add dummy implementations for worms utilities
         namespace.update(
             {
                 "Wormer": type("DummyWormer", (), {"__init__": lambda self: None}),
@@ -160,21 +159,21 @@ def get_processor_class():
         # Execute the modified content
         exec(modified_content, namespace)
 
-        # Get the class
+        # Get the class from the namespace
         GeophysicalProcessor = namespace.get("GeophysicalProcessor")
-
         if GeophysicalProcessor is None:
             arcpy.AddError("GeophysicalProcessor class not found in namespace")
             return None
 
-        # Test instantiation
-        test_proc = GeophysicalProcessor(100, 100, 50)
         arcpy.AddMessage("✓ GeophysicalProcessor imported successfully")
-
         return GeophysicalProcessor
 
-    except Exception as e:
+    except ImportError as e:
         arcpy.AddError(f"Failed to import GeophysicalProcessor: {e}")
+        arcpy.AddError("Make sure the calcs directory contains GeophysicalProcessor.py")
+        return None
+    except Exception as e:
+        arcpy.AddError(f"Unexpected error importing GeophysicalProcessor: {e}")
         import traceback
 
         arcpy.AddError(traceback.format_exc())

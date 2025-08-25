@@ -950,7 +950,7 @@ class SGTool:
         self.new_grid[nan_mask] = np.nan
         self.suffix = "_DirC"
 
-    def procRTP_E(self):
+    def procRTP_E(self, sgtool_instance):
         if self.RTE_P_inc == "0" and self.RTE_P_dec == "0":
             self.iface.messageBar().pushMessage(
                 "You need to define Inc and Dec first!", level=Qgis.Warning, duration=15
@@ -1522,8 +1522,8 @@ class SGTool:
         num_levels = int(self.dlg.spinBox_levels.value())
         bottom_level = int(self.dlg.doubleSpinBox_base.text())
         delta_z = float(self.dlg.doubleSpinBox_inc.text())
-        selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-        crs = selected_layer.crs()
+        layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
+        crs = layer.crs()
 
         if crs.isGeographic():
             self.iface.messageBar().pushMessage(
@@ -1533,11 +1533,11 @@ class SGTool:
             )
             return False
         else:
-            if selected_layer.isValid():
-                self.diskGridPath = selected_layer.dataProvider().dataSourceUri()
-                self.dx = selected_layer.rasterUnitsPerPixelX()
-                self.dy = selected_layer.rasterUnitsPerPixelY()
-                crs = int(selected_layer.crs().authid().split(":")[1])
+            if layer.isValid():
+                self.diskGridPath = layer.dataProvider().dataSourceUri()
+                self.dx = layer.rasterUnitsPerPixelX()
+                self.dy = layer.rasterUnitsPerPixelY()
+                crs = int(layer.crs().authid().split(":")[1])
 
                 self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
                 shps = self.dlg.checkBox_worms_shp.isChecked()
@@ -1557,7 +1557,7 @@ class SGTool:
                         return False
 
                 # Access the raster data provider
-                provider = selected_layer.dataProvider()
+                provider = layer.dataProvider()
 
                 # Get raster dimensions
                 cols = provider.xSize()  # Number of columns
@@ -1568,8 +1568,8 @@ class SGTool:
                 raster_block = provider.block(band, provider.extent(), cols, rows)
 
                 # Copy the block data into a NumPy array
-                extent = self.layer.extent()
-                rows, cols = self.layer.height(), self.layer.width()
+                extent = layer.extent()
+                rows, cols = layer.height(), layer.width()
                 raster_block = provider.block(1, extent, cols, rows)  # !!!!!
                 self.raster_array = np.zeros((rows, cols))
                 for i in range(rows):
@@ -1578,7 +1578,7 @@ class SGTool:
 
                 self.processor.bsdwormer(
                     self.raster_array,
-                    selected_layer,
+                    layer,
                     self.diskGridPath,
                     num_levels,
                     bottom_level,
@@ -1916,7 +1916,7 @@ class SGTool:
                 self.procDirClean()
                 self.addNewGrid(stdClip=True)
             if self.RTE_P:
-                self.procRTP_E()
+                self.procRTP_E(sgtool_instance=self)
                 self.addNewGrid(stdClip=True)
             if self.RemRegional:
                 self.procRemRegional()

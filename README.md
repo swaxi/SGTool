@@ -321,7 +321,7 @@ Takes a 3-band registered RGB image and converts it to a monotonically increasin
 1) Load a raster image from file
 - If a GRD grid (Oasis Montaj) is selected, the plugin will attempt to load CRS from the associated xml file, if this is not possible a CRS of EPSG:4326 is assumed. In any case the grid is saved as geotiff.
 2) Whatever layer is shown in the layer selector will be the one processed by whatever combination of filters are selected by check boxes, **but must exist as a file, this plugin cannot process grids that are only in memory**. 
-- All processed files will be saved as the same format as the source file e.g. geotiffs, ERS format files or any other QGIS-recognised format, will be saved in the same directory as the original file, and will have a suffix added describing the processing step.
+- All processed files will be saved as geotiffs, and will be saved in the same directory as the original file, and will have a suffix added describing the processing step.
 - If a RTP or RTE calculation is performed, it is possible to define the magnetic field manually or the IGRF mag field parameters can be assigned based on the centroid of grid, plus survey date, or embedded geotiff metadata if the source of the tif was a Noddy grid file..
 - If a file exists on disk it will be overwritten, although QGIS plugins don't always like saving to disks other than C: on Windows, and can't overwrite a file if the grid is open in another program.
 - Length units are defined by grid properties except for Up/Down Continuation (so Lat/Long wavelengths should be defined in degrees!)

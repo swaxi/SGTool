@@ -1755,7 +1755,10 @@ class SGTool:
                 self.diskGridPath, self.suffix
             )
 
-            if ".ers" in self.diskNewGridPath.lower():
+            if (
+                ".tif" not in self.diskNewGridPath.lower()
+                and ".tiff" not in self.diskNewGridPath.lower()
+            ):
                 base, _ = os.path.splitext(self.diskNewGridPath)
                 self.diskNewGridPath = base + ".tif"
 

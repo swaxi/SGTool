@@ -1,64 +1,64 @@
 <?xml version="1.0"?>
 <metadata xml:lang="en">
-    <Esri>
-        <CreaDate>20250820</CreaDate>
-        <CreaTime>15495500</CreaTime>
-        <ArcGISFormat>1.0</ArcGISFormat>
-        <SyncOnce>TRUE</SyncOnce>
-        <ModDate>20250820</ModDate>
-        <ModTime>16055000</ModTime>
-        <scaleRange>
-            <minScale>150000000</minScale>
-            <maxScale>5000</maxScale>
-        </scaleRange>
-        <ArcGISProfile>ItemDescription</ArcGISProfile>
-    </Esri>
-    <tool name="LowPassFilter" displayname="Low Pass Filter" toolboxalias="geophysics" xmlns="">
-        <arcToolboxHelpPath>c:\program files\arcgis\pro\Resources\Help\gp</arcToolboxHelpPath>
-        <parameters>
-            <param name="input_raster" displayname="Input Raster" type="Required" direction="Input" datatype="Raster Layer" expression="input_raster">
-                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Input geophysical raster dataset for low-pass filtering.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
-            </param>
-            <param name="cutoff_wavelength" displayname="Cutoff Wavelength (map units)" type="Required" direction="Input" datatype="Double" expression="cutoff_wavelength">
-                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Wavelengths shorter than this will be removed (noise removal). Typical values: 2000-10000 meters.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
-            </param>
-            <param name="transition_width" displayname="Transition Width (map units)" type="Optional" direction="Input" datatype="Double" expression="{transition_width}">
-                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Transition zone width to reduce ringing artifacts. Start with cutoff value and adjust as needed.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
-            </param>
-            <param name="buffer_size" displayname="Buffer Size (pixels)" type="Optional" direction="Input" datatype="Long" expression="{buffer_size}"/>
-            <param name="output_raster" displayname="Output Low Pass Raster" type="Required" direction="Output" datatype="Raster Dataset" expression="output_raster"/>
-        </parameters>
-        <summary>Remove short wavelength noise to enhance regional trends</summary>
-        <usage>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Low-pass filtering removes short-wavelength noise while preserving longer-wavelength features. This smooths data and enhances regional geological trends.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Applications:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Noise reduction and data smoothing&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Regional trend enhancement&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Data preparation for interpretation&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Cross-survey leveling&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Similar to upward continuation but provides more control over frequency response.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</usage>
-    </tool>
-    <dataIdInfo>
-        <idCitation>
-            <resTitle>Low Pass Filter</resTitle>
-        </idCitation>
-        <idAbs>Low-pass filtering removes short-wavelength noise while preserving regional trends. Provides controlled data smoothing and noise reduction.</idAbs>
-        <idPurp>Noise reduction, data smoothing, and regional trend enhancement in geophysical surveys.</idPurp>
-        <idCredit>Standard Fourier domain filtering methods</idCredit>
-        <searchKeys>
-            <keyword>low pass</keyword>
-            <keyword>LP</keyword>
-            <keyword>noise reduction</keyword>
-            <keyword>smoothing</keyword>
-            <keyword>regional</keyword>
-            <keyword>filtering</keyword>
-            <keyword>wavelength</keyword>
-            <keyword>geophysics</keyword>
-        </searchKeys>
-        <useLimit>Choose cutoff wavelength based on noise characteristics and desired smoothing level. Too aggressive filtering may remove geological signal.</useLimit>
-    </dataIdInfo>
-    <distInfo>
-        <distributor>
-            <distorFormat>
-                <formatName>ArcToolbox Tool</formatName>
-            </distorFormat>
-        </distributor>
-    </distInfo>
-    <mdHrLv>
-        <ScopeCd value="005"></ScopeCd>
-    </mdHrLv>
-    <mdDateSt Sync="TRUE">20250820</mdDateSt>
+	<Esri>
+		<CreaDate>20250820</CreaDate>
+		<CreaTime>15495500</CreaTime>
+		<ArcGISFormat>1.0</ArcGISFormat>
+		<SyncOnce>TRUE</SyncOnce>
+		<ModDate>20250820</ModDate>
+		<ModTime>16055000</ModTime>
+		<scaleRange>
+			<minScale>150000000</minScale>
+			<maxScale>5000</maxScale>
+		</scaleRange>
+		<ArcGISProfile>ItemDescription</ArcGISProfile>
+	</Esri>
+	<tool name="LowPassFilter" displayname="Low Pass Filter" toolboxalias="geophysics" xmlns="">
+		<arcToolboxHelpPath>c:\program files\arcgis\pro\Resources\Help\gp</arcToolboxHelpPath>
+		<parameters>
+			<param name="input_raster" displayname="Input Raster" type="Required" direction="Input" datatype="Raster Layer" expression="input_raster">
+				<dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Input geophysical raster dataset for low-pass filtering.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+			</param>
+			<param name="cutoff_wavelength" displayname="Cutoff Wavelength (map units)" type="Required" direction="Input" datatype="Double" expression="cutoff_wavelength">
+				<dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Wavelengths shorter than this will be removed (noise removal). Typical values: 2000-10000 meters.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+			</param>
+			<param name="transition_width" displayname="Transition Width (map units)" type="Optional" direction="Input" datatype="Double" expression="{transition_width}">
+				<dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Transition zone width to reduce ringing artifacts. Start with cutoff value and adjust as needed.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+			</param>
+			<param name="buffer_size" displayname="Buffer Size (pixels)" type="Optional" direction="Input" datatype="Long" expression="{buffer_size}"/>
+			<param name="output_raster" displayname="Output Low Pass Raster" type="Required" direction="Output" datatype="Raster Dataset" expression="output_raster"/>
+		</parameters>
+		<summary>Remove short wavelength noise to enhance regional trends</summary>
+		<usage>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Low-pass filtering removes short-wavelength noise while preserving longer-wavelength features. This smooths data and enhances regional geological trends.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Applications:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Noise reduction and data smoothing&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Regional trend enhancement&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Data preparation for interpretation&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Cross-survey leveling&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Similar to upward continuation but provides more control over frequency response.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</usage>
+	</tool>
+	<dataIdInfo>
+		<idCitation>
+			<resTitle>Low Pass Filter</resTitle>
+		</idCitation>
+		<idAbs>Low-pass filtering removes short-wavelength noise while preserving regional trends. Provides controlled data smoothing and noise reduction.</idAbs>
+		<idPurp>Noise reduction, data smoothing, and regional trend enhancement in geophysical surveys.</idPurp>
+		<idCredit>Standard Fourier domain filtering methods</idCredit>
+		<searchKeys>
+			<keyword>low pass</keyword>
+			<keyword>LP</keyword>
+			<keyword>noise reduction</keyword>
+			<keyword>smoothing</keyword>
+			<keyword>regional</keyword>
+			<keyword>filtering</keyword>
+			<keyword>wavelength</keyword>
+			<keyword>geophysics</keyword>
+		</searchKeys>
+		<useLimit>Choose cutoff wavelength based on noise characteristics and desired smoothing level. Too aggressive filtering may remove geological signal.</useLimit>
+	</dataIdInfo>
+	<distInfo>
+		<distributor>
+			<distorFormat>
+				<formatName>ArcToolbox Tool</formatName>
+			</distorFormat>
+		</distributor>
+	</distInfo>
+	<mdHrLv>
+		<ScopeCd value="005"></ScopeCd>
+	</mdHrLv>
+	<mdDateSt Sync="TRUE">20250820</mdDateSt>
 </metadata>

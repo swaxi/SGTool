@@ -42,10 +42,10 @@ def get_processor_class():
 
         # Replace problematic relative imports
         content = content.replace(
-            "from ..worms.wormer import Wormer", "# from ..worms.wormer import Wormer"
+            "from .worms.wormer import Wormer", "# from ..worms.wormer import Wormer"
         )
         content = content.replace(
-            "from ..worms.Utility import", "# from ..worms.Utility import"
+            "from .worms.Utility import", "# from ..worms.Utility import"
         )
 
         # Handle multi-line imports from worms.Utility
@@ -333,28 +333,20 @@ class UpwardContinuation(object):
 
     def execute(self, parameters, messages):
         input_raster = parameters[0].valueAsText
-        low_cut = parameters[1].value
-        high_cut = parameters[2].value
-        direction_angle = parameters[3].value
-        direction_width = parameters[4].value
-        order = parameters[5].value or 4
-        buffer_size = parameters[6].value or 5000
-        output_raster = parameters[7].valueAsText
+        height = parameters[1].value
+        buffer_size = parameters[2].value or 5000
+        output_raster = parameters[3].valueAsText
 
         success = processor_wrapper.process_raster_tool(
             input_raster=input_raster,
             output_raster=output_raster,
-            processing_method="directional_butterworth_band_pass",
-            low_cut=low_cut,
-            high_cut=high_cut,
-            direction_angle=direction_angle,
-            direction_width=direction_width,
-            order=order,
+            processing_method="upward_continuation",
+            height=height,
             buffer_size=buffer_size,
         )
 
         if not success:
-            raise arcpy.ExecuteError("Directional Butterworth band pass failed")
+            raise arcpy.ExecuteError("Upward Continuation band pass failed")
 
 
 class RemoveRegionalTrend(object):

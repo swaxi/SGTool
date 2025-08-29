@@ -8,7 +8,8 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog=0.2.17 Add ArcPro Toolbox support (very Beta!!)   
+# changelog=0.2.17 
+      * Add ArcPro Toolbox support (very Beta!!)   
       * Remove all QGIS library calls from calc engines   
       * Fix bug in worms spatial filtering   
       * Force processed ers output files to have tif suffix   

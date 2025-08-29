@@ -20,9 +20,10 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.2.17 Add ArcPro Toolbox support (very Beta!!)
-      * Remove all QGIS library calls from calc engines
-      * Fix bug in worms spatial filtering
+changelog=0.2.17 Add ArcPro Toolbox support (very Beta!!)   
+      * Remove all QGIS library calls from calc engines   
+      * Fix bug in worms spatial filtering   
+      * Force processed ers output files to have tif suffix   
     0.2.16
       * Add Euler Deconvolution derived from https://github.com/ffigura/Euler-deconvolution-python
       * Add Noddy grid (grv & mag) import

@@ -1754,6 +1754,11 @@ class SGTool:
             self.diskNewGridPath = self.insert_text_before_extension(
                 self.diskGridPath, self.suffix
             )
+
+            if ".ers" in self.diskNewGridPath.lower():
+                base, _ = os.path.splitext(self.diskNewGridPath)
+                self.diskNewGridPath = base + ".tif"
+
             if os.path.exists(self.diskNewGridPath + ".aux.xml"):
                 os.remove(self.diskNewGridPath + ".aux.xml")
             err = self.numpy_array_to_raster(

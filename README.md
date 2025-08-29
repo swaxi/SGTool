@@ -8,10 +8,10 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog 0.2.17
-      * Add ArcPro Toolbox support (very Beta!!)
-      * Remove all QGIS library calls from calc engines
-      * Fix bug in worms spatial filtering
+# changelog=0.2.17 Add ArcPro Toolbox support (very Beta!!)   
+      * Remove all QGIS library calls from calc engines   
+      * Fix bug in worms spatial filtering   
+      * Force processed ers output files to have tif suffix   
       0.2.16
       * Add Euler Deconvolution from https://github.com/ffigura/Euler-deconvolution-python
       * Add Noddy grid (grv & mag) import
@@ -29,7 +29,8 @@
       * fix import matplotlib bug and test for LINE_ID for points in WTMM code
    
 Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/metadata.txt">Metadata</a>   
-   
+
+
 # Installation
 ## QGIS:
 1) Either:   

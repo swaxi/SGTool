@@ -1,38 +1,4 @@
 import numpy as np
-from PyQt5.QtGui import QValidator
-
-
-class OddPositiveIntegerValidator(QValidator):
-    def validate(self, input_text, pos):
-        """
-        Validates the text input to allow only odd positive integers.
-        """
-        if not input_text:  # Allow empty input (to clear the field)
-            return QValidator.Intermediate, input_text, pos
-
-        if not input_text.isdigit():  # Only digits are allowed
-            return QValidator.Invalid, input_text, pos
-
-        value = int(input_text)
-        if value > 0 and value % 2 == 1:  # Check for positive odd numbers
-            return QValidator.Acceptable, input_text, pos
-        else:
-            return QValidator.Intermediate, input_text, pos
-
-    def fixup(self, input_text):
-        """
-        Corrects invalid input to the nearest odd positive integer.
-        """
-        try:
-            value = int(input_text)
-            if value <= 0:  # Make it a positive number
-                return "1"
-            elif value % 2 == 0:  # Make it odd
-                return str(value + 1)
-            else:
-                return input_text
-        except ValueError:
-            return "1"  # Default to 1 if the input cannot be converted
 
 
 class ConvolutionFilter:

@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+<metadata xml:lang="en">
+	<Esri>
+		<CreaDate>20250820</CreaDate>
+		<CreaTime>15495500</CreaTime>
+		<ArcGISFormat>1.0</ArcGISFormat>
+		<SyncOnce>TRUE</SyncOnce>
+		<ModDate>20250820</ModDate>
+		<ModTime>16055000</ModTime>
+		<scaleRange>
+			<minScale>150000000</minScale>
+			<maxScale>5000</maxScale>
+		</scaleRange>
+		<ArcGISProfile>ItemDescription</ArcGISProfile>
+	</Esri>
+	<tool name="UpwardContinuation" displayname="Upward Continuation" toolboxalias="geophysics" xmlns="">
+		<arcToolboxHelpPath>c:\program files\arcgis\pro\Resources\Help\gp</arcToolboxHelpPath>
+		<parameters>
+			<param name="input_raster" displayname="Input Raster" type="Required" direction="Input" datatype="Raster Layer" expression="input_raster">
+				<dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Input magnetic or gravity raster dataset for upward continuation processing.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+			</param>
+			<param name="height" displayname="Continuation Height (meters)" type="Required" direction="Input" datatype="Double" expression="height">
+				<dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Height above current observation level. Larger values provide more smoothing and noise reduction.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+			</param>
+			<param name="buffer_size" displayname="Buffer Size (pixels)" type="Optional" direction="Input" datatype="Long" expression="{buffer_size}">
+				<dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Buffer zone size for edge effect reduction. Recommend 20% of grid dimensions.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+			</param>
+			<param name="output_raster" displayname="Output Continued Raster" type="Required" direction="Output" datatype="Raster Dataset" expression="output_raster"/>
+		</parameters>
+		<summary>Upward continue magnetic/gravity data to higher observation levels for noise reduction and regional enhancement</summary>
+		<usage>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Upward continuation simulates the magnetic or gravity field at a higher observation level. This process attenuates high-frequency noise and short-wavelength anomalies while preserving regional trends. The tool applies an exponential decay filter exp(-k*height) in the frequency domain.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Common applications:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Noise reduction in geophysical surveys&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Regional/residual separation&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Preparation for derivative calculations&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Cross-survey leveling and merging&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</usage>
+	</tool>
+	<dataIdInfo>
+		<idCitation>
+			<resTitle>Upward Continuation</resTitle>
+		</idCitation>
+		<idAbs>Upward continuation simulates magnetic or gravity field measurements at higher observation levels. This frequency domain technique attenuates high-frequency noise while preserving regional trends.</idAbs>
+		<idPurp>Noise reduction, regional enhancement, and data preparation for geophysical interpretation workflows.</idPurp>
+		<idCredit>Based on potential field theory (Blakely, 1995 - Potential Theory in Gravity and Magnetic Applications)</idCredit>
+		<searchKeys>
+			<keyword>upward continuation</keyword>
+			<keyword>magnetic</keyword>
+			<keyword>gravity</keyword>
+			<keyword>noise reduction</keyword>
+			<keyword>regional</keyword>
+			<keyword>filtering</keyword>
+			<keyword>geophysics</keyword>
+		</searchKeys>
+		<useLimit>Requires gridded magnetic or gravity data. Large continuation heights may over-smooth data. Buffer size should be approximately 20% of grid dimensions for optimal edge effect reduction.</useLimit>
+	</dataIdInfo>
+	<distInfo>
+		<distributor>
+			<distorFormat>
+				<formatName>ArcToolbox Tool</formatName>
+			</distorFormat>
+		</distributor>
+	</distInfo>
+	<mdHrLv>
+		<ScopeCd value="005"></ScopeCd>
+	</mdHrLv>
+	<mdDateSt Sync="TRUE">20250820</mdDateSt>
+</metadata>

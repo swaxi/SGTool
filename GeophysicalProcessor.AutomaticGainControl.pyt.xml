@@ -1,0 +1,55 @@
+<!-- AutomaticGainControl.pyt.xml -->
+<?xml version="1.0"?>
+<metadata xml:lang="en">
+    <Esri>
+        <CreaDate>20250820</CreaDate>
+        <CreaTime>15495500</CreaTime>
+        <ArcGISFormat>1.0</ArcGISFormat>
+        <SyncOnce>TRUE</SyncOnce>
+        <ModDate>20250820</ModDate>
+        <ModTime>16055000</ModTime>
+        <scaleRange>
+            <minScale>150000000</minScale>
+            <maxScale>5000</maxScale>
+        </scaleRange>
+        <ArcGISProfile>ItemDescription</ArcGISProfile>
+    </Esri>
+    <tool name="AutomaticGainControl" displayname="Automatic Gain Control" toolboxalias="geophysics" xmlns="">
+        <arcToolboxHelpPath>c:\program files\arcgis\pro\Resources\Help\gp</arcToolboxHelpPath>
+        <parameters>
+            <param name="input_raster" displayname="Input Raster" type="Required" direction="Input" datatype="Raster Layer" expression="input_raster">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Input geophysical raster for AGC normalization processing.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="window_size" displayname="Window Size (pixels)" type="Required" direction="Input" datatype="Long" expression="window_size">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Size of the moving window for local amplitude normalization. Larger windows provide more smoothing.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="output_raster" displayname="Output AGC Raster" type="Required" direction="Output" datatype="Raster Dataset" expression="output_raster"/>
+        </parameters>
+        <summary>Apply AGC normalization to highlight low amplitude features and balance survey data</summary>
+        <usage>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Automatic Gain Control (AGC) normalizes local amplitude variations to highlight subtle features that might be masked by stronger anomalies. Each pixel is normalized by the local RMS amplitude within a moving window.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Applications:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Highlighting weak anomalies in the presence of strong ones&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Balancing amplitude variations across surveys&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Enhancing subtle geological features&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Data preparation for interpretation&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</usage>
+    </tool>
+    <dataIdInfo>
+        <idCitation>
+            <resTitle>Automatic Gain Control</resTitle>
+        </idCitation>
+        <searchKeys>
+            <keyword>automatic gain control</keyword>
+            <keyword>AGC</keyword>
+            <keyword>amplitude normalization</keyword>
+            <keyword>enhancement</keyword>
+            <keyword>weak anomalies</keyword>
+            <keyword>amplitude balancing</keyword>
+        </searchKeys>
+    </dataIdInfo>
+    <distInfo>
+        <distributor>
+            <distorFormat>
+                <formatName>ArcToolbox Tool</formatName>
+            </distorFormat>
+        </distributor>
+    </distInfo>
+    <mdHrLv>
+        <ScopeCd value="005"></ScopeCd>
+    </mdHrLv>
+    <mdDateSt Sync="TRUE">20250820</mdDateSt>
+</metadata>

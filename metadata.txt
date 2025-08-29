@@ -6,7 +6,7 @@
 name=SGTool
 qgisMinimumVersion=3.24
 description=Simple Potential Field Processing
-version=0.2.16
+version=0.2.17
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
@@ -20,7 +20,11 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.2.16
+changelog=0.2.17 Add ArcPro Toolbox support (very Beta!!)   
+      * Remove all QGIS library calls from calc engines   
+      * Fix bug in worms spatial filtering   
+      * Force processed ers output files to have tif suffix   
+    0.2.16
       * Add Euler Deconvolution derived from https://github.com/ffigura/Euler-deconvolution-python
       * Add Noddy grid (grv & mag) import
     0.2.15 Use cosine rolloff for high/low and bandpass filters to reduce ringing

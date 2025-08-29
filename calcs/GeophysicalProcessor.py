@@ -2,7 +2,7 @@ import numpy as np
 from numpy.polynomial.polynomial import polyval2d
 from math import ceil, fabs
 import numpy as np
-
+import matplotlib.pyplot as plt
 
 from osgeo import ogr, osr
 
@@ -12,14 +12,16 @@ import glob
 import os
 from osgeo import gdal
 
-from ..worms.wormer import Wormer
-from ..worms.Utility import (
+
+from .worms.wormer import Wormer
+from .worms.Utility import (
     GetExtent,
-    loadGrid,
     numpy_array_to_raster,
     insert_text_before_extension,
     fill_nan,
 )
+
+
 import os
 
 
@@ -1102,6 +1104,9 @@ class GeophysicalProcessor:
         buffered_data, padding_info = self.add_buffer(
             filled_data, buffer_size, buffer_method
         )
+        print(f"Original data shape: {data.shape}")
+        print(f"Original data range: {np.nanmin(data):.2f} to {np.nanmax(data):.2f}")
+        print(f"Buffered data shape: {buffered_data.shape}")
 
         # Fourier transform
         data_fft = fft2(buffered_data)
@@ -1121,15 +1126,20 @@ class GeophysicalProcessor:
         buffer_removed_data = self.remove_buffer(
             filtered_data, buffer_size, padding_info
         )
+        print(f"Final result shape: {buffer_removed_data.shape}")
+        print(
+            f"Final result range: {np.nanmin(buffer_removed_data):.2f} to {np.nanmax(buffer_removed_data):.2f}"
+        )
         return self.restore_nan(buffer_removed_data, nan_mask)
 
-    def bsdwormer(self, gridPath, num_levels, bottom_level, delta_z, shps, crs):
+    def bsdwormer(
+        self, image, layer, gridPath, num_levels, bottom_level, delta_z, shps, crs
+    ):
         # code borrows heavilly from bsdwormer example ipynb template example
         # adds on the fly calc of padded grid
 
         print(gridPath, num_levels, bottom_level, delta_z)
         # load grid and convert to numpy
-        image, layer = loadGrid(gridPath)
 
         # add padding and save to file
 
@@ -1161,6 +1171,7 @@ class GeophysicalProcessor:
         job = Wormer()
         job.importGdalRaster(gridPath)
         extent = job.geomat
+        print("job.geomat", job.geomat)
         extentPadded = GetExtent(job.geomat, -pad_x, -pad_y)
         gridPathPadded = insert_text_before_extension(gridPath, "_padded")
 
@@ -1214,13 +1225,21 @@ class GeophysicalProcessor:
                     points[:, 1] <= extent[0] + (image.shape[1] * job.geomat[1])
                 )  # x <= extent[0] + width
                 & (
-                    points[:, 0] >= extent[3] + (image.shape[0] * job.geomat[5])
+                    points[:, 0] <= extent[3] + (image.shape[0] * job.geomat[5])
                 )  # y >= extent[3] + height
-                & (points[:, 0] <= extent[3])  # y <= extent[3]
+                & (points[:, 0] >= extent[3])  # y <= extent[3]
             )
+            print(points)
 
             filtered_points = points[mask]
-
+            print("len filtered", len(filtered_points))
+            print(
+                "extents",
+                extent[0],
+                extent[0] + (image.shape[1] * job.geomat[1]),
+                extent[3],
+                extent[3] + (image.shape[0] * job.geomat[5]),
+            )
             if os.path.exists(wormsPath) and not header_written:
                 os.remove(wormsPath)
 

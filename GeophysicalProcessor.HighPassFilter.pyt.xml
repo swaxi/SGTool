@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+<metadata xml:lang="en">
+    <Esri>
+        <CreaDate>20250820</CreaDate>
+        <CreaTime>15495500</CreaTime>
+        <ArcGISFormat>1.0</ArcGISFormat>
+        <SyncOnce>TRUE</SyncOnce>
+        <ModDate>20250820</ModDate>
+        <ModTime>16055000</ModTime>
+        <scaleRange>
+            <minScale>150000000</minScale>
+            <maxScale>5000</maxScale>
+        </scaleRange>
+        <ArcGISProfile>ItemDescription</ArcGISProfile>
+    </Esri>
+    <tool name="HighPassFilter" displayname="High Pass Filter" toolboxalias="geophysics" xmlns="">
+        <arcToolboxHelpPath>c:\program files\arcgis\pro\Resources\Help\gp</arcToolboxHelpPath>
+        <parameters>
+            <param name="input_raster" displayname="Input Raster" type="Required" direction="Input" datatype="Raster Layer" expression="input_raster">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Input geophysical raster dataset for high-pass filtering.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="cutoff_wavelength" displayname="Cutoff Wavelength (map units)" type="Required" direction="Input" datatype="Double" expression="cutoff_wavelength">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Wavelengths longer than this will be removed (regional removal). Typical values: 10000-50000 meters.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="transition_width" displayname="Transition Width (map units)" type="Optional" direction="Input" datatype="Double" expression="{transition_width}">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Transition zone width to reduce ringing artifacts. Start with cutoff value and adjust as needed.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="buffer_size" displayname="Buffer Size (pixels)" type="Optional" direction="Input" datatype="Long" expression="{buffer_size}"/>
+            <param name="output_raster" displayname="Output High Pass Raster" type="Required" direction="Output" datatype="Raster Dataset" expression="output_raster"/>
+        </parameters>
+        <summary>Remove long wavelength regional trends to enhance local anomalies</summary>
+        <usage>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;High-pass filtering removes long-wavelength regional trends while preserving shorter-wavelength anomalies. This enhances local geological features and removes broad regional effects.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Applications:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Regional/residual separation&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Enhancement of local anomalies&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Removal of survey-scale trends&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Preparation for derivative calculations&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Transition width creates smooth cutoffs to reduce ringing artifacts.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</usage>
+    </tool>
+    <dataIdInfo>
+        <idCitation>
+            <resTitle>High Pass Filter</resTitle>
+        </idCitation>
+        <idAbs>High-pass filtering removes long-wavelength regional trends while preserving local anomalies. Essential for regional/residual separation in geophysical surveys.</idAbs>
+        <idPurp>Regional trend removal and enhancement of local geological features in magnetic and gravity data.</idPurp>
+        <idCredit>Standard Fourier domain filtering methods</idCredit>
+        <searchKeys>
+            <keyword>high pass</keyword>
+            <keyword>HP</keyword>
+            <keyword>regional removal</keyword>
+            <keyword>filtering</keyword>
+            <keyword>residual</keyword>
+            <keyword>local anomalies</keyword>
+            <keyword>wavelength</keyword>
+            <keyword>geophysics</keyword>
+        </searchKeys>
+        <useLimit>Choose cutoff wavelength based on regional geology and survey scale. Transition width reduces ringing but may blur boundaries. Test parameters on data subsets.</useLimit>
+    </dataIdInfo>
+    <distInfo>
+        <distributor>
+            <distorFormat>
+                <formatName>ArcToolbox Tool</formatName>
+            </distorFormat>
+        </distributor>
+    </distInfo>
+    <mdHrLv>
+        <ScopeCd value="005"></ScopeCd>
+    </mdHrLv>
+    <mdDateSt Sync="TRUE">20250820</mdDateSt>
+</metadata>

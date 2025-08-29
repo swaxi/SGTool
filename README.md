@@ -1,14 +1,18 @@
-# Structural Geophysics Tool v0.2.16
+# Structural Geophysics Tool v0.2.17
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
- This plugin is available directly within QGIS using the Plugin Manager, however the latest version with all new bugs will always be at this site.   
+ This plugin is available directly within QGIS using the Plugin Manager, however the latest ArcGIS Pro version or QGIS version with all new bugs will always be at this site.   
 
 **<a href="https://github.com/swaxi/SGTool-Docs">Online Docs</a>**&nbsp;**&nbsp;|&nbsp;&nbsp;&nbsp; <a href="https://tectonique.net/sgtools_data/Structural%20Geophysics%20Tools.pdf">Download Basic Help Document</a>**&nbsp;&nbsp;&nbsp; |&nbsp;&nbsp;&nbsp;  **<a href="https://tectonique.net/sgtools_data/SGTools_large.mp4">Ctrl-click on link to watch demo video</a>**
     
 ![SGTools image](dialog.png)       
 
-# changelog 0.2.16
+# changelog=0.2.17 
+      * Add ArcPro Toolbox support (very Beta!!)   
+      * Remove all QGIS library calls from calc engines   
+      * Fix bug in worms spatial filtering   
+      * Force processed ers output files to have tif suffix   
       0.2.16
       * Add Euler Deconvolution from https://github.com/ffigura/Euler-deconvolution-python
       * Add Noddy grid (grv & mag) import
@@ -26,8 +30,10 @@
       * fix import matplotlib bug and test for LINE_ID for points in WTMM code
    
 Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/metadata.txt">Metadata</a>   
-   
+
+
 # Installation
+## QGIS:
 1) Either:   
 - Download the zip file from the green **<> Code** button and install the zip file in QGIS using the plugin manager for the version on github or   
 - Install directly from the QGIS plugin manager from the plugin repository   
@@ -43,6 +49,23 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
    If you don't use these functions, there is no need to install the extra packages.   
 3) For BSpline Gridding you need to install the plugin **Processing Saga NextGen Provider**   
    
+## ArcGIS Pro:
+1) Download and unzip this respository and store somewhere safe.
+2) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **GeophysicalProcessor.pyt** in this repository. Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run (still in Beta so limited to classical geophysical processing calls for now):   
+- Upward Continuation,   
+- Downward Continuation,
+- Vertical Integration,
+- Analytic Signal,
+- Tilt Angle,
+- Reduction To Pole,
+- Band Pass Filter,
+- High Pass Filter,
+- Low Pass Filter,
+- Directional Butterworth plus Band Pass,
+- Remove Regional Trend,
+- Compute Derivative,
+- Total Horizontal Gradient,
+- Automatic Gain Control
    
 # Inputs   
 - Supports data geotiff, grd, ers and Noddy (grv & mag) grid formats plus any grid format already supported by QGIS
@@ -298,7 +321,7 @@ Takes a 3-band registered RGB image and converts it to a monotonically increasin
 1) Load a raster image from file
 - If a GRD grid (Oasis Montaj) is selected, the plugin will attempt to load CRS from the associated xml file, if this is not possible a CRS of EPSG:4326 is assumed. In any case the grid is saved as geotiff.
 2) Whatever layer is shown in the layer selector will be the one processed by whatever combination of filters are selected by check boxes, **but must exist as a file, this plugin cannot process grids that are only in memory**. 
-- All processed files will be saved as the same format as the source file e.g. geotiffs, ERS format files or any other QGIS-recognised format, will be saved in the same directory as the original file, and will have a suffix added describing the processing step.
+- All processed files will be saved as geotiffs, and will be saved in the same directory as the original file, and will have a suffix added describing the processing step.
 - If a RTP or RTE calculation is performed, it is possible to define the magnetic field manually or the IGRF mag field parameters can be assigned based on the centroid of grid, plus survey date, or embedded geotiff metadata if the source of the tif was a Noddy grid file..
 - If a file exists on disk it will be overwritten, although QGIS plugins don't always like saving to disks other than C: on Windows, and can't overwrite a file if the grid is open in another program.
 - Length units are defined by grid properties except for Up/Down Continuation (so Lat/Long wavelengths should be defined in degrees!)
@@ -317,6 +340,7 @@ There are several excellent Open Source or at least free alternatives to this pl
 
 
 # Code development
+- You can explore the codebase and functionality at the <a href="https://deepwiki.com/swaxi/SGTool">DeepWiki Code description</a>   
 - Calcs ChatGPT, Claude and Mark Jessell
 - Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin https://g-sherman.github.io/Qgis-Plugin-Builder/    
 - IGRF calculation -  using pyIGRF https://github.com/ciaranbe/pyIGRF

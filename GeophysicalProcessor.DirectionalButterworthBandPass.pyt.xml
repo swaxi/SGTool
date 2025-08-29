@@ -1,0 +1,60 @@
+<!-- DirectionalButterworthBandPass.pyt.xml -->
+<?xml version="1.0"?>
+<metadata xml:lang="en">
+    <Esri>
+        <CreaDate>20250820</CreaDate>
+        <CreaTime>15495500</CreaTime>
+        <ArcGISFormat>1.0</ArcGISFormat>
+        <SyncOnce>TRUE</SyncOnce>
+        <ModDate>20250820</ModDate>
+        <ModTime>16055000</ModTime>
+        <scaleRange>
+            <minScale>150000000</minScale>
+            <maxScale>5000</maxScale>
+        </scaleRange>
+        <ArcGISProfile>ItemDescription</ArcGISProfile>
+    </Esri>
+    <tool name="DirectionalButterworthBandPass" displayname="Directional Butterworth Band Pass" toolboxalias="geophysics" xmlns="">
+        <arcToolboxHelpPath>c:\program files\arcgis\pro\Resources\Help\gp</arcToolboxHelpPath>
+        <parameters>
+            <param name="input_raster" displayname="Input Raster" type="Required" direction="Input" datatype="Raster Layer" expression="input_raster"/>
+            <param name="low_cut" displayname="Low Cutoff Wavelength (map units)" type="Required" direction="Input" datatype="Double" expression="low_cut"/>
+            <param name="high_cut" displayname="High Cutoff Wavelength (map units)" type="Required" direction="Input" datatype="Double" expression="high_cut"/>
+            <param name="direction_angle" displayname="Direction Angle (degrees from North)" type="Required" direction="Input" datatype="Double" expression="direction_angle">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Primary direction to emphasize (0-360 degrees, 0=North, clockwise positive).&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="direction_width" displayname="Direction Width (degrees)" type="Required" direction="Input" datatype="Double" expression="direction_width">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Angular width of directional filter. Wider values include more orientations.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="order" displayname="Butterworth Order" type="Optional" direction="Input" datatype="Long" expression="{order}"/>
+            <param name="buffer_size" displayname="Buffer Size (pixels)" type="Optional" direction="Input" datatype="Long" expression="{buffer_size}"/>
+            <param name="output_raster" displayname="Output Filtered Raster" type="Required" direction="Output" datatype="Raster Dataset" expression="output_raster"/>
+        </parameters>
+        <summary>Combined directional and band-pass filtering with Butterworth transitions</summary>
+        <usage>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Combines band-pass and directional filtering to enhance linear features in specific orientations within defined wavelength ranges. Uses Butterworth filter design for smooth frequency transitions.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Excellent for: Fault and dyke mapping, structural trend analysis, linear anomaly enhancement.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</usage>
+    </tool>
+    <dataIdInfo>
+        <idCitation>
+            <resTitle>Directional Butterworth Band Pass</resTitle>
+        </idCitation>
+        <searchKeys>
+            <keyword>directional filter</keyword>
+            <keyword>butterworth</keyword>
+            <keyword>band pass</keyword>
+            <keyword>structural</keyword>
+            <keyword>linear features</keyword>
+            <keyword>orientation</keyword>
+        </searchKeys>
+    </dataIdInfo>
+    <distInfo>
+        <distributor>
+            <distorFormat>
+                <formatName>ArcToolbox Tool</formatName>
+            </distorFormat>
+        </distributor>
+    </distInfo>
+    <mdHrLv>
+        <ScopeCd value="005"></ScopeCd>
+    </mdHrLv>
+    <mdDateSt Sync="TRUE">20250820</mdDateSt>
+</metadata>

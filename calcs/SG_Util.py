@@ -1,19 +1,8 @@
 import numpy as np
-from scipy.ndimage import convolve, median_filter, gaussian_filter
-from PyQt5.QtGui import QValidator
-from qgis.core import (
-    QgsProject,
-    QgsRasterLayer,
-    QgsVectorLayer,
-    QgsFeature,
-    QgsGeometry,
-    QgsField,
-    QgsFields,
-    QgsPointXY,
-    QgsVectorFileWriter,
-)
-from qgis.PyQt.QtCore import QVariant
-import numpy as np
+from collections import defaultdict
+from osgeo import gdal, ogr, osr
+from shapely.geometry import Polygon
+import os
 from collections import defaultdict
 
 
@@ -54,50 +43,49 @@ class SG_Util:
 
         return grid2
 
-    def create_data_boundary_lines(self, current_layer, output_path=None):
+    def create_data_boundary_lines(
+        self, input_raster_path, output_path=None, band_number=1
+    ):
         """
         Creates a polygon layer that traces the boundaries between data and NaN regions
-        in the currently selected raster layer, handling holes as interior rings.
+        in the specified raster file, handling holes as interior rings.
+
+        Args:
+            input_raster_path (str): Path to the input raster file
+            output_path (str, optional): Path for output shapefile
+            band_number (int): Band number to process (default: 1)
+
+        Returns:
+            str: Path to the created shapefile (if output_path provided)
         """
 
-        if not current_layer.isValid():
-            print("Current layer not valid")
-            return
+        # Open the raster dataset
+        dataset = gdal.Open(input_raster_path, gdal.GA_ReadOnly)
+        if not dataset:
+            raise ValueError(f"Could not open raster file: {input_raster_path}")
 
-        # Get the data provider and read the raster
-        provider = current_layer.dataProvider()
-        extent = current_layer.extent()
-        rows = current_layer.height()
-        cols = current_layer.width()
-        block = provider.block(1, extent, cols, rows)
+        # Get raster information
+        band = dataset.GetRasterBand(band_number)
+        cols = dataset.RasterXSize
+        rows = dataset.RasterYSize
+        geotransform = dataset.GetGeoTransform()
+        projection = dataset.GetProjection()
 
-        # Convert raster data to numpy array
-        data = np.zeros((rows, cols))
-        for row in range(rows):
-            for col in range(cols):
-                data[row, col] = block.value(row, col)
-
-        # Get the NoData value if it exists
-        nodata_value = provider.sourceNoDataValue(1)
+        # Read the raster data
+        data = band.ReadAsArray()
+        nodata_value = band.GetNoDataValue()
 
         # Create binary mask (1 for data, 0 for NaN or NoData)
-        mask = np.where(np.logical_or(np.isnan(data), data == nodata_value), 0, 1)
-
-        # Get raster georeference information
-        transform = [
-            extent.xMinimum(),  # x origin
-            current_layer.rasterUnitsPerPixelX(),  # pixel width
-            0,  # rotation, 0 if image is "north up"
-            extent.yMaximum(),  # y origin
-            0,  # rotation, 0 if image is "north up"
-            -current_layer.rasterUnitsPerPixelY(),  # pixel height
-        ]
+        if nodata_value is not None:
+            mask = np.where(np.logical_or(np.isnan(data), data == nodata_value), 0, 1)
+        else:
+            mask = np.where(np.isnan(data), 0, 1)
 
         def pixel_to_map_coords(row, col):
-            """Convert raster coordinates to map coordinates"""
-            x = transform[0] + col * transform[1]
-            y = transform[3] + row * transform[5]
-            return QgsPointXY(x, y)
+            """Convert raster coordinates to map coordinates using geotransform"""
+            x = geotransform[0] + col * geotransform[1] + row * geotransform[2]
+            y = geotransform[3] + col * geotransform[4] + row * geotransform[5]
+            return (x, y)
 
         def get_boundary_points():
             """Extract boundary points and their connections"""
@@ -113,49 +101,49 @@ class SG_Util:
             for row, col in zip(edge_rows, edge_cols):
                 p1 = pixel_to_map_coords(row, col + 1)
                 p2 = pixel_to_map_coords(row + 1, col + 1)
-                points.add((p1.x(), p1.y()))
-                points.add((p2.x(), p2.y()))
-                edges.append(((p1.x(), p1.y()), (p2.x(), p2.y())))
+                points.add(p1)
+                points.add(p2)
+                edges.append((p1, p2))
 
             # Process horizontal edges
             edge_rows, edge_cols = np.where(horizontal_edges != 0)
             for row, col in zip(edge_rows, edge_cols):
                 p1 = pixel_to_map_coords(row + 1, col)
                 p2 = pixel_to_map_coords(row + 1, col + 1)
-                points.add((p1.x(), p1.y()))
-                points.add((p2.x(), p2.y()))
-                edges.append(((p1.x(), p1.y()), (p2.x(), p2.y())))
+                points.add(p1)
+                points.add(p2)
+                edges.append((p1, p2))
 
             # Add raster edge connections
             for row in range(rows):
                 if mask[row, 0] == 1:  # Left edge
                     p1 = pixel_to_map_coords(row, 0)
                     p2 = pixel_to_map_coords(row + 1, 0)
-                    points.add((p1.x(), p1.y()))
-                    points.add((p2.x(), p2.y()))
-                    edges.append(((p1.x(), p1.y()), (p2.x(), p2.y())))
+                    points.add(p1)
+                    points.add(p2)
+                    edges.append((p1, p2))
 
                 if mask[row, -1] == 1:  # Right edge
                     p1 = pixel_to_map_coords(row, cols)
                     p2 = pixel_to_map_coords(row + 1, cols)
-                    points.add((p1.x(), p1.y()))
-                    points.add((p2.x(), p2.y()))
-                    edges.append(((p1.x(), p1.y()), (p2.x(), p2.y())))
+                    points.add(p1)
+                    points.add(p2)
+                    edges.append((p1, p2))
 
             for col in range(cols):
                 if mask[0, col] == 1:  # Top edge
                     p1 = pixel_to_map_coords(0, col)
                     p2 = pixel_to_map_coords(0, col + 1)
-                    points.add((p1.x(), p1.y()))
-                    points.add((p2.x(), p2.y()))
-                    edges.append(((p1.x(), p1.y()), (p2.x(), p2.y())))
+                    points.add(p1)
+                    points.add(p2)
+                    edges.append((p1, p2))
 
                 if mask[-1, col] == 1:  # Bottom edge
                     p1 = pixel_to_map_coords(rows, col)
                     p2 = pixel_to_map_coords(rows, col + 1)
-                    points.add((p1.x(), p1.y()))
-                    points.add((p2.x(), p2.y()))
-                    edges.append(((p1.x(), p1.y()), (p2.x(), p2.y())))
+                    points.add(p1)
+                    points.add(p2)
+                    edges.append((p1, p2))
 
             return points, edges
 
@@ -207,10 +195,8 @@ class SG_Util:
 
         def identify_holes(rings):
             """Identify which rings are holes in other rings"""
-            from shapely.geometry import Polygon
-
             # Convert rings to Shapely polygons
-            polygons = [Polygon(ring) for ring in rings]
+            polygons = [Polygon(ring) for ring in rings if len(ring) > 3]
 
             # Find containment relationships
             holes = []
@@ -227,20 +213,6 @@ class SG_Util:
                     exteriors.append(i)
 
             return exteriors, holes
-
-        # Create output vector layer
-        fields = QgsFields()
-        fields.append(QgsField("id", QVariant.Int))
-        fields.append(QgsField("type", QVariant.String))
-
-        vector_layer = QgsVectorLayer(
-            "MultiPolygon?crs=" + current_layer.crs().authid(),
-            current_layer.name() + "_boundary",
-            "memory",
-        )
-        provider = vector_layer.dataProvider()
-        provider.addAttributes(fields)
-        vector_layer.updateFields()
 
         # Get boundary points and edges
         points, edges = get_boundary_points()
@@ -263,89 +235,86 @@ class SG_Util:
         # Identify holes and exterior rings
         exteriors, holes = identify_holes(rings)
 
-        # Create features with proper geometry
-        features = []
-        feature_id = 1
-
-        # Group holes with their exterior rings
-        hole_map = defaultdict(list)
-        for hole_idx, exterior_idx in holes:
-            hole_map[exterior_idx].append(rings[hole_idx])
-
-        # Create multipolygon features
-        for exterior_idx in exteriors:
-            exterior_ring = rings[exterior_idx]
-            if not is_clockwise(exterior_ring):
-                exterior_ring = exterior_ring[::-1]
-
-            # Get any holes for this exterior
-            interior_rings = hole_map[exterior_idx]
-            # Ensure holes are counterclockwise
-            interior_rings = [
-                ring if is_clockwise(ring) else ring[::-1] for ring in interior_rings
-            ]
-
-            # Convert to QgsPointXY
-            exterior_points = [QgsPointXY(x, y) for x, y in exterior_ring]
-            interior_points = [
-                [QgsPointXY(x, y) for x, y in ring] for ring in interior_rings
-            ]
-
-            # Create geometry
-            feature = QgsFeature()
-            geom = QgsGeometry.fromPolygonXY([exterior_points] + interior_points)
-            feature.setGeometry(geom)
-            feature.setAttributes([feature_id, "Multipolygon boundary"])
-            features.append(feature)
-            feature_id += 1
-
-        # Add features to the layer
-        provider.addFeatures(features)
-
-        # Save the layer if output path is provided
+        # Create output shapefile if path provided
         if output_path:
-            error = QgsVectorFileWriter.writeAsVectorFormat(
-                vector_layer, output_path, "UTF-8", vector_layer.crs(), "ESRI Shapefile"
-            )
+            # Create the output driver
+            driver = ogr.GetDriverByName("ESRI Shapefile")
 
-            if error[0] != QgsVectorFileWriter.NoError:
-                print(f"Error saving vector layer: {error}")
+            # Remove existing file if it exists
+            if os.path.exists(output_path):
+                driver.DeleteDataSource(output_path)
 
-        # Add the layer to the project
-        QgsProject.instance().addMapLayer(vector_layer)
+            # Create the data source
+            data_source = driver.CreateDataSource(output_path)
 
-        return vector_layer
+            # Create spatial reference from raster projection
+            srs = osr.SpatialReference()
+            srs.ImportFromWkt(projection)
 
-    def arc_degree_to_meters(self, latitude_deg):
-        """
-        Calculate the distance in meters for 1 degree of latitude and longitude
-        at a given latitude.
+            # Create the layer
+            layer_name = os.path.splitext(os.path.basename(output_path))[0]
+            layer = data_source.CreateLayer(layer_name, srs, ogr.wkbMultiPolygon)
 
-        Parameters:
-        latitude_deg (float): Latitude in degrees
+            # Add fields
+            id_field = ogr.FieldDefn("id", ogr.OFTInteger)
+            type_field = ogr.FieldDefn("type", ogr.OFTString)
+            type_field.SetWidth(50)
 
-        Returns:
-        tuple: (dx, dy) where:
-            - dx is the east-west distance in meters for 1 degree longitude
-            - dy is the north-south distance in meters for 1 degree latitude
-        """
-        # Earth's radius in meters (WGS-84 mean radius)
-        earth_radius = 6371000
+            layer.CreateField(id_field)
+            layer.CreateField(type_field)
 
-        # Convert latitude to radians
-        latitude_rad = np.radians(latitude_deg)
+            # Group holes with their exterior rings
+            hole_map = defaultdict(list)
+            for hole_idx, exterior_idx in holes:
+                hole_map[exterior_idx].append(rings[hole_idx])
 
-        # Calculate distance for 1 degree of latitude (north-south)
-        # This is nearly constant but varies slightly with latitude
-        dy = (
-            (np.pi / 180)
-            * earth_radius
-            * (1 - 0.00669438 * np.sin(latitude_rad) ** 2) ** 0.5
-        )
+            # Create features
+            feature_id = 1
+            for exterior_idx in exteriors:
+                exterior_ring = rings[exterior_idx]
+                if not is_clockwise(exterior_ring):
+                    exterior_ring = exterior_ring[::-1]
 
-        # Calculate distance for 1 degree of longitude (east-west)
-        # This varies significantly with latitude, approaching zero at the poles
-        dx = (np.pi / 180) * earth_radius * np.cos(latitude_rad)
+                # Get any holes for this exterior
+                interior_rings = hole_map[exterior_idx]
+                # Ensure holes are counterclockwise
+                interior_rings = [
+                    ring if is_clockwise(ring) else ring[::-1]
+                    for ring in interior_rings
+                ]
 
-        return dx, dy
+                # Create OGR polygon
+                polygon = ogr.Geometry(ogr.wkbPolygon)
 
+                # Add exterior ring
+                exterior = ogr.Geometry(ogr.wkbLinearRing)
+                for x, y in exterior_ring:
+                    exterior.AddPoint(x, y)
+                polygon.AddGeometry(exterior)
+
+                # Add interior rings (holes)
+                for ring in interior_rings:
+                    interior = ogr.Geometry(ogr.wkbLinearRing)
+                    for x, y in ring:
+                        interior.AddPoint(x, y)
+                    polygon.AddGeometry(interior)
+
+                # Create feature
+                feature = ogr.Feature(layer.GetLayerDefn())
+                feature.SetGeometry(polygon)
+                feature.SetField("id", feature_id)
+                feature.SetField("type", "Multipolygon boundary")
+
+                layer.CreateFeature(feature)
+                feature = None  # Clean up
+                feature_id += 1
+
+            # Clean up
+            data_source = None
+
+            print(f"Boundary shapefile created: {output_path}")
+            return output_path
+
+        else:
+            # Return the rings data for further processing
+            return rings, exteriors, holes

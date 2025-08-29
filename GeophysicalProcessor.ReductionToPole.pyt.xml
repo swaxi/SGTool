@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<metadata xml:lang="en">
+    <Esri>
+        <CreaDate>20250820</CreaDate>
+        <CreaTime>15495500</CreaTime>
+        <ArcGISFormat>1.0</ArcGISFormat>
+        <SyncOnce>TRUE</SyncOnce>
+        <ModDate>20250820</ModDate>
+        <ModTime>16055000</ModTime>
+        <scaleRange>
+            <minScale>150000000</minScale>
+            <maxScale>5000</maxScale>
+        </scaleRange>
+        <ArcGISProfile>ItemDescription</ArcGISProfile>
+    </Esri>
+    <tool name="ReductionToPole" displayname="Reduction to Pole" toolboxalias="geophysics" xmlns="">
+        <arcToolboxHelpPath>c:\program files\arcgis\pro\Resources\Help\gp</arcToolboxHelpPath>
+        <parameters>
+            <param name="input_raster" displayname="Input Magnetic Raster" type="Required" direction="Input" datatype="Raster Layer" expression="input_raster">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Input total magnetic intensity (TMI) raster dataset for reduction to pole transformation.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="inclination" displayname="Magnetic Inclination (degrees)" type="Required" direction="Input" datatype="Double" expression="inclination">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Magnetic field inclination at survey location (-90 to +90 degrees). Obtain from IGRF model for survey date and location.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="declination" displayname="Magnetic Declination (degrees)" type="Required" direction="Input" datatype="Double" expression="declination">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Magnetic field declination at survey location (-180 to +180 degrees). Obtain from IGRF model for survey date and location.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="buffer_size" displayname="Buffer Size (pixels)" type="Optional" direction="Input" datatype="Long" expression="{buffer_size}">
+                <dialogReference>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Buffer zone size for edge effect reduction during frequency domain processing.&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</dialogReference>
+            </param>
+            <param name="output_raster" displayname="Output RTP Raster" type="Required" direction="Output" datatype="Raster Dataset" expression="output_raster"/>
+        </parameters>
+        <summary>Transform magnetic data to polar coordinates for simplified interpretation</summary>
+        <usage>&lt;DIV STYLE="text-align:Left;"&gt;&lt;DIV&gt;&lt;P&gt;&lt;SPAN&gt;Reduction to pole transforms magnetic data to appear as if measured at the magnetic pole (90° inclination). This centers magnetic anomalies directly over their causative sources and simplifies interpretation.&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Requirements:&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Accurate magnetic inclination and declination values&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Values should be from IGRF model for survey date and location&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;• Total magnetic intensity (TMI) data&lt;/SPAN&gt;&lt;/P&gt;&lt;P&gt;&lt;SPAN&gt;Warning: May be unstable at very low magnetic latitudes (|inclination| &lt; 15°)&lt;/SPAN&gt;&lt;/P&gt;&lt;/DIV&gt;&lt;/DIV&gt;</usage>
+    </tool>
+    <dataIdInfo>
+        <idCitation>
+            <resTitle>Reduction to Pole</resTitle>
+        </idCitation>
+        <idAbs>Reduction to pole transforms magnetic data to polar coordinates, centering anomalies over their sources. Essential for magnetic interpretation, especially at low magnetic latitudes.</idAbs>
+        <idPurp>Simplification of magnetic anomaly interpretation by removing effects of magnetic field inclination and declination.</idPurp>
+        <idCredit>Baranov & Naudy (1964), Blakely (1995) - Potential Theory in Gravity and Magnetic Applications</idCredit>
+        <searchKeys>
+            <keyword>reduction to pole</keyword>
+            <keyword>RTP</keyword>
+            <keyword>magnetic</keyword>
+            <keyword>TMI</keyword>
+            <keyword>inclination</keyword>
+            <keyword>declination</keyword>
+            <keyword>field transformation</keyword>
+            <keyword>geophysics</keyword>
+        </searchKeys>
+        <useLimit>Requires accurate magnetic inclination and declination values. May be unstable at very low magnetic latitudes (|inclination| &lt; 15°). High-frequency noise should be reduced before transformation.</useLimit>
+    </dataIdInfo>
+    <distInfo>
+        <distributor>
+            <distorFormat>
+                <formatName>ArcToolbox Tool</formatName>
+            </distorFormat>
+        </distributor>
+    </distInfo>
+    <mdHrLv>
+        <ScopeCd value="005"></ScopeCd>
+    </mdHrLv>
+    <mdDateSt Sync="TRUE">20250820</mdDateSt>
+</metadata>

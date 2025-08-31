@@ -12,7 +12,8 @@
       * Add ArcPro Toolbox support (very Beta!!)   
       * Remove all QGIS library calls from calc engines   
       * Fix bug in worms spatial filtering   
-      * Force processed ers output files to have tif suffix   
+      * Force processed ers output files to have tif suffix  
+      * Check for recognised CRS before processing    
       0.2.16
       * Add Euler Deconvolution from https://github.com/ffigura/Euler-deconvolution-python
       * Add Noddy grid (grv & mag) import

@@ -1537,60 +1537,63 @@ class SGTool:
                 self.diskGridPath = layer.dataProvider().dataSourceUri()
                 self.dx = layer.rasterUnitsPerPixelX()
                 self.dy = layer.rasterUnitsPerPixelY()
-                crs = int(layer.crs().authid().split(":")[1])
-
-                self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
-                shps = self.dlg.checkBox_worms_shp.isChecked()
-                if shps:
-                    try:
-                        import sklearn
-                    except ImportError:
-                        QMessageBox.information(
-                            None,  # Parent widget
-                            "",
-                            "Missing Packages for SGTool: "  # Window title
-                            + f"The following Python packages are required for conversion to shapefile, but not installed: scikit-learn\n\n"
-                            "Please open the QGIS Python Console and run the following command:\n\n"
-                            f"!pip3 install scikit-learn",  # Message text
-                            QMessageBox.Ok,  # Buttons parameter
-                        )
+                if self.layer.isValid():
+                    if not self.validCRS(self.layer):
                         return False
+                    crs = int(layer.crs().authid().split(":")[1])
 
-                # Access the raster data provider
-                provider = layer.dataProvider()
+                    self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
+                    shps = self.dlg.checkBox_worms_shp.isChecked()
+                    if shps:
+                        try:
+                            import sklearn
+                        except ImportError:
+                            QMessageBox.information(
+                                None,  # Parent widget
+                                "",
+                                "Missing Packages for SGTool: "  # Window title
+                                + f"The following Python packages are required for conversion to shapefile, but not installed: scikit-learn\n\n"
+                                "Please open the QGIS Python Console and run the following command:\n\n"
+                                f"!pip3 install scikit-learn",  # Message text
+                                QMessageBox.Ok,  # Buttons parameter
+                            )
+                            return False
 
-                # Get raster dimensions
-                cols = provider.xSize()  # Number of columns
-                rows = provider.ySize()  # Number of rows
+                    # Access the raster data provider
+                    provider = layer.dataProvider()
 
-                # Read raster data as a block
-                band = 1  # Specify the band number (1-based index)
-                raster_block = provider.block(band, provider.extent(), cols, rows)
+                    # Get raster dimensions
+                    cols = provider.xSize()  # Number of columns
+                    rows = provider.ySize()  # Number of rows
 
-                # Copy the block data into a NumPy array
-                extent = layer.extent()
-                rows, cols = layer.height(), layer.width()
-                raster_block = provider.block(1, extent, cols, rows)  # !!!!!
-                self.raster_array = np.zeros((rows, cols))
-                for i in range(rows):
-                    for j in range(cols):
-                        self.raster_array[i, j] = raster_block.value(i, j)
+                    # Read raster data as a block
+                    band = 1  # Specify the band number (1-based index)
+                    raster_block = provider.block(band, provider.extent(), cols, rows)
 
-                self.processor.bsdwormer(
-                    self.raster_array,
-                    layer,
-                    self.diskGridPath,
-                    num_levels,
-                    bottom_level,
-                    delta_z,
-                    shps,
-                    crs,
-                )
-                self.iface.messageBar().pushMessage(
-                    "Worms saved to same directory as original grid",
-                    level=Qgis.Success,
-                    duration=15,
-                )
+                    # Copy the block data into a NumPy array
+                    extent = layer.extent()
+                    rows, cols = layer.height(), layer.width()
+                    raster_block = provider.block(1, extent, cols, rows)  # !!!!!
+                    self.raster_array = np.zeros((rows, cols))
+                    for i in range(rows):
+                        for j in range(cols):
+                            self.raster_array[i, j] = raster_block.value(i, j)
+
+                    self.processor.bsdwormer(
+                        self.raster_array,
+                        layer,
+                        self.diskGridPath,
+                        num_levels,
+                        bottom_level,
+                        delta_z,
+                        shps,
+                        crs,
+                    )
+                    self.iface.messageBar().pushMessage(
+                        "Worms saved to same directory as original grid",
+                        level=Qgis.Success,
+                        duration=15,
+                    )
 
             if shps:
 
@@ -1876,6 +1879,8 @@ class SGTool:
 
             self.layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
             if self.layer.isValid():
+                if not self.validCRS(self.layer):
+                    return False
                 self.base_name = self.localGridName
 
                 self.diskGridPath = self.layer.dataProvider().dataSourceUri()
@@ -2778,6 +2783,33 @@ class SGTool:
 
         return midx, midy
 
+    def validCRS(self, layer):
+        """
+        Check if the given layer has a valid Coordinate Reference System (CRS).
+
+        Parameters:
+            layer (QgsRasterLayer or QgsVectorLayer): The layer to check.
+
+        Returns:
+            bool: True if the layer has a valid CRS, False otherwise.
+        """
+        if layer.crs().authid():
+            test_crs = layer.crs().authid().split(":")
+            if len(test_crs) != 2:
+                valid = False
+            else:
+                valid = True
+        else:
+            valid = False
+
+        if not valid:
+            self.iface.messageBar().pushMessage(
+                "This layer has an unrecognised coordinate reference system (CRS). Please set a valid CRS.",
+                level=Qgis.Warning,
+                duration=30,
+            )
+        return valid
+
     # estimate mag field from centroid of data, date and sensor height
     def update_mag_field(self):
         """
@@ -2851,38 +2883,44 @@ class SGTool:
 
                     midx, midy = self.get_grid_centroid(self.layer)
 
-                    if self.layer.crs().authid():
-                        # convert midpoint to lat/long
-                        magn_proj = self.layer.crs().authid().split(":")[1]
-                        from pyproj import CRS
+                    if self.layer.isValid():
+                        if self.layer.crs().authid():
+                            if not self.validCRS(self.layer):
+                                return False
 
-                        crs_proj = CRS.from_user_input(int(magn_proj))
-                        crs_ll = CRS.from_user_input(4326)
-                        proj = Transformer.from_crs(crs_proj, crs_ll, always_xy=True)
-                        long, lat = proj.transform(midx, midy)
+                            # convert midpoint to lat/long
+                            magn_proj = self.layer.crs().authid().split(":")[1]
+                            from pyproj import CRS
 
-                        date = self.day_month_to_decimal_year(
-                            self.magn_SurveyYear,
-                            self.magn_SurveyMonth,
-                            self.magn_SurveyDay,
-                        )
+                            crs_proj = CRS.from_user_input(int(magn_proj))
+                            crs_ll = CRS.from_user_input(4326)
+                            proj = Transformer.from_crs(
+                                crs_proj, crs_ll, always_xy=True
+                            )
+                            long, lat = proj.transform(midx, midy)
 
-                        I, D, intensity = self.calcIGRF(date, float(100.0), lat, long)
+                            date = self.day_month_to_decimal_year(
+                                self.magn_SurveyYear,
+                                self.magn_SurveyMonth,
+                                self.magn_SurveyDay,
+                            )
 
-                        self.RTE_P_inc = I
-                        self.RTE_P_dec = D
-                        self.RTE_P_int = intensity
+                            I, D, intensity = self.calcIGRF(
+                                date, float(100.0), lat, long
+                            )
 
-                        # update widgets
-                        self.dlg.lineEdit_5_dec.setText(str(round(self.RTE_P_dec, 1)))
-                        self.dlg.lineEdit_6_inc.setText(str(round(self.RTE_P_inc, 1)))
-                        self.dlg.lineEdit_6_int.setText(str(int(self.RTE_P_int)))
-                    else:
-                        self.iface.messageBar().pushMessage(
-                            "Sorry, I couldn't interpret the projection system of this layer, try either saving out grid or define the Inc/Dec manually.",
-                            level=Qgis.Warning,
-                            duration=15,
-                        )
+                            self.RTE_P_inc = I
+                            self.RTE_P_dec = D
+                            self.RTE_P_int = intensity
+
+                            # update widgets
+                            self.dlg.lineEdit_5_dec.setText(
+                                str(round(self.RTE_P_dec, 1))
+                            )
+                            self.dlg.lineEdit_6_inc.setText(
+                                str(round(self.RTE_P_inc, 1))
+                            )
+                            self.dlg.lineEdit_6_int.setText(str(int(self.RTE_P_int)))
 
     def getMagParamGeotiff(self, geotiff_path):
         """

@@ -2884,43 +2884,34 @@ class SGTool:
                     midx, midy = self.get_grid_centroid(self.layer)
 
                     if self.layer.isValid():
-                        if self.layer.crs().authid():
-                            if not self.validCRS(self.layer):
-                                return False
+                        if not self.validCRS(self.layer):
+                            return False
 
-                            # convert midpoint to lat/long
-                            magn_proj = self.layer.crs().authid().split(":")[1]
-                            from pyproj import CRS
+                        # convert midpoint to lat/long
+                        magn_proj = self.layer.crs().authid().split(":")[1]
+                        from pyproj import CRS
 
-                            crs_proj = CRS.from_user_input(int(magn_proj))
-                            crs_ll = CRS.from_user_input(4326)
-                            proj = Transformer.from_crs(
-                                crs_proj, crs_ll, always_xy=True
-                            )
-                            long, lat = proj.transform(midx, midy)
+                        crs_proj = CRS.from_user_input(int(magn_proj))
+                        crs_ll = CRS.from_user_input(4326)
+                        proj = Transformer.from_crs(crs_proj, crs_ll, always_xy=True)
+                        long, lat = proj.transform(midx, midy)
 
-                            date = self.day_month_to_decimal_year(
-                                self.magn_SurveyYear,
-                                self.magn_SurveyMonth,
-                                self.magn_SurveyDay,
-                            )
+                        date = self.day_month_to_decimal_year(
+                            self.magn_SurveyYear,
+                            self.magn_SurveyMonth,
+                            self.magn_SurveyDay,
+                        )
 
-                            I, D, intensity = self.calcIGRF(
-                                date, float(100.0), lat, long
-                            )
+                        I, D, intensity = self.calcIGRF(date, float(100.0), lat, long)
 
-                            self.RTE_P_inc = I
-                            self.RTE_P_dec = D
-                            self.RTE_P_int = intensity
+                        self.RTE_P_inc = I
+                        self.RTE_P_dec = D
+                        self.RTE_P_int = intensity
 
-                            # update widgets
-                            self.dlg.lineEdit_5_dec.setText(
-                                str(round(self.RTE_P_dec, 1))
-                            )
-                            self.dlg.lineEdit_6_inc.setText(
-                                str(round(self.RTE_P_inc, 1))
-                            )
-                            self.dlg.lineEdit_6_int.setText(str(int(self.RTE_P_int)))
+                        # update widgets
+                        self.dlg.lineEdit_5_dec.setText(str(round(self.RTE_P_dec, 1)))
+                        self.dlg.lineEdit_6_inc.setText(str(round(self.RTE_P_inc, 1)))
+                        self.dlg.lineEdit_6_int.setText(str(int(self.RTE_P_int)))
 
     def getMagParamGeotiff(self, geotiff_path):
         """

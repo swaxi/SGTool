@@ -318,3 +318,36 @@ class SG_Util:
         else:
             # Return the rings data for further processing
             return rings, exteriors, holes
+
+    def arc_degree_to_meters(self, latitude_deg):
+        """
+        Calculate the distance in meters for 1 degree of latitude and longitude
+        at a given latitude.
+
+        Parameters:
+        latitude_deg (float): Latitude in degrees
+
+        Returns:
+        tuple: (dx, dy) where:
+            - dx is the east-west distance in meters for 1 degree longitude
+            - dy is the north-south distance in meters for 1 degree latitude
+        """
+        # Earth's radius in meters (WGS-84 mean radius)
+        earth_radius = 6371000
+
+        # Convert latitude to radians
+        latitude_rad = np.radians(latitude_deg)
+
+        # Calculate distance for 1 degree of latitude (north-south)
+        # This is nearly constant but varies slightly with latitude
+        dy = (
+            (np.pi / 180)
+            * earth_radius
+            * (1 - 0.00669438 * np.sin(latitude_rad) ** 2) ** 0.5
+        )
+
+        # Calculate distance for 1 degree of longitude (east-west)
+        # This varies significantly with latitude, approaching zero at the poles
+        dx = (np.pi / 180) * earth_radius * np.cos(latitude_rad)
+
+        return dx, dy

@@ -29,7 +29,7 @@ Key optimizations:
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
-try:
+"""try:
     from numba import jit, prange
     import numba
 
@@ -38,11 +38,11 @@ try:
         # print("Numba >= 0.61.0 not available - using pure NumPy (will be slower)")
 
     else:
-        HAS_NUMBA = True
+        HAS_NUMBA = Trues
 except ImportError:
     HAS_NUMBA = False
-    print("Numba not available - using pure NumPy (will be slower)")
-
+    print("Numba not available - using pure NumPy (will be slower)")"""
+HAS_NUMBA = False
 
 def fft_pad_data(data, mode="edge"):
     """Optimized padding - unchanged from original"""

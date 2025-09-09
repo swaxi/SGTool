@@ -92,12 +92,12 @@ from .calcs.SpatialStats import SpatialStats
 from .calcs.WTMM import WTMM
 from .calcs.PCAICA import PCAICA
 from .calcs.SG_Util import SG_Util
-from .igrf.igrf_utils import igrf_utils as IGRF
+from .calcs.igrf.igrf_utils import igrf_utils as IGRF
 from .calcs.aseggdf2parser import AsegGdf2Parser
 
-from .euler.euler_python_optimised import euler_deconv_opt
-from .euler.euler_python import euler_deconv
-from .euler.estimates_statistics import window_stats
+from .calcs.euler.euler_python_optimised import euler_deconv_opt
+from .calcs.euler.euler_python import euler_deconv
+from .calcs.euler.estimates_statistics import window_stats
 
 
 class SGTool:
@@ -2997,7 +2997,7 @@ class SGTool:
         # IGRF_FILE = r"./SHC_files/IGRF" + igrf_gen + ".SHC"
         IGRF_FILE = (
             os.path.dirname(os.path.realpath(__file__))
-            + "/igrf/SHC_files/IGRF"
+            + "/calcs/igrf/SHC_files/IGRF"
             + igrf_gen
             + ".SHC"
         )

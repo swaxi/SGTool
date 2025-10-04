@@ -245,15 +245,20 @@ class SG_Util:
                 driver.DeleteDataSource(output_path)
 
             # Create the data source
-            data_source = driver.CreateDataSource(output_path)
+            file_path, layer_name = os.path.split(os.path.basename(output_path))
+            basename, file_ext = os.path.splitext(layer_name)
+            parent = os.path.dirname(output_path)
+            output_path_shp = os.path.join(parent, basename + ".shp")
+
+            data_source = driver.CreateDataSource(output_path_shp)
 
             # Create spatial reference from raster projection
             srs = osr.SpatialReference()
             srs.ImportFromWkt(projection)
 
             # Create the layer
-            layer_name = os.path.splitext(os.path.basename(output_path))[0]
-            layer = data_source.CreateLayer(layer_name, srs, ogr.wkbMultiPolygon)
+
+            layer = data_source.CreateLayer(basename, srs, ogr.wkbMultiPolygon)
 
             # Add fields
             id_field = ogr.FieldDefn("id", ogr.OFTInteger)
@@ -312,8 +317,8 @@ class SG_Util:
             # Clean up
             data_source = None
 
-            print(f"Boundary shapefile created: {output_path}")
-            return output_path
+            # print(f"Boundary shapefile created: {output_path_shp}")
+            return output_path_shp
 
         else:
             # Return the rings data for further processing

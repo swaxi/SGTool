@@ -1430,10 +1430,12 @@ class SGTool:
             output_path = self.insert_text_before_extension(
                 input_raster_path, "_boundary"
             )
-            self.SG_Util.create_data_boundary_lines(input_raster_path, output_path)
-            layer = QgsVectorLayer(output_path, self.localGridName + "_boundary")
+            output_path_shp = self.SG_Util.create_data_boundary_lines(
+                input_raster_path, output_path
+            )
+            layer = QgsVectorLayer(output_path_shp, self.localGridName + "_boundary")
             if not layer.isValid():
-                raise ValueError(f"Failed to load layer: {output_path}")
+                raise ValueError(f"Failed to load layer: {output_path_shp}")
             else:
                 # Add the layer to the current QGIS project
                 QgsProject.instance().addMapLayer(layer)

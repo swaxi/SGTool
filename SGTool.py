@@ -1539,63 +1539,62 @@ class SGTool:
                 self.diskGridPath = layer.dataProvider().dataSourceUri()
                 self.dx = layer.rasterUnitsPerPixelX()
                 self.dy = layer.rasterUnitsPerPixelY()
-                if self.layer.isValid():
-                    if not self.validCRS(self.layer):
+                if not self.validCRS(layer):
+                    return False
+                crs = int(layer.crs().authid().split(":")[1])
+
+                self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
+                shps = self.dlg.checkBox_worms_shp.isChecked()
+                if shps:
+                    try:
+                        import sklearn
+                    except ImportError:
+                        QMessageBox.information(
+                            None,  # Parent widget
+                            "",
+                            "Missing Packages for SGTool: "  # Window title
+                            + f"The following Python packages are required for conversion to shapefile, but not installed: scikit-learn\n\n"
+                            "Please open the QGIS Python Console and run the following command:\n\n"
+                            f"!pip3 install scikit-learn",  # Message text
+                            QMessageBox.Ok,  # Buttons parameter
+                        )
                         return False
-                    crs = int(layer.crs().authid().split(":")[1])
 
-                    self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
-                    shps = self.dlg.checkBox_worms_shp.isChecked()
-                    if shps:
-                        try:
-                            import sklearn
-                        except ImportError:
-                            QMessageBox.information(
-                                None,  # Parent widget
-                                "",
-                                "Missing Packages for SGTool: "  # Window title
-                                + f"The following Python packages are required for conversion to shapefile, but not installed: scikit-learn\n\n"
-                                "Please open the QGIS Python Console and run the following command:\n\n"
-                                f"!pip3 install scikit-learn",  # Message text
-                                QMessageBox.Ok,  # Buttons parameter
-                            )
-                            return False
+                # Access the raster data provider
+                provider = layer.dataProvider()
 
-                    # Access the raster data provider
-                    provider = layer.dataProvider()
+                # Get raster dimensions
+                cols = provider.xSize()  # Number of columns
+                rows = provider.ySize()  # Number of rows
 
-                    # Get raster dimensions
-                    cols = provider.xSize()  # Number of columns
-                    rows = provider.ySize()  # Number of rows
+                # Read raster data as a block
+                band = 1  # Specify the band number (1-based index)
+                raster_block = provider.block(band, provider.extent(), cols, rows)
 
-                    # Read raster data as a block
-                    band = 1  # Specify the band number (1-based index)
-                    raster_block = provider.block(band, provider.extent(), cols, rows)
+                # Copy the block data into a NumPy array
+                extent = layer.extent()
+                rows, cols = layer.height(), layer.width()
+                raster_block = provider.block(1, extent, cols, rows)  # !!!!!
+                self.raster_array = np.zeros((rows, cols))
+                for i in range(rows):
+                    for j in range(cols):
+                        self.raster_array[i, j] = raster_block.value(i, j)
 
-                    # Copy the block data into a NumPy array
-                    extent = layer.extent()
-                    rows, cols = layer.height(), layer.width()
-                    raster_block = provider.block(1, extent, cols, rows)  # !!!!!
-                    self.raster_array = np.zeros((rows, cols))
-                    for i in range(rows):
-                        for j in range(cols):
-                            self.raster_array[i, j] = raster_block.value(i, j)
-
-                    self.processor.bsdwormer(
-                        self.raster_array,
-                        layer,
-                        self.diskGridPath,
-                        num_levels,
-                        bottom_level,
-                        delta_z,
-                        shps,
-                        crs,
-                    )
-                    self.iface.messageBar().pushMessage(
-                        "Worms saved to same directory as original grid",
-                        level=Qgis.Success,
-                        duration=15,
-                    )
+                self.processor.bsdwormer(
+                    self.raster_array,
+                    layer,
+                    self.diskGridPath,
+                    num_levels,
+                    bottom_level,
+                    delta_z,
+                    shps,
+                    crs,
+                )
+                self.iface.messageBar().pushMessage(
+                    "Worms saved to same directory as original grid",
+                    level=Qgis.Success,
+                    duration=15,
+                )
 
             if shps:
 

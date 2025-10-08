@@ -1192,29 +1192,23 @@ class GeophysicalProcessor:
                     vals[: len(job.worm_ys)],
                 )
             )
+            extent2 = [
+                min(extent[0], extent[0] + (image.shape[1] * job.geomat[1])),
+                max(extent[0], extent[0] + (image.shape[1] * job.geomat[1])),
+                min(extent[3], extent[3] + (image.shape[0] * job.geomat[5])),
+                max(extent[3], extent[3] + (image.shape[0] * job.geomat[5])),
+            ]
 
             # Apply the filter conditions
             mask = (
-                (points[:, 1] >= extent[0])  # x >= extent[0]
-                & (
-                    points[:, 1] <= extent[0] + (image.shape[1] * job.geomat[1])
-                )  # x <= extent[0] + width
-                & (
-                    points[:, 0] <= extent[3] + (image.shape[0] * job.geomat[5])
-                )  # y >= extent[3] + height
-                & (points[:, 0] >= extent[3])  # y <= extent[3]
+                (points[:, 1] >= extent2[0])
+                & (points[:, 1] <= extent2[1])  # extent[1]>= y >= extent[0]
+                & (points[:, 0] >= extent2[2])
+                & (points[:, 0] <= extent2[3])  # extent[3]>= x >= extent[4]
             )
-            print(points)
 
             filtered_points = points[mask]
-            print("len filtered", len(filtered_points))
-            print(
-                "extents",
-                extent[0],
-                extent[0] + (image.shape[1] * job.geomat[1]),
-                extent[3],
-                extent[3] + (image.shape[0] * job.geomat[5]),
-            )
+
             if os.path.exists(wormsPath) and not header_written:
                 os.remove(wormsPath)
 

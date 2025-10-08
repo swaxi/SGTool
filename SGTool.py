@@ -1887,7 +1887,6 @@ class SGTool:
                 self.diskGridPath = self.layer.dataProvider().dataSourceUri()
                 self.dx = abs(self.layer.rasterUnitsPerPixelX())
                 self.dy = abs(self.layer.rasterUnitsPerPixelY())
-                print(f"Pixel spacing - dx: {self.dx}, dy: {self.dy}")
 
                 # Access the raster data provider
                 provider = self.layer.dataProvider()

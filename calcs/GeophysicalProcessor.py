@@ -1079,9 +1079,6 @@ class GeophysicalProcessor:
         buffered_data, padding_info = self.add_buffer(
             filled_data, buffer_size, buffer_method
         )
-        print(f"Original data shape: {data.shape}")
-        print(f"Original data range: {np.nanmin(data):.2f} to {np.nanmax(data):.2f}")
-        print(f"Buffered data shape: {buffered_data.shape}")
 
         # Fourier transform
         data_fft = fft2(buffered_data)

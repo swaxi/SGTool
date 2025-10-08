@@ -1886,8 +1886,10 @@ class SGTool:
                 self.base_name = self.localGridName
 
                 self.diskGridPath = self.layer.dataProvider().dataSourceUri()
-                self.dx = self.layer.rasterUnitsPerPixelX()
-                self.dy = self.layer.rasterUnitsPerPixelY()
+                self.dx = abs(self.layer.rasterUnitsPerPixelX())
+                self.dy = abs(self.layer.rasterUnitsPerPixelY())
+                print(f"Pixel spacing - dx: {self.dx}, dy: {self.dy}")
+
                 # Access the raster data provider
                 provider = self.layer.dataProvider()
 
@@ -1907,7 +1909,6 @@ class SGTool:
                 for i in range(rows):
                     for j in range(cols):
                         self.raster_array[i, j] = raster_block.value(i, j)
-
                 # Handle NoData values if needed
                 no_data_value = provider.sourceNoDataValue(1)  # Band 1
 
@@ -1921,6 +1922,7 @@ class SGTool:
             if self.buffer > int(self.dlg.lineEdit_13_max_buffer.text()):
                 self.buffer = int(self.dlg.lineEdit_13_max_buffer.text())
             self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
+
             self.convolution = ConvolutionFilter(self.raster_array)
             self.SG_Util = SG_Util(self.raster_array)
             self.SpatialStats = SpatialStats(self.raster_array)

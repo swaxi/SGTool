@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.2.17
+# Structural Geophysics Tool v0.2.18
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
@@ -8,7 +8,9 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog=0.2.17 
+# changelog=0.2.18
+      * Fix bug in Filling FFT NaNs in NS direction (Thansk Feargal!)
+      0.2.17 
       * Fix bug saving grid boundary filename
       * Add ArcPro Toolbox support (very Beta!!)   
       * Remove all QGIS library calls from calc engines   

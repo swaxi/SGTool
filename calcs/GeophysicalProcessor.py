@@ -50,10 +50,10 @@ class GeophysicalProcessor:
 
     def fill_nan(self, data):
         """
-        Replace NaN values with interpolated values from non-NaN neighbors
-        using a faster approach that works in both x and y directions.
+        Replace NaN values using 2D interpolation WITHOUT directional bias.
+        Uses griddata for true 2D interpolation instead of sequential 1D passes.
         """
-        from scipy import ndimage
+        from scipy.interpolate import griddata
 
         # Create a copy of the data
         filled_data = np.copy(data)
@@ -63,65 +63,39 @@ class GeophysicalProcessor:
         if not np.any(nan_mask) or np.all(nan_mask):
             return filled_data, nan_mask
 
-        # First, try a more direct interpolation along both axes
-        # Iterate through each row (x-direction)
-        for i in range(data.shape[0]):
-            row = filled_data[i, :]
-            mask = ~np.isnan(row)
-            indices = np.arange(len(row))
-            if np.any(mask) and not np.all(
-                mask
-            ):  # If row has some valid values but not all
-                # Linear interpolation along x-axis
-                filled_data[i, ~mask] = np.interp(
-                    indices[~mask], indices[mask], row[mask]
-                )
+        # Get coordinates of valid and invalid points
+        rows, cols = data.shape
+        y, x = np.mgrid[0:rows, 0:cols]
 
-        # Iterate through each column (y-direction)
-        for j in range(data.shape[1]):
-            col = filled_data[:, j]
-            mask = ~np.isnan(col)
-            indices = np.arange(len(col))
-            if np.any(mask) and not np.all(
-                mask
-            ):  # If column has some valid values but not all
-                # Linear interpolation along y-axis
-                filled_data[~mask, j] = np.interp(
-                    indices[~mask], indices[mask], col[mask]
-                )
+        # Valid (non-NaN) points
+        valid_mask = ~nan_mask
+        valid_points = np.column_stack((y[valid_mask].ravel(), x[valid_mask].ravel()))
+        valid_values = data[valid_mask].ravel()
 
-        # Some points might still be NaN if entire rows or columns were NaN
-        # For remaining NaNs, use the smoother approach
-        remaining_nan_mask = np.isnan(filled_data)
-        if np.any(remaining_nan_mask):
-            # Replace remaining NaNs with a placeholder value
-            filled_data[remaining_nan_mask] = 0
+        # Invalid (NaN) points to interpolate
+        invalid_points = np.column_stack((y[nan_mask].ravel(), x[nan_mask].ravel()))
 
-            # Create a mask of valid values (non-NaN)
-            valid_mask = ~remaining_nan_mask
-
-            # Use a distance-weighted interpolation approach
-            # First, generate a distance transform from valid points
-            dist = ndimage.distance_transform_edt(~valid_mask)
-
-            # Use a Gaussian filter for interpolation
-            sigma = 2.0  # Increased for better coverage
-
-            # Apply weight mask to valid data points
-            weights = np.exp(-(dist**2) / (2 * sigma**2))
-            weights[~valid_mask] = 0
-
-            # Normalize weights to sum to 1
-            weight_sum = ndimage.gaussian_filter(weights, sigma)
-            # Avoid division by zero
-            weight_sum[weight_sum == 0] = 1
-
-            # Calculate the weighted average
-            weighted_data = filled_data * weights
-            weighted_avg = ndimage.gaussian_filter(weighted_data, sigma) / weight_sum
-
-            # Only replace remaining NaN values with the interpolated values
-            filled_data[remaining_nan_mask] = weighted_avg[remaining_nan_mask]
+        # Use 2D interpolation (nearest, linear, or cubic)
+        # 'nearest' is fast and doesn't extrapolate wildly
+        # 'linear' is smoother but slower
+        try:
+            interpolated_values = griddata(
+                valid_points,
+                valid_values,
+                invalid_points,
+                method="nearest",  # Try 'nearest' if linear is too slow or unstable
+                fill_value=np.nanmean(data),  # Fallback for points outside convex hull
+            )
+            filled_data[nan_mask] = interpolated_values
+        except Exception as e:
+            print(
+                f"Warning: griddata interpolation failed ({e}), falling back to nearest neighbor"
+            )
+            # Fallback to nearest neighbor
+            interpolated_values = griddata(
+                valid_points, valid_values, invalid_points, method="nearest"
+            )
+            filled_data[nan_mask] = interpolated_values
 
         return filled_data, nan_mask
 
@@ -507,6 +481,7 @@ class GeophysicalProcessor:
         )
 
     # --- Derivatives ---
+
     def compute_derivative(
         self, data, direction, order=1, buffer_size=10, buffer_method="mirror"
     ):

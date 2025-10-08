@@ -9,7 +9,7 @@
 ![SGTools image](dialog.png)       
 
 # changelog=0.2.18
-      * Fix bug in Filling FFT NaNs in NS direction (Thansk Feargal!)
+      * Fix bug in Filling FFT NaNs in NS direction (Thanks Feargal!)
       0.2.17 
       * Fix bug saving grid boundary filename
       * Add ArcPro Toolbox support (very Beta!!)   

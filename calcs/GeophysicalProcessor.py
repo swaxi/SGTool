@@ -1098,10 +1098,7 @@ class GeophysicalProcessor:
         buffer_removed_data = self.remove_buffer(
             filtered_data, buffer_size, padding_info
         )
-        print(f"Final result shape: {buffer_removed_data.shape}")
-        print(
-            f"Final result range: {np.nanmin(buffer_removed_data):.2f} to {np.nanmax(buffer_removed_data):.2f}"
-        )
+
         return self.restore_nan(buffer_removed_data, nan_mask)
 
     def bsdwormer(

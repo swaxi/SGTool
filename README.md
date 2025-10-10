@@ -8,11 +8,11 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog=0.2.18
-      * Fix (again) clipping of csv worms
-      * Fix bug in Filling FFT NaNs in NS direction (Thanks Feargal!)
-      0.2.17 
-      * Fix bug saving grid boundary filename
+# changelog=0.2.18   
+      * Fix (again) clipping of csv worms   
+      * Fix bug in Filling FFT NaNs in NS direction (Thanks Feargal!)   
+      0.2.17    
+      * Fix bug saving grid boundary filename   
       * Add ArcPro Toolbox support (very Beta!!)   
       * Remove all QGIS library calls from calc engines   
       * Fix bug in worms spatial filtering   

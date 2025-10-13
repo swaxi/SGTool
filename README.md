@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.2.18
+# Structural Geophysics Tool v0.2.19
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
@@ -8,7 +8,8 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog=0.2.18   
+# changelog=0.2.19   
+      0.2.18    
       * Fix (again) clipping of csv worms   
       * Fix bug in Filling FFT NaNs in NS direction (Thanks Feargal!)   
       0.2.17    

@@ -628,7 +628,7 @@ class SGTool:
             "Zenith angle for sun shading\n90 = directly overhead, 0 = horizon"
         )
         self.dlg.checkBox_relief.setToolTip(
-            "Uses Grass-like shading algortthm for softer shading"
+            "Uses Grass-like shading algorithm for softer shading"
         )
 
     def initParams(self):

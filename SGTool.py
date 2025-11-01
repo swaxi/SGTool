@@ -59,6 +59,42 @@ from qgis.PyQt.QtCore import (
     QUrl,
 )
 
+
+# Qt5/Qt6 Compatibility Layer
+try:
+    # Try Qt6 style first
+    _test = Qt.DockWidgetArea.RightDockWidgetArea
+    # Qt6 detected
+    QT6 = True
+
+    # Qt6 style enums are already available
+    RightDockWidgetArea = Qt.DockWidgetArea.RightDockWidgetArea
+    LeftDockWidgetArea = Qt.DockWidgetArea.LeftDockWidgetArea
+    TopDockWidgetArea = Qt.DockWidgetArea.TopDockWidgetArea
+    BottomDockWidgetArea = Qt.DockWidgetArea.BottomDockWidgetArea
+
+    # QMessageBox buttons
+    QMessageBox_Ok = QMessageBox.StandardButton.Ok
+    QMessageBox_Cancel = QMessageBox.StandardButton.Cancel
+    QMessageBox_Yes = QMessageBox.StandardButton.Yes
+    QMessageBox_No = QMessageBox.StandardButton.No
+
+except AttributeError:
+    # Qt5 detected
+    QT6 = False
+
+    # Qt5 style enums
+    RightDockWidgetArea = Qt.RightDockWidgetArea
+    LeftDockWidgetArea = Qt.LeftDockWidgetArea
+    TopDockWidgetArea = Qt.TopDockWidgetArea
+    BottomDockWidgetArea = Qt.BottomDockWidgetArea
+
+    # QMessageBox buttons
+    QMessageBox_Ok = QMessageBox.Ok
+    QMessageBox_Cancel = QMessageBox.Cancel
+    QMessageBox_Yes = QMessageBox.Yes
+    QMessageBox_No = QMessageBox.No
+
 # from PyQt5.QtGui import QValidator
 
 import re
@@ -911,7 +947,7 @@ class SGTool:
                     "",
                     "Missing Plugin for SGTool: "  # Window title
                     + f"sagang multilevelbspline algorithm not found.\nTry installing the Plugin: Saga Processing Saga NextGen Provider\n\n",
-                    QMessageBox.StandardButton.Ok,  # Buttons parameter
+                    QMessageBox_Ok,  # Buttons parameter
                 )
 
         except Exception as e:
@@ -1304,7 +1340,7 @@ class SGTool:
                 + f"The following Python packages are required for PCAs, but not installed: scikit-learn\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install scikit-learn",  # Message text
-                QMessageBox.StandardButton.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
         self.suffix = "_PCA"
@@ -1402,7 +1438,7 @@ class SGTool:
                 + f"The following Python packages are required for ICAs, but not installed: scikit-learn\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install scikit-learn",  # Message text
-                QMessageBox.StandardButton.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
         self.suffix = "_ICA"
@@ -1563,7 +1599,7 @@ class SGTool:
                             + f"The following Python packages are required for conversion to shapefile, but not installed: scikit-learn\n\n"
                             "Please open the QGIS Python Console and run the following command:\n\n"
                             f"!pip3 install scikit-learn",  # Message text
-                            QMessageBox.StandardButton.Ok,  # Buttons parameter
+                            QMessageBox_Ok,  # Buttons parameter
                         )
                         return False
 
@@ -1690,7 +1726,7 @@ class SGTool:
                 + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install matplotlib",  # Message text
-                QMessageBox.StandardButton.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
 
@@ -3153,7 +3189,7 @@ class SGTool:
                 + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install matplotlib",  # Message text
-                QMessageBox.StandardButton.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
 
@@ -3168,7 +3204,7 @@ class SGTool:
                 + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install matplotlib",  # Message text
-                QMessageBox.StandardButton.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
 
@@ -3397,13 +3433,12 @@ class SGTool:
             # show the dockwidget
             # TODO: fix to allow choice of dock location
             # QT5 self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dlg)
-            self.iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dlg)
+            self.iface.addDockWidget(RightDockWidgetArea, self.dlg)
             # Find existing dock widgets in the right area
             right_docks = [
                 d
                 for d in self.iface.mainWindow().findChildren(QDockWidget)
-                if self.iface.mainWindow().dockWidgetArea(d)
-                == Qt.DockWidgetArea.RightDockWidgetArea
+                if self.iface.mainWindow().dockWidgetArea(d) == RightDockWidgetArea
             ]
             # If there are other dock widgets, tab this one with the first one found
             if right_docks:
@@ -4501,7 +4536,7 @@ class SGTool:
                 + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install matplotlib",  # Message text
-                QMessageBox.StandardButton.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
 
@@ -4567,7 +4602,7 @@ class SGTool:
                 + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install matplotlib",  # Message text
-                QMessageBox.StandardButton.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
 
@@ -4727,7 +4762,7 @@ class SGTool:
                 + f"The following Python packages are required for some functions, but not installed: PyWavelets\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install PyWavelets",  # Message text
-                QMessageBox.StandardButton.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
 
@@ -4742,7 +4777,7 @@ class SGTool:
                 + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install matplotlib",  # Message text
-                QMessageBox.StandardButton.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
 

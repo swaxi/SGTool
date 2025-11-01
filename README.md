@@ -9,6 +9,8 @@
 ![SGTools image](dialog.png)       
 
 # changelog=0.2.19   
+      * Compatibility with both QGIS4/QT6 and QGIS3/QT5   
+      * Add RGB triplets as LUT definition for RGB to greyscale convertor   
       0.2.18    
       * Fix (again) clipping of csv worms   
       * Fix bug in Filling FFT NaNs in NS direction (Thanks Feargal!)   

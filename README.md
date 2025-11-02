@@ -43,8 +43,8 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
 # Installation
 ## QGIS:
 1) Either:   
-- Download the zip file from the green **<> Code** button and install the zip file in QGIS using the plugin manager for the version on github or   
-- Install directly from the QGIS plugin manager from the plugin repository   
+- Download the zip file from the green **<> Code** button and install the zip file in QGIS 3.xx using the plugin manager for the version on github or   
+download the zip file of this repository (QT6 branch) and use Install in QGIS 3.xx QGIS 4.xx from Zip file in the QGIS Plugin Manager.  
 2) If you get an warning of the type **The following Python packages are required but not installed: scikit-learn** or any other module name you can install it directly from the QGIS Python Console (Menu Plugins->Python Console) and then type in (for the scikit-learn example):   
    
    **!pip3 install scikit-learn**   

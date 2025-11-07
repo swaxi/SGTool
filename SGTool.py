@@ -22,7 +22,7 @@
  ***************************************************************************/
 """
 
-from qgis.PyQt.QtGui import QIcon, QDesktopServices
+from qgis.PyQt.QtGui import QIcon, QDesktopServices, QValidator
 from qgis.PyQt.QtWidgets import QAction, QDockWidget, QFileDialog, QMessageBox
 from qgis.core import (
     Qgis,
@@ -58,7 +58,44 @@ from qgis.PyQt.QtCore import (
     Qt,
     QUrl,
 )
-from PyQt5.QtGui import QValidator
+
+
+# Qt5/Qt6 Compatibility Layer
+try:
+    # Try Qt6 style first
+    _test = Qt.DockWidgetArea.RightDockWidgetArea
+    # Qt6 detected
+    QT6 = True
+
+    # Qt6 style enums are already available
+    RightDockWidgetArea = Qt.DockWidgetArea.RightDockWidgetArea
+    LeftDockWidgetArea = Qt.DockWidgetArea.LeftDockWidgetArea
+    TopDockWidgetArea = Qt.DockWidgetArea.TopDockWidgetArea
+    BottomDockWidgetArea = Qt.DockWidgetArea.BottomDockWidgetArea
+
+    # QMessageBox buttons
+    QMessageBox_Ok = QMessageBox.StandardButton.Ok
+    QMessageBox_Cancel = QMessageBox.StandardButton.Cancel
+    QMessageBox_Yes = QMessageBox.StandardButton.Yes
+    QMessageBox_No = QMessageBox.StandardButton.No
+
+except AttributeError:
+    # Qt5 detected
+    QT6 = False
+
+    # Qt5 style enums
+    RightDockWidgetArea = Qt.RightDockWidgetArea
+    LeftDockWidgetArea = Qt.LeftDockWidgetArea
+    TopDockWidgetArea = Qt.TopDockWidgetArea
+    BottomDockWidgetArea = Qt.BottomDockWidgetArea
+
+    # QMessageBox buttons
+    QMessageBox_Ok = QMessageBox.Ok
+    QMessageBox_Cancel = QMessageBox.Cancel
+    QMessageBox_Yes = QMessageBox.Yes
+    QMessageBox_No = QMessageBox.No
+
+# from PyQt5.QtGui import QValidator
 
 import re
 import os.path
@@ -456,10 +493,10 @@ class SGTool:
             "Select RGB image that you want to convert to a monotonic grayscale image"
         )
         self.dlg.textEdit_2_colour_list.setToolTip(
-            "Comma separated list of CSS colours"
+            "Comma separated list of CSS colours\nOR a set of comma seperated RBG triplets"
         )
         self.dlg.groupBox_7.setToolTip(
-            "1) Load a RGB raster image,\n2) Define a Look Up Table by defining a comma separated sequence of colours using CSS colour names and\n3) Convert to monotonically increasing greyscale image\n\nDo not use if any shading has been applied to the image!"
+            "1) Load a RGB raster image,\n2) Define a Look Up Table by defining a comma separated sequence of colours using CSS colour names OR a set of comma seperated RBG triplets and\n3) Convert to monotonically increasing greyscale image\n\nDo not use if any shading has been applied to the image!"
         )
         self.dlg.mQgsDoubleSpinBox_LUT_min.setToolTip(
             "Define min and max values for rescaling of grid values"
@@ -876,10 +913,14 @@ class SGTool:
                 gridder.launch_idw_dialog(input, zcolumn, cell_size, mask)
             else:
                 self.iface.messageBar().pushMessage(
-                    "Error", "GRASS v.surf.rst algorithm not found.", level=3
+                    "Error",
+                    "GRASS v.surf.rst algorithm not found.",
+                    level=Qgis.MessageLevel.Critical,
                 )
         except Exception as e:
-            self.iface.messageBar().pushMessage("Error", str(e), level=3)
+            self.iface.messageBar().pushMessage(
+                "Error", str(e), level=Qgis.MessageLevel.Critical
+            )
 
     def procmultibsplineGridding(self):
         gridder = QGISGridData(self.iface)
@@ -906,11 +947,13 @@ class SGTool:
                     "",
                     "Missing Plugin for SGTool: "  # Window title
                     + f"sagang multilevelbspline algorithm not found.\nTry installing the Plugin: Saga Processing Saga NextGen Provider\n\n",
-                    QMessageBox.Ok,  # Buttons parameter
+                    QMessageBox_Ok,  # Buttons parameter
                 )
 
         except Exception as e:
-            self.iface.messageBar().pushMessage("Error", str(e), level=3)
+            self.iface.messageBar().pushMessage(
+                "Error", str(e), level=Qgis.MessageLevel.Critical
+            )
 
     def get_layer_path_by_name(self, layer_name):
         """
@@ -1297,7 +1340,7 @@ class SGTool:
                 + f"The following Python packages are required for PCAs, but not installed: scikit-learn\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install scikit-learn",  # Message text
-                QMessageBox.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
         self.suffix = "_PCA"
@@ -1395,7 +1438,7 @@ class SGTool:
                 + f"The following Python packages are required for ICAs, but not installed: scikit-learn\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install scikit-learn",  # Message text
-                QMessageBox.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
         self.suffix = "_ICA"
@@ -1556,7 +1599,7 @@ class SGTool:
                             + f"The following Python packages are required for conversion to shapefile, but not installed: scikit-learn\n\n"
                             "Please open the QGIS Python Console and run the following command:\n\n"
                             f"!pip3 install scikit-learn",  # Message text
-                            QMessageBox.Ok,  # Buttons parameter
+                            QMessageBox_Ok,  # Buttons parameter
                         )
                         return False
 
@@ -1683,7 +1726,7 @@ class SGTool:
                 + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install matplotlib",  # Message text
-                QMessageBox.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
 
@@ -3146,7 +3189,7 @@ class SGTool:
                 + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install matplotlib",  # Message text
-                QMessageBox.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
 
@@ -3161,7 +3204,7 @@ class SGTool:
                 + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install matplotlib",  # Message text
-                QMessageBox.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
 
@@ -3389,13 +3432,13 @@ class SGTool:
 
             # show the dockwidget
             # TODO: fix to allow choice of dock location
-            self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dlg)
-
+            # QT5 self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dlg)
+            self.iface.addDockWidget(RightDockWidgetArea, self.dlg)
             # Find existing dock widgets in the right area
             right_docks = [
                 d
                 for d in self.iface.mainWindow().findChildren(QDockWidget)
-                if self.iface.mainWindow().dockWidgetArea(d) == Qt.RightDockWidgetArea
+                if self.iface.mainWindow().dockWidgetArea(d) == RightDockWidgetArea
             ]
             # If there are other dock widgets, tab this one with the first one found
             if right_docks:
@@ -3505,7 +3548,11 @@ class SGTool:
             if self.localGridName:
                 selected_layer = QgsProject.instance().mapLayersByName(
                     self.localGridName
-                )[0]
+                )
+                if not selected_layer:
+                    return
+
+                selected_layer = selected_layer[0]
                 crs = selected_layer.crs()
                 if crs.isGeographic():
                     self.dlg.label_41_units.setText("Units: deg")
@@ -3744,11 +3791,15 @@ class SGTool:
         if self.dlg.mMapLayerComboBox_selectGrid_3.count() > 0:
 
             self.selectedPoints = self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
-            selected_layer = QgsProject.instance().mapLayersByName(self.selectedPoints)[
-                0
-            ]
-            if selected_layer.isValid():
 
+            layers = QgsProject.instance().mapLayersByName(self.selectedPoints)
+
+            if not layers:
+                return
+
+            selected_layer = layers[0]
+
+            if selected_layer.isValid():
                 field_names = self.get_layer_fields(selected_layer)
                 self.dlg.comboBox_select_grid_data_field.clear()
                 self.dlg.comboBox_select_grid_data_field.addItems(field_names)
@@ -3803,9 +3854,12 @@ class SGTool:
         if self.dlg.mMapLayerComboBox_selectGrid_3.count() > 0:
 
             self.selectedPoints = self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
-            selected_layer = QgsProject.instance().mapLayersByName(self.selectedPoints)[
-                0
-            ]
+            selected_layer = QgsProject.instance().mapLayersByName(self.selectedPoints)
+            if not selected_layer:
+                return
+
+            selected_layer = selected_layer[0]
+
             if selected_layer.isValid():
 
                 extent = selected_layer.extent()
@@ -4306,11 +4360,14 @@ class SGTool:
         rgb_raster = np.dstack((red, green, blue))
 
         # Parse the LUT
+
         LUT = LUT.replace(" ", "")
-        css_color_list = LUT.split(",")
+        lut = self.parse_lut_string(LUT, num_entries=1024)
+
+        """css_color_list = LUT.split(",")
         css_color_list.reverse()
 
-        lut = self.generate_rgb_lut(css_color_list, num_entries=1024)
+        lut = self.generate_rgb_lut(css_color_list, num_entries=1024)"""
         if not lut:
             print("Couldn't generate LUT")
             return False, False
@@ -4382,6 +4439,147 @@ class SGTool:
         result = True
         return result, RGBGridPath_gray
 
+    def parse_lut_string(self, LUT, num_entries=1024):
+        """
+        Parse a LUT string and generate the appropriate RGB LUT.
+
+        Parameters:
+            LUT (str): String containing either CSS color names or RGB triplets
+                    Examples:
+                    - "red,green,blue"
+                    - "(255,0,0),(0,255,0),(0,0,255)"
+                    - "255,0,0,0,255,0,0,0,255"
+                    - "(1.0,0,0),(0,1.0,0),(0,0,1.0)"
+            num_entries (int): Number of entries in the LUT
+
+        Returns:
+            list: LUT list or False if parsing fails
+        """
+        import re
+
+        # Remove spaces
+        LUT = LUT.replace(" ", "")
+
+        # Try to detect format and parse accordingly
+
+        # Check for parentheses format: (R,G,B),(R,G,B)
+        if "(" in LUT:
+            rgb_pattern = r"\(([^)]+)\)"
+            matches = re.findall(rgb_pattern, LUT)
+
+            if matches:
+                rgb_list = []
+                for match in matches:
+                    values = match.split(",")
+                    try:
+                        # Convert to floats (works for both int and float values)
+                        if len(values) >= 3:
+                            rgb = tuple(float(v) for v in values[:3])
+                            rgb_list.append(rgb)
+                        else:
+                            raise ValueError("Not enough values for RGB")
+                    except ValueError:
+                        # Failed to parse as numbers, fall back to CSS colors
+                        break
+                else:
+                    # Successfully parsed all as RGB
+                    rgb_list.reverse()
+                    return self.generate_rgb_lut_from_rgb(rgb_list, num_entries)
+
+        # Try flat number format or CSS colors
+        elements = LUT.split(",")
+
+        # First, try to parse as numbers
+        try:
+            numbers = [float(elem) for elem in elements]
+
+            # Check if we have RGB triplets (multiple of 3)
+            if len(numbers) >= 3 and len(numbers) % 3 == 0:
+                # Group into RGB triplets
+                rgb_list = []
+                for i in range(0, len(numbers), 3):
+                    rgb = tuple(numbers[i : i + 3])
+                    rgb_list.append(rgb)
+
+                rgb_list.reverse()
+                return self.generate_rgb_lut_from_rgb(rgb_list, num_entries)
+        except ValueError:
+            # Not all numbers, continue to CSS parsing
+            pass
+
+        # Default to CSS color names
+        css_color_list = elements
+        css_color_list.reverse()
+        return self.generate_rgb_lut(css_color_list, num_entries)
+
+    def generate_rgb_lut_from_rgb(self, rgb_list, num_entries=1024):
+        """
+        Generate an RGB LUT list from a list of RGB triplets.
+
+        Parameters:
+            rgb_list (list): List of RGB triplets. Each triplet can be:
+                            - (R, G, B) where R, G, B are 0-255 integers
+                            - (R, G, B) where R, G, B are 0-1 floats
+                            - [R, G, B] lists work too
+            num_entries (int): Total number of entries in the LUT.
+
+        Returns:
+            list: List of [decimal index, (R, G, B)] where R, G, B are 0-255 integers.
+        """
+        try:
+            import matplotlib.colors as mcolors
+        except ImportError:
+            QMessageBox.information(
+                None,  # Parent widget
+                "",
+                "Missing Packages for SGTool: "  # Window title
+                + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
+                "Please open the QGIS Python Console and run the following command:\n\n"
+                f"!pip3 install matplotlib",  # Message text
+                QMessageBox_Ok,  # Buttons parameter
+            )
+            return False
+
+        # Normalize RGB values to 0-1 range if needed
+        normalized_rgb_list = []
+        for rgb in rgb_list:
+            r, g, b = rgb[0], rgb[1], rgb[2]
+
+            # Check if values are in 0-255 range (integers or floats > 1)
+            if any(val > 1 for val in [r, g, b]):
+                # Normalize from 0-255 to 0-1
+                normalized_rgb = (r / 255.0, g / 255.0, b / 255.0)
+            else:
+                # Already in 0-1 range
+                normalized_rgb = (r, g, b)
+
+            normalized_rgb_list.append(normalized_rgb)
+
+        # Normalize indices to decimal values between 0 and 1
+        decimal_indices = np.linspace(0, 1, num_entries)
+
+        # Create a continuous colormap using the normalized RGB list
+        try:
+            cmap = mcolors.LinearSegmentedColormap.from_list(
+                "custom_cmap", normalized_rgb_list
+            )
+        except:
+            return False
+
+        # Generate RGB values for each index
+        rgb_colors = [cmap(i)[:3] for i in decimal_indices]
+        rgb_colors_255 = [
+            (int(r * 255), int(g * 255), int(b * 255)) for r, g, b in rgb_colors
+        ]
+
+        # Combine decimal indices and RGB tuples
+        lut = [
+            [round(decimal_index, 6), rgb]
+            for decimal_index, rgb in zip(decimal_indices, rgb_colors_255)
+        ]
+
+        return lut
+
     def generate_rgb_lut(self, css_color_list, num_entries=1024):
         """
         Generate an RGB LUT list from a list of CSS color names.
@@ -4404,7 +4602,7 @@ class SGTool:
                 + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install matplotlib",  # Message text
-                QMessageBox.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
 
@@ -4564,7 +4762,7 @@ class SGTool:
                 + f"The following Python packages are required for some functions, but not installed: PyWavelets\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install PyWavelets",  # Message text
-                QMessageBox.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
 
@@ -4579,7 +4777,7 @@ class SGTool:
                 + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install matplotlib",  # Message text
-                QMessageBox.Ok,  # Buttons parameter
+                QMessageBox_Ok,  # Buttons parameter
             )
             return False
 
@@ -5034,7 +5232,12 @@ class SGTool:
 
         if self.dlg.mMapLayerComboBox_selectVectors.currentText() != "":
             line_layer_name = self.dlg.mMapLayerComboBox_selectVectors.currentText()
-            line_layer = QgsProject.instance().mapLayersByName(line_layer_name)[0]
+            line_layer = QgsProject.instance().mapLayersByName(line_layer_name)
+            if not line_layer:
+                return
+
+            line_layer = line_layer[0]
+
             self.dlg.mFieldComboBox_data.setEnabled(True)
 
             if line_layer.geometryType() == QgsWkbTypes.PointGeometry:

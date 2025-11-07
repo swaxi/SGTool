@@ -2792,7 +2792,7 @@ font-size: 13px;
        <rect>
         <x>10</x>
         <y>40</y>
-        <width>461</width>
+        <width>561</width>
         <height>81</height>
        </rect>
       </property>
@@ -2930,7 +2930,7 @@ font-size: 13px;
        <rect>
         <x>10</x>
         <y>230</y>
-        <width>551</width>
+        <width>561</width>
         <height>121</height>
        </rect>
       </property>
@@ -3069,7 +3069,7 @@ font-size: 13px;
        <rect>
         <x>10</x>
         <y>130</y>
-        <width>461</width>
+        <width>561</width>
         <height>61</height>
        </rect>
       </property>

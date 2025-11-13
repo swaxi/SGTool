@@ -24,6 +24,7 @@ def get_processor_class():
 
         # Verify the GeophysicalProcessor.py file exists
         gp_file = os.path.join(calcs_dir, "GeophysicalProcessor.py")
+
         if not os.path.exists(gp_file):
             arcpy.AddError(f"GeophysicalProcessor.py not found at: {gp_file}")
             return None
@@ -71,6 +72,7 @@ def get_processor_class():
 
         # Create execution namespace with required dependencies
         namespace = {
+            "__package__": "calcs",  # This is important for relative imports
             "__name__": "GeophysicalProcessor",
             "__file__": gp_file,
             "np": np,

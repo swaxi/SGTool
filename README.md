@@ -9,6 +9,7 @@
 ![SGTools image](dialog.png)       
 
 # changelog=0.2.19   
+      * Update IGRF to allow up to 2030    
       * Move Euler and IGRF to calcs directory   
       * Compatibility with both QGIS4/QT6 and QGIS3/QT5   
       * Add RGB triplets as LUT definition for RGB to greyscale convertor   

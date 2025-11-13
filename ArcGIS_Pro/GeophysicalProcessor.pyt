@@ -18,9 +18,9 @@ def get_processor_class():
 
     try:
         # Get directories
-        toolbox_dir = os.path.dirname(os.path.abspath(__file__))
+        toolbox_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         calcs_dir = os.path.join(toolbox_dir, "calcs")
-        worms_dir = os.path.join(toolbox_dir, "worms")  # worms is at same level as .pyt
+        worms_dir = os.path.join(toolbox_dir, "calcs/worms")
 
         # Verify the GeophysicalProcessor.py file exists
         gp_file = os.path.join(calcs_dir, "GeophysicalProcessor.py")
@@ -39,14 +39,6 @@ def get_processor_class():
         # Read and modify the file content to handle relative imports
         with open(gp_file, "r", encoding="utf-8") as f:
             content = f.read()
-
-        # Replace problematic relative imports
-        content = content.replace(
-            "from .worms.wormer import Wormer", "# from ..worms.wormer import Wormer"
-        )
-        content = content.replace(
-            "from .worms.Utility import", "# from ..worms.Utility import"
-        )
 
         # Handle multi-line imports from worms.Utility
         lines = content.split("\n")

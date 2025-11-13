@@ -646,6 +646,7 @@ class ConvolutionSunShading(object):
         input_raster = parameters[0].valueAsText
         sun_alt = float(parameters[1].value)
         sun_az = float(parameters[2].value)
+        sun_az = 180 - sun_az
         output_raster = parameters[3].valueAsText
 
         def _run(array, dx, dy):

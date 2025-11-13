@@ -4,6 +4,8 @@ import arcpy
 import numpy as np
 import os
 import sys
+from calcs.SpatialStats import SpatialStats
+from calcs.ConvolutionFilter import ConvolutionFilter
 
 # Global variable to store the processor class
 GeophysicalProcessor = None
@@ -174,6 +176,488 @@ def get_processor_class():
         return None
 
 
+# Generic helper for array-in / array-out tools
+def run_array_tool(input_raster, output_raster, func):
+    """
+    Generic helper for tools that:
+      - take a single input raster
+      - call a function on a NumPy array
+      - return a NumPy array of the same shape
+
+    func(array, dx, dy) -> result_array
+    """
+    # Describe raster
+    desc = arcpy.Describe(input_raster)
+    extent = desc.extent
+    dx = desc.meanCellWidth
+    dy = desc.meanCellHeight
+    spatial_ref = desc.spatialReference
+
+    # Read raster into array (NoData -> NaN)
+    array = arcpy.RasterToNumPyArray(input_raster, nodata_to_value=np.nan)
+
+    # Run the user-supplied function
+    result = func(array, dx, dy)
+
+    # Replace NaNs with a nodata value and write out
+    result_clean = np.where(np.isnan(result), -9999, result)
+    lower_left = arcpy.Point(extent.XMin, extent.YMin)
+    actual_dy = dy if dy > 0 else -dy
+
+    raster = arcpy.NumPyArrayToRaster(result_clean, lower_left, dx, actual_dy, -9999)
+    arcpy.DefineProjection_management(raster, spatial_ref)
+    raster.save(output_raster)
+
+
+class SpatialStatsBase(object):
+    """
+    Base class for windowed spatial statistics (circular window).
+    Subclasses must set STAT_TYPE, LABEL, DESC.
+    """
+
+    STAT_TYPE = None
+    LABEL = "Spatial Stats"
+    DESC = "Windowed spatial statistic"
+
+    def __init__(self):
+        if SpatialStats is None:
+            raise ImportError(
+                "SpatialStats class could not be imported. "
+                "Check that calcs/SpatialStats.py is accessible."
+            )
+        self.label = self.LABEL
+        self.description = self.DESC
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        params = []
+
+        # 0 - Input raster
+        params.append(
+            arcpy.Parameter(
+                displayName="Input Raster",
+                name="input_raster",
+                datatype="GPRasterLayer",
+                parameterType="Required",
+                direction="Input",
+            )
+        )
+
+        # 1 - Window size
+        win_param = arcpy.Parameter(
+            displayName="Window size (odd number of cells)",
+            name="window_size",
+            datatype="GPLong",
+            parameterType="Required",
+            direction="Input",
+        )
+        win_param.value = 3
+        params.append(win_param)
+
+        # 2 - Output raster
+        params.append(
+            arcpy.Parameter(
+                displayName="Output Raster",
+                name="output_raster",
+                datatype="DERasterDataset",
+                parameterType="Required",
+                direction="Output",
+            )
+        )
+
+        return params
+
+    def execute(self, parameters, messages):
+        if self.STAT_TYPE is None:
+            raise arcpy.ExecuteError(
+                "STAT_TYPE not defined for this SpatialStats tool."
+            )
+
+        input_raster = parameters[0].valueAsText
+        window_size = int(parameters[1].value)
+        output_raster = parameters[2].valueAsText
+
+        if window_size % 2 == 0:
+            raise arcpy.ExecuteError("Window size must be an odd integer.")
+
+        def _run(array, dx, dy):
+            stats_obj = SpatialStats(array)
+            return stats_obj.calculate_windowed_stats(
+                window_size=window_size, stat_type=self.STAT_TYPE
+            )
+
+        run_array_tool(input_raster, output_raster, _run)
+
+
+class SpatialStatsVariance(SpatialStatsBase):
+    STAT_TYPE = "variance"
+    LABEL = "Spatial Stats - Variance"
+    DESC = "Windowed variance using a circular neighbourhood."
+
+
+class SpatialStatsStdDev(SpatialStatsBase):
+    STAT_TYPE = "std"
+    LABEL = "Spatial Stats - Standard Deviation"
+    DESC = "Windowed standard deviation using a circular neighbourhood."
+
+
+class SpatialStatsSkewness(SpatialStatsBase):
+    STAT_TYPE = "skewness"
+    LABEL = "Spatial Stats - Skewness"
+    DESC = "Windowed skewness using a circular neighbourhood."
+
+
+class SpatialStatsKurtosis(SpatialStatsBase):
+    STAT_TYPE = "kurtosis"
+    LABEL = "Spatial Stats - Kurtosis"
+    DESC = "Windowed kurtosis using a circular neighbourhood."
+
+
+class SpatialStatsMin(SpatialStatsBase):
+    STAT_TYPE = "min"
+    LABEL = "Spatial Stats - Minimum"
+    DESC = "Windowed minimum using a circular neighbourhood."
+
+
+class SpatialStatsMax(SpatialStatsBase):
+    STAT_TYPE = "max"
+    LABEL = "Spatial Stats - Maximum"
+    DESC = "Windowed maximum using a circular neighbourhood."
+
+
+class ConvolutionMeanFilter(object):
+    def __init__(self):
+        if ConvolutionFilter is None:
+            raise ImportError(
+                "ConvolutionFilter class could not be imported. "
+                "Check that calcs/ConvolutionFilter.py is accessible."
+            )
+        self.label = "Convolution - Mean Filter"
+        self.description = "Mean (boxcar) filter with NaN-aware averaging."
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        params = []
+
+        # 0 - Input raster
+        params.append(
+            arcpy.Parameter(
+                displayName="Input Raster",
+                name="input_raster",
+                datatype="GPRasterLayer",
+                parameterType="Required",
+                direction="Input",
+            )
+        )
+
+        # 1 - Kernel size
+        size_param = arcpy.Parameter(
+            displayName="Kernel size (n x n, odd)",
+            name="kernel_size",
+            datatype="GPLong",
+            parameterType="Required",
+            direction="Input",
+        )
+        size_param.value = 3
+        params.append(size_param)
+
+        # 2 - Output raster
+        params.append(
+            arcpy.Parameter(
+                displayName="Output Raster",
+                name="output_raster",
+                datatype="DERasterDataset",
+                parameterType="Required",
+                direction="Output",
+            )
+        )
+
+        return params
+
+    def execute(self, parameters, messages):
+        input_raster = parameters[0].valueAsText
+        kernel_size = int(parameters[1].value)
+        output_raster = parameters[2].valueAsText
+
+        if kernel_size % 2 == 0:
+            raise arcpy.ExecuteError("Kernel size must be an odd integer.")
+
+        def _run(array, dx, dy):
+            conv = ConvolutionFilter(array)
+            return conv.mean_filter(kernel_size)
+
+        run_array_tool(input_raster, output_raster, _run)
+
+
+class ConvolutionMedianFilter(object):
+    def __init__(self):
+        if ConvolutionFilter is None:
+            raise ImportError(
+                "ConvolutionFilter class could not be imported. "
+                "Check that calcs/ConvolutionFilter.py is accessible."
+            )
+        self.label = "Convolution - Median Filter"
+        self.description = "Median filter with NaN-aware handling."
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        params = []
+
+        params.append(
+            arcpy.Parameter(
+                displayName="Input Raster",
+                name="input_raster",
+                datatype="GPRasterLayer",
+                parameterType="Required",
+                direction="Input",
+            )
+        )
+
+        size_param = arcpy.Parameter(
+            displayName="Kernel size (n x n, odd)",
+            name="kernel_size",
+            datatype="GPLong",
+            parameterType="Required",
+            direction="Input",
+        )
+        size_param.value = 3
+        params.append(size_param)
+
+        params.append(
+            arcpy.Parameter(
+                displayName="Output Raster",
+                name="output_raster",
+                datatype="DERasterDataset",
+                parameterType="Required",
+                direction="Output",
+            )
+        )
+
+        return params
+
+    def execute(self, parameters, messages):
+        input_raster = parameters[0].valueAsText
+        kernel_size = int(parameters[1].value)
+        output_raster = parameters[2].valueAsText
+
+        if kernel_size % 2 == 0:
+            raise arcpy.ExecuteError("Kernel size must be an odd integer.")
+
+        def _run(array, dx, dy):
+            conv = ConvolutionFilter(array)
+            return conv.median_filter(kernel_size)
+
+        run_array_tool(input_raster, output_raster, _run)
+
+
+class ConvolutionGaussianFilter(object):
+    def __init__(self):
+        if ConvolutionFilter is None:
+            raise ImportError(
+                "ConvolutionFilter class could not be imported. "
+                "Check that calcs/ConvolutionFilter.py is accessible."
+            )
+        self.label = "Convolution - Gaussian Filter"
+        self.description = "Gaussian smoothing filter (NaN-aware)."
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        params = []
+
+        params.append(
+            arcpy.Parameter(
+                displayName="Input Raster",
+                name="input_raster",
+                datatype="GPRasterLayer",
+                parameterType="Required",
+                direction="Input",
+            )
+        )
+
+        sigma_param = arcpy.Parameter(
+            displayName="Gaussian sigma (cells)",
+            name="sigma",
+            datatype="GPDouble",
+            parameterType="Required",
+            direction="Input",
+        )
+        sigma_param.value = 1.0
+        params.append(sigma_param)
+
+        params.append(
+            arcpy.Parameter(
+                displayName="Output Raster",
+                name="output_raster",
+                datatype="DERasterDataset",
+                parameterType="Required",
+                direction="Output",
+            )
+        )
+
+        return params
+
+    def execute(self, parameters, messages):
+        input_raster = parameters[0].valueAsText
+        sigma = float(parameters[1].value)
+        output_raster = parameters[2].valueAsText
+
+        if sigma <= 0:
+            raise arcpy.ExecuteError("Sigma must be positive.")
+
+        def _run(array, dx, dy):
+            conv = ConvolutionFilter(array)
+            return conv.gaussian_filter(sigma)
+
+        run_array_tool(input_raster, output_raster, _run)
+
+
+class ConvolutionDirectionalFilter(object):
+    def __init__(self):
+        if ConvolutionFilter is None:
+            raise ImportError(
+                "ConvolutionFilter class could not be imported. "
+                "Check that calcs/ConvolutionFilter.py is accessible."
+            )
+        self.label = "Convolution - Directional Filter"
+        self.description = "Directional filter (N, NE, E, SE, S, SW, W, NW)."
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        params = []
+
+        params.append(
+            arcpy.Parameter(
+                displayName="Input Raster",
+                name="input_raster",
+                datatype="GPRasterLayer",
+                parameterType="Required",
+                direction="Input",
+            )
+        )
+
+        dir_param = arcpy.Parameter(
+            displayName="Direction",
+            name="direction",
+            datatype="GPString",
+            parameterType="Required",
+            direction="Input",
+        )
+        dir_param.filter.list = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+        dir_param.value = "NE"
+        params.append(dir_param)
+
+        size_param = arcpy.Parameter(
+            displayName="Kernel size (n x n, odd, default is 3)",
+            name="kernel_size",
+            datatype="GPLong",
+            parameterType="Optional",
+            direction="Input",
+        )
+        size_param.value = 3
+        params.append(size_param)
+
+        params.append(
+            arcpy.Parameter(
+                displayName="Output Raster",
+                name="output_raster",
+                datatype="DERasterDataset",
+                parameterType="Required",
+                direction="Output",
+            )
+        )
+
+        return params
+
+    def execute(self, parameters, messages):
+        input_raster = parameters[0].valueAsText
+        direction = parameters[1].value
+        kernel_size = int(parameters[2].value or 3)
+        output_raster = parameters[3].valueAsText
+
+        if kernel_size % 2 == 0:
+            raise arcpy.ExecuteError("Kernel size must be an odd integer.")
+
+        def _run(array, dx, dy):
+            conv = ConvolutionFilter(array)
+            # n parameter is currently ignored inside directional_filter for fixed 3x3,
+            # but we pass it anyway in case you extend it
+            return conv.directional_filter(direction=direction, n=kernel_size)
+
+        run_array_tool(input_raster, output_raster, _run)
+
+
+class ConvolutionSunShading(object):
+    def __init__(self):
+        if ConvolutionFilter is None:
+            raise ImportError(
+                "ConvolutionFilter class could not be imported. "
+                "Check that calcs/ConvolutionFilter.py is accessible."
+            )
+        self.label = "Convolution - Sun Shading"
+        self.description = "Simple sun/shaded relief from DEM."
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        params = []
+
+        params.append(
+            arcpy.Parameter(
+                displayName="Input Elevation Raster",
+                name="input_raster",
+                datatype="GPRasterLayer",
+                parameterType="Required",
+                direction="Input",
+            )
+        )
+
+        alt_param = arcpy.Parameter(
+            displayName="Sun altitude (degrees)",
+            name="sun_alt",
+            datatype="GPDouble",
+            parameterType="Required",
+            direction="Input",
+        )
+        alt_param.value = 45.0
+        params.append(alt_param)
+
+        az_param = arcpy.Parameter(
+            displayName="Sun azimuth (degrees, clockwise from north)",
+            name="sun_az",
+            datatype="GPDouble",
+            parameterType="Required",
+            direction="Input",
+        )
+        az_param.value = 315.0
+        params.append(az_param)
+
+        params.append(
+            arcpy.Parameter(
+                displayName="Output Shaded Relief Raster",
+                name="output_raster",
+                datatype="DERasterDataset",
+                parameterType="Required",
+                direction="Output",
+            )
+        )
+
+        return params
+
+    def execute(self, parameters, messages):
+        input_raster = parameters[0].valueAsText
+        sun_alt = float(parameters[1].value)
+        sun_az = float(parameters[2].value)
+        output_raster = parameters[3].valueAsText
+
+        def _run(array, dx, dy):
+            conv = ConvolutionFilter(array)
+            # Use cell width as resolution; tweak if you need something fancier
+            return conv.sun_shading_filter(
+                elevation=array, sun_alt=sun_alt, sun_az=sun_az, resolution=dx
+            )
+
+        run_array_tool(input_raster, output_raster, _run)
+
+
 # Processor wrapper
 class ArcGISProcessor:
     def process_raster_tool(
@@ -255,26 +739,42 @@ class Toolbox(object):
         self.label = "Geophysical Processing Tools"
         self.alias = "geophysics"
         self.tools = [
+            # --- Grav/Mag ---
+            ReductionToPole,
             UpwardContinuation,
             DownwardContinuation,
             VerticalIntegration,
-            AnalyticSignal,
-            TiltAngle,
-            ReductionToPole,
+            # --- Frequency ---
             BandPassFilter,
             HighPassFilter,
             LowPassFilter,
             DirectionalButterworthBandPass,
             RemoveRegionalTrend,
+            AutomaticGainControl,
+            # --- Gradient ---
+            AnalyticSignal,
+            TiltAngle,
             ComputeDerivative,
             TotalHorizontalGradient,
-            AutomaticGainControl,
+            # --- Spatial Stats ---
+            SpatialStatsVariance,
+            SpatialStatsStdDev,
+            SpatialStatsSkewness,
+            SpatialStatsKurtosis,
+            SpatialStatsMin,
+            SpatialStatsMax,
+            # --- Convolution ---
+            ConvolutionMeanFilter,
+            ConvolutionMedianFilter,
+            ConvolutionGaussianFilter,
+            ConvolutionDirectionalFilter,
+            ConvolutionSunShading,
         ]
 
 
 class UpwardContinuation(object):
     def __init__(self):
-        self.label = "Upward Continuation"
+        self.label = "Grav/Mag - Upward Continuation"
         self.description = "Upward continue to attenuate high frequencies"
         self.canRunInBackground = False
 
@@ -345,7 +845,7 @@ class UpwardContinuation(object):
 
 class RemoveRegionalTrend(object):
     def __init__(self):
-        self.label = "Remove Regional Trend (Polynomial)"
+        self.label = "Frequency - Remove Regional Trend (Polynomial)"
         self.description = "Remove regional trends using polynomial surface fitting"
         self.canRunInBackground = False
 
@@ -478,7 +978,7 @@ class RemoveRegionalTrend(object):
 
 class ComputeDerivative(object):
     def __init__(self):
-        self.label = "Compute Derivative"
+        self.label = "Gradient - Compute Derivative"
         self.description = "Calculate derivatives in x, y, or z directions"
         self.canRunInBackground = False
 
@@ -564,7 +1064,7 @@ class ComputeDerivative(object):
 
 class TotalHorizontalGradient(object):
     def __init__(self):
-        self.label = "Total Horizontal Gradient"
+        self.label = "Gradient - Total Horizontal Gradient"
         self.description = "Calculate total horizontal gradient magnitude"
         self.canRunInBackground = False
 
@@ -622,7 +1122,7 @@ class TotalHorizontalGradient(object):
 
 class AutomaticGainControl(object):
     def __init__(self):
-        self.label = "Automatic Gain Control"
+        self.label = "Frequency - Automatic Gain Control"
         self.description = "Apply AGC normalization to highlight low amplitude features"
         self.canRunInBackground = False
 
@@ -680,7 +1180,7 @@ class AutomaticGainControl(object):
 
 class DownwardContinuation(object):
     def __init__(self):
-        self.label = "Downward Continuation"
+        self.label = "Grav/Mag - Downward Continuation"
         self.description = (
             "Enhance high-frequency signals (use with caution - amplifies noise)"
         )
@@ -756,7 +1256,7 @@ class DownwardContinuation(object):
 
 class VerticalIntegration(object):
     def __init__(self):
-        self.label = "Vertical Integration"
+        self.label = "Grav/Mag - Vertical Integration"
         self.description = (
             "Integrate field vertically to simulate deeper equivalent sources"
         )
@@ -842,7 +1342,7 @@ class VerticalIntegration(object):
 
 class AnalyticSignal(object):
     def __init__(self):
-        self.label = "Analytic Signal"
+        self.label = "Gradient - Analytic Signal"
         self.description = "Calculate analytic signal amplitude"
         self.canRunInBackground = False
 
@@ -900,7 +1400,7 @@ class AnalyticSignal(object):
 
 class TiltAngle(object):
     def __init__(self):
-        self.label = "Tilt Angle"
+        self.label = "Gradient - Tilt Angle"
         self.description = "Calculate tilt angle derivative (in degrees)"
         self.canRunInBackground = False
 
@@ -959,7 +1459,7 @@ class TiltAngle(object):
 
 class ReductionToPole(object):
     def __init__(self):
-        self.label = "Reduction to Pole"
+        self.label = "Grav/Mag - Reduction to Pole"
         self.description = "Transform magnetic data to the pole"
         self.canRunInBackground = False
 
@@ -1043,7 +1543,7 @@ class ReductionToPole(object):
 
 class BandPassFilter(object):
     def __init__(self):
-        self.label = "Band Pass Filter"
+        self.label = "Frequency - Band Pass Filter"
         self.description = "Apply FFT band pass filter with smooth transitions"
         self.canRunInBackground = False
 
@@ -1153,7 +1653,7 @@ class BandPassFilter(object):
 
 class HighPassFilter(object):
     def __init__(self):
-        self.label = "High Pass Filter"
+        self.label = "Frequency - High Pass Filter"
         self.description = "Remove long wavelength regional trends"
         self.canRunInBackground = False
 
@@ -1237,7 +1737,7 @@ class HighPassFilter(object):
 
 class LowPassFilter(object):
     def __init__(self):
-        self.label = "Low Pass Filter"
+        self.label = "Frequency - Low Pass Filter"
         self.description = "Remove short wavelength noise"
         self.canRunInBackground = False
 
@@ -1322,7 +1822,7 @@ class LowPassFilter(object):
 
 class DirectionalButterworthBandPass(object):
     def __init__(self):
-        self.label = "Directional Butterworth Band Pass"
+        self.label = "Frequency - Directional Butterworth Band Pass"
         self.description = "Combined directional and band-pass filtering"
         self.canRunInBackground = False
 

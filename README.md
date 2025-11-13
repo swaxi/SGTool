@@ -62,21 +62,37 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
    
 ## ArcGIS Pro:
 1) Download and unzip this respository and store somewhere safe.
-2) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **GeophysicalProcessor.pyt** in the **ArcGIS_Pro** directory in this repository. Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run (still in Beta so limited to classical geophysical processing calls for now):   
-- Upward Continuation,   
-- Downward Continuation,
-- Vertical Integration,
-- Analytic Signal,
-- Tilt Angle,
-- Reduction To Pole,
-- Band Pass Filter,
-- High Pass Filter,
-- Low Pass Filter,
-- Directional Butterworth plus Band Pass,
-- Remove Regional Trend,
-- Compute Derivative,
-- Total Horizontal Gradient,
-- Automatic Gain Control
+2) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **GeophysicalProcessor.pyt** in the **ArcGIS_Pro** directory in this repository. Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run (still in Beta so limited to classical geophysical, convolution and spataial stats processing calls for now):   
+- # --- Grav/Mag ---
+- ReductionToPole,
+- UpwardContinuation,
+- DownwardContinuation,
+- VerticalIntegration,
+- # --- Frequency ---
+- BandPassFilter,
+- HighPassFilter,
+- LowPassFilter,
+- DirectionalButterworthBandPass,
+- RemoveRegionalTrend,            
+- AutomaticGainControl,
+- # --- Gradient ---
+- AnalyticSignal,
+- TiltAngle,
+- ComputeDerivative,
+- TotalHorizontalGradient,
+- # --- Spatial Stats ---
+- SpatialStatsVariance,
+- SpatialStatsStdDev,
+- SpatialStatsSkewness,
+- SpatialStatsKurtosis,
+- SpatialStatsMin,
+- SpatialStatsMax,
+- # --- Convolution ---
+- ConvolutionMeanFilter,
+- ConvolutionMedianFilter,
+- ConvolutionGaussianFilter,
+- ConvolutionDirectionalFilter,
+- ConvolutionSunShading,
    
 # Inputs   
 - QGIS version supports data geotiff, grd, ers and Noddy (grv & mag) grid formats plus any grid format already supported by QGIS. ArcGIS Pro version supports any raster format supported by ArcGIS Pro.

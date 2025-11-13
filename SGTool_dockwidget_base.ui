@@ -709,7 +709,7 @@ QTabBar::tab:hover {
        </property>
        <property name="maximumDate">
         <date>
-         <year>2025</year>
+         <year>2030</year>
          <month>12</month>
          <day>31</day>
         </date>

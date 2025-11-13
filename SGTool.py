@@ -364,7 +364,7 @@ class SGTool:
             "Manually define magnetic declination [degrees clockwise from North]"
         )
         self.dlg.lineEdit_6_int.setToolTip("Survey intensity in nT")
-        self.dlg.dateEdit.setToolTip("Survey date (1900-2025)")
+        self.dlg.dateEdit.setToolTip("Survey date (1900-2030)")
         self.dlg.checkBox_4_PGrav.setToolTip(
             "Vertical Integration:\nWhen applied to RTE/P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing.\nRequires a metre-based projection"
         )
@@ -3042,7 +3042,7 @@ class SGTool:
         # IGRF_FILE = r"./SHC_files/IGRF" + igrf_gen + ".SHC"
         IGRF_FILE = (
             os.path.dirname(os.path.realpath(__file__))
-            + "/igrf/SHC_files/IGRF"
+            + "/calcs/igrf/SHC_files/IGRF"
             + igrf_gen
             + ".SHC"
         )

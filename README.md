@@ -62,7 +62,7 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
    
 ## ArcGIS Pro:
 1) Download and unzip this respository and store somewhere safe.
-2) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **GeophysicalProcessor.pyt** in this repository. Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run (still in Beta so limited to classical geophysical processing calls for now):   
+2) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **GeophysicalProcessor.pyt** in the **ArcGIS_Pro** directory in this repository. Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run (still in Beta so limited to classical geophysical processing calls for now):   
 - Upward Continuation,   
 - Downward Continuation,
 - Vertical Integration,

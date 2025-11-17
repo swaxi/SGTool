@@ -3193,9 +3193,9 @@ font-size: 13px;
        <property name="geometry">
         <rect>
          <x>20</x>
-         <y>80</y>
+         <y>70</y>
          <width>101</width>
-         <height>41</height>
+         <height>61</height>
         </rect>
        </property>
        <property name="text">

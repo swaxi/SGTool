@@ -4,6 +4,13 @@ import arcpy
 import numpy as np
 import os
 import sys
+
+_here = os.path.dirname(os.path.abspath(__file__))
+_parent = os.path.dirname(_here)
+
+if _parent not in sys.path:
+    sys.path.append(_parent)
+
 from calcs.SpatialStats import SpatialStats
 from calcs.ConvolutionFilter import ConvolutionFilter
 

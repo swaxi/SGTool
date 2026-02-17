@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.3.00
+# Structural Geophysics Tool v0.3.01
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
@@ -8,7 +8,9 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog=0.3.00   
+# changelog=0.3.01   
+      * Fix median removal and resoration for FFT filters   
+      0.3.00   
       * Add Spatial stats and convolutions to ArcGIS Pro toolbox
       * Move ArcGIS Pro files to their own directory    
       * Update IGRF to allow up to 2030    

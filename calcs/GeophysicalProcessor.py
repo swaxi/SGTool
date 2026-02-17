@@ -1,3 +1,4 @@
+from unittest import result
 import numpy as np
 from numpy.polynomial.polynomial import polyval2d
 from math import ceil, fabs
@@ -501,7 +502,7 @@ class GeophysicalProcessor:
                 raise ValueError("Invalid direction. Choose 'x', 'y', or 'z'.")
 
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
+            data, filter_function, buffer_size, buffer_method, preserve_dc=False
         )
 
     def tilt_angle(self, data, buffer_size=10, buffer_method="mirror"):
@@ -1064,20 +1065,35 @@ class GeophysicalProcessor:
         return directional_filter
 
     # --- Internal Fourier Filter Application ---
+
     def _apply_fourier_filter(
-        self, data, filter_function, buffer_size=10, buffer_method="mirror"
+        self,
+        data,
+        filter_function,
+        buffer_size=10,
+        buffer_method="mirror",
+        preserve_dc=True,
     ):
         """
         Apply a Fourier-domain filter with buffering and NaN handling.
+
+        Parameters:
+            preserve_dc: If True, add median back after filtering (for RTP, continuation, etc.)
+                        If False, return zero-centered result (for derivatives)
         """
         from scipy.fftpack import fft2, ifft2
+
+        median = np.nanmedian(data)
 
         # inpaint NaN values
         filled_data, nan_mask = self.fill_nan(data)
 
+        # remove median to reduce ringing artifacts from windowing
+        centered_data = filled_data - median
+
         # Add buffer
         buffered_data, padding_info = self.add_buffer(
-            filled_data, buffer_size, buffer_method
+            centered_data, buffer_size, buffer_method
         )
 
         # Fourier transform
@@ -1094,12 +1110,14 @@ class GeophysicalProcessor:
         # Inverse transform
         filtered_data = np.real(ifft2(filtered_fft))
 
-        # Remove buffer and restore NaNs
-        buffer_removed_data = self.remove_buffer(
-            filtered_data, buffer_size, padding_info
-        )
+        # Remove buffer
+        unbuffered_data = self.remove_buffer(filtered_data, buffer_size, padding_info)
 
-        return self.restore_nan(buffer_removed_data, nan_mask)
+        # Restore DC level only for non-derivative operations
+        if preserve_dc:
+            unbuffered_data = unbuffered_data + median
+
+        return self.restore_nan(unbuffered_data, nan_mask)
 
     def bsdwormer(
         self, image, layer, gridPath, num_levels, bottom_level, delta_z, shps, crs

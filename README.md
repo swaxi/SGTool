@@ -51,16 +51,16 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
 1) Either:   
 - Download the zip file from the green **<> Code** button and install the zip file in QGIS using the plugin manager for the version on github or   
 - Install directly from the QGIS plugin manager from the plugin repository   
-2) If you get an warning of the type **The following Python packages are required but not installed: scikit-learn** or any other module name you can install it directly from the QGIS Python Console (Menu Plugins->Python Console) and then type in (for the scikit-learn example):   
    
-   **!pip3 install scikit-learn**   
-      
+2) If you get an warning of the type **The following Python packages are required but not installed: scikit-learn** or any other module name the best way to manage this is to install the QGIS Plugin called **qpip** and open it. It will tell you which libraries are missing and allow you to install the correct versions.   
+       
    The packages required for specific functions are:   
    **matplotlib** WTMM, Radial Power Spectrum   
    **scikit-learn** BSDWorms, PCA, ICA   
    **PyWavelets** WTMM    
 
    If you don't use these functions, there is no need to install the extra packages.   
+      
 3) For BSpline Gridding you need to install the plugin **Processing Saga NextGen Provider**   
    
 ## ArcGIS Pro:

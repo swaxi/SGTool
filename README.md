@@ -9,6 +9,7 @@
 ![SGTools image](dialog.png)       
 
 # changelog=0.3.02
+      * Replace raster copy code so it works for negative delta z on linux/macos
       * Add networkx, shapely and geopandas  as requirement so linux is happy
       0.3.01   
       * Fix median removal and resoration for FFT filters   

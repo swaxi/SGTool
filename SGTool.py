@@ -1603,6 +1603,7 @@ class SGTool:
                         )
                         return False
 
+                """             
                 # Access the raster data provider
                 provider = layer.dataProvider()
 
@@ -1622,6 +1623,17 @@ class SGTool:
                 for i in range(rows):
                     for j in range(cols):
                         self.raster_array[i, j] = raster_block.value(i, j)
+            
+                """
+                # Read raster data via GDAL (consistent row ordering across platforms)
+                ds = gdal.Open(self.diskGridPath)
+                band_data = ds.GetRasterBand(1).ReadAsArray()  # Always row0=north
+                nodata = ds.GetRasterBand(1).GetNoDataValue()
+                if nodata is not None:
+                    band_data = band_data.astype(float)
+                    band_data[band_data == nodata] = np.nan
+                self.raster_array = band_data
+                ds = None
 
                 self.processor.bsdwormer(
                     self.raster_array,
@@ -2761,7 +2773,7 @@ class SGTool:
                 0,
                 ymax,
                 0,
-                -dx,  # pixel height (negative)
+                -abs(-dx),  # pixel height (negative)
             ]
             output_raster.SetGeoTransform(geotransform)
 

@@ -1201,6 +1201,10 @@ class GeophysicalProcessor:
             if dzm == 0:
                 dzm = 0.01
             job.wormLevelAsPoints(dz=dzm)
+            print("worm_ys min:", job.worm_ys.min(), "max:", job.worm_ys.max())
+            print("worm_xs min:", job.worm_xs.min(), "max:", job.worm_xs.max())
+            print("padded image shape:", padded_image.shape)  # (rows, cols)
+
             z = [dzm] * len(job.worm_ys)
             x = (job.worm_xs * job.geomat[1]) + extentPadded[2][0]
             y = (job.worm_ys * job.geomat[5]) + extentPadded[2][1]

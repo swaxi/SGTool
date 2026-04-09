@@ -533,13 +533,22 @@ class GeophysicalProcessor:
         Compute the analytic signal amplitude.
         """
         dfdx = self.compute_derivative(
-            data, "x", buffer_size=buffer_size, buffer_method=buffer_method
+            data,
+            "x",
+            buffer_size=buffer_size,
+            buffer_method=buffer_method,
         )
         dfdy = self.compute_derivative(
-            data, "y", buffer_size=buffer_size, buffer_method=buffer_method
+            data,
+            "y",
+            buffer_size=buffer_size,
+            buffer_method=buffer_method,
         )
         dfdz = self.compute_derivative(
-            data, "z", buffer_size=buffer_size, buffer_method=buffer_method
+            data,
+            "z",
+            buffer_size=buffer_size,
+            buffer_method=buffer_method,
         )
         return np.sqrt(dfdx**2 + dfdy**2 + dfdz**2)
 
@@ -1052,10 +1061,16 @@ class GeophysicalProcessor:
             numpy.ndarray: Total horizontal gradient of the input data.
         """
         dfdx = self.compute_derivative(
-            data, "x", buffer_size=buffer_size, buffer_method=buffer_method
+            data,
+            "x",
+            buffer_size=buffer_size,
+            buffer_method=buffer_method,
         )
         dfdy = self.compute_derivative(
-            data, "y", buffer_size=buffer_size, buffer_method=buffer_method
+            data,
+            "y",
+            buffer_size=buffer_size,
+            buffer_method=buffer_method,
         )
         horizontal_gradient = np.sqrt(dfdx**2 + dfdy**2)
         return horizontal_gradient

@@ -1159,7 +1159,18 @@ class GeophysicalProcessor:
         job.importGdalRaster(gridPath)
         extent = job.geomat
         print("job.geomat", job.geomat)
-        extentPadded = GetExtent(job.geomat, -pad_x, -pad_y)
+        # extentPadded = GetExtent(job.geomat, -pad_x, -pad_y)
+        xmin_padded, ymax_padded = GetExtent(job.geomat, pad_x, pad_y)
+        xmin_padded = job.geomat[0] - (pad_x * job.geomat[1])
+        ymax_padded = job.geomat[3] - (pad_y * job.geomat[5])
+        extentPadded = [
+            [None, None],
+            [None, None],
+            [xmin_padded, ymax_padded],
+            [None, None],
+        ]
+        print("geomat[5]:", job.geomat[5])
+
         gridPathPadded = insert_text_before_extension(gridPath, "_padded")
 
         # Separate the file path into directory, base name, and extension

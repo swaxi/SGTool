@@ -144,7 +144,7 @@ THE SOFTWARE.
 """
 
 
-def GetExtent(gt, cols, rows):
+def GetExtent_orig(gt, cols, rows):
     """Return list of corner coordinates from a geotransform
 
     @type gt:   C{tuple/list}
@@ -168,6 +168,17 @@ def GetExtent(gt, cols, rows):
             # print(x, y)
         yarr.reverse()
     return ext
+
+
+def GetExtent(gt, pad_x=0, pad_y=0):
+    """
+    Return padded extent origin (xmin, ymax) from a geotransform.
+    gt[0] = top-left x, gt[1] = pixel width, gt[3] = top-left y, gt[5] = pixel height (negative)
+    pad_x, pad_y are in pixels
+    """
+    xmin = gt[0] - (pad_x * gt[1])
+    ymax = gt[3] - (pad_y * gt[5])  # gt[5] is negative, so subtracting moves north
+    return xmin, ymax
 
 
 def ReprojectCoords(coords, src_srs, tgt_srs):

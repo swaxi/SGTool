@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.3.02
+# Structural Geophysics Tool v0.3.03
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
@@ -8,8 +8,9 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog=0.3.02
-      * Replace raster copy code so it works for negative delta z on linux/macos
+# changelog=0.3.03
+      * Don't add mean back for THG calcs
+      * Replace raster copy code so it works for negative and positive delta z on linux/macos
       * Add networkx, shapely and geopandas  as requirement so linux is happy
       0.3.01   
       * Fix median removal and resoration for FFT filters   

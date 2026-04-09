@@ -47,7 +47,10 @@ class GeophysicalProcessor:
         """
         kx = np.fft.fftfreq(nx, self.dx) * 2 * np.pi
         ky = np.fft.fftfreq(ny, self.dy) * 2 * np.pi
-        return np.meshgrid(kx, ky)
+        ky = -ky
+        kx_grid, ky_grid = np.meshgrid(kx, ky)
+        return kx_grid, ky_grid
+        # return np.meshgrid(kx, ky)
 
     def fill_nan(self, data):
         """
@@ -387,14 +390,18 @@ class GeophysicalProcessor:
 
         # Compute derivatives in x and y directions using the Fourier filter
         dx = self._apply_fourier_filter(
-            data, filter_function_dx, buffer_size, buffer_method
+            data, filter_function_dx, buffer_size, buffer_method, preserve_dc=False
         )
         dy = self._apply_fourier_filter(
-            data, filter_function_dy, buffer_size, buffer_method
+            data, filter_function_dy, buffer_size, buffer_method, preserve_dc=False
         )
+
+        print("dx range:", np.nanmin(dx), np.nanmax(dx))
+        print("dy range:", np.nanmin(dy), np.nanmax(dy))
 
         # Compute the total horizontal gradient
         thg = np.sqrt(dx**2 + dy**2)
+        print("thg range:", np.nanmin(thg), np.nanmax(thg))
 
         return thg
 

@@ -9,7 +9,7 @@
 ![SGTools image](dialog.png)       
 
 # changelog=0.3.02
-      * Add networkx as requirement
+      * Add networkx, shapely and geopandas  as requirement so linux is happy
       0.3.01   
       * Fix median removal and resoration for FFT filters   
       0.3.00   

@@ -4,4 +4,6 @@ scikit-learn
 PyWavelets
 pyproj>=3.7.2
 networkx
+shapely
+geopandas
 

@@ -849,6 +849,7 @@ class SGTool:
 
         self.dx = self.layer.rasterUnitsPerPixelX()
         self.dy = self.layer.rasterUnitsPerPixelY()
+        """
         # Access the raster data provider
         provider = self.layer.dataProvider()
 
@@ -868,9 +869,23 @@ class SGTool:
         for i in range(rows):
             for j in range(cols):
                 self.raster_array[i, j] = raster_block.value(i, j)
+        """
+        # Read raster data via GDAL (consistent row ordering across platforms)
+        ds = gdal.Open(self.diskGridPath)
+        band = ds.GetRasterBand(1)
+        no_data_value = band.GetNoDataValue()  # Band 1
+        nodata = ds.GetRasterBand(1).GetNoDataValue()
+        band_data = ds.GetRasterBand(1).ReadAsArray()  # Always row0=north
+        if nodata is not None:
+            band_data = band_data.astype(float)
+            band_data[band_data == nodata] = np.nan
+        self.raster_array = band_data
+        gt = ds.GetGeoTransform()
+        if gt[5] > 0:  # positive pixel height means south-up, flip to north-up
+            self.raster_array = np.flipud(self.raster_array)
+        ds = None
 
         # Handle NoData values if needed
-        no_data_value = provider.sourceNoDataValue(1)  # Band 1
 
         if no_data_value is not None:
             self.raster_array[self.raster_array == no_data_value] = np.nan
@@ -1627,12 +1642,17 @@ class SGTool:
                 """
                 # Read raster data via GDAL (consistent row ordering across platforms)
                 ds = gdal.Open(self.diskGridPath)
+                band = ds.GetRasterBand(1)
+                no_data_value = band.GetNoDataValue()  # Band 1
                 band_data = ds.GetRasterBand(1).ReadAsArray()  # Always row0=north
                 nodata = ds.GetRasterBand(1).GetNoDataValue()
                 if nodata is not None:
                     band_data = band_data.astype(float)
                     band_data[band_data == nodata] = np.nan
+
                 self.raster_array = band_data
+                if no_data_value is not None:
+                    self.raster_array[self.raster_array == no_data_value] = np.nan
                 ds = None
 
                 self.processor.bsdwormer(
@@ -1943,6 +1963,7 @@ class SGTool:
                 self.dx = abs(self.layer.rasterUnitsPerPixelX())
                 self.dy = abs(self.layer.rasterUnitsPerPixelY())
 
+                """
                 # Access the raster data provider
                 provider = self.layer.dataProvider()
 
@@ -1962,12 +1983,21 @@ class SGTool:
                 for i in range(rows):
                     for j in range(cols):
                         self.raster_array[i, j] = raster_block.value(i, j)
-                # Handle NoData values if needed
-                no_data_value = provider.sourceNoDataValue(1)  # Band 1
-
+                """
+                # Read raster data via GDAL (consistent row ordering across platforms)
+                ds = gdal.Open(self.diskGridPath)
+                band = ds.GetRasterBand(1)
+                no_data_value = band.GetNoDataValue()  # call this BEFORE ReadAsArray
+                band_data = ds.GetRasterBand(1).ReadAsArray()  # Always row0=north
                 if no_data_value is not None:
-                    self.raster_array[self.raster_array == no_data_value] = np.nan
-
+                    band_data = band_data.astype(float)
+                    band_data[band_data == no_data_value] = np.nan
+                self.raster_array = band_data
+                gt = ds.GetGeoTransform()
+                if gt[5] > 0:  # positive pixel height means south-up, flip to north-up
+                    self.raster_array = np.flipud(self.raster_array)
+                ds = None
+                rows, cols = self.raster_array.shape
                 process = True
 
         if process:
@@ -3139,6 +3169,7 @@ class SGTool:
             numpy.ndarray: The raster data as a NumPy array.
         """
         # Get the raster data provider
+        """
         # Access the raster data provider
         provider = raster_layer.dataProvider()
 
@@ -3158,12 +3189,20 @@ class SGTool:
         for i in range(rows):
             for j in range(cols):
                 self.raster_array[i, j] = raster_block.value(i, j)
-
-        # Handle NoData values if needed
-        no_data_value = provider.sourceNoDataValue(1)  # Band 1
-
+        """
+        # Read raster data via GDAL (consistent row ordering across platforms)
+        ds = gdal.Open(self.diskGridPath)
+        band = ds.GetRasterBand(1)
+        no_data_value = band.GetNoDataValue()  # Band 1
+        band_data = ds.GetRasterBand(1).ReadAsArray()  # Always row0=north
         if no_data_value is not None:
-            self.raster_array[self.raster_array == no_data_value] = np.nan
+            band_data = band_data.astype(float)
+            band_data[band_data == no_data_value] = np.nan
+        self.raster_array = band_data
+        gt = ds.GetGeoTransform()
+        if gt[5] > 0:  # positive pixel height means south-up, flip to north-up
+            self.raster_array = np.flipud(self.raster_array)
+        ds = None
 
         return self.raster_array
 

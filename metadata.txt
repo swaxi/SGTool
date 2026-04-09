@@ -7,7 +7,7 @@ name=SGTool
 qgisMinimumVersion=3.24
 qgisMaximumVersion=4.99
 description=Simple Potential Field Processing
-version=0.3.01
+version=0.3.02
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 

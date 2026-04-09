@@ -21,8 +21,10 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.3.01
-      * Fix median removal and resoration for FFT filters
+changelog=0.3.02
+      * Add networkx as requirement
+  0.3.01
+      * Fix median removal and restoration for FFT filters
   0.3.00
       * Add Spatial stats and convolutions to ArcGIS Pro toolbox
       * Move ArcGIS Pro files to their own directory    

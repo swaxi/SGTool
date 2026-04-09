@@ -2846,9 +2846,12 @@ font-size: 13px;
         <rect>
          <x>370</x>
          <y>20</y>
-         <width>81</width>
+         <width>101</width>
          <height>22</height>
         </rect>
+       </property>
+       <property name="decimals">
+        <number>8</number>
        </property>
        <property name="minimum">
         <double>-99999999999999996863366107917975552.000000000000000</double>
@@ -2865,9 +2868,12 @@ font-size: 13px;
         <rect>
          <x>371</x>
          <y>50</y>
-         <width>81</width>
+         <width>101</width>
          <height>22</height>
         </rect>
+       </property>
+       <property name="decimals">
+        <number>8</number>
        </property>
        <property name="minimum">
         <double>-1000000000000000042420637374017961984.000000000000000</double>

@@ -5348,9 +5348,9 @@ class OddPositiveIntegerValidator(QValidator):
 
         value = int(input_text)
         if value > 0 and value % 2 == 1:  # Check for positive odd numbers
-            return QValidator.Acceptable, input_text, pos
+            return QValidator.State.Acceptable, input_text, pos
         else:
-            return QValidator.Intermediate, input_text, pos
+            return QValidator.State.Intermediate, input_text, pos
 
     def fixup(self, input_text):
         """

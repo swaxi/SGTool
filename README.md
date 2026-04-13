@@ -9,7 +9,8 @@
 ![SGTools image](dialog.png)       
 
 # changelog=0.3.4
-      * Fix bug with inclination declination signs for RTE_P now that images always north   
+      * Fix bug with inclination declination signs for RTE_P now that images always north  
+      * Check for commas as decimal separators and replace with decimal points     
       0.3.3
       * change to single decimal versions
       * Don't add mean back for THG calcs

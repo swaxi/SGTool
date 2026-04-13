@@ -57,6 +57,7 @@ from qgis.PyQt.QtCore import (
     QVariant,
     Qt,
     QUrl,
+    QLocale,
 )
 
 
@@ -726,13 +727,13 @@ class SGTool:
         self.DirClean = self.dlg.checkBox_3_DirClean.isChecked()
         self.DC_azimuth = self.dlg.lineEdit_3_azimuth.text()
         self.DC_lineSpacing = self.dlg.lineEdit_3_DC_wavelength.text()
-        self.DC_scale = float(self.dlg.lineEdit_3_DC_scale.text())
+        self.DC_scale = self.to_float(self.dlg.lineEdit_3_DC_scale.text())
 
         self.RTE_P = self.dlg.checkBox_4_RTE_P.isChecked()
         self.RTE_P_type = self.dlg.comboBox_3_rte_p_list.currentText()
-        self.RTE_P_inc = self.dlg.lineEdit_6_inc.text()
-        self.RTE_P_dec = self.dlg.lineEdit_5_dec.text()
-        self.RTE_P_int = self.dlg.lineEdit_6_int.text()
+        self.RTE_P_inc = self.to_float(self.dlg.lineEdit_6_inc.text())
+        self.RTE_P_dec = self.to_float(self.dlg.lineEdit_5_dec.text())
+        self.RTE_P_int = self.to_float(self.dlg.lineEdit_6_int.text())
         date_text = str(self.dlg.dateEdit.date().toPyDate())
         date_split = date_text.split("-")
         self.RTE_P_date = [int(date_split[2]), int(date_split[1]), int(date_split[0])]
@@ -773,20 +774,20 @@ class SGTool:
         self.THG = self.dlg.checkBox_11_tot_hz_grad.isChecked()
 
         self.Mean = self.dlg.checkBox_Mean.isChecked()
-        self.mean_conv_size = int(self.dlg.lineEdit_Mean_size.text())
+        self.mean_conv_size = self.to_int(self.dlg.lineEdit_Mean_size.text())
 
         self.Median = self.dlg.checkBox_Median.isChecked()
-        self.median_conv_size = int(self.dlg.lineEdit_Median_size.text())
+        self.median_conv_size = self.to_int(self.dlg.lineEdit_Median_size.text())
 
         self.Gaussian = self.dlg.checkBox_Gaussian.isChecked()
-        self.gauss_rad = float(self.dlg.lineEdit_Gaussian_Sigma.text())
+        self.gauss_rad = self.to_float(self.dlg.lineEdit_Gaussian_Sigma.text())
 
         self.Direction = self.dlg.checkBox_Directional.isChecked()
         self.directional_dir = self.dlg.comboBox_Dir_dir.currentText()
 
         self.SunShade = self.dlg.checkBox_SunShading.isChecked()
-        self.sun_shade_az = float(self.dlg.lineEdit_SunSh_Az.text())
-        self.sun_shade_zn = float(self.dlg.lineEdit_SunSh_Zn.text())
+        self.sun_shade_az = self.to_float(self.dlg.lineEdit_SunSh_Az.text())
+        self.sun_shade_zn = self.to_float(self.dlg.lineEdit_SunSh_Zn.text())
 
         self.NaN = self.dlg.checkBox_NaN.isChecked()
         if self.dlg.radioButton_NaN_Above.isChecked():
@@ -795,8 +796,8 @@ class SGTool:
             self.NaN_Condition = "below"
         else:
             self.NaN_Condition = "between"
-        self.NaN_Above = float(self.dlg.doubleSpinBox_NaN_Above.text())
-        self.NaN_Below = float(self.dlg.doubleSpinBox_NaN_Below.text())
+        self.NaN_Above = self.to_float(self.dlg.doubleSpinBox_NaN_Above.text())
+        self.NaN_Below = self.to_float(self.dlg.doubleSpinBox_NaN_Below.text())
 
         self.Polygons = self.dlg.checkBox_polygons.isChecked()
 
@@ -806,12 +807,12 @@ class SGTool:
         self.SS_Variance = self.dlg.checkBox_SS_Variance.isChecked()
         self.SS_Skewness = self.dlg.checkBox_SS_Skewness.isChecked()
         self.SS_Kurtosis = self.dlg.checkBox_SS_Kurtosis.isChecked()
-        self.SS_window_size = int(self.dlg.lineEdit_SS_Window.text())
+        self.SS_window_size = self.to_int(self.dlg.lineEdit_SS_Window.text())
 
         self.DTM_Class = self.dlg.checkBox_DTM_Class.isChecked()
-        self.DTM_curvature_threshold = float(self.dlg.lineEdit_DTM_Curve.text())
-        self.DTM_slope_threshold = float(self.dlg.lineEdit_DTM_Cliff.text())
-        self.DTM_sigma = float(self.dlg.lineEdit_DTM_Sigma.text())
+        self.DTM_curvature_threshold = self.to_float(self.dlg.lineEdit_DTM_Curve.text())
+        self.DTM_slope_threshold = self.to_float(self.dlg.lineEdit_DTM_Cliff.text())
+        self.DTM_sigma = self.to_float(self.dlg.lineEdit_DTM_Sigma.text())
 
         self.PCA = self.dlg.checkBox_PCA.isChecked()
         self.ICA = self.dlg.checkBox_ICA.isChecked()
@@ -1270,9 +1271,9 @@ class SGTool:
             # print("yi[:200]", yi[:200])
             # print("zi[:200]", zi[:200])
             # moving data window size
-            winsize = int(self.dlg.lineEdit_ED_Window.text())
+            winsize = self.to_int(self.dlg.lineEdit_ED_Window.text())
             # percentage of the solutions that will be keep
-            filt = float(self.dlg.doubleSpinBox_ED_Threshold.text())
+            filt = self.to_float(self.dlg.doubleSpinBox_ED_Threshold.text())
 
             # print("winsize,filt", winsize, filt)
             # empty array for multiple SIs
@@ -1580,8 +1581,8 @@ class SGTool:
 
     def procBSDworms(self):
         num_levels = int(self.dlg.spinBox_levels.value())
-        bottom_level = int(self.dlg.doubleSpinBox_base.text())
-        delta_z = float(self.dlg.doubleSpinBox_inc.text())
+        bottom_level = self.to_int(self.dlg.doubleSpinBox_base.text())
+        delta_z = self.to_float(self.dlg.doubleSpinBox_inc.text())
         layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
         crs = layer.crs()
 
@@ -1745,6 +1746,16 @@ class SGTool:
                 level=Qgis.Critical,
                 duration=15,
             )
+
+    def to_float(self, text):
+        """Convert text to float using Qt locale-aware parsing."""
+        if isinstance(text, (int, float)):
+            return float(text)
+        return float(str(text).replace(",", ".").replace(" ", ""))
+
+    def to_int(self, text):
+        """Convert text to int using Qt locale-aware parsing."""
+        return int(self.to_float(text))
 
     def util_display_grid(self, grid):
         try:
@@ -2002,8 +2013,8 @@ class SGTool:
 
         if process:
             self.buffer = min(rows, cols)
-            if self.buffer > int(self.dlg.lineEdit_13_max_buffer.text()):
-                self.buffer = int(self.dlg.lineEdit_13_max_buffer.text())
+            if self.buffer > self.to_int(self.dlg.lineEdit_13_max_buffer.text()):
+                self.buffer = self.to_int(self.dlg.lineEdit_13_max_buffer.text())
             self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
 
             self.convolution = ConvolutionFilter(self.raster_array)
@@ -3505,25 +3516,24 @@ class SGTool:
 
             # Access the QgsMapLayerComboBox by its objectName
             self.dlg.mMapLayerComboBox_selectGrid.setFilters(
-                QgsMapLayerProxyModel.Filter.RasterLayer
+                QgsMapLayerProxyModel.RasterLayer
             )
             self.dlg.mMapLayerComboBox_selectGrid_Conv.setFilters(
-                QgsMapLayerProxyModel.Filter.RasterLayer
+                QgsMapLayerProxyModel.RasterLayer
             )
             self.dlg.mMapLayerComboBox_selectGrid_worms.setFilters(
-                QgsMapLayerProxyModel.Filter.RasterLayer
+                QgsMapLayerProxyModel.RasterLayer
             )
             self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setFilters(
-                QgsMapLayerProxyModel.Filter.RasterLayer
+                QgsMapLayerProxyModel.RasterLayer
             )
 
             self.dlg.mMapLayerComboBox_selectVectors.setFilters(
-                QgsMapLayerProxyModel.Filter.PointLayer
-                | QgsMapLayerProxyModel.Filter.VectorLayer
+                QgsMapLayerProxyModel.PointLayer | QgsMapLayerProxyModel.VectorLayer
             )
 
             self.dlg.mMapLayerComboBox_selectGrid_3.setFilters(
-                QgsMapLayerProxyModel.Filter.PointLayer
+                QgsMapLayerProxyModel.PointLayer
             )
 
             self.dlg.version_label.setText(self.show_version())

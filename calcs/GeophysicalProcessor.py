@@ -432,8 +432,10 @@ class GeophysicalProcessor:
 
         def filter_function(kx, ky):
             # Transform to radians
-            inc_rad = np.radians(inclination)
-            dec_rad = np.radians(-declination)
+            inc_rad = np.radians(
+                -inclination
+            )  # Negative sign to correct for convention
+            dec_rad = np.radians(declination)
             # Calculate the 3 components
             m_e = np.cos(inc_rad) * np.sin(dec_rad)
             m_n = np.cos(inc_rad) * np.cos(dec_rad)
@@ -463,7 +465,7 @@ class GeophysicalProcessor:
         from scipy.fftpack import fft2, ifft2, fftfreq
 
         # Convert angles from degrees to radians
-        inc, dec = np.radians(inclination), np.radians(declination)
+        inc, dec = np.radians(-inclination), np.radians(declination)
 
         def filter_function(kx, ky):
             k = np.sqrt(kx**2 + ky**2) + 1e-10  # Avoid division by zero

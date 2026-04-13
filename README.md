@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.3.4
+# Structural Geophysics Tool v0.3.3
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
@@ -8,18 +8,17 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog
-      0.3.4    
-      Update to new QgsMapLayerProxyModel call   
-      0.3.3   
-      * change to single decimal versions   
-      * Don't add mean back for THG calcs   
-      * Replace raster copy code so it works for negative and positive delta z on linux/macos   
-      * Add networkx, shapely and geopandas  as requirement so linux is happy   
+# changelog=0.3.4
+      * Fix bug with inclination declination signs for RTE_P now that images always north   
+      0.3.3
+      * change to single decimal versions
+      * Don't add mean back for THG calcs
+      * Replace raster copy code so it works for negative and positive delta z on linux/macos
+      * Add networkx, shapely and geopandas  as requirement so linux is happy
       0.3.01   
       * Fix median removal and resoration for FFT filters   
       0.3.00   
-      * Add Spatial stats and convolutions to ArcGIS Pro toolbox   
+      * Add Spatial stats and convolutions to ArcGIS Pro toolbox
       * Move ArcGIS Pro files to their own directory    
       * Update IGRF to allow up to 2030    
       * Move Euler and IGRF to calcs directory   

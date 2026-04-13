@@ -3504,25 +3504,25 @@ class SGTool:
             self.define_tips()
 
             # Access the QgsMapLayerComboBox by its objectName
-            self.dlg.mMapLayerComboBox_selectGrid.setFilter(
+            self.dlg.mMapLayerComboBox_selectGrid.setFilters(
                 QgsMapLayerProxyModel.Filter.RasterLayer
             )
-            self.dlg.mMapLayerComboBox_selectGrid_Conv.setFilter(
+            self.dlg.mMapLayerComboBox_selectGrid_Conv.setFilters(
                 QgsMapLayerProxyModel.Filter.RasterLayer
             )
-            self.dlg.mMapLayerComboBox_selectGrid_worms.setFilter(
+            self.dlg.mMapLayerComboBox_selectGrid_worms.setFilters(
                 QgsMapLayerProxyModel.Filter.RasterLayer
             )
-            self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setFilter(
+            self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setFilters(
                 QgsMapLayerProxyModel.Filter.RasterLayer
             )
 
-            self.dlg.mMapLayerComboBox_selectVectors.setFilter(
+            self.dlg.mMapLayerComboBox_selectVectors.setFilters(
                 QgsMapLayerProxyModel.Filter.PointLayer
                 | QgsMapLayerProxyModel.Filter.VectorLayer
             )
 
-            self.dlg.mMapLayerComboBox_selectGrid_3.setFilter(
+            self.dlg.mMapLayerComboBox_selectGrid_3.setFilters(
                 QgsMapLayerProxyModel.Filter.PointLayer
             )
 

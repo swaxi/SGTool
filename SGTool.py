@@ -3505,24 +3505,25 @@ class SGTool:
 
             # Access the QgsMapLayerComboBox by its objectName
             self.dlg.mMapLayerComboBox_selectGrid.setFilters(
-                QgsMapLayerProxyModel.RasterLayer
+                QgsMapLayerProxyModel.Filter.RasterLayer
             )
             self.dlg.mMapLayerComboBox_selectGrid_Conv.setFilters(
-                QgsMapLayerProxyModel.RasterLayer
+                QgsMapLayerProxyModel.Filter.RasterLayer
             )
             self.dlg.mMapLayerComboBox_selectGrid_worms.setFilters(
-                QgsMapLayerProxyModel.RasterLayer
+                QgsMapLayerProxyModel.Filter.RasterLayer
             )
             self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setFilters(
-                QgsMapLayerProxyModel.RasterLayer
+                QgsMapLayerProxyModel.Filter.RasterLayer
             )
 
             self.dlg.mMapLayerComboBox_selectVectors.setFilters(
-                QgsMapLayerProxyModel.PointLayer | QgsMapLayerProxyModel.VectorLayer
+                QgsMapLayerProxyModel.Filter.PointLayer
+                | QgsMapLayerProxyModel.Filter.VectorLayer
             )
 
             self.dlg.mMapLayerComboBox_selectGrid_3.setFilters(
-                QgsMapLayerProxyModel.PointLayer
+                QgsMapLayerProxyModel.Filter.PointLayer
             )
 
             self.dlg.version_label.setText(self.show_version())

@@ -465,25 +465,31 @@ class GeophysicalProcessor:
         from scipy.fftpack import fft2, ifft2, fftfreq
 
         # Convert angles from degrees to radians
-        inc, dec = np.radians(-inclination), np.radians(declination)
+        inc, dec = np.radians(inclination), np.radians(declination)
 
         def filter_function(kx, ky):
-            k = np.sqrt(kx**2 + ky**2) + 1e-10  # Avoid division by zero
 
-            # Directional cosines
-            cos_inc = np.cos(inc)
-            sin_inc = np.sin(inc)
-            cos_dec = np.cos(dec)
-            sin_dec = np.sin(dec)
+            # Polar component theta
+            theta = np.arctan2(kx, ky)
 
-            # RTP filter
-            # rte_filter = theta_f
-            with np.errstate(divide="ignore", invalid="ignore"):
-                rte_filter = (
-                    k * cos_inc * cos_dec + 1j * ky * cos_inc * sin_dec + kx * sin_inc
-                ) / (k * cos_inc * cos_dec - 1j * ky * cos_inc * sin_dec + kx * sin_inc)
+            # Common term used in the formula
+            cos_term = np.cos(dec - theta)
 
-            rte_filter[np.abs(rte_filter) > 1e6] = 0  # Stabilize extreme values
+            # Numerator: [sin(inc) - i * cos(inc) * cos(dec - theta)]^2 * (-cos^2(dec - theta))
+            numerator = (np.sin(inc) - 1j * np.cos(inc) * cos_term) ** 2 * (
+                -(cos_term**2)
+            )
+
+            # Denominator: [sin^2(inc) + cos^2(inc) * cos^2(dec - theta)] * [sin^2(inc) + cos^2(inc) * cos^2(dec - theta)]
+            denominator = (
+                np.sin(inc) ** 2
+                + (np.cos(inc) ** 2 * cos_term**2) * np.sin(inc) ** 2
+                + (np.cos(inc) ** 2 * cos_term**2)
+            )
+
+            # We add a tiny epsilon to the denominator to avoid division by zero at k=0
+            rte_filter = numerator / (denominator + 1e-10)
+
             return rte_filter
 
         return self._apply_fourier_filter(

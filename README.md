@@ -9,6 +9,7 @@
 ![SGTools image](dialog.png)       
 
 # changelog=0.3.4
+      * Redo RTE code following suggestion from google AI   
       * Fix bug with inclination declination signs for RTE_P now that images always north  
       * Check for commas as decimal separators and replace with decimal points     
       0.3.3

@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.3.3
+# Structural Geophysics Tool v0.3.5
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
@@ -8,7 +8,9 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog=0.3.4
+# changelog=0.3.5   
+      * redo RTE code following suggestion from google AI   
+      0.3.4   
       * Redo RTE code following suggestion from google AI   
       * Fix bug with inclination declination signs for RTE_P now that images always north  
       * Check for commas as decimal separators and replace with decimal points     

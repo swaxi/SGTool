@@ -2322,7 +2322,6 @@ class SGTool:
             self.dlg.lineEdit_2_loadGridPath.setText(self.diskGridPath)
             self.dlg.pushButton_3_applyProcessing.setEnabled(True)
             self.last_directory = os.path.dirname(self.diskGridPath)
-
             if suffix == "grd":
                 if os.path.exists(self.diskGridPath + ".xml"):
                     epsg = extract_proj_str(self.diskGridPath + ".xml")
@@ -2341,20 +2340,13 @@ class SGTool:
                     )
                 # self.dlg.mQgsProjectionSelectionWidget.setCrs(QgsCoordinateReferenceSystem('EPSG:'+str(epsg)))
                 self.save_a_grid(epsg)
-            elif suffix == "tif" or suffix == "ers":
+            elif suffix == "tif" or suffix == "tiff" or suffix == "ers":
                 basename = os.path.basename(self.diskGridPath)
                 filename_without_extension = os.path.splitext(basename)[0]
                 self.layer = QgsRasterLayer(
                     self.diskGridPath, filename_without_extension
                 )
-                """try:
-                    test_proj = self.layer.crs().authid()
-                    self.layer.setCrs(test_proj)
-                except:
-                    # Define the new CRS (e.g., EPSG:4326 for WGS84)
-                    new_crs = QgsCoordinateReferenceSystem("EPSG:4326")
-                    # Set the CRS for the raster layer
-                    self.layer.setCrs(new_crs)"""
+
                 if not self.is_layer_loaded(self.diskGridPath):
                     QgsProject.instance().addMapLayer(self.layer)
             elif suffix == "mag" or suffix == "grv":

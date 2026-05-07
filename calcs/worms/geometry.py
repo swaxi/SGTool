@@ -73,9 +73,18 @@ def runcmd(cmd, format="s"):
     """
     import subprocess
 
-    proc = subprocess.Popen(
+    """proc = subprocess.Popen(
         cmd,
         shell=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )"""
+    import shlex
+    cmd = shlex.split(cmd)  # or build the list directly
+    proc = subprocess.Popen(
+        cmd,                    # list, not a string
+        shell=False,            # explicit, though False is the default
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

@@ -2340,7 +2340,7 @@ class SGTool:
                     )
                 # self.dlg.mQgsProjectionSelectionWidget.setCrs(QgsCoordinateReferenceSystem('EPSG:'+str(epsg)))
                 self.save_a_grid(epsg)
-            elif suffix == "tif" or suffix == "tiff" or suffix == "ers":
+            elif suffix in ("tif", "tiff", "ers"):
                 basename = os.path.basename(self.diskGridPath)
                 filename_without_extension = os.path.splitext(basename)[0]
                 self.layer = QgsRasterLayer(

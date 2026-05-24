@@ -3194,7 +3194,8 @@ class SGTool:
                 self.raster_array[i, j] = raster_block.value(i, j)
         """
         # Read raster data via GDAL (consistent row ordering across platforms)
-        ds = gdal.Open(self.diskGridPath)
+        path = raster_layer.dataProvider().dataSourceUri().split("|")[0]
+        ds = gdal.Open(path)
         band = ds.GetRasterBand(1)
         no_data_value = band.GetNoDataValue()  # Band 1
         band_data = ds.GetRasterBand(1).ReadAsArray()  # Always row0=north

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from qgis.PyQt import QtWidgets
-from qgis.PyQt.QtCore import pyqtSignal, Qt, QDate
+from qgis.PyQt.QtCore import pyqtSignal, Qt, QDate, QCoreApplication
 from qgis.PyQt.QtWidgets import (
     QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QScrollArea, QTabWidget, QPushButton, QLabel, QLineEdit,
@@ -28,13 +28,18 @@ QTabBar::tab:hover    { background-color: rgb(229,241,251); }
 TAB_BG = "background-color: rgb(240,240,240);"
 
 
+def _tr(text):
+    """Translate text using the SGTool Qt translation context."""
+    return QCoreApplication.translate("SGTool", text)
+
+
 class SGToolDockWidget(QDockWidget):
 
     closingPlugin = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("SG Tool")
+        self.setWindowTitle(_tr("SG Tool"))
         self._build_ui()
 
     def closeEvent(self, event):
@@ -55,20 +60,20 @@ class SGToolDockWidget(QDockWidget):
         self.tabWidget.setStyleSheet(TAB_STYLE)
         self.tabWidget.setUsesScrollButtons(False)
 
-        self.tabWidget.addTab(self._tab_fft_filters(),    "FFT Filters")
-        self.tabWidget.addTab(self._tab_conv_stats(),     "Conv + Stats")
-        self.tabWidget.addTab(self._tab_grid_wavelets(),  "Grid + Wavelets")
-        self.tabWidget.addTab(self._tab_utils(),          "Utils")
-        self.tabWidget.addTab(self._tab_help(),           "Help")
+        self.tabWidget.addTab(self._tab_fft_filters(),   _tr("FFT Filters"))
+        self.tabWidget.addTab(self._tab_conv_stats(),    _tr("Conv + Stats"))
+        self.tabWidget.addTab(self._tab_grid_wavelets(), _tr("Grid + Wavelets"))
+        self.tabWidget.addTab(self._tab_utils(),         _tr("Utils"))
+        self.tabWidget.addTab(self._tab_help(),          _tr("Help"))
 
         root_layout.addWidget(self.tabWidget)
 
         # Hidden legacy buttons that exist in SGTool.py references
-        self.autoinc_pushButton = QPushButton("Set behaviour")
+        self.autoinc_pushButton = QPushButton(_tr("Set behaviour"))
         self.autoinc_pushButton.setVisible(False)
-        self.pushButton_19 = QPushButton("RESET THE WINDOW")
+        self.pushButton_19 = QPushButton(_tr("RESET THE WINDOW"))
         self.pushButton_19.setVisible(False)
-        self.pushButton_22 = QPushButton("RESET THE WINDOW")
+        self.pushButton_22 = QPushButton(_tr("RESET THE WINDOW"))
         self.pushButton_22.setVisible(False)
         self.label_31 = QLabel("© 2024 West African Exploration Initiative.")
         self.label_31.setVisible(False)
@@ -106,11 +111,11 @@ class SGToolDockWidget(QDockWidget):
         tg.setContentsMargins(0, 0, 0, 0)
         tg.setSpacing(4)
 
-        self.label_11 = QLabel("Select Grid")
+        self.label_11 = QLabel(_tr("Select Grid"))
         self.label_11.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.mMapLayerComboBox_selectGrid = QgsMapLayerComboBox()
 
-        self.label_38 = QLabel("Load Grid")
+        self.label_38 = QLabel(_tr("Load Grid"))
         self.label_38.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_2_loadGridPath = QLineEdit()
         self.pushButton_2_selectGrid = QPushButton("...")
@@ -143,21 +148,21 @@ class SGToolDockWidget(QDockWidget):
         bl.setContentsMargins(0, 2, 0, 0)
         bl.setSpacing(6)
 
-        self.pushButton_3_applyProcessing = QPushButton("Apply Processing")
+        self.pushButton_3_applyProcessing = QPushButton(_tr("Apply Processing"))
         self.pushButton_3_applyProcessing.setStyleSheet(
             "font-weight: bold;")
 
-        self.label_37 = QLabel("Max FFT Buffer (pixels)")
+        self.label_37 = QLabel(_tr("Max FFT Buffer (pixels)"))
         self.label_37.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_13_max_buffer = QLineEdit("5000")
         self.lineEdit_13_max_buffer.setFixedWidth(55)
 
-        self.label_27 = QLabel("Version")
+        self.label_27 = QLabel(_tr("Version"))
         self.label_27.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
         self.version_label = QLabel("0.1")
         self.version_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
 
-        self.label_41_units = QLabel("Units")
+        self.label_41_units = QLabel(_tr("Units"))
 
         bl.addWidget(self.pushButton_3_applyProcessing)
         bl.addStretch()
@@ -174,7 +179,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Grav/Mag Filters
     # ------------------------------------------------------------------
     def _group_grav_mag(self):
-        gb = QGroupBox("Grav/Mag Filters")
+        gb = QGroupBox(_tr("Grav/Mag Filters"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
@@ -188,17 +193,17 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.pushButton_4_calcIGRF,   0, 3)
 
         # Row 1: Inc / Dec / Int / date
-        self.label_15 = QLabel("Inc")
+        self.label_15 = QLabel(_tr("Inc"))
         self.label_15.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_6_inc = QLineEdit("0")
         self.lineEdit_6_inc.setFixedWidth(45)
 
-        self.label_14 = QLabel("Dec")
+        self.label_14 = QLabel(_tr("Dec"))
         self.label_14.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_5_dec = QLineEdit("0")
         self.lineEdit_5_dec.setFixedWidth(45)
 
-        self.label_33 = QLabel("Int")
+        self.label_33 = QLabel(_tr("Int"))
         self.label_33.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_6_int = QLineEdit("50000")
         self.lineEdit_6_int.setFixedWidth(60)
@@ -223,21 +228,21 @@ class SGToolDockWidget(QDockWidget):
         self.label_26 = QLabel("●")
         self.label_26.setAlignment(Qt.AlignCenter)
         self.checkBox_4_PGrav = QCheckBox(
-            "Vertical Integration (apply to RTE/P result to get Pseudo Gravity)")
+            _tr("Vertical Integration (apply to RTE/P result to get Pseudo Gravity)"))
         g.addWidget(self.label_26,        2, 0)
         g.addWidget(self.checkBox_4_PGrav, 2, 1, 1, 4)
 
         # Row 3: ● Continuation / Direction / Height
         self.label_28 = QLabel("●")
         self.label_28.setAlignment(Qt.AlignCenter)
-        self.checkBox_9_continuation = QCheckBox("Continuation")
+        self.checkBox_9_continuation = QCheckBox(_tr("Continuation"))
 
-        self.label_20 = QLabel("Direction")
+        self.label_20 = QLabel(_tr("Direction"))
         self.label_20.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.comboBox_2_continuationDirection = QComboBox()
         self.comboBox_2_continuationDirection.setFixedWidth(70)
 
-        self.label_21 = QLabel("Height (m)")
+        self.label_21 = QLabel(_tr("Height (m)"))
         self.label_21.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_10_continuationHeight = QLineEdit("500")
         self.lineEdit_10_continuationHeight.setFixedWidth(70)
@@ -259,28 +264,28 @@ class SGToolDockWidget(QDockWidget):
     # Group: Frequency Filters
     # ------------------------------------------------------------------
     def _group_freq_filters(self):
-        gb = QGroupBox("Frequency Filters")
+        gb = QGroupBox(_tr("Frequency Filters"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
         # Row 0: Radial Power Spectrum button (right-aligned)
-        self.pushButton_rad_power_spectrum = QPushButton("Radial Power Spectrum")
+        self.pushButton_rad_power_spectrum = QPushButton(_tr("Radial Power Spectrum"))
         row0 = QHBoxLayout()
         row0.addStretch()
         row0.addWidget(self.pushButton_rad_power_spectrum)
         g.addLayout(row0, 0, 0, 1, 9)
 
         # Row 1: Direction filter
-        self.checkBox_3_DirClean = QCheckBox("Direction Cos/Butterw.")
-        self.label_12 = QLabel("Azimuth")
+        self.checkBox_3_DirClean = QCheckBox(_tr("Direction Cos/Butterw."))
+        self.label_12 = QLabel(_tr("Azimuth"))
         self.label_12.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_3_azimuth = QLineEdit("0")
         self.lineEdit_3_azimuth.setFixedWidth(35)
-        self.label_13 = QLabel("Wavelength")
+        self.label_13 = QLabel(_tr("Wavelength"))
         self.label_13.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_3_DC_wavelength = QLineEdit("1000")
         self.lineEdit_3_DC_wavelength.setFixedWidth(55)
-        self.label_16 = QLabel("Scale")
+        self.label_16 = QLabel(_tr("Scale"))
         self.label_16.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_3_DC_scale = QLineEdit("3")
         self.lineEdit_3_DC_scale.setFixedWidth(35)
@@ -294,10 +299,10 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.lineEdit_3_DC_scale,   1, 7)
 
         # Row 2: Remove Regional
-        self.checkBox_5_regional = QCheckBox("Remove Regional")
-        self.radioButton_RR_1st = QRadioButton("1st order fit")
+        self.checkBox_5_regional = QCheckBox(_tr("Remove Regional"))
+        self.radioButton_RR_1st = QRadioButton(_tr("1st order fit"))
         self.radioButton_RR_1st.setChecked(True)
-        self.radioButton_RR_2nd = QRadioButton("2nd order fit")
+        self.radioButton_RR_2nd = QRadioButton(_tr("2nd order fit"))
         g.addWidget(self.checkBox_5_regional,  2, 0, 1, 2)
         g.addWidget(self.radioButton_RR_1st,   2, 3, 1, 2)
         g.addWidget(self.radioButton_RR_2nd,   2, 5, 1, 2)
@@ -305,16 +310,16 @@ class SGToolDockWidget(QDockWidget):
         # Row 3: Band Pass
         self.label_29 = QLabel("●")
         self.label_29.setAlignment(Qt.AlignCenter)
-        self.checkBox_10_bandPass = QCheckBox("Band Pass")
-        self.label_22 = QLabel("Low")
+        self.checkBox_10_bandPass = QCheckBox(_tr("Band Pass"))
+        self.label_22 = QLabel(_tr("Low"))
         self.label_22.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_12_bandPassLow = QLineEdit("50000")
         self.lineEdit_12_bandPassLow.setFixedWidth(60)
-        self.label_23 = QLabel("High (proj units)")
+        self.label_23 = QLabel(_tr("High (proj units)"))
         self.label_23.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_11_bandPassHigh = QLineEdit("5000")
         self.lineEdit_11_bandPassHigh.setFixedWidth(55)
-        self.label_39 = QLabel("Width")
+        self.label_39 = QLabel(_tr("Width"))
         self.label_39.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_3_BP_width = QLineEdit("5000")
         self.lineEdit_3_BP_width.setFixedWidth(55)
@@ -331,16 +336,16 @@ class SGToolDockWidget(QDockWidget):
         # Row 4: High/Low Pass
         self.label_32 = QLabel("●")
         self.label_32.setAlignment(Qt.AlignCenter)
-        self.checkBox_10_freqCut = QCheckBox("High/Low Pass")
-        self.label_35 = QLabel("Accept")
+        self.checkBox_10_freqCut = QCheckBox(_tr("High/Low Pass"))
+        self.label_35 = QLabel(_tr("Accept"))
         self.label_35.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.comboBox_2_FreqCutType = QComboBox()
         self.comboBox_2_FreqCutType.setFixedWidth(80)
-        self.label_34 = QLabel("Cutoff (proj units)")
+        self.label_34 = QLabel(_tr("Cutoff (proj units)"))
         self.label_34.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_12_FreqPass = QLineEdit("5000")
         self.lineEdit_12_FreqPass.setFixedWidth(55)
-        self.label_69 = QLabel("Width")
+        self.label_69 = QLabel(_tr("Width"))
         self.label_69.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_3_HLP_width = QLineEdit("5000")
         self.lineEdit_3_HLP_width.setFixedWidth(55)
@@ -357,8 +362,8 @@ class SGToolDockWidget(QDockWidget):
         # Row 5: AGC
         self.label_30 = QLabel("●")
         self.label_30.setAlignment(Qt.AlignCenter)
-        self.checkBox_11_1vd_agc = QCheckBox("Automatic Gain Control")
-        self.label_24 = QLabel("Window (pixels)")
+        self.checkBox_11_1vd_agc = QCheckBox(_tr("Automatic Gain Control"))
+        self.label_24 = QLabel(_tr("Window (pixels)"))
         self.label_24.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_13_agc_window = QLineEdit("10")
         self.lineEdit_13_agc_window.setFixedWidth(45)
@@ -375,19 +380,19 @@ class SGToolDockWidget(QDockWidget):
     # Group: Gradient Filters
     # ------------------------------------------------------------------
     def _group_gradient(self):
-        gb = QGroupBox("Gradient Filters")
+        gb = QGroupBox(_tr("Gradient Filters"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
         # Row 0: Derivative
         self.label_25 = QLabel("●")
         self.label_25.setAlignment(Qt.AlignCenter)
-        self.checkBox_6_derivative = QCheckBox("Derivative")
-        self.label_18 = QLabel("Direction")
+        self.checkBox_6_derivative = QCheckBox(_tr("Derivative"))
+        self.label_18 = QLabel(_tr("Direction"))
         self.label_18.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.comboBox_derivDirection = QComboBox()
         self.comboBox_derivDirection.setFixedWidth(60)
-        self.label_19 = QLabel("Power")
+        self.label_19 = QLabel(_tr("Power"))
         self.label_19.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_9_derivePower = QLineEdit("1")
         self.lineEdit_9_derivePower.setFixedWidth(55)
@@ -402,19 +407,19 @@ class SGToolDockWidget(QDockWidget):
         # Row 1: Total Horizontal Gradient
         self.label_40 = QLabel("●")
         self.label_40.setAlignment(Qt.AlignCenter)
-        self.checkBox_11_tot_hz_grad = QCheckBox("Total Horizontal Gradient")
+        self.checkBox_11_tot_hz_grad = QCheckBox(_tr("Total Horizontal Gradient"))
         g.addWidget(self.label_40,               1, 0)
         g.addWidget(self.checkBox_11_tot_hz_grad, 1, 1, 1, 3)
 
         # Row 2: Tilt Angle
         self.label_41 = QLabel("●")
         self.label_41.setAlignment(Qt.AlignCenter)
-        self.checkBox_7_tiltDerivative = QCheckBox("Tilt Angle")
+        self.checkBox_7_tiltDerivative = QCheckBox(_tr("Tilt Angle"))
         g.addWidget(self.label_41,               2, 0)
         g.addWidget(self.checkBox_7_tiltDerivative, 2, 1, 1, 3)
 
         # Row 3: Analytic Signal
-        self.checkBox_8_analyticSignal = QCheckBox("Analytic Signal")
+        self.checkBox_8_analyticSignal = QCheckBox(_tr("Analytic Signal"))
         g.addWidget(self.checkBox_8_analyticSignal, 3, 0, 1, 3)
 
         g.setColumnStretch(6, 1)
@@ -436,7 +441,7 @@ class SGToolDockWidget(QDockWidget):
         top = QWidget()
         tl = QHBoxLayout(top)
         tl.setContentsMargins(0, 0, 0, 0)
-        self.label_47 = QLabel("Select Grid")
+        self.label_47 = QLabel(_tr("Select Grid"))
         self.label_47.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.mMapLayerComboBox_selectGrid_Conv = QgsMapLayerComboBox()
         tl.addWidget(self.label_47)
@@ -459,7 +464,7 @@ class SGToolDockWidget(QDockWidget):
         bot = QWidget()
         bl = QHBoxLayout(bot)
         bl.setContentsMargins(0, 2, 0, 0)
-        self.pushButton_3_applyProcessing_Conv = QPushButton("Apply Processing")
+        self.pushButton_3_applyProcessing_Conv = QPushButton(_tr("Apply Processing"))
         self.pushButton_3_applyProcessing_Conv.setStyleSheet(
             "font-weight: bold;")
         bl.addWidget(self.pushButton_3_applyProcessing_Conv)
@@ -471,15 +476,15 @@ class SGToolDockWidget(QDockWidget):
     # Group: Convolution Filters
     # ------------------------------------------------------------------
     def _group_conv_filters(self):
-        gb = QGroupBox("Convolution Filters")
+        gb = QGroupBox(_tr("Convolution Filters"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
-        hdr_lbl = QLabel("Filter size (odd numbers)")
+        hdr_lbl = QLabel(_tr("Filter size (odd numbers)"))
         hdr_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
         # Mean
-        self.checkBox_Mean = QCheckBox("Mean")
+        self.checkBox_Mean = QCheckBox(_tr("Mean"))
         self.lineEdit_Mean_size = QLineEdit("3")
         self.lineEdit_Mean_size.setFixedWidth(50)
         g.addWidget(self.checkBox_Mean,       0, 0)
@@ -487,8 +492,8 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.lineEdit_Mean_size,  0, 2)
 
         # Median
-        self.checkBox_Median = QCheckBox("Median")
-        lbl_med = QLabel("Filter size (odd numbers)")
+        self.checkBox_Median = QCheckBox(_tr("Median"))
+        lbl_med = QLabel(_tr("Filter size (odd numbers)"))
         lbl_med.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_Median_size = QLineEdit("3")
         self.lineEdit_Median_size.setFixedWidth(50)
@@ -497,8 +502,8 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.lineEdit_Median_size, 1, 2)
 
         # Gaussian
-        self.checkBox_Gaussian = QCheckBox("Gaussian")
-        self.label_65 = QLabel("Sigma")
+        self.checkBox_Gaussian = QCheckBox(_tr("Gaussian"))
+        self.label_65 = QLabel(_tr("Sigma"))
         self.label_65.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_Gaussian_Sigma = QLineEdit("1")
         self.lineEdit_Gaussian_Sigma.setFixedWidth(50)
@@ -507,8 +512,8 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.lineEdit_Gaussian_Sigma, 2, 2)
 
         # Directional
-        self.checkBox_Directional = QCheckBox("Directional")
-        self.label_36 = QLabel("Direction")
+        self.checkBox_Directional = QCheckBox(_tr("Directional"))
+        self.label_36 = QLabel(_tr("Direction"))
         self.label_36.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.comboBox_Dir_dir = QComboBox()
         self.comboBox_Dir_dir.setFixedWidth(70)
@@ -517,16 +522,16 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.comboBox_Dir_dir,     3, 2)
 
         # Sun Shading
-        self.checkBox_SunShading = QCheckBox("Sun Shading")
-        self.label_64 = QLabel("Azimuth")
+        self.checkBox_SunShading = QCheckBox(_tr("Sun Shading"))
+        self.label_64 = QLabel(_tr("Azimuth"))
         self.label_64.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_SunSh_Az = QLineEdit("-45")
         self.lineEdit_SunSh_Az.setFixedWidth(50)
-        self.label_68 = QLabel("Zenith")
+        self.label_68 = QLabel(_tr("Zenith"))
         self.label_68.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_SunSh_Zn = QLineEdit("45")
         self.lineEdit_SunSh_Zn.setFixedWidth(50)
-        self.checkBox_relief = QCheckBox("relief")
+        self.checkBox_relief = QCheckBox(_tr("relief"))
         self.checkBox_relief.setChecked(True)
 
         g.addWidget(self.checkBox_SunShading, 4, 0)
@@ -543,12 +548,12 @@ class SGToolDockWidget(QDockWidget):
     # Group: Spatial Statistics
     # ------------------------------------------------------------------
     def _group_spatial_stats(self):
-        gb = QGroupBox("Spatial Statistics")
+        gb = QGroupBox(_tr("Spatial Statistics"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
         # Window size row
-        lbl_ws = QLabel("Window size for all filters (odd numbers)")
+        lbl_ws = QLabel(_tr("Window size for all filters (odd numbers)"))
         lbl_ws.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.label_78 = lbl_ws
         self.lineEdit_SS_Window = QLineEdit("3")
@@ -557,12 +562,12 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.lineEdit_SS_Window,  0, 3)
 
         # Stats checkboxes
-        self.checkBox_SS_Min = QCheckBox("Min")
-        self.checkBox_SS_Max = QCheckBox("Max")
-        self.checkBox_SS_Variance = QCheckBox("Variance")
-        self.checkBox_SS_StdDev = QCheckBox("Standard Deviation")
-        self.checkBox_SS_Skewness = QCheckBox("Skewness")
-        self.checkBox_SS_Kurtosis = QCheckBox("Kurtosis")
+        self.checkBox_SS_Min = QCheckBox(_tr("Min"))
+        self.checkBox_SS_Max = QCheckBox(_tr("Max"))
+        self.checkBox_SS_Variance = QCheckBox(_tr("Variance"))
+        self.checkBox_SS_StdDev = QCheckBox(_tr("Standard Deviation"))
+        self.checkBox_SS_Skewness = QCheckBox(_tr("Skewness"))
+        self.checkBox_SS_Kurtosis = QCheckBox(_tr("Kurtosis"))
 
         g.addWidget(self.checkBox_SS_Min,     1, 0)
         g.addWidget(self.checkBox_SS_Max,     1, 2)
@@ -572,16 +577,16 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.checkBox_SS_Kurtosis, 3, 2)
 
         # DTM Curvature Classifier
-        self.checkBox_DTM_Class = QCheckBox("DTM Curvature Classifier")
-        self.label_74 = QLabel("Curve Threshold")
+        self.checkBox_DTM_Class = QCheckBox(_tr("DTM Curvature Classifier"))
+        self.label_74 = QLabel(_tr("Curve Threshold"))
         self.label_74.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_DTM_Curve = QLineEdit(".0001")
         self.lineEdit_DTM_Curve.setFixedWidth(55)
-        self.label_73 = QLabel("Cliff Angle")
+        self.label_73 = QLabel(_tr("Cliff Angle"))
         self.label_73.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_DTM_Cliff = QLineEdit("5")
         self.lineEdit_DTM_Cliff.setFixedWidth(40)
-        self.label_75 = QLabel("Sigma")
+        self.label_75 = QLabel(_tr("Sigma"))
         self.label_75.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_DTM_Sigma = QLineEdit("0")
         self.lineEdit_DTM_Sigma.setFixedWidth(40)
@@ -601,20 +606,20 @@ class SGToolDockWidget(QDockWidget):
     # Group: Multivariate Statistical Analysis
     # ------------------------------------------------------------------
     def _group_multivar_stats(self):
-        gb = QGroupBox("Multivariate Statistical Analysis")
+        gb = QGroupBox(_tr("Multivariate Statistical Analysis"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
-        lbl_comp = QLabel("Number of Components (0=all)")
+        lbl_comp = QLabel(_tr("Number of Components (0=all)"))
         lbl_comp.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        lbl_comp2 = QLabel("Number of Components (0=all)")
+        lbl_comp2 = QLabel(_tr("Number of Components (0=all)"))
         lbl_comp2.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
-        self.checkBox_PCA = QCheckBox("Principal Component Analysis")
+        self.checkBox_PCA = QCheckBox(_tr("Principal Component Analysis"))
         self.mQgsSpinBox_PCA = QgsSpinBox()
         self.label = lbl_comp
 
-        self.checkBox_ICA = QCheckBox("Indepenent Component Analysis")
+        self.checkBox_ICA = QCheckBox(_tr("Independent Component Analysis"))
         self.mQgsSpinBox_ICA = QgsSpinBox()
         self.label_2 = lbl_comp2
 
@@ -632,13 +637,13 @@ class SGToolDockWidget(QDockWidget):
     # Group: Euler Deconvolution
     # ------------------------------------------------------------------
     def _group_euler(self):
-        gb = QGroupBox("Euler Deconvolution")
+        gb = QGroupBox(_tr("Euler Deconvolution"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
-        self.checkBox_ED = QCheckBox("Euler Deconvolution")
-        self.checkBox_ED_Stats = QCheckBox("Stats")
-        self.label_79 = QLabel("Threshold")
+        self.checkBox_ED = QCheckBox(_tr("Euler Deconvolution"))
+        self.checkBox_ED_Stats = QCheckBox(_tr("Stats"))
+        self.label_79 = QLabel(_tr("Threshold"))
         self.label_79.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.doubleSpinBox_ED_Threshold = QDoubleSpinBox()
         self.doubleSpinBox_ED_Threshold.setDecimals(5)
@@ -646,7 +651,7 @@ class SGToolDockWidget(QDockWidget):
         self.doubleSpinBox_ED_Threshold.setMaximum(1.0)
         self.doubleSpinBox_ED_Threshold.setSingleStep(0.1)
         self.doubleSpinBox_ED_Threshold.setValue(0.1)
-        self.label_80 = QLabel("Window (odd)")
+        self.label_80 = QLabel(_tr("Window (odd)"))
         self.label_80.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_ED_Window = QLineEdit("5")
         self.lineEdit_ED_Window.setFixedWidth(45)
@@ -691,12 +696,12 @@ class SGToolDockWidget(QDockWidget):
     # Group: Import point or line data
     # ------------------------------------------------------------------
     def _group_import_points(self):
-        gb = QGroupBox("Import point or line data")
+        gb = QGroupBox(_tr("Import point or line data"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
         # Row 0: point/line data file
-        self.label_53 = QLabel("Point/Line data")
+        self.label_53 = QLabel(_tr("Point/Line data"))
         self.label_53.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_loadPointsPath = QLineEdit()
         self.pushButton_selectPoints = QPushButton("...")
@@ -725,8 +730,8 @@ class SGToolDockWidget(QDockWidget):
         self.comboBox_grid_y = QComboBox()
         self.comboBox_grid_y.setEnabled(False)
 
-        self.checkBox_load_tie_lines = QCheckBox("Load Tie Lines from XYZ files")
-        self.pushButton_load_point_data = QPushButton("Import Data")
+        self.checkBox_load_tie_lines = QCheckBox(_tr("Load Tie Lines from XYZ files"))
+        self.pushButton_load_point_data = QPushButton(_tr("Import Data"))
         self.pushButton_load_point_data.setStyleSheet("font-weight: bold;")
         self.pushButton_load_point_data.setEnabled(False)
 
@@ -743,15 +748,15 @@ class SGToolDockWidget(QDockWidget):
     # Group: Gridding
     # ------------------------------------------------------------------
     def _group_gridding(self):
-        gb = QGroupBox("Gridding")
+        gb = QGroupBox(_tr("Gridding"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
         # Select points layer + data field
-        self.label_54 = QLabel("Select points layer")
+        self.label_54 = QLabel(_tr("Select points layer"))
         self.label_54.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.mMapLayerComboBox_selectGrid_3 = QgsMapLayerComboBox()
-        self.label_55 = QLabel("Select Data Field")
+        self.label_55 = QLabel(_tr("Select Data Field"))
         self.label_55.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.comboBox_select_grid_data_field = QComboBox()
 
@@ -761,7 +766,7 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.comboBox_select_grid_data_field, 1, 1, 1, 3)
 
         # Cell size + # cells
-        self.label_77 = QLabel("Cell Size\n(proj Units)")
+        self.label_77 = QLabel(_tr("Cell Size\n(proj Units)"))
         self.label_77.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.doubleSpinBox_cellsize = QDoubleSpinBox()
         self.doubleSpinBox_cellsize.setDecimals(6)
@@ -770,7 +775,7 @@ class SGToolDockWidget(QDockWidget):
         self.doubleSpinBox_cellsize.setSingleStep(10.0)
         self.doubleSpinBox_cellsize.setValue(100.0)
 
-        self.label_51 = QLabel("# Cells")
+        self.label_51 = QLabel(_tr("# Cells"))
         self.label_51.setStyleSheet("font-weight: bold;")
         self.label_49 = QLabel("X")
         self.label_49.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -788,9 +793,9 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.ny_label,            3, 4)
 
         # Gridding buttons
-        self.pushButton_idw_2 = QPushButton("IDW Gridding")
+        self.pushButton_idw_2 = QPushButton(_tr("IDW Gridding"))
         self.pushButton_idw_2.setStyleSheet("font-weight: bold;")
-        self.pushButton_bspline_3 = QPushButton("BSpline Gridding")
+        self.pushButton_bspline_3 = QPushButton(_tr("BSpline Gridding"))
         self.pushButton_bspline_3.setStyleSheet("font-weight: bold;")
 
         g.addWidget(self.pushButton_idw_2,    4, 1)
@@ -806,7 +811,7 @@ class SGToolDockWidget(QDockWidget):
         w = QWidget()
         h = QHBoxLayout(w)
         h.setContentsMargins(4, 0, 4, 0)
-        self.label_52 = QLabel("Select Grid")
+        self.label_52 = QLabel(_tr("Select Grid"))
         self.label_52.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.mMapLayerComboBox_selectGrid_worms = QgsMapLayerComboBox()
         h.addWidget(self.label_52)
@@ -822,14 +827,14 @@ class SGToolDockWidget(QDockWidget):
         g = QGridLayout(gb)
         g.setSpacing(4)
 
-        self.label_58 = QLabel("# Levels")
+        self.label_58 = QLabel(_tr("# Levels"))
         self.label_58.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.spinBox_levels = QSpinBox()
         self.spinBox_levels.setMinimum(1)
         self.spinBox_levels.setValue(10)
-        self.checkBox_worms_shp = QCheckBox("Also save to shapefile")
+        self.checkBox_worms_shp = QCheckBox(_tr("Also save to shapefile"))
 
-        self.label_60 = QLabel("Base Level")
+        self.label_60 = QLabel(_tr("Base Level"))
         self.label_60.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.doubleSpinBox_base = QDoubleSpinBox()
         self.doubleSpinBox_base.setDecimals(0)
@@ -838,7 +843,7 @@ class SGToolDockWidget(QDockWidget):
         self.doubleSpinBox_base.setSingleStep(100)
         self.doubleSpinBox_base.setValue(1000)
 
-        self.label_62 = QLabel("Increment")
+        self.label_62 = QLabel(_tr("Increment"))
         self.label_62.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.doubleSpinBox_inc = QDoubleSpinBox()
         self.doubleSpinBox_inc.setDecimals(0)
@@ -847,7 +852,7 @@ class SGToolDockWidget(QDockWidget):
         self.doubleSpinBox_inc.setSingleStep(100)
         self.doubleSpinBox_inc.setValue(1000)
 
-        self.pushButton_worms = QPushButton("Calculate Worms")
+        self.pushButton_worms = QPushButton(_tr("Calculate Worms"))
         self.pushButton_worms.setStyleSheet("font-weight: bold;")
 
         g.addWidget(self.label_58,         0, 0)
@@ -866,24 +871,24 @@ class SGToolDockWidget(QDockWidget):
     # Group: Wavelet Transform Modulus Maxima
     # ------------------------------------------------------------------
     def _group_wtmm(self):
-        gb = QGroupBox("Wavelet Transform Modulus Maxima")
+        gb = QGroupBox(_tr("Wavelet Transform Modulus Maxima"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
         # Select points/line layer
-        self.label_57 = QLabel("Select points/line")
+        self.label_57 = QLabel(_tr("Select points/line"))
         self.label_57.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.mMapLayerComboBox_selectVectors = QgsMapLayerComboBox()
 
-        self.label_59 = QLabel("Select feature")
+        self.label_59 = QLabel(_tr("Select feature"))
         self.label_59.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.mFieldComboBox_feature = QComboBox()
 
-        self.label_76 = QLabel("Select data field")
+        self.label_76 = QLabel(_tr("Select data field"))
         self.label_76.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.mFieldComboBox_data = QgsFieldComboBox()
 
-        self.label_61 = QLabel("Spacing\n(Proj Units)")
+        self.label_61 = QLabel(_tr("Spacing\n(Proj Units)"))
         self.label_61.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.doubleSpinBox_wtmm_spacing = QDoubleSpinBox()
         self.doubleSpinBox_wtmm_spacing.setDecimals(8)
@@ -892,7 +897,7 @@ class SGToolDockWidget(QDockWidget):
         self.doubleSpinBox_wtmm_spacing.setSingleStep(100)
         self.doubleSpinBox_wtmm_spacing.setValue(100)
 
-        self.pushButton_wtmm = QPushButton("Calculate WTMM")
+        self.pushButton_wtmm = QPushButton(_tr("Calculate WTMM"))
         self.pushButton_wtmm.setStyleSheet("font-weight: bold;")
 
         g.addWidget(self.label_57,                    0, 0)
@@ -929,7 +934,7 @@ class SGToolDockWidget(QDockWidget):
         top_row = QWidget()
         tl = QHBoxLayout(top_row)
         tl.setContentsMargins(0, 0, 0, 0)
-        self.label_56 = QLabel("Select Grid")
+        self.label_56 = QLabel(_tr("Select Grid"))
         self.label_56.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.mMapLayerComboBox_selectGrid_Conv_2 = QgsMapLayerComboBox()
         tl.addWidget(self.label_56)
@@ -943,7 +948,7 @@ class SGToolDockWidget(QDockWidget):
         apply_row = QWidget()
         al = QHBoxLayout(apply_row)
         al.setContentsMargins(0, 0, 0, 0)
-        self.pushButton_3_applyProcessing_Conv_3 = QPushButton("Apply Processing")
+        self.pushButton_3_applyProcessing_Conv_3 = QPushButton(_tr("Apply Processing"))
         self.pushButton_3_applyProcessing_Conv_3.setStyleSheet("font-weight: bold;")
         al.addWidget(self.pushButton_3_applyProcessing_Conv_3)
         al.addStretch()
@@ -960,17 +965,17 @@ class SGToolDockWidget(QDockWidget):
     # Group: Threshold to NaN
     # ------------------------------------------------------------------
     def _group_nan_threshold(self):
-        gb = QGroupBox("Threshold to NaN")
+        gb = QGroupBox(_tr("Threshold to NaN"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
         self.checkBox_NaN = QCheckBox()
-        self.radioButton_NaN_Above = QRadioButton("Above")
+        self.radioButton_NaN_Above = QRadioButton(_tr("Above"))
         self.radioButton_NaN_Above.setChecked(True)
-        self.radioButton_NaN_Below = QRadioButton("Below")
-        self.radioButton_NaN_Both = QRadioButton("Between")
+        self.radioButton_NaN_Below = QRadioButton(_tr("Below"))
+        self.radioButton_NaN_Both = QRadioButton(_tr("Between"))
 
-        self.label_70 = QLabel("Above")
+        self.label_70 = QLabel(_tr("Above"))
         self.label_70.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.doubleSpinBox_NaN_Above = QDoubleSpinBox()
         self.doubleSpinBox_NaN_Above.setDecimals(8)
@@ -978,7 +983,7 @@ class SGToolDockWidget(QDockWidget):
         self.doubleSpinBox_NaN_Above.setMaximum(1e30)
         self.doubleSpinBox_NaN_Above.setValue(1.0)
 
-        self.label_71 = QLabel("Below")
+        self.label_71 = QLabel(_tr("Below"))
         self.label_71.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.doubleSpinBox_NaN_Below = QDoubleSpinBox()
         self.doubleSpinBox_NaN_Below.setDecimals(8)
@@ -1002,10 +1007,10 @@ class SGToolDockWidget(QDockWidget):
     # Group: Create Clipping Polygon
     # ------------------------------------------------------------------
     def _group_clip_polygon(self):
-        gb = QGroupBox("Create Clipping Polygon")
+        gb = QGroupBox(_tr("Create Clipping Polygon"))
         g = QGridLayout(gb)
         g.setSpacing(4)
-        self.checkBox_polygons = QCheckBox("Create polygon based on grid")
+        self.checkBox_polygons = QCheckBox(_tr("Create polygon based on grid"))
         g.addWidget(self.checkBox_polygons, 0, 0)
         g.setColumnStretch(1, 1)
         return gb
@@ -1014,27 +1019,27 @@ class SGToolDockWidget(QDockWidget):
     # Group: Normalise Grids
     # ------------------------------------------------------------------
     def _group_normalise(self):
-        gb = QGroupBox("Normalise Grids")
+        gb = QGroupBox(_tr("Normalise Grids"))
         self.groupBox_10 = gb
         g = QGridLayout(gb)
         g.setSpacing(4)
 
-        self.label_66 = QLabel("Input Directory")
+        self.label_66 = QLabel(_tr("Input Directory"))
         self.label_66.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_loadPointsPath_normalise_in = QLineEdit()
         self.pushButton_select_normalise_in = QPushButton("...")
         self.pushButton_select_normalise_in.setFixedWidth(30)
-        self.radioButton_normalise_1st = QRadioButton("1st order fit")
+        self.radioButton_normalise_1st = QRadioButton(_tr("1st order fit"))
         self.radioButton_normalise_1st.setChecked(True)
 
-        self.label_72 = QLabel("Output Directory")
+        self.label_72 = QLabel(_tr("Output Directory"))
         self.label_72.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_loadPointsPath_normalise_out = QLineEdit()
         self.pushButton_select_normalise_out = QPushButton("...")
         self.pushButton_select_normalise_out.setFixedWidth(30)
-        self.radioButton_normalise_2nd = QRadioButton("2nd order fit")
+        self.radioButton_normalise_2nd = QRadioButton(_tr("2nd order fit"))
 
-        self.pushButton_normalise = QPushButton("Normalise Grids")
+        self.pushButton_normalise = QPushButton(_tr("Normalise Grids"))
         self.pushButton_normalise.setStyleSheet("font-weight: bold;")
 
         g.addWidget(self.label_66,                           0, 0)
@@ -1056,14 +1061,14 @@ class SGToolDockWidget(QDockWidget):
     # Group: Convert LUT to Grayscale
     # ------------------------------------------------------------------
     def _group_lut_convert(self):
-        gb = QGroupBox("Convert LUT to Grayscale")
+        gb = QGroupBox(_tr("Convert LUT to Grayscale"))
         gb.setObjectName("groupBox_7")
         self.groupBox_7 = gb
         g = QGridLayout(gb)
         g.setSpacing(4)
 
         # RGB grid selector
-        self.label_42 = QLabel("Select RGB Grid")
+        self.label_42 = QLabel(_tr("Select RGB Grid"))
         self.label_42.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_2_loadGridPath_2 = QLineEdit()
         self.pushButton_2_selectGrid_RGB = QPushButton("...")
@@ -1074,11 +1079,11 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.pushButton_2_selectGrid_RGB, 0, 2)
 
         # CSS colour list
-        self.label_43 = QLabel("CSS Colour List\nor\nRGB triplets")
+        self.label_43 = QLabel(_tr("CSS Colour List\nor\nRGB triplets"))
         self.label_43.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.textEdit_2_colour_list = QTextEdit()
         self.textEdit_2_colour_list.setPlaceholderText(
-            "comma separated list of CSS colour names or comma separated RGB triplets")
+            _tr("comma separated list of CSS colour names or comma separated RGB triplets"))
         self.textEdit_2_colour_list.setFixedHeight(70)
 
         g.addWidget(self.label_43,               1, 0)
@@ -1091,18 +1096,18 @@ class SGToolDockWidget(QDockWidget):
 
         # CSS colours button
         self.pushButton_CSSS_Colours = QPushButton(
-            "Full list of CSS Colour Names")
+            _tr("Full list of CSS Colour Names"))
         g.addWidget(self.pushButton_CSSS_Colours, 3, 1, 1, 2)
 
         # Min / Max
-        self.label_46 = QLabel("Min")
+        self.label_46 = QLabel(_tr("Min"))
         self.label_46.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.mQgsDoubleSpinBox_LUT_min = QgsDoubleSpinBox()
         self.mQgsDoubleSpinBox_LUT_min.setMinimum(-1e20)
         self.mQgsDoubleSpinBox_LUT_min.setMaximum(1e20)
         self.mQgsDoubleSpinBox_LUT_min.setSingleStep(100)
 
-        self.label_50 = QLabel("Max")
+        self.label_50 = QLabel(_tr("Max"))
         self.label_50.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.mQgsDoubleSpinBox_LUT_max = QgsDoubleSpinBox()
         self.mQgsDoubleSpinBox_LUT_max.setMinimum(-1e20)
@@ -1116,7 +1121,7 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.mQgsDoubleSpinBox_LUT_max,  5, 1)
 
         # Convert button
-        self.pushButton_3_applyProcessing_Conv_2 = QPushButton("Convert Grid")
+        self.pushButton_3_applyProcessing_Conv_2 = QPushButton(_tr("Convert Grid"))
         self.pushButton_3_applyProcessing_Conv_2.setStyleSheet("font-weight: bold;")
         g.addWidget(self.pushButton_3_applyProcessing_Conv_2, 6, 1, 1, 2)
 

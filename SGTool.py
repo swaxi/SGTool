@@ -155,11 +155,15 @@ class SGTool:
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
 
-        # initialize locale
-        locale = str(QSettings().value("locale/userLocale"))[0:2]
+        # initialize locale — try full locale code first (e.g. pt_BR), then 2-char fallback (e.g. pt)
+        full_locale = str(QSettings().value("locale/userLocale"))
         locale_path = os.path.join(
-            self.plugin_dir, "i18n", "SGTool_{}.qm".format(locale)
+            self.plugin_dir, "i18n", "SGTool_{}.qm".format(full_locale)
         )
+        if not os.path.exists(locale_path):
+            locale_path = os.path.join(
+                self.plugin_dir, "i18n", "SGTool_{}.qm".format(full_locale[0:2])
+            )
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
@@ -333,340 +337,340 @@ class SGTool:
         """
 
         self.dlg.mMapLayerComboBox_selectGrid.setToolTip(
-            "Layer selected for processing"
+            self.tr("Layer selected for processing")
         )
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setToolTip(
-            "Layer selected for grid processing"
+            self.tr("Layer selected for grid processing")
         )
         self.dlg.pushButton_2_selectGrid.setToolTip(
-            "Load new file for processing\n*.grd *.tif *.ers *.grv *.mag, for other formats use normal QGIS grid loader"
+            self.tr("Load new file for processing\n*.grd *.tif *.ers *.grv *.mag, for other formats use normal QGIS grid loader")
         )
         self.dlg.checkBox_3_DirClean.setToolTip(
-            "Filter (DirCos + Butterworth) remove a specific direction and wavelength,\nUseful for filtering flight line noise"
+            self.tr("Filter (DirCos + Butterworth) remove a specific direction and wavelength,\nUseful for filtering flight line noise")
         )
 
         self.dlg.lineEdit_3_azimuth.setToolTip(
-            "Azimuth of high frequency noise to be filtered (degrees clockwise from North)"
+            self.tr("Azimuth of high frequency noise to be filtered (degrees clockwise from North)")
         )
 
         self.dlg.checkBox_4_RTE_P.setToolTip(
-            "Reduction to pole or equator\nThe reduction to the pole (RTP) or to Equator (RTE) is a process in geophysics\nwhere magnetic data are transformed to look as though\n they were measured at the magnetic pole/equator\nCorrects the asymmetry of magnetic anomalies caused by\n the Earth's field, making them appear directly above their sources"
+            self.tr("Reduction to pole or equator\nThe reduction to the pole (RTP) or to Equator (RTE) is a process in geophysics\nwhere magnetic data are transformed to look as though\n they were measured at the magnetic pole/equator\nCorrects the asymmetry of magnetic anomalies caused by\n the Earth's field, making them appear directly above their sources")
         )
         self.dlg.pushButton_4_calcIGRF.setToolTip(
-            "Calculate IGRF Inclination & Declination based on centroid of selected grid and specified survey height and date\nIf a grid originated from a Noddy calculation, the info is read from the geotiff metadata"
+            self.tr("Calculate IGRF Inclination & Declination based on centroid of selected grid and specified survey height and date\nIf a grid originated from a Noddy calculation, the info is read from the geotiff metadata")
         )
         self.dlg.comboBox_3_rte_p_list.setToolTip(
-            "Choose Pole(high mag latitudes >20 degrees)\n or Equator (low mag latitudes, <20 degrees)\n for reduction to pole or equator"
+            self.tr("Choose Pole(high mag latitudes >20 degrees)\n or Equator (low mag latitudes, <20 degrees)\n for reduction to pole or equator")
         )
         self.dlg.lineEdit_6_inc.setToolTip(
-            "Manually define magnetic inclination [degrees from horizontal]"
+            self.tr("Manually define magnetic inclination [degrees from horizontal]")
         )
         self.dlg.lineEdit_5_dec.setToolTip(
-            "Manually define magnetic declination [degrees clockwise from North]"
+            self.tr("Manually define magnetic declination [degrees clockwise from North]")
         )
-        self.dlg.lineEdit_6_int.setToolTip("Survey intensity in nT")
-        self.dlg.dateEdit.setToolTip("Survey date (1900-2030)")
+        self.dlg.lineEdit_6_int.setToolTip(self.tr("Survey intensity in nT"))
+        self.dlg.dateEdit.setToolTip(self.tr("Survey date (1900-2030)"))
         self.dlg.checkBox_4_PGrav.setToolTip(
-            "Vertical Integration:\nWhen applied to RTE/P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing.\nRequires a metre-based projection"
+            self.tr("Vertical Integration:\nWhen applied to RTE/P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing.\nRequires a metre-based projection")
         )
 
         self.dlg.checkBox_5_regional.setToolTip(
-            "Remove regional (RR) based on 1st or 2nd order polynomial "
+            self.tr("Remove regional (RR) based on 1st or 2nd order polynomial ")
         )
 
         self.dlg.checkBox_6_derivative.setToolTip(
-            "Calculate derivate (d+power+direction) parallel to x, y or z\nHighlights near-surface/short-wavelength features"
+            self.tr("Calculate derivate (d+power+direction) parallel to x, y or z\nHighlights near-surface/short-wavelength features")
         )
 
-        self.dlg.comboBox_derivDirection.setToolTip("Select derivative direction")
-        self.dlg.lineEdit_9_derivePower.setToolTip("Power of derivative")
+        self.dlg.comboBox_derivDirection.setToolTip(self.tr("Select derivative direction"))
+        self.dlg.lineEdit_9_derivePower.setToolTip(self.tr("Power of derivative"))
         self.dlg.checkBox_7_tiltDerivative.setToolTip(
-            "Tilt Derivative (TD)\nIt is often applied to magnetic or gravity data to enhance edges and detect shallow sources\nTends to overconnect structural features"
+            self.tr("Tilt Derivative (TD)\nIt is often applied to magnetic or gravity data to enhance edges and detect shallow sources\nTends to overconnect structural features")
         )
 
         self.dlg.checkBox_8_analyticSignal.setToolTip(
-            "Analytic Signal (AS)\nIt combines horizontal and vertical derivatives to highlight anomaly edges and amplitude variations, independent of direction"
+            self.tr("Analytic Signal (AS)\nIt combines horizontal and vertical derivatives to highlight anomaly edges and amplitude variations, independent of direction")
         )
 
         self.dlg.checkBox_9_continuation.setToolTip(
-            "Upward or downward continuation\nUpward Continuation (UC) data by continuing it to a higher altitude, attenuating high-frequency noise and shallow features\nDownward Continuation (DC) enhances shallow or high-frequency anomalies by continuing the field to a lower altitude"
+            self.tr("Upward or downward continuation\nUpward Continuation (UC) data by continuing it to a higher altitude, attenuating high-frequency noise and shallow features\nDownward Continuation (DC) enhances shallow or high-frequency anomalies by continuing the field to a lower altitude")
         )
 
         self.dlg.comboBox_2_continuationDirection.setToolTip(
-            "Select direction of continuation"
+            self.tr("Select direction of continuation")
         )
         self.dlg.lineEdit_10_continuationHeight.setToolTip(
-            "Select amount of continuation [m only]"
+            self.tr("Select amount of continuation [m only]")
         )
         self.dlg.checkBox_10_bandPass.setToolTip(
-            "Band pass filter (BP)\nIsolates specific wavelength features."
+            self.tr("Band pass filter (BP)\nIsolates specific wavelength features.")
         )
 
         self.dlg.lineEdit_12_bandPassLow.setToolTip(
-            "Low wavelength cutoff [m or other length unit]"
+            self.tr("Low wavelength cutoff [m or other length unit]")
         )
         self.dlg.lineEdit_11_bandPassHigh.setToolTip(
-            "High wavelength cutoff [m or other length unit]"
+            self.tr("High wavelength cutoff [m or other length unit]")
         )
         self.dlg.lineEdit_3_HLP_width.setToolTip(
-            "Width of cosine rolloff [m or other length unit]\nStart with cutoff value and increase to reduce ringing\n0 is step cutoff"
+            self.tr("Width of cosine rolloff [m or other length unit]\nStart with cutoff value and increase to reduce ringing\n0 is step cutoff")
         )
         self.dlg.lineEdit_3_BP_width.setToolTip(
-            "Width of cosine rolloff [m or other length unit]\nStart with cutoff value and increase to reduce ringing\n0 is step cutoff"
+            self.tr("Width of cosine rolloff [m or other length unit]\nStart with cutoff value and increase to reduce ringing\n0 is step cutoff")
         )
 
         self.dlg.checkBox_10_freqCut.setToolTip(
-            "High or Low pass filter\nIsolates specific short wavelength (HP) or long wavelength (LP) features."
+            self.tr("High or Low pass filter\nIsolates specific short wavelength (HP) or long wavelength (LP) features.")
         )
 
-        self.dlg.comboBox_2_FreqCutType.setToolTip("Cut off type")
+        self.dlg.comboBox_2_FreqCutType.setToolTip(self.tr("Cut off type"))
         self.dlg.lineEdit_12_FreqPass.setToolTip(
-            "Cutoff wavelength [m or other length unit]"
+            self.tr("Cutoff wavelength [m or other length unit]")
         )
         self.dlg.checkBox_11_1vd_agc.setToolTip(
-            "Automatic Gain Control (AGC) or Amplitude Normalisation\nHighlights short wavelength/low amplitude features"
+            self.tr("Automatic Gain Control (AGC) or Amplitude Normalisation\nHighlights short wavelength/low amplitude features")
         )
 
-        self.dlg.lineEdit_13_agc_window.setToolTip("Window size for normalisation")
+        self.dlg.lineEdit_13_agc_window.setToolTip(self.tr("Window size for normalisation"))
         self.dlg.pushButton_3_applyProcessing.setToolTip(
-            "Apply selected processing steps in parallel to selected grid"
+            self.tr("Apply selected processing steps in parallel to selected grid")
         )
         self.dlg.pushButton_3_applyProcessing_Conv.setToolTip(
-            "Apply selected processing steps in parallel to selected grid"
+            self.tr("Apply selected processing steps in parallel to selected grid")
         )
         self.dlg.lineEdit_13_max_buffer.setToolTip(
-            "Maximum buffer to be applied to grid to reduce edge effects"
+            self.tr("Maximum buffer to be applied to grid to reduce edge effects")
         )
         self.dlg.checkBox_11_tot_hz_grad.setToolTip(
-            "Total Horizontal Gradient Calculation (THG)"
+            self.tr("Total Horizontal Gradient Calculation (THG)")
         )
         self.dlg.pushButton_rad_power_spectrum.setToolTip(
-            "Provides pop-up display of grid plus Radial Averaged Power Spectrum (needs testing!)"
+            self.tr("Provides pop-up display of grid plus Radial Averaged Power Spectrum (needs testing!)")
         )
 
         self.dlg.checkBox_Mean.setToolTip(
-            "Mean of values around central pixel\nSmooths data"
+            self.tr("Mean of values around central pixel\nSmooths data")
         )
 
         self.dlg.checkBox_Median.setToolTip(
-            "Median of values around central pixel\nRemoves high frequency noise"
+            self.tr("Median of values around central pixel\nRemoves high frequency noise")
         )
 
-        self.dlg.checkBox_Gaussian.setToolTip("Gaussian smoothing of image")
+        self.dlg.checkBox_Gaussian.setToolTip(self.tr("Gaussian smoothing of image"))
 
         self.dlg.checkBox_Directional.setToolTip(
-            "Directional enhancement\nHighlights high frequency data in a particular direction"
+            self.tr("Directional enhancement\nHighlights high frequency data in a particular direction")
         )
 
         self.dlg.pushButton_selectPoints.setToolTip(
-            "Select CSV, DAT (ASEG-GDF2 or legacy DAT) or XYZ format points file\nLegacy DAT format is quite variable so columns may be offset from field name!"
+            self.tr("Select CSV, DAT (ASEG-GDF2 or legacy DAT) or XYZ format points file\nLegacy DAT format is quite variable so columns may be offset from field name!")
         )
         self.dlg.comboBox_grid_x.setToolTip(
-            "Define X coordinate column (for csv & dat files)"
+            self.tr("Define X coordinate column (for csv & dat files)")
         )
         self.dlg.comboBox_grid_y.setToolTip(
-            "Define Y coordinate column (for csv & dat files)"
+            self.tr("Define Y coordinate column (for csv & dat files)")
         )
         self.dlg.mQgsProjectionSelectionWidget.setToolTip(
-            "DEfine Coordinate System of point data"
+            self.tr("DEfine Coordinate System of point data")
         )
         self.dlg.checkBox_load_tie_lines.setToolTip(
-            "For xyz format files only, optionally load tie lines"
+            self.tr("For xyz format files only, optionally load tie lines")
         )
         self.dlg.pushButton_load_point_data.setToolTip(
-            "Load points file and convert to layer\nWith polyline layer of lines for xyz format files"
+            self.tr("Load points file and convert to layer\nWith polyline layer of lines for xyz format files")
         )
         self.dlg.mMapLayerComboBox_selectGrid_3.setToolTip(
-            "Select from currently loaded points layers for gridding"
+            self.tr("Select from currently loaded points layers for gridding")
         )
-        self.dlg.comboBox_select_grid_data_field.setToolTip("Select field to grid")
-        self.dlg.doubleSpinBox_cellsize.setToolTip("Define cell size in layer units")
+        self.dlg.comboBox_select_grid_data_field.setToolTip(self.tr("Select field to grid"))
+        self.dlg.doubleSpinBox_cellsize.setToolTip(self.tr("Define cell size in layer units"))
         self.dlg.pushButton_idw_2.setToolTip(
-            "Perform Inverse Distance Weighting (IDW) gridding\nOpens Standard QGIS Dialog"
+            self.tr("Perform Inverse Distance Weighting (IDW) gridding\nOpens Standard QGIS Dialog")
         )
         self.dlg.pushButton_bspline_3.setToolTip(
-            "Perform Multilevel B-Spline gridding\nRequires SAGAProcessing Saga NextGen Provider plugin to be installed"
+            self.tr("Perform Multilevel B-Spline gridding\nRequires SAGAProcessing Saga NextGen Provider plugin to be installed")
         )
         self.dlg.label_51.setToolTip(
-            "Number of cells in x & y directions based on spatial extent of points and Cell Size"
+            self.tr("Number of cells in x & y directions based on spatial extent of points and Cell Size")
         )
         self.dlg.pushButton_2_selectGrid_RGB.setToolTip(
-            "Select RGB image that you want to convert to a monotonic grayscale image"
+            self.tr("Select RGB image that you want to convert to a monotonic grayscale image")
         )
         self.dlg.textEdit_2_colour_list.setToolTip(
-            "Comma separated list of CSS colours\nOR a set of comma seperated RBG triplets"
+            self.tr("Comma separated list of CSS colours\nOR a set of comma seperated RBG triplets")
         )
         self.dlg.groupBox_7.setToolTip(
-            "1) Load a RGB raster image,\n2) Define a Look Up Table by defining a comma separated sequence of colours using CSS colour names OR a set of comma seperated RBG triplets and\n3) Convert to monotonically increasing greyscale image\n\nDo not use if any shading has been applied to the image!"
+            self.tr("1) Load a RGB raster image,\n2) Define a Look Up Table by defining a comma separated sequence of colours using CSS colour names OR a set of comma seperated RBG triplets and\n3) Convert to monotonically increasing greyscale image\n\nDo not use if any shading has been applied to the image!")
         )
         self.dlg.mQgsDoubleSpinBox_LUT_min.setToolTip(
-            "Define min and max values for rescaling of grid values"
+            self.tr("Define min and max values for rescaling of grid values")
         )
         self.dlg.mQgsDoubleSpinBox_LUT_max.setToolTip(
-            "Define min and max values for rescaling of grid values"
+            self.tr("Define min and max values for rescaling of grid values")
         )
         self.dlg.pushButton_CSSS_Colours.setToolTip(
-            "See full suite of CSS Colours (requires network connection)"
+            self.tr("See full suite of CSS Colours (requires network connection)")
         )
-        self.dlg.lineEdit.setToolTip("Example colour sequence, can be copy pasted")
+        self.dlg.lineEdit.setToolTip(self.tr("Example colour sequence, can be copy pasted"))
 
-        self.dlg.spinBox_levels.setToolTip("Number of levels")
-        self.dlg.doubleSpinBox_base.setToolTip("Lowest height to worm")
-        self.dlg.doubleSpinBox_inc.setToolTip("Increment in metres between levels ")
-        self.dlg.groupBox_8.setToolTip("Create csv file of worms using bsdwormer code")
+        self.dlg.spinBox_levels.setToolTip(self.tr("Number of levels"))
+        self.dlg.doubleSpinBox_base.setToolTip(self.tr("Lowest height to worm"))
+        self.dlg.doubleSpinBox_inc.setToolTip(self.tr("Increment in metres between levels "))
+        self.dlg.groupBox_8.setToolTip(self.tr("Create csv file of worms using bsdwormer code"))
         self.dlg.mMapLayerComboBox_selectGrid_worms.setToolTip(
-            "Grid to be analysed by wavelet transform"
+            self.tr("Grid to be analysed by wavelet transform")
         )
 
-        self.dlg.checkBox_NaN.setToolTip("Threshold background values to NaN")
+        self.dlg.checkBox_NaN.setToolTip(self.tr("Threshold background values to NaN"))
         self.dlg.radioButton_NaN_Above.setToolTip(
-            "Threshold background values above set value to NaN"
+            self.tr("Threshold background values above set value to NaN")
         )
         self.dlg.radioButton_NaN_Below.setToolTip(
-            "Threshold background values below set value to NaN"
+            self.tr("Threshold background values below set value to NaN")
         )
         self.dlg.radioButton_NaN_Both.setToolTip(
-            "Threshold background values between set values to NaN"
+            self.tr("Threshold background values between set values to NaN")
         )
-        self.dlg.doubleSpinBox_NaN_Above.setToolTip("Upper threshold value")
+        self.dlg.doubleSpinBox_NaN_Above.setToolTip(self.tr("Upper threshold value"))
 
         self.dlg.checkBox_worms_shp.setToolTip(
-            "Convert worms to polyline shapefile\n(Can be slow and best to start worms at >=2000m)"
+            self.tr("Convert worms to polyline shapefile\n(Can be slow and best to start worms at >=2000m)")
         )
 
         self.dlg.pushButton_select_normalise_in.setToolTip(
-            "Directory with geotiffs to be normalised"
+            self.tr("Directory with geotiffs to be normalised")
         )
 
         self.dlg.pushButton_select_normalise_out.setToolTip(
-            "Directory where normalised geotiffs will be stored"
+            self.tr("Directory where normalised geotiffs will be stored")
         )
 
         self.dlg.pushButton_normalise.setToolTip(
-            "Normalise geotiffs:\n1. First order regional removed\n2. Normalise standard deviation using alpahbetical first file in input directory as reference\n3. Remove mean"
+            self.tr("Normalise geotiffs:\n1. First order regional removed\n2. Normalise standard deviation using alpahbetical first file in input directory as reference\n3. Remove mean")
         )
         self.dlg.groupBox_10.setToolTip(
-            "Normalise directory of geotiffs\nOnce normalised the QGIS merge tool produced a reasonable stitch of the grids\nAssumes same processing level for grids\nAssumes flight heights have been normalised by continuation\nMerge uses alpahbetical first file to define cell size\nAll grids in merge have to be same projection"
+            self.tr("Normalise directory of geotiffs\nOnce normalised the QGIS merge tool produced a reasonable stitch of the grids\nAssumes same processing level for grids\nAssumes flight heights have been normalised by continuation\nMerge uses alpahbetical first file to define cell size\nAll grids in merge have to be same projection")
         )
 
         self.dlg.radioButton_normalise_1st.setToolTip(
-            "1st order (flat plane) regional removed from grid"
+            self.tr("1st order (flat plane) regional removed from grid")
         )
 
         self.dlg.radioButton_normalise_2nd.setToolTip(
-            "2nd order polynomial regional removed from grid (slower)"
+            self.tr("2nd order polynomial regional removed from grid (slower)")
         )
 
-        self.dlg.checkBox_polygons.setToolTip("Create grid outline polygon(s) layer")
+        self.dlg.checkBox_polygons.setToolTip(self.tr("Create grid outline polygon(s) layer"))
 
         self.dlg.label_26.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RTP mag data"
+            self.tr("Functions preceded by dot points should be calculated on RTE or RTP mag data")
         )
         self.dlg.label_28.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RTP mag data"
+            self.tr("Functions preceded by dot points should be calculated on RTE or RTP mag data")
         )
         self.dlg.label_29.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RTP mag data"
+            self.tr("Functions preceded by dot points should be calculated on RTE or RTP mag data")
         )
         self.dlg.label_32.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RTP mag data"
+            self.tr("Functions preceded by dot points should be calculated on RTE or RTP mag data")
         )
         self.dlg.label_30.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RTP mag data"
+            self.tr("Functions preceded by dot points should be calculated on RTE or RTP mag data")
         )
         self.dlg.label_25.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RTP mag data"
+            self.tr("Functions preceded by dot points should be calculated on RTE or RTP mag data")
         )
         self.dlg.label_40.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RTP mag data"
+            self.tr("Functions preceded by dot points should be calculated on RTE or RTP mag data")
         )
         self.dlg.label_41.setToolTip(
-            "Functions preceded by dot points should be calculated on RTE or RTP mag data"
+            self.tr("Functions preceded by dot points should be calculated on RTE or RTP mag data")
         )
 
         self.dlg.checkBox_SS_Min.setToolTip(
-            "Calculate minimum of values around central pixel"
+            self.tr("Calculate minimum of values around central pixel")
         )
         self.dlg.checkBox_SS_Max.setToolTip(
-            "Calculate maximum of values around central pixel"
+            self.tr("Calculate maximum of values around central pixel")
         )
         self.dlg.checkBox_SS_StdDev.setToolTip(
-            "Calculate standard deviation of values around central pixel\nWill be slow for larger grids and window sizes!!"
+            self.tr("Calculate standard deviation of values around central pixel\nWill be slow for larger grids and window sizes!!")
         )
         self.dlg.checkBox_SS_Variance.setToolTip(
-            "Calculate variance of values around central pixel\nWill be slow for larger grids and window sizes!!"
+            self.tr("Calculate variance of values around central pixel\nWill be slow for larger grids and window sizes!!")
         )
         self.dlg.checkBox_SS_Skewness.setToolTip(
-            "Calculate skewness of values around central pixel\nWill be VERY slow for larger grids and window sizes!!"
+            self.tr("Calculate skewness of values around central pixel\nWill be VERY slow for larger grids and window sizes!!")
         )
         self.dlg.checkBox_SS_Kurtosis.setToolTip(
-            "Calculate kurtosis of values around central pixel\nWill be VERY slow for larger grids and window sizes!!"
+            self.tr("Calculate kurtosis of values around central pixel\nWill be VERY slow for larger grids and window sizes!!")
         )
 
         self.dlg.lineEdit_SS_Window.setToolTip(
-            "Size of window for calculation of spatial statistics"
+            self.tr("Size of window for calculation of spatial statistics")
         )
 
         self.dlg.checkBox_DTM_Class.setToolTip(
-            "Calculate DTM classification based on curvature and slope\n-1 = concave up\n0 = flat\n1 = convex up\n2 = steep slope"
+            self.tr("Calculate DTM classification based on curvature and slope\n-1 = concave up\n0 = flat\n1 = convex up\n2 = steep slope")
         )
         self.dlg.lineEdit_DTM_Curve.setToolTip(
-            "Curvature threshold for DTM classification\nPositive curvature = hill, negative curvature = valley"
+            self.tr("Curvature threshold for DTM classification\nPositive curvature = hill, negative curvature = valley")
         )
         self.dlg.lineEdit_DTM_Cliff.setToolTip(
-            "Slope threshold for Steep Slope DTM classification"
+            self.tr("Slope threshold for Steep Slope DTM classification")
         )
         self.dlg.lineEdit_DTM_Sigma.setToolTip(
-            "Smoothing parameter for DTM classification\nHigher values will smooth the data more"
+            self.tr("Smoothing parameter for DTM classification\nHigher values will smooth the data more")
         )
 
         self.dlg.lineEdit_3_DC_wavelength.setToolTip(
-            "Wavelength of high frequency noise to be filtered\nSet to 4x line spacing"
+            self.tr("Wavelength of high frequency noise to be filtered\nSet to 4x line spacing")
         )
 
         self.dlg.lineEdit_3_DC_scale.setToolTip(
-            "Multiplier to be applied to result before subtracting from original grid"
+            self.tr("Multiplier to be applied to result before subtracting from original grid")
         )
 
         self.dlg.doubleSpinBox_wtmm_spacing.setToolTip(
-            "Define spacing along profile\n0 = median spacing for points\nfor polylines must be non-zero, and ideally greater than grid cell size"
+            self.tr("Define spacing along profile\n0 = median spacing for points\nfor polylines must be non-zero, and ideally greater than grid cell size")
         )
-        self.dlg.pushButton_wtmm.setToolTip("Calculate WTMM and display in new windows")
+        self.dlg.pushButton_wtmm.setToolTip(self.tr("Calculate WTMM and display in new windows"))
 
         self.dlg.mMapLayerComboBox_selectVectors.setToolTip(
-            "Select data points layer or polyline to extract data from grid"
+            self.tr("Select data points layer or polyline to extract data from grid")
         )
 
         self.dlg.mFieldComboBox_feature.setToolTip(
-            "Select object to be analysed: LINE_ID of points or FID of polyline"
+            self.tr("Select object to be analysed: LINE_ID of points or FID of polyline")
         )
 
-        self.dlg.mFieldComboBox_data.setToolTip("Select data field for points layer")
+        self.dlg.mFieldComboBox_data.setToolTip(self.tr("Select data field for points layer"))
 
         self.dlg.checkBox_PCA.setToolTip(
-            "Principal Component Analysis (PCA)\nOnly works on multiband grids\nReduces dimensionality of data while preserving variance\nUseful for identifying patterns and trends in large datasets"
+            self.tr("Principal Component Analysis (PCA)\nOnly works on multiband grids\nReduces dimensionality of data while preserving variance\nUseful for identifying patterns and trends in large datasets")
         )
         self.dlg.mQgsSpinBox_PCA.setToolTip(
-            "Number of components to keep after PCA\nSet to 0 to keep all components"
+            self.tr("Number of components to keep after PCA\nSet to 0 to keep all components")
         )
 
         self.dlg.checkBox_ICA.setToolTip(
-            "Independent Component Analysis (ICA)\nOnly works on multiband grids\nSeparates a multivariate signal into additive, independent components\nUseful for separating mixed signals and identifying underlying sources"
+            self.tr("Independent Component Analysis (ICA)\nOnly works on multiband grids\nSeparates a multivariate signal into additive, independent components\nUseful for separating mixed signals and identifying underlying sources")
         )
         self.dlg.mQgsSpinBox_ICA.setToolTip(
-            "Number of components to keep after ICA\nSet to 0 to keep all components"
+            self.tr("Number of components to keep after ICA\nSet to 0 to keep all components")
         )
         self.dlg.checkBox_SunShading.setToolTip(
-            "Sun shading of grid\nUses azimuth and zenith angles to create a shaded relief effect\nUseful for visualizing topography and enhancing features"
+            self.tr("Sun shading of grid\nUses azimuth and zenith angles to create a shaded relief effect\nUseful for visualizing topography and enhancing features")
         )
         self.dlg.lineEdit_SunSh_Az.setToolTip(
-            "Azimuth angle for sun shading\n0 = North, 90 = East, 180 = South, 270 or -90 = West"
+            self.tr("Azimuth angle for sun shading\n0 = North, 90 = East, 180 = South, 270 or -90 = West")
         )
         self.dlg.lineEdit_SunSh_Zn.setToolTip(
-            "Zenith angle for sun shading\n90 = directly overhead, 0 = horizon"
+            self.tr("Zenith angle for sun shading\n90 = directly overhead, 0 = horizon")
         )
         self.dlg.checkBox_relief.setToolTip(
-            "Uses Grass-like shading algorithm for softer shading"
+            self.tr("Uses Grass-like shading algorithm for softer shading")
         )
 
     def initParams(self):

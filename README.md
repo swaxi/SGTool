@@ -8,9 +8,11 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog=0.3.5   
+# changelog=0.3.5
+      * Redo GUI so it removes need for .ui file and is now scrollable
       * redo RTE code following suggestion from google AI   
-      0.3.4   
+      * Almost complete ARCGIS Pro version now available with full GUI   
+      0.3.4
       * Fix bug with inclination declination signs for RTE_P now that images always north  
       * Check for commas as decimal separators and replace with decimal points     
       0.3.3
@@ -27,31 +29,7 @@
       * Move Euler and IGRF to calcs directory   
       * Compatibility with both QGIS4/QT6 and QGIS3/QT5   
       * Add RGB triplets as LUT definition for RGB to greyscale convertor   
-      0.2.18    
-      * Fix (again) clipping of csv worms   
-      * Fix bug in Filling FFT NaNs in NS direction (Thanks Feargal!)   
-      0.2.17    
-      * Fix bug saving grid boundary filename   
-      * Add ArcPro Toolbox support (very Beta!!)   
-      * Remove all QGIS library calls from calc engines   
-      * Fix bug in worms spatial filtering   
-      * Force processed ers output files to have tif suffix  
-      * Check for recognised CRS before processing    
-      0.2.16
-      * Add Euler Deconvolution from https://github.com/ffigura/Euler-deconvolution-python
-      * Add Noddy grid (grv & mag) import
-      0.2.15 
-      * Use cosine rolloff for high/low and bandpass filters to reduce ringing
-      * Change Remove Regional to 1st or 2nd order polynomial
-      * New grids use stdev scaling of grid to better highlight features
-      0.2.14
-      * don't try to load LINE_ID codes if they don't exist in WTMM
-      * added PCA & ICA calculations for multiband grids
-      * speed up Grass-like relief calc
-      * added DAT format points import based on ASEG-GDF2 standard (tested against example datasets only)
-      * TA demoted to needing RTP_E first in GUI
-      * save all CSV/XYZ/DAT imports as shapefiles
-      * fix import matplotlib bug and test for LINE_ID for points in WTMM code
+
    
 Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/heads/main/metadata.txt">Metadata</a>   
 
@@ -75,37 +53,8 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
    
 ## ArcGIS Pro:
 1) Download and unzip this respository and store somewhere safe.
-2) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **GeophysicalProcessor.pyt** in the **ArcGIS_Pro** directory in this repository. Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run (still in Beta so limited to classical geophysical, convolution and spataial stats processing calls for now):   
-**--- Grav/Mag ---**   
-- ReductionToPole,
-- UpwardContinuation,
-- DownwardContinuation,
-- VerticalIntegration,   
-**--- Frequency ---**   
-- BandPassFilter,
-- HighPassFilter,
-- LowPassFilter,
-- DirectionalButterworthBandPass,
-- RemoveRegionalTrend,            
-- AutomaticGainControl,   
-**--- Gradient ---**   
-- AnalyticSignal,
-- TiltAngle,
-- ComputeDerivative,
-- TotalHorizontalGradient,   
-**--- Spatial Stats ---**   
-- SpatialStatsVariance,
-- SpatialStatsStdDev,
-- SpatialStatsSkewness,
-- SpatialStatsKurtosis,
-- SpatialStatsMin,
-- SpatialStatsMax,   
-**--- Convolution ---**   
-- ConvolutionMeanFilter,
-- ConvolutionMedianFilter,
-- ConvolutionGaussianFilter,
-- ConvolutionDirectionalFilter,
-- ConvolutionSunShading,
+2) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **GeophysicalProcessor.pyt** in the **ArcGIS** directory in this repository. Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run, and select  **Launch** then run **SGTool GUI**     
+
    
 # Inputs   
 - QGIS version supports data geotiff, grd, ers and Noddy (grv & mag) grid formats plus any grid format already supported by QGIS. ArcGIS Pro version supports any raster format supported by ArcGIS Pro.

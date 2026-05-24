@@ -12,6 +12,7 @@
       * Redo GUI so it removes need for .ui file and is now scrollable
       * redo RTE code following suggestion from google AI   
       * Almost complete ARCGIS Pro version now available with full GUI   
+      * Translations of GUI for French, Spanish, Portuguese (Portugal and Brazil) and Mandarin
       0.3.4
       * Fix bug with inclination declination signs for RTE_P now that images always north  
       * Check for commas as decimal separators and replace with decimal points     

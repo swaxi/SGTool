@@ -2,7 +2,7 @@
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
- This plugin is available directly within QGIS using the Plugin Manager, however the latest ArcGIS Pro version or QGIS version with all new bugs will always be at this site.   
+ This plugin is available directly within **QGIS** using the Plugin Manager, however the latest **ArcGIS Pro** version or QGIS version with all new bugs will always be at this site.   
 
 **<a href="https://tectonique.net/sgtools_data/SGTool%20Cheat%20Sheet.pdf">Cheat Sheet (Thanks Chops)</a>**&nbsp;**&nbsp;|&nbsp;&nbsp;&nbsp; <a href="https://tectonique.net/sgtools_data/Structural%20Geophysics%20Tools.pdf">Download Basic Help Document</a>**&nbsp;&nbsp;&nbsp; |&nbsp;&nbsp;&nbsp;  **<a href="https://tectonique.net/sgtools_data/SGTools_large.mp4">Ctrl-click on link to watch demo video</a>**
     
@@ -53,7 +53,7 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
    
 ## ArcGIS Pro:
 1) Download and unzip this respository and store somewhere safe.
-2) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **GeophysicalProcessor.pyt** in the **ArcGIS** directory in this repository. Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run, and select  **Launch** then run **SGTool GUI**     
+2) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **GeophysicalProcessor.pyt** in the **ArcGIS** directory in this repository. Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run, and select  **Launch** then run **SGTool GUI** . Alternatively you can access individual tools from the same Toolbox.    
 
    
 # Inputs   

@@ -54,7 +54,22 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
    
 ## ArcGIS Pro:
 1) Download and unzip this respository and store somewhere safe.
-2) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **GeophysicalProcessor.pyt** in the **ArcGIS** directory in this repository. Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run, and select  **Launch** then run **SGTool GUI** . Alternatively you can access individual tools from the same Toolbox.    
+2) In order to run python code in ARCGIS Pro you will need to manually add some python libraries so SGTool has everything it needs:
+- a) Open Package Manager: Click the Project tab on the ribbon and select Package Manager from the side menu.Access Environment Manager: 
+      - i) Click the Environment Manager button (top right) to open the management dialog.
+      - ii) Clone the Environment: Locate the environment you wish to copy (usually arcgispro-py3) and click the Clone button next to it.
+      - iii) Set Destination: In the Clone Environment dialog, provide a name and path for your new environment or leave it as the default.
+      - iv) Finalize: Click OK. The cloning process may take several minutes.
+- b) Once the cloned environment has been created, search for and install the following packages, **if they are not already installed**:
+      - scipy
+      - matplotlib
+      - scikit-learn
+      - pyproj>=3.7.2
+      - networkx
+      - shapely
+      - geopandas
+- c) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **GeophysicalProcessor.pyt** in the **ArcGIS** directory in this repository. 
+- d) Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run, and select  **Launch** then run **SGTool GUI** . Alternatively you can access individual tools from the same Toolbox.    
 
    
 # Inputs   

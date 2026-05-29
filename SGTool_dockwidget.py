@@ -12,6 +12,18 @@ from qgis.gui import (
     QgsFieldComboBox, QgsSpinBox, QgsDoubleSpinBox,
 )
 
+# PyQt6 removed flat enum aliases; restore them so call sites need no changes.
+if not hasattr(Qt, 'AlignRight'):
+    for _n in ('AlignLeft', 'AlignRight', 'AlignHCenter', 'AlignVCenter',
+               'AlignCenter', 'AlignTop', 'AlignBottom'):
+        setattr(Qt, _n, getattr(Qt.AlignmentFlag, _n))
+if not hasattr(Qt, 'ScrollBarAlwaysOff'):
+    for _n in ('ScrollBarAlwaysOff', 'ScrollBarAsNeeded', 'ScrollBarAlwaysOn'):
+        setattr(Qt, _n, getattr(Qt.ScrollBarPolicy, _n))
+if not hasattr(QFrame, 'NoFrame'):
+    for _n in ('NoFrame', 'Box', 'Panel', 'StyledPanel', 'HLine', 'VLine', 'WinPanel'):
+        setattr(QFrame, _n, getattr(QFrame.Shape, _n))
+
 TAB_STYLE = """
 QTabWidget::tab-bar { alignment: left; }
 QTabBar::tab {
@@ -56,7 +68,10 @@ class SGToolDockWidget(QDockWidget):
         root_layout.setSpacing(0)
 
         self.tabWidget = QTabWidget()
-        self.tabWidget.setTabShape(QTabWidget.Triangular)
+        try:
+            self.tabWidget.setTabShape(QTabWidget.TabShape.Triangular)
+        except AttributeError:
+            self.tabWidget.setTabShape(QTabWidget.Triangular)
         self.tabWidget.setStyleSheet(TAB_STYLE)
         self.tabWidget.setUsesScrollButtons(False)
 

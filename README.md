@@ -55,7 +55,7 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
 ## ArcGIS Pro:
 1) Download and unzip this respository and store somewhere safe.
 2) In order to run python code in ARCGIS Pro you will need to manually add some python libraries so SGTool has everything it needs:
-- a) Open Package Manager: Click the Project tab on the ribbon and select Package Manager from the side menu.Access Environment Manager: 
+- a) Open Package Manager: Click the Project tab on the ribbon and select Package Manager from the side menu. Access Environment Manager (Gear icon to right of active environemnt): 
   - i) Click the Environment Manager button (top right) to open the management dialog.
   - ii) Clone the Environment: Locate the environment you wish to copy (usually arcgispro-py3) and click the Clone button next to it.
   - iii) Set Destination: In the Clone Environment dialog, provide a name and path for your new environment or leave it as the default.

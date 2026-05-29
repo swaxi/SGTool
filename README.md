@@ -67,7 +67,7 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
   - pyproj>=3.7.2
   - networkx
   - shapely
-    - geopandas
+  - geopandas
 - c) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **GeophysicalProcessor.pyt** in the **ArcGIS** directory in this repository. 
 - d) Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run, and select  **Launch** then run **SGTool GUI** . Alternatively you can access individual tools from the same Toolbox.    
 

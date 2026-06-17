@@ -583,6 +583,10 @@ class SGToolDockWidget(QDockWidget):
         self.checkBox_SS_StdDev = QCheckBox(_tr("Standard Deviation"))
         self.checkBox_SS_Skewness = QCheckBox(_tr("Skewness"))
         self.checkBox_SS_Kurtosis = QCheckBox(_tr("Kurtosis"))
+        self.checkBox_SS_Anisotropy = QCheckBox(_tr("Local Anisotropy"))
+        self.comboBox_SS_Anisotropy_WinType = QComboBox()
+        self.comboBox_SS_Anisotropy_WinType.addItems([_tr("Gaussian"), _tr("Square")])
+        self.comboBox_SS_Anisotropy_WinType.setFixedWidth(90)
 
         g.addWidget(self.checkBox_SS_Min,     1, 0)
         g.addWidget(self.checkBox_SS_Max,     1, 2)
@@ -590,6 +594,55 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.checkBox_SS_StdDev,  2, 2)
         g.addWidget(self.checkBox_SS_Skewness, 3, 0)
         g.addWidget(self.checkBox_SS_Kurtosis, 3, 2)
+        g.addWidget(self.checkBox_SS_Anisotropy,         4, 0, 1, 2)
+        g.addWidget(self.comboBox_SS_Anisotropy_WinType, 4, 2, 1, 2)
+
+        # Anisotropy connectivity analysis
+        self.checkBox_SS_ChainLength  = QCheckBox(_tr("Chain Length"))
+        self.checkBox_SS_Streamline   = QCheckBox(_tr("Streamline Length"))
+
+        lbl_aniso_thr = QLabel(_tr("Aniso thresh:"))
+        lbl_aniso_thr.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.doubleSpinBox_SS_AnisoThresh = QDoubleSpinBox()
+        self.doubleSpinBox_SS_AnisoThresh.setRange(0.0, 1.0)
+        self.doubleSpinBox_SS_AnisoThresh.setSingleStep(0.05)
+        self.doubleSpinBox_SS_AnisoThresh.setValue(0.3)
+        self.doubleSpinBox_SS_AnisoThresh.setFixedWidth(55)
+
+        lbl_ang_tol = QLabel(_tr("Angle tol°:"))
+        lbl_ang_tol.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.doubleSpinBox_SS_AngleTol = QDoubleSpinBox()
+        self.doubleSpinBox_SS_AngleTol.setRange(1.0, 90.0)
+        self.doubleSpinBox_SS_AngleTol.setSingleStep(5.0)
+        self.doubleSpinBox_SS_AngleTol.setValue(22.5)
+        self.doubleSpinBox_SS_AngleTol.setFixedWidth(55)
+
+        lbl_steps = QLabel(_tr("Max steps:"))
+        lbl_steps.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.spinBox_SS_MaxSteps = QSpinBox()
+        self.spinBox_SS_MaxSteps.setRange(10, 2000)
+        self.spinBox_SS_MaxSteps.setSingleStep(50)
+        self.spinBox_SS_MaxSteps.setValue(200)
+        self.spinBox_SS_MaxSteps.setFixedWidth(55)
+
+        lbl_search_r = QLabel(_tr("Search r:"))
+        lbl_search_r.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.spinBox_SS_SearchRadius = QSpinBox()
+        self.spinBox_SS_SearchRadius.setRange(1, 10)
+        self.spinBox_SS_SearchRadius.setSingleStep(1)
+        self.spinBox_SS_SearchRadius.setValue(2)
+        self.spinBox_SS_SearchRadius.setFixedWidth(45)
+
+        g.addWidget(self.checkBox_SS_ChainLength,          5, 0, 1, 2)
+        g.addWidget(self.checkBox_SS_Streamline,           5, 2, 1, 2)
+        g.addWidget(lbl_aniso_thr,                         6, 0)
+        g.addWidget(self.doubleSpinBox_SS_AnisoThresh,     6, 1)
+        g.addWidget(lbl_ang_tol,                           6, 2)
+        g.addWidget(self.doubleSpinBox_SS_AngleTol,        6, 3)
+        g.addWidget(lbl_steps,                             6, 4)
+        g.addWidget(self.spinBox_SS_MaxSteps,              6, 5)
+        g.addWidget(lbl_search_r,                          6, 6)
+        g.addWidget(self.spinBox_SS_SearchRadius,          6, 7)
 
         # DTM Curvature Classifier
         self.checkBox_DTM_Class = QCheckBox(_tr("DTM Curvature Classifier"))
@@ -606,15 +659,15 @@ class SGToolDockWidget(QDockWidget):
         self.lineEdit_DTM_Sigma = QLineEdit("0")
         self.lineEdit_DTM_Sigma.setFixedWidth(40)
 
-        g.addWidget(self.checkBox_DTM_Class,  4, 0, 1, 2)
-        g.addWidget(self.label_74,            4, 2)
-        g.addWidget(self.lineEdit_DTM_Curve,  4, 3)
-        g.addWidget(self.label_73,            4, 4)
-        g.addWidget(self.lineEdit_DTM_Cliff,  4, 5)
-        g.addWidget(self.label_75,            5, 2)
-        g.addWidget(self.lineEdit_DTM_Sigma,  5, 3)
+        g.addWidget(self.checkBox_DTM_Class,  7, 0, 1, 2)
+        g.addWidget(self.label_74,            7, 2)
+        g.addWidget(self.lineEdit_DTM_Curve,  7, 3)
+        g.addWidget(self.label_73,            7, 4)
+        g.addWidget(self.lineEdit_DTM_Cliff,  7, 5)
+        g.addWidget(self.label_75,            8, 2)
+        g.addWidget(self.lineEdit_DTM_Sigma,  8, 3)
 
-        g.setColumnStretch(6, 1)
+        g.setColumnStretch(8, 1)
         return gb
 
     # ------------------------------------------------------------------

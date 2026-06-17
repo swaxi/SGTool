@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.3.5
+# Structural Geophysics Tool v0.3.6
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
@@ -8,7 +8,10 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog=0.3.5
+# changelog=0.3.6 Variable RTP code thanks to Gordon Cooper   
+      * Add windowed spatial anisotropy calcs   
+      * Add chain length calculations for linear features  
+      0.3.5   
       * Redo GUI so it removes need for .ui file and is now scrollable
       * redo RTE code following suggestion from google AI   
       * Almost complete ARCGIS Pro version now available with full GUI   
@@ -69,7 +72,7 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
   - shapely
   - geopandas
 - c) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **GeophysicalProcessor.pyt** in the **ArcGIS** directory in this repository. 
-- d) Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run, and select  **Launch** then run **SGTool GUI** . Alternatively you can access individual tools from the same Toolbox.    
+- d) Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run, and select  **Launch** then **run** to launch the SGTool GUI. Alternatively you can access individual tools from the same Toolbox.    
 
    
 # Inputs   
@@ -355,7 +358,7 @@ There are several excellent Open Source or at least free alternatives to this pl
 - Wavelet Transform base code - https://github.com/PyWavelets/pywt 
 - Multilevel BSpline Gridding piggybacks off SAGA code via the plugin Processing Saga NextGen Provider https://github.com/north-road/qgis-processing-saga-nextgen   
 - Euler Deconvolution uses Felipe F. Melo and Valéria C.F. Barbosa's Reliable Euler method https://github.com/ffigura/Euler-deconvolution-python   
-
+- Variable RTP modified from code kindly supplied by Gordon Cooper, Uni Witwatersrand, see Cooper & Cowan, Computers & Geosciences 31 (2005) 989–999   https://doi.org/10.1016/j.cageo.2005.02.005
 
 
 

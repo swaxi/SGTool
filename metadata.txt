@@ -7,7 +7,7 @@ name=SGTool
 qgisMinimumVersion=3.24
 qgisMaximumVersion=4.99
 description=Simple Potential Field Processing
-version=0.3.5
+version=0.3.6
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
@@ -21,11 +21,14 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.3.5
+changelog=0.3.6 Variable RTP code thanks to Gordon Cooper  
+      * Add windowed spatial anisotropy calcs   
+      * Add chain length calculations for linear features  
+      0.3.5   
       * Redo GUI so it removes need for .ui file and is now scrollable
       * redo RTE code following suggestion from google AI   
       * Almost complete ARCGIS Pro version now available with full GUI   
-      * French, Spanish, Portuguese, Mandarin translations
+      * Translations of GUI for French, Spanish, Portuguese (Portugal and Brazil) and Mandarin
       0.3.4
       * Fix bug with inclination declination signs for RTE_P now that images always north   
       * Check for commas as decimal separators and replace with decimal points    

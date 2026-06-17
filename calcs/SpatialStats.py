@@ -1,7 +1,6 @@
 import numpy as np
 from scipy import stats
-from scipy.ndimage import generic_filter, gaussian_filter
-
+from scipy.ndimage import generic_filter, gaussian_filter, sobel, uniform_filter
 
 class SpatialStats:
     def __init__(self, grid):
@@ -478,3 +477,308 @@ class SpatialStats:
             print(f"Error in detect_linear_cliffs: {str(e)}")
             # Fall back to simple slope-based detection
             return (slope_array >= slope_threshold).astype(np.int8)
+
+
+    def calculate_local_anisotropy(self, image, window_size=7, window_type='gaussian'):
+        """
+        Calculates the local anisotropy magnitude and dominant orientation map.
+        
+        Parameters:
+        -----------
+        image : ndarray
+            The input 2D grayscale image.
+        window_size : int
+            The diameter/width of the local neighborhood in pixels (e.g., 5, 7, 15).
+        window_type : str
+            'box' for a uniform square window, or 'gaussian' for a weighted window.
+            
+        Returns:
+        --------
+        anisotropy_map : ndarray
+            Values from 0.0 (perfectly isotropic/uniform) to 1.0 (highly directional).
+        orientation_deg : ndarray
+            Angles from -90 to +90 degrees pointing in the direction of maximum intensity change.
+        """
+        # Preserve NaN locations; replace with 0 so scipy filters don't propagate NaN
+        nan_mask = np.isnan(image)
+        if nan_mask.any():
+            image = np.where(nan_mask, 0.0, image)
+
+        # 1. Compute local image gradients
+        Ix = sobel(image, axis=1)
+        Iy = sobel(image, axis=0)
+        
+        # 2. Compute raw tensor components
+        Ixx = Ix ** 2
+        Ixy = Ix * Iy
+        Iyy = Iy ** 2
+        
+        # 3. Integrate over the specified local window size
+        if window_type.lower() == 'box':
+            J11 = uniform_filter(Ixx, size=window_size)
+            J12 = uniform_filter(Ixy, size=window_size)
+            J22 = uniform_filter(Iyy, size=window_size)
+            
+        elif window_type.lower() == 'gaussian':
+            # Standard deviation covering roughly 99% of the requested window size
+            sigma_value = window_size / 6.0  
+            J11 = gaussian_filter(Ixx, sigma=sigma_value)
+            J12 = gaussian_filter(Ixy, sigma=sigma_value)
+            J22 = gaussian_filter(Iyy, sigma=sigma_value)
+            
+        else:
+            raise ValueError("window_type must be either 'box' or 'gaussian'")
+        
+        # 4. Analytic eigenvalues for a 2x2 symmetric matrix
+        trace = J11 + J22
+        diff = np.sqrt((J11 - J22)**2 + 4 * J12**2)
+        
+        lambda1 = (trace + diff) / 2.0
+        lambda2 = (trace - diff) / 2.0
+        
+        # 5. Calculate final Anisotropy and Orientation maps
+        # Saliency = λ1 - λ2 (raw directional gradient energy).
+        # Unlike coherence (λ1-λ2)/(λ1+λ2+ε), saliency is zero for flat areas
+        # (both eigenvalues near zero) AND for isotropic texture (λ1≈λ2).
+        # Coherence gave ~1 in background because it normalises by total energy,
+        # amplifying even tiny directional noise.
+        saliency = lambda1 - lambda2  # always >= 0 since λ1 >= λ2
+        p99 = float(np.nanpercentile(saliency, 99)) if np.any(~np.isnan(saliency)) else 1.0
+        anisotropy_map = np.clip(saliency / (p99 + 1e-10), 0.0, 1.0)
+        
+        orientation_rad = 0.5 * np.arctan2(2 * J12, J11 - J22)
+        orientation_deg = np.degrees(orientation_rad)%180
+
+        if nan_mask.any():
+            anisotropy_map[nan_mask] = np.nan
+            orientation_deg[nan_mask] = np.nan
+
+        return anisotropy_map, orientation_deg
+
+
+
+    def calculate_anisotropy_chain_length(self, anisotropy_map, orientation_deg,
+                                          aniso_threshold=0.3, angle_tolerance=22.5,
+                                          search_radius=2):
+        """
+        Scores each active pixel by the size of the connected component it belongs to.
+
+        Two active pixels are linked when they are within search_radius pixels of each
+        other (Euclidean disk) AND their line orientations differ by at most
+        angle_tolerance degrees.  The direction of the link is unconstrained — pixels
+        side-by-side across the width of a multi-pixel-wide feature are linked just as
+        readily as pixels ahead/behind along it.  Connected components are found with
+        Union-Find; every member receives the same score (component size).
+
+        Parameters
+        ----------
+        anisotropy_map  : ndarray  Values 0–1
+        orientation_deg : ndarray  0–180° line orientation
+        aniso_threshold : float    Minimum anisotropy
+        angle_tolerance : float    Max orientation difference to accept a link (degrees)
+        search_radius   : int      Disk radius in pixels (default 2)
+
+        Returns
+        -------
+        chain_length_map : ndarray  NaN outside active mask, component size inside.
+        """
+        nr, nc = anisotropy_map.shape
+        orient = orientation_deg % 180
+
+        active = (
+            ~np.isnan(anisotropy_map) & ~np.isnan(orient) &
+            (anisotropy_map >= aniso_threshold)
+        )
+
+        def ang_diff(a, b):
+            d = abs(float(a) - float(b)) % 180
+            return min(d, 180.0 - d)
+
+        # Pre-compute disk offsets once
+        r2max = search_radius * search_radius
+        disk = [
+            (dr, dc)
+            for dr in range(-search_radius, search_radius + 1)
+            for dc in range(-search_radius, search_radius + 1)
+            if 0 < dr * dr + dc * dc <= r2max
+        ]
+
+        active_rows, active_cols = np.where(active)
+        active_list = list(zip(active_rows.tolist(), active_cols.tolist()))
+
+        # Build undirected edges: any two active pixels within disk distance with
+        # compatible orientation.  Pixels across the width of a wide feature are
+        # connected this way, not just pixels along it.
+        edges = set()
+        for r, c in active_list:
+            theta = float(orient[r, c])
+            for dr, dc in disk:
+                r2, c2 = r + dr, c + dc
+                if not (0 <= r2 < nr and 0 <= c2 < nc):
+                    continue
+                if not active[r2, c2]:
+                    continue
+                if ang_diff(theta, float(orient[r2, c2])) <= angle_tolerance:
+                    edges.add((min((r, c), (r2, c2)), max((r, c), (r2, c2))))
+
+        # Union-Find
+        parent = {p: p for p in active_list}
+        size   = {p: 1 for p in active_list}
+
+        def find(x):
+            root = x
+            while parent[root] != root:
+                root = parent[root]
+            while parent[x] != root:
+                parent[x], x = root, parent[x]
+            return root
+
+        def union(a, b):
+            ra, rb = find(a), find(b)
+            if ra == rb:
+                return
+            if size[ra] < size[rb]:
+                ra, rb = rb, ra
+            parent[rb] = ra
+            size[ra] += size[rb]
+
+        for a, b in edges:
+            union(a, b)
+
+        result = np.full((nr, nc), np.nan)
+        for r, c in active_list:
+            result[r, c] = float(size[find((r, c))])
+
+        return result
+
+    def calculate_anisotropy_streamline_length(self, anisotropy_map, orientation_deg,
+                                               aniso_threshold=0.3, angle_tolerance=22.5,
+                                               step_size=0.5, max_steps=200):
+        """
+        For each active pixel traces forward and backward along the orientation field
+        using sub-pixel bilinear interpolation.  Accumulates path length (in pixels)
+        while anisotropy stays above threshold and the step-to-step orientation change
+        stays within angle_tolerance.  Handles curved features naturally.
+
+        Parameters
+        ----------
+        anisotropy_map : ndarray  Values 0–1 (from calculate_local_anisotropy)
+        orientation_deg : ndarray  0–360° (from calculate_local_anisotropy)
+        aniso_threshold : float   Active pixel threshold (default 0.3)
+        angle_tolerance : float   Max step-to-step orientation change in degrees (default 22.5)
+        step_size : float         Sub-pixel step length in pixels (default 0.5)
+        max_steps : int           Maximum steps per direction (default 200)
+
+        Returns
+        -------
+        streamline_length_map : ndarray  Total forward+backward path length in pixels.
+        """
+        nr, nc = anisotropy_map.shape
+        orient = orientation_deg % 180
+
+        aniso_clean = np.where(np.isnan(anisotropy_map), 0.0, anisotropy_map)
+        orient_clean = np.where(np.isnan(orient), 0.0, orient)
+
+        active = (
+            ~np.isnan(anisotropy_map) & ~np.isnan(orient) &
+            (anisotropy_map >= aniso_threshold)
+        )
+
+        def _bilinear(arr, r, c):
+            """Bilinear interpolation with clamped boundaries."""
+            r0 = max(0, min(nr - 2, int(r)))
+            c0 = max(0, min(nc - 2, int(c)))
+            wr = max(0.0, min(1.0, r - r0))
+            wc = max(0.0, min(1.0, c - c0))
+            return (arr[r0,   c0]   * (1-wr) * (1-wc) +
+                    arr[r0,   c0+1] * (1-wr) *   wc   +
+                    arr[r0+1, c0]   *   wr   * (1-wc) +
+                    arr[r0+1, c0+1] *   wr   *   wc)
+
+        def _interp_orient(r, c):
+            """Orientation interpolation using double-angle trick (handles 0/180 wrap)."""
+            r0 = max(0, min(nr - 2, int(r)))
+            c0 = max(0, min(nc - 2, int(c)))
+            wr = max(0.0, min(1.0, r - r0))
+            wc = max(0.0, min(1.0, c - c0))
+            # Double angle → interpolate as unit vector → halve back
+            t00 = np.radians(orient_clean[r0,   c0]   * 2)
+            t01 = np.radians(orient_clean[r0,   c0+1] * 2)
+            t10 = np.radians(orient_clean[r0+1, c0]   * 2)
+            t11 = np.radians(orient_clean[r0+1, c0+1] * 2)
+            s = (np.sin(t00)*(1-wr)*(1-wc) + np.sin(t01)*(1-wr)*wc +
+                 np.sin(t10)*wr*(1-wc)      + np.sin(t11)*wr*wc)
+            co = (np.cos(t00)*(1-wr)*(1-wc) + np.cos(t01)*(1-wr)*wc +
+                  np.cos(t10)*wr*(1-wc)      + np.cos(t11)*wr*wc)
+            return (np.degrees(np.arctan2(s, co)) / 2.0) % 180.0
+
+        def _trace(r0, c0, direction):
+            r, c = float(r0), float(c0)
+            theta_prev = float(orient_clean[r0, c0])
+            length = 0.0
+            for _ in range(max_steps):
+                if not (0.0 <= r < nr and 0.0 <= c < nc):
+                    break
+                aniso_cur = _bilinear(aniso_clean, r, c)
+                if aniso_cur < aniso_threshold:
+                    break
+                theta_cur = _interp_orient(r, c)
+                d = abs(theta_cur - theta_prev) % 180
+                if min(d, 180.0 - d) > angle_tolerance:
+                    break
+                theta_rad = np.radians(theta_cur)
+                # Convention: theta=0° → East (dc+), theta=90° → North (dr-)
+                r += direction * (-np.sin(theta_rad)) * step_size
+                c += direction *   np.cos(theta_rad)  * step_size
+                length += step_size
+                theta_prev = theta_cur
+            return length
+
+        result = np.full((nr, nc), np.nan)
+        active_rows, active_cols = np.where(active)
+        for r0, c0 in zip(active_rows.tolist(), active_cols.tolist()):
+            result[r0, c0] = _trace(r0, c0, 1) + _trace(r0, c0, -1)
+
+        return result
+
+    def calculate_misorientation_cosines(self, map1_deg, map2_deg):
+        """
+        Calculates misorientation using the arccos of the dot product of direction cosines.
+        Accounts for 180-degree line symmetry by using the absolute dot product.
+        
+        Parameters:
+        -----------
+        map1_deg : ndarray
+            First orientation map in degrees.
+        map2_deg : ndarray
+            Second independent orientation map in degrees.
+            
+        Returns:
+        --------
+        misorientation_deg : ndarray
+            The absolute angular difference map strictly bounded between 0° and 90°.
+        """
+        # 1. Convert input angles from degrees to radians
+        rad1 = np.radians(map1_deg)
+        rad2 = np.radians(map2_deg)
+        
+        # 2. Compute 2D unit vector components (Direction Cosines)
+        # Vector 1: [u1, v1]
+        u1, v1 = np.cos(rad1), np.sin(rad1)
+        # Vector 2: [u2, v2]
+        u2, v2 = np.cos(rad2), np.sin(rad2)
+        
+        # 3. Calculate the dot product of the vector fields
+        dot_product = u1 * u2 + v1 * v2
+        
+        # 4. Take absolute value to enforce 180-degree line/structural symmetry
+        # Clip to [-1.0, 1.0] to prevent floating-point inaccuracies from breaking arccos
+        abs_dot = np.clip(np.abs(dot_product), -1.0, 1.0)
+        
+        # 5. Compute the final misorientation angle
+        misorientation_rad = np.arccos(abs_dot)
+        misorientation_deg = np.degrees(misorientation_rad)
+        
+        return misorientation_deg
+
+

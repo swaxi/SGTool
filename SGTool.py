@@ -120,6 +120,7 @@ from .resources import *
 # Import the code for the DockWidget
 from .SGTool_dockwidget import SGToolDockWidget
 from .calcs.GeophysicalProcessor import GeophysicalProcessor
+from .calcs.Cooper_Cowan_rtpvariable import rtpvariable as cooper_rtpvariable
 from .calcs.geosoft_grid_parser import *
 from .calcs.PSplot import PowerSpectrumDock
 from .calcs.ConvolutionFilter import ConvolutionFilter
@@ -354,13 +355,13 @@ class SGTool:
         )
 
         self.dlg.checkBox_4_RTE_P.setToolTip(
-            self.tr("Reduction to pole or equator\nThe reduction to the pole (RTP) or to Equator (RTE) is a process in geophysics\nwhere magnetic data are transformed to look as though\n they were measured at the magnetic pole/equator\nCorrects the asymmetry of magnetic anomalies caused by\n the Earth's field, making them appear directly above their sources")
+            self.tr("Reduction to pole or equator\nThe reduction to the pole (RTP), differential RTP or to Equator (RTE) is a process in geophysics\nwhere magnetic data are transformed to look as though\n they were measured at the magnetic pole/equator\nCorrects the asymmetry of magnetic anomalies caused by\n the Earth's field, making them appear directly above their sources\n Differential RTP (code derived from Cooper & Cowan 2005) calculates RTP with spatially varying inclination and declination")
         )
         self.dlg.pushButton_4_calcIGRF.setToolTip(
             self.tr("Calculate IGRF Inclination & Declination based on centroid of selected grid and specified survey height and date\nIf a grid originated from a Noddy calculation, the info is read from the geotiff metadata")
         )
         self.dlg.comboBox_3_rte_p_list.setToolTip(
-            self.tr("Choose Pole(high mag latitudes >20 degrees)\n or Equator (low mag latitudes, <20 degrees)\n for reduction to pole or equator")
+            self.tr("RTP: Reduction to Pole (high mag latitudes >20°)\nDiff. RTP: Variable (Differential) RTP using Cooper/Cowan Taylor series — accounts for spatial variation in inc/dec across the survey area\nRTE: Reduction to Equator (low mag latitudes <20°)")
         )
         self.dlg.lineEdit_6_inc.setToolTip(
             self.tr("Manually define magnetic inclination [degrees from horizontal]")
@@ -606,6 +607,27 @@ class SGTool:
         self.dlg.checkBox_SS_Kurtosis.setToolTip(
             self.tr("Calculate kurtosis of values around central pixel\nWill be VERY slow for larger grids and window sizes!!")
         )
+        self.dlg.checkBox_SS_Anisotropy.setToolTip(
+            self.tr("Calculate local anisotropy magnitude (0–1) and dominant orientation (degrees)\nReturns two layers: _SS_AnisoMag and _SS_AnisoOrient")
+        )
+        self.dlg.checkBox_SS_ChainLength.setToolTip(
+            self.tr("Score each pixel by the length of the oriented chain it belongs to\n(discrete 8-connected, fast)")
+        )
+        self.dlg.checkBox_SS_Streamline.setToolTip(
+            self.tr("Score each pixel by sub-pixel forward+backward path length along the orientation field\n(handles curves; slower than Chain Length)")
+        )
+        self.dlg.doubleSpinBox_SS_AnisoThresh.setToolTip(
+            self.tr("Minimum anisotropy magnitude for a pixel to be considered part of a feature (0–1)")
+        )
+        self.dlg.doubleSpinBox_SS_AngleTol.setToolTip(
+            self.tr("Maximum orientation difference (degrees) between adjacent pixels to be chained")
+        )
+        self.dlg.spinBox_SS_MaxSteps.setToolTip(
+            self.tr("Maximum number of sub-pixel steps per direction for Streamline Length")
+        )
+        self.dlg.spinBox_SS_SearchRadius.setToolTip(
+            self.tr("Chain Length: how many pixels ahead to cast the orientation ray when searching for the next connected pixel (1=8-neighbours only, 2–3 recommended for oblique features)")
+        )
 
         self.dlg.lineEdit_SS_Window.setToolTip(
             self.tr("Size of window for calculation of spatial statistics")
@@ -683,7 +705,7 @@ class SGTool:
         self.DC_azimuth = 0
         self.DC_lineSpacing = 400
         self.RTE_P = False
-        self.RTE_P_type = "Pole"
+        self.RTE_P_type = "RTP"
         self.RTE_P_inc = 0
         self.RTE_P_dec = 0
         self.RTE_P_height = 0
@@ -811,6 +833,15 @@ class SGTool:
         self.SS_Variance = self.dlg.checkBox_SS_Variance.isChecked()
         self.SS_Skewness = self.dlg.checkBox_SS_Skewness.isChecked()
         self.SS_Kurtosis = self.dlg.checkBox_SS_Kurtosis.isChecked()
+        self.SS_Anisotropy = self.dlg.checkBox_SS_Anisotropy.isChecked()
+        win_type_text = self.dlg.comboBox_SS_Anisotropy_WinType.currentText()
+        self.SS_anisotropy_window_type = 'gaussian' if win_type_text == self.tr("Gaussian") else 'box'
+        self.SS_ChainLength = self.dlg.checkBox_SS_ChainLength.isChecked()
+        self.SS_Streamline  = self.dlg.checkBox_SS_Streamline.isChecked()
+        self.SS_aniso_threshold = float(self.dlg.doubleSpinBox_SS_AnisoThresh.value())
+        self.SS_angle_tolerance = float(self.dlg.doubleSpinBox_SS_AngleTol.value())
+        self.SS_max_steps       = int(self.dlg.spinBox_SS_MaxSteps.value())
+        self.SS_search_radius   = int(self.dlg.spinBox_SS_SearchRadius.value())
         self.SS_window_size = self.to_int(self.dlg.lineEdit_SS_Window.text())
 
         self.DTM_Class = self.dlg.checkBox_DTM_Class.isChecked()
@@ -1019,7 +1050,7 @@ class SGTool:
                 "You need to define Inc and Dec first!", level=Qgis.Warning, duration=15
             )
         else:
-            if self.RTE_P_type == "Pole":
+            if self.RTE_P_type == "RTP":
                 self.new_grid = self.processor.reduction_to_pole(
                     self.raster_array,
                     inclination=float(self.RTE_P_inc),
@@ -1036,6 +1067,43 @@ class SGTool:
                 )
                 self.new_grid = self.new_grid  # * float(self.RTE_P_int)
                 self.suffix = "_RTE"
+
+    def procVRTP(self):
+        """Differential (variable) RTP using Cooper/Cowan Taylor-series method.
+
+        Uses the Cooper/Cowan rtp() for all 13 Taylor-series calls,
+        giving results identical to the reference standalone implementation.
+        """
+        inc_corners, dec_corners, inc_center, dec_center = self.get_igrf_corners()
+        if inc_corners is None:
+            self.iface.messageBar().pushMessage(
+                "Var. RTP: could not compute IGRF corners — check layer CRS and date.",
+                level=Qgis.Warning, duration=15,
+            )
+            return
+
+        data = self.raster_array
+        nr, nc = data.shape
+
+        # SGTool stores rasters north-up (row 0 = north). Cooper/Cowan expects
+        # MATLAB axis-xy convention (row 1 = south, row nr = north). Flip before
+        # passing in so incv is interpolated in the correct geographic direction,
+        # then flip the result back to north-up for QGIS display.
+        # NaN filling and restoration are handled internally by rtpvariable.
+        _, varrtp, incv_deg, decv_deg = cooper_rtpvariable(
+            np.flipud(data), nr, nc, inc_corners, dec_corners,
+            inc_center=inc_center, dec_center=dec_center,
+        )
+        self.new_grid = np.flipud(varrtp)
+        self.suffix = "_DRTP"
+
+        # Save inc/dec field grids to disk alongside the output (not added to QGIS)
+        # Flip south-up grids back to north-up to match GeoTIFF convention
+        for grid, tag in ((np.flipud(incv_deg), "_DRTP_inc"), (np.flipud(decv_deg), "_DRTP_dec")):
+            out_path = self.insert_text_before_extension(self.diskGridPath, tag)
+            if ".tif" not in out_path.lower():
+                out_path = os.path.splitext(out_path)[0] + ".tif"
+            self.numpy_array_to_raster(grid, out_path, reference_layer=self.layer)
 
     def procRemRegional(self):
 
@@ -1561,6 +1629,46 @@ class SGTool:
         )
         self.suffix = "_SS_Kurt"
 
+    def procSS_Anisotropy(self):
+        anisotropy_map, orientation_deg = self.SpatialStats.calculate_local_anisotropy(
+            self.SpatialStats.grid,
+            window_size=self.SS_window_size,
+            window_type=self.SS_anisotropy_window_type,
+        )
+        self._aniso_orientation = orientation_deg  # stashed for main loop
+        self.new_grid = anisotropy_map
+        self.suffix = "_SS_AnisoMag"
+
+    def _get_anisotropy_maps(self):
+        """Compute anisotropy magnitude and orientation using current settings."""
+        return self.SpatialStats.calculate_local_anisotropy(
+            self.SpatialStats.grid,
+            window_size=self.SS_window_size,
+            window_type=self.SS_anisotropy_window_type,
+        )
+
+    def procSS_ChainLength(self):
+        aniso_map, orient_map = self._get_anisotropy_maps()
+        self.new_grid = self.SpatialStats.calculate_anisotropy_chain_length(
+            aniso_map, orient_map,
+            aniso_threshold=self.SS_aniso_threshold,
+            angle_tolerance=self.SS_angle_tolerance,
+            search_radius=self.SS_search_radius,
+        )
+        self.suffix = "_SS_ChainLen"
+        self.addNewGrid(stdClip=False)
+
+    def procSS_Streamline(self):
+        aniso_map, orient_map = self._get_anisotropy_maps()
+        self.new_grid = self.SpatialStats.calculate_anisotropy_streamline_length(
+            aniso_map, orient_map,
+            aniso_threshold=self.SS_aniso_threshold,
+            angle_tolerance=self.SS_angle_tolerance,
+            max_steps=self.SS_max_steps,
+        )
+        self.suffix = "_SS_StreamLen"
+        self.addNewGrid(stdClip=False)
+
     def procDTM_Class(self):
 
         selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
@@ -2031,7 +2139,10 @@ class SGTool:
                 self.procDirClean()
                 self.addNewGrid(stdClip=True)
             if self.RTE_P:
-                self.procRTP_E(sgtool_instance=self)
+                if self.RTE_P_type == "Diff. RTP":
+                    self.procVRTP()
+                else:
+                    self.procRTP_E(sgtool_instance=self)
                 self.addNewGrid(stdClip=True)
             if self.RemRegional:
                 self.procRemRegional()
@@ -2101,6 +2212,16 @@ class SGTool:
             if self.SS_Skewness:
                 self.procSS_Skewness()
                 self.addNewGrid(stdClip=True)
+            if self.SS_Anisotropy:
+                self.procSS_Anisotropy()
+                self.addNewGrid(stdClip=True)   # adds _SS_AnisoMag
+                self.new_grid = self._aniso_orientation
+                self.suffix = "_SS_AnisoOrient"
+                self.addNewGrid(stdClip=False)  # adds _SS_AnisoOrient
+            if self.SS_ChainLength:
+                self.procSS_ChainLength()
+            if self.SS_Streamline:
+                self.procSS_Streamline()
             if self.DTM_Class:
                 self.procDTM_Class()
                 self.addNewGrid(stdClip=True)
@@ -2162,6 +2283,9 @@ class SGTool:
         self.dlg.checkBox_SS_StdDev.setChecked(False)
         self.dlg.checkBox_SS_Variance.setChecked(False)
         self.dlg.checkBox_SS_Skewness.setChecked(False)
+        self.dlg.checkBox_SS_Anisotropy.setChecked(False)
+        self.dlg.checkBox_SS_ChainLength.setChecked(False)
+        self.dlg.checkBox_SS_Streamline.setChecked(False)
         self.dlg.checkBox_DTM_Class.setChecked(False)
         self.dlg.checkBox_PCA.setChecked(False)
         self.dlg.checkBox_ICA.setChecked(False)
@@ -2823,6 +2947,12 @@ class SGTool:
         )  # Replace NaN with no_data_value
         band.WriteArray(numpy_array)
         band.FlushCache()
+        # Release band before closing dataset — on Windows, keeping a band
+        # reference alive prevents the GDAL dataset from being truly closed,
+        # which causes a file-lock conflict when QGIS immediately tries to
+        # reopen the same file as a raster layer (most visible when two
+        # addNewGrid calls happen back-to-back with no computation in between).
+        band = None
         output_raster = None  # Close the file
         return 0
 
@@ -3006,6 +3136,76 @@ class SGTool:
                         self.dlg.lineEdit_5_dec.setText(str(round(self.RTE_P_dec, 1)))
                         self.dlg.lineEdit_6_inc.setText(str(round(self.RTE_P_inc, 1)))
                         self.dlg.lineEdit_6_int.setText(str(int(self.RTE_P_int)))
+
+    def get_igrf_corners(self):
+        """Return (inc_corners, dec_corners, inc_center, dec_center) for the four grid
+        corners and the grid centre.
+
+        Corner order matches Cooper_Cowan_rtpvariable:
+          [NW, NE, SW, SE]  i.e. [row=nr col=1, row=nr col=nc, row=1 col=1, row=1 col=nc]
+          when the grid is displayed with axis-xy (row nr = geographic north).
+
+        Returns (None, None, None, None) on failure.
+        """
+        self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
+        if not self.localGridName:
+            return None, None, None, None
+
+        self.layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
+        if not self.layer.isValid() or not self.validCRS(self.layer):
+            return None, None, None, None
+
+        self.diskGridPath = self.layer.dataProvider().dataSourceUri()
+        inc_meta, dec_meta, _ = self.getMagParamGeotiff(self.diskGridPath)
+
+        date_text = str(self.dlg.dateEdit.date().toPyDate())
+        date_split = date_text.split("-")
+        date = self.day_month_to_decimal_year(
+            int(date_split[0]), int(date_split[1]), int(date_split[2])
+        )
+
+        if inc_meta is not None:
+            # Noddy GeoTIFF: uniform field — centre equals corners
+            v_inc, v_dec = float(inc_meta), float(dec_meta)
+            return (v_inc,) * 4, (v_dec,) * 4, v_inc, v_dec
+
+        # General case: compute IGRF at each geographic corner and the centre
+        magn_proj = self.layer.crs().authid().split(":")[1]
+        from pyproj import CRS
+        crs_proj = CRS.from_user_input(int(magn_proj))
+        crs_ll = CRS.from_user_input(4326)
+        proj = Transformer.from_crs(crs_proj, crs_ll, always_xy=True)
+
+        ext = self.layer.extent()
+        # Order: [NW, NE, SW, SE] = [xmin/ymax, xmax/ymax, xmin/ymin, xmax/ymin]
+        corners_xy = [
+            (ext.xMinimum(), ext.yMaximum()),
+            (ext.xMaximum(), ext.yMaximum()),
+            (ext.xMinimum(), ext.yMinimum()),
+            (ext.xMaximum(), ext.yMinimum()),
+        ]
+        center_xy = ((ext.xMinimum() + ext.xMaximum()) / 2.0,
+                     (ext.yMinimum() + ext.yMaximum()) / 2.0)
+
+        inc_corners, dec_corners = [], []
+        for x, y in corners_xy:
+            lon, lat = proj.transform(x, y)
+            inc_val, dec_val, _ = self.calcIGRF(date, 100.0, lat, lon)
+            inc_corners.append(inc_val)
+            dec_corners.append(dec_val)
+
+        lon_c, lat_c = proj.transform(*center_xy)
+        inc_center, dec_center, _ = self.calcIGRF(date, 100.0, lat_c, lon_c)
+
+        if any(v is None for v in inc_corners + dec_corners + [inc_center, dec_center]):
+            return None, None, None, None
+
+        print("geographic corners:", corners_xy)
+        print("geographic centre:", center_xy)
+        print("IGRF corners (inc, dec):", list(zip(inc_corners, dec_corners)))
+        print("IGRF centre  (inc, dec):", (inc_center, dec_center))
+
+        return tuple(inc_corners), tuple(dec_corners), inc_center, dec_center
 
     def getMagParamGeotiff(self, geotiff_path):
         """
@@ -3547,9 +3747,7 @@ class SGTool:
             self.dlg.comboBox_2_continuationDirection.addItems(self.contin_dir_list)
 
             self.dlg.comboBox_3_rte_p_list.clear()
-            self.ret_p_list = []
-            self.ret_p_list.append("Pole")
-            self.ret_p_list.append("Eqtr")
+            self.ret_p_list = ["RTP", "Diff. RTP", "RTE"]
             self.dlg.comboBox_3_rte_p_list.addItems(self.ret_p_list)
 
             self.freq_cut_type_list = []

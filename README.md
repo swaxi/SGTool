@@ -107,6 +107,12 @@ Where
 - D : Magnetic declination (in radians).
 - i : Imaginary unit. 
    
+**Variable (Differential) Reduction to the Pole**   
+Accounts for the spatial variation of inclination and declination across a survey area by applying a Taylor-series expansion of the standard RTP operator (Cooper & Cowan, 2005). The IGRF field is computed at the four grid corners and the centre, then bilinearly interpolated to build spatially varying inclination and declination grids. The expansion is evaluated at 13 perturbed inc/dec pairs and combined to give a single corrected output.   
+Outputs: `_DRTP` (corrected field), `_DRTP_inc` and `_DRTP_dec` (the interpolated inclination and declination fields used).   
+Recommended for surveys covering several degrees of latitude/longitude where a single inc/dec value would introduce systematic phase or amplitude errors.   
+Based on: Cooper, G.R.J. & Cowan, D.R. (2005), *Computers & Geosciences* 31, 989–999. https://doi.org/10.1016/j.cageo.2005.02.005   
+
 **Continuation**    
 $`H(k) = e^{-k h}`$   
 Where   
@@ -278,6 +284,31 @@ Calculate Kurtosis of values around central pixel for given window size
 
 **Skewness**   
 Calculate Skewness of values around central pixel for given window size  
+
+**Local Anisotropy**   
+Uses the structure tensor (second-moment matrix) of local Sobel gradients to quantify the strength and orientation of linear structure at each pixel. The gradient products are smoothed over a window (Gaussian or box) of the specified size.   
+
+Structure tensor elements:   
+$`J_{11} = \text{smooth}(I_x^2), \quad J_{12} = \text{smooth}(I_x I_y), \quad J_{22} = \text{smooth}(I_y^2)`$   
+
+Eigenvalues:   
+$`\lambda_1 = \tfrac{1}{2}\!\left(J_{11}+J_{22}+\sqrt{(J_{11}-J_{22})^2+4J_{12}^2}\right), \quad \lambda_2 = \tfrac{1}{2}\!\left(J_{11}+J_{22}-\sqrt{(J_{11}-J_{22})^2+4J_{12}^2}\right)`$   
+
+Anisotropy magnitude (saliency), normalised to [0, 1] by the 99th-percentile value:   
+$`\text{AnisoMag} = \text{clip}\!\left(\tfrac{\lambda_1 - \lambda_2}{p_{99}},\; 0,\; 1\right)`$   
+
+Dominant orientation:   
+$`\theta = \tfrac{1}{2}\arctan\!\left(\tfrac{2J_{12}}{J_{11}-J_{22}}\right) \bmod 180°`$   
+
+Returns two layers: `_SS_AnisoMag` (0–1 saliency; 0 = flat or isotropic, 1 = strong linear feature) and `_SS_AnisoOrient` (0–180° dominant strike).   
+
+**Chain Length**   
+Scores each pixel by the total size of the connected anisotropy component it belongs to. Two active pixels (those exceeding Aniso threshold) are linked if they lie within Search radius pixels of each other and their orientations differ by at most Angle tolerance degrees. The direction of the link is unconstrained so the full width of a multi-pixel-wide lineament is treated as a single entity. Connected components are found with Union-Find; every pixel in a component receives the same score equal to the number of pixels in that component.   
+Returns: `_SS_ChainLen`   
+
+**Streamline Length**   
+From each active pixel (exceeding Aniso threshold) traces forward and backward along the orientation field using sub-pixel bilinear interpolation and double-angle orientation averaging. The path continues while anisotropy remains above the threshold and the step-to-step orientation change stays within Angle tolerance. The total forward + backward path length in pixels is the score. Unlike Chain Length, Streamline Length follows the curvature of a lineament and produces a continuous (non-integer) distance measure.   
+Returns: `_SS_StreamLen`   
 
 **DTM Curvature Classifier**   
 Calculate DTM classification based on curvature and slope   

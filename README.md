@@ -8,7 +8,8 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog=0.3.6 Variable RTP code thanks to Gordon Cooper   
+# changelog=0.3.6 
+      * Variable RTP code thanks to Gordon Cooper   
       * Add windowed spatial anisotropy calcs   
       * Add chain length calculations for linear features  
       0.3.5   

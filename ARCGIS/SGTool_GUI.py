@@ -315,8 +315,6 @@ class SGToolApp(tk.Tk):
             if converted is None:
                 return
             path = converted
-            self._record_pending(path)
-            self._load_shapefile_to_arcpro(path)
         name = os.path.basename(path)
         self._layer_map[name] = path
         current = list(self._layer_combo["values"])
@@ -325,6 +323,8 @@ class SGToolApp(tk.Tk):
             self._layer_combo["values"] = current
         self._layer_combo.set(name)
         self.v_input.set(path)
+        # Add the browsed file to the ArcGIS Pro map via the pending queue
+        self._record_pending(path)
 
     def _convert_grd_to_tif(self, grd_path):
         """Convert an Oasis Montaj .grd file to GeoTIFF; return tif path or None on error."""
@@ -456,8 +456,8 @@ class SGToolApp(tk.Tk):
         parts = []
         # -- FFT --
         if getattr(self, "v_rtp",      tk.BooleanVar()).get():
-            parts.append("rte" if getattr(self, "v_rtp_type",
-                         tk.StringVar(value="Pole")).get() == "Equator" else "rtp")
+            _rt = getattr(self, "v_rtp_type", tk.StringVar(value="Pole")).get()
+            parts.append("rte" if _rt == "Equator" else ("DRTP" if _rt == "Diff. RTP" else "rtp"))
         if getattr(self, "v_vint",     tk.BooleanVar()).get(): parts.append("vi")
         if getattr(self, "v_cont",     tk.BooleanVar()).get():
             parts.append(f"cont_{getattr(self,'v_cont_dir',tk.StringVar(value='up')).get()}")
@@ -484,7 +484,8 @@ class SGToolApp(tk.Tk):
             parts.append(f"dir{getattr(self,'v_dconv_dir',tk.StringVar(value='N')).get().lower()}")
         if getattr(self, "v_sun",      tk.BooleanVar()).get(): parts.append("shade")
         for attr, tag in [("v_ss_min","min"),("v_ss_max","max"),("v_ss_var","var"),
-                          ("v_ss_std","std"),("v_ss_skew","skew"),("v_ss_kurt","kurt")]:
+                          ("v_ss_std","std"),("v_ss_skew","skew"),("v_ss_kurt","kurt"),
+                          ("v_ss_aniso","aniso"),("v_ss_chain","chain"),("v_ss_stream","stream")]:
             if getattr(self, attr, tk.BooleanVar()).get(): parts.append(tag)
         if getattr(self, "v_dtm",      tk.BooleanVar()).get(): parts.append("dtm")
         if getattr(self, "v_pca",      tk.BooleanVar()).get(): parts.append("pca")
@@ -573,8 +574,11 @@ class SGToolApp(tk.Tk):
             "Reduction to pole or equator\n"
             "Transforms magnetic data so anomalies appear directly above sources\n"
             "Corrects asymmetry caused by the Earth's inclined field").pack(side="left")
-        tip(combo(r0, ["Pole", "Equator"], self.v_rtp_type, w=8, chk_var=self.v_rtp),
-            "Choose Pole (high mag latitudes >20°) or Equator (low mag latitudes <20°)").pack(side="left", padx=4)
+        tip(combo(r0, ["Pole", "Equator", "Diff. RTP"], self.v_rtp_type, w=10, chk_var=self.v_rtp),
+            "Choose Pole (high latitudes >20°), Equator (low latitudes <20°),\n"
+            "or Diff. RTP (variable RTP accounting for spatial inc/dec variation\n"
+            "across the survey area — Cooper & Cowan 2005)\n"
+            "Diff. RTP uses the IGRF Year field; Inc/Dec are computed automatically from corners").pack(side="left", padx=4)
 
         r1 = tk.Frame(gm, bg=BG); r1.pack(fill="x", padx=4, pady=2)
         self.v_inc = tk.StringVar(value="-60.0")
@@ -852,6 +856,54 @@ class SGToolApp(tk.Tk):
         tip(entry(rdm, self.v_dtm_sigma, 5, chk_var=self.v_dtm),
             "Smoothing parameter for DTM classification\nHigher values smooth the data more").pack(side="left", padx=2)
 
+        # ---- Local Anisotropy / Chain Length / Streamline Length ----
+        ra1 = tk.Frame(ss, bg=BG); ra1.pack(fill="x", padx=4, pady=2)
+        self.v_ss_aniso          = tk.BooleanVar()
+        self.v_ss_aniso_win_type = tk.StringVar(value="Gaussian")
+        tip(check(ra1, "Local Anisotropy", self.v_ss_aniso),
+            "Compute anisotropy magnitude (0–1) and dominant orientation (0–180°)\n"
+            "via the structure tensor of Sobel gradients averaged over the window.\n"
+            "Returns two layers: _SS_AnisoMag and _SS_AnisoOrient").pack(side="left")
+        tip(combo(ra1, ["Gaussian", "Box"], self.v_ss_aniso_win_type, w=9, chk_var=self.v_ss_aniso),
+            "Window type for smoothing the structure tensor\n"
+            "Gaussian: weighted by distance (recommended)\n"
+            "Box: uniform mean").pack(side="left", padx=6)
+
+        ra2 = tk.Frame(ss, bg=BG); ra2.pack(fill="x", padx=4, pady=2)
+        self.v_ss_chain  = tk.BooleanVar()
+        self.v_ss_stream = tk.BooleanVar()
+        tip(check(ra2, "Chain Length", self.v_ss_chain),
+            "Score each active pixel by the size of the connected anisotropy component\n"
+            "it belongs to.  Two active pixels link when they are within Search r pixels\n"
+            "and their orientations differ by at most Angle tol°.\n"
+            "Returns: _SS_ChainLen").pack(side="left", padx=(0, 10))
+        tip(check(ra2, "Streamline Length", self.v_ss_stream),
+            "From each active pixel trace forward and backward along the orientation field\n"
+            "using sub-pixel bilinear interpolation.  Total path length is the score.\n"
+            "Returns: _SS_StreamLen").pack(side="left")
+
+        ra3 = tk.Frame(ss, bg=BG); ra3.pack(fill="x", padx=4, pady=2)
+        self.v_ss_aniso_thresh = tk.StringVar(value="0.3")
+        self.v_ss_angle_tol    = tk.StringVar(value="22.5")
+        self.v_ss_search_r     = tk.StringVar(value="2")
+        self.v_ss_max_steps    = tk.StringVar(value="200")
+        lbl(ra3, "Aniso thresh:").pack(side="left")
+        tip(entry(ra3, self.v_ss_aniso_thresh, 5),
+            "Minimum anisotropy (0–1) for a pixel to be treated as part of a feature\n"
+            "0.3 is a reasonable starting point").pack(side="left", padx=2)
+        lbl(ra3, "Angle tol°:").pack(side="left", padx=(8, 0))
+        tip(entry(ra3, self.v_ss_angle_tol, 5),
+            "Maximum orientation difference (degrees) allowed between linked pixels\n"
+            "22.5° = half of the 45° diagonal sector").pack(side="left", padx=2)
+        lbl(ra3, "Search r:").pack(side="left", padx=(8, 0))
+        tip(entry(ra3, self.v_ss_search_r, 4),
+            "Disk search radius in pixels for Chain Length connectivity\n"
+            "Larger values connect across wider features and small gaps").pack(side="left", padx=2)
+        lbl(ra3, "Max steps:").pack(side="left", padx=(8, 0))
+        tip(entry(ra3, self.v_ss_max_steps, 5),
+            "Maximum trace steps for Streamline Length\n"
+            "Each step is 0.5 px; 200 steps ≈ 100 px maximum path length").pack(side="left", padx=2)
+
         mv = section(p, "Multivariate Analysis")
         mv.pack(fill="x", padx=8, pady=4)
 
@@ -1051,12 +1103,31 @@ class SGToolApp(tk.Tk):
             "  before every FFT operation to suppress edge effects (vignetting).\n"
             "  Increase it for noisy or clipped-edge grids.\n\n"
             "TAB SUMMARY\n"
-            "  FFT Filters    – RTP/RTE, continuation, band/high/low pass,\n"
+            "  FFT Filters    – RTP/RTE/Diff.RTP, continuation, band/high/low pass,\n"
             "                   AGC, regional removal, directional Butterworth,\n"
             "                   derivative, THG, tilt angle, analytic signal\n"
             "  Conv + Stats   – mean/median/Gaussian/directional/sun-shading,\n"
-            "                   windowed statistics, DTM curvature, PCA, ICA,\n"
+            "                   windowed statistics, DTM curvature,\n"
+            "                   local anisotropy + chain/streamline length, PCA, ICA,\n"
             "                   Euler deconvolution depth estimation\n"
+            "\n"
+            "DIFF. RTP (Variable RTP)\n"
+            "  Accounts for spatial variation of inclination/declination across the\n"
+            "  survey area (Cooper & Cowan 2005 Taylor-series method).  The IGRF is\n"
+            "  computed at the four grid corners and the centre using the IGRF Year\n"
+            "  field; Inc/Dec need not be entered.  Outputs: _DRTP, _DRTP_inc, _DRTP_dec.\n"
+            "\n"
+            "LOCAL ANISOTROPY\n"
+            "  Structure-tensor analysis of Sobel gradients averaged over the window.\n"
+            "  AnisoMag (0–1): saliency = λ1−λ2 normalised to 99th percentile.\n"
+            "  AnisoOrient (0–180°): dominant strike direction.\n"
+            "\n"
+            "CHAIN LENGTH / STREAMLINE LENGTH\n"
+            "  Both require active pixels (AnisoMag ≥ Aniso threshold).\n"
+            "  Chain Length: disk-search Union-Find connected components — all pixels\n"
+            "    in a connected group receive the same score (component size).\n"
+            "  Streamline Length: sub-pixel bilinear trace along the orientation field;\n"
+            "    total forward + backward path length in pixels.\n"
             "  Grid + Wavelets– point import (CSV/DAT/XYZ → shapefile),\n"
             "                   BSD Worms\n"
             "  Utils          – threshold→NaN, boundary polygon, normalise,\n"
@@ -1141,12 +1212,34 @@ class SGToolApp(tk.Tk):
             self.after(0, self._on_output_written, out_r)
 
         if self.v_rtp.get():
+            rt  = self.v_rtp_type.get()
             inc = float(self.v_inc.get())
             dec = float(self.v_dec.get())
-            self.after(0, lambda: self._status("RTP/RTE…"))
-            if self.v_rtp_type.get() == "Pole":
+            if rt == "Diff. RTP":
+                self.after(0, lambda: self._status("Differential (variable) RTP…"))
+                year = float(self.v_igrf_year.get())
+                inc_c, dec_c, inc_ctr, dec_ctr = self._get_igrf_corners(in_r, year)
+                if inc_c is None:
+                    self.after(0, lambda: messagebox.showwarning(
+                        "Diff. RTP",
+                        "Could not compute IGRF at grid corners.\n"
+                        "Check that the raster has a valid CRS and the IGRF Year is correct."))
+                else:
+                    from calcs.Cooper_Cowan_rtpvariable import rtpvariable as cooper_rtpvariable
+                    nr, nc = arr.shape
+                    data = np.where(np.isnan(arr), 0.0, arr)
+                    _, varrtp, incv_deg, decv_deg = cooper_rtpvariable(
+                        np.flipud(data), nr, nc, inc_c, dec_c,
+                        inc_center=inc_ctr, dec_center=dec_ctr,
+                    )
+                    _save(np.flipud(varrtp),    "DRTP")
+                    _save(np.flipud(incv_deg),  "DRTP_inc")
+                    _save(np.flipud(decv_deg),  "DRTP_dec")
+            elif rt == "Pole":
+                self.after(0, lambda: self._status("RTP…"))
                 _save(proc.reduction_to_pole(arr, inc, dec, buffer_size=buf), "rtp")
             else:
+                self.after(0, lambda: self._status("RTE…"))
                 _save(proc.reduction_to_equator(arr, inc, dec, buffer_size=buf), "rte")
 
         if self.v_vint.get():
@@ -1305,6 +1398,37 @@ class SGToolApp(tk.Tk):
                 self._ensure_odd(self.v_ss_win.get() or 3), float(self.v_dtm_sigma.get()),
             ).astype(np.float64), "dtm")
 
+        if self.v_ss_aniso.get() or self.v_ss_chain.get() or self.v_ss_stream.get():
+            from calcs.SpatialStats import SpatialStats as _SS
+            win_type  = 'gaussian' if self.v_ss_aniso_win_type.get() == 'Gaussian' else 'box'
+            a_thresh  = float(self.v_ss_aniso_thresh.get() or "0.3")
+            ang_tol   = float(self.v_ss_angle_tol.get()    or "22.5")
+            search_r  = int(float(self.v_ss_search_r.get() or "2"))
+            max_steps = int(float(self.v_ss_max_steps.get() or "200"))
+            self.after(0, lambda: self._status("Computing local anisotropy…"))
+            ss_inst = _SS(arr)
+            aniso_map, orient_map = ss_inst.calculate_local_anisotropy(
+                arr, window_size=win, window_type=win_type)
+            if self.v_ss_aniso.get():
+                _save(aniso_map,  "SS_AnisoMag")
+                _save(orient_map, "SS_AnisoOrient")
+            if self.v_ss_chain.get():
+                self.after(0, lambda: self._status("Chain length…"))
+                _save(ss_inst.calculate_anisotropy_chain_length(
+                    aniso_map, orient_map,
+                    aniso_threshold=a_thresh,
+                    angle_tolerance=ang_tol,
+                    search_radius=search_r,
+                ), "SS_ChainLen")
+            if self.v_ss_stream.get():
+                self.after(0, lambda: self._status("Streamline length…"))
+                _save(ss_inst.calculate_anisotropy_streamline_length(
+                    aniso_map, orient_map,
+                    aniso_threshold=a_thresh,
+                    angle_tolerance=ang_tol,
+                    max_steps=max_steps,
+                ), "SS_StreamLen")
+
         if self.v_pca.get():
             self.after(0, lambda: self._status("PCA…"))
             from calcs.PCAICA import PCAICA
@@ -1338,6 +1462,7 @@ class SGToolApp(tk.Tk):
                   self.v_sun, self.v_sun_relief,
                   self.v_ss_min, self.v_ss_max, self.v_ss_var, self.v_ss_std,
                   self.v_ss_skew, self.v_ss_kurt,
+                  self.v_ss_aniso, self.v_ss_chain, self.v_ss_stream,
                   self.v_dtm, self.v_pca, self.v_ica, self.v_euler):
             v.set(False)
 
@@ -1703,6 +1828,73 @@ class SGToolApp(tk.Tk):
                 self._status("IGRF failed – check parameters.")
         except Exception as e:
             messagebox.showerror("IGRF Error", str(e))
+
+    def _get_igrf_corners(self, in_r, year):
+        """Return (inc_corners, dec_corners, inc_center, dec_center) for Cooper/Cowan Diff. RTP.
+
+        Corner order: [NW, NE, SW, SE] — the axis-xy convention expected by
+        Cooper_Cowan_rtpvariable (row nr = geographic north, row 1 = south).
+        Returns (None, None, None, None) on any failure.
+        """
+        from arcgis_utils import calc_igrf
+        try:
+            from osgeo import gdal, osr
+            ds = gdal.Open(str(in_r), gdal.GA_ReadOnly)
+            if ds is None:
+                return None, None, None, None
+            gt   = ds.GetGeoTransform()
+            cols = ds.RasterXSize
+            rows = ds.RasterYSize
+            wkt  = ds.GetProjection()
+            ds   = None
+
+            # Five points in raster CRS: NW, NE, SW, SE, centre
+            pts_xy = [
+                (gt[0],                                    gt[3]),                                    # NW
+                (gt[0] + gt[1]*cols,                       gt[3] + gt[4]*cols),                       # NE
+                (gt[0] + gt[2]*rows,                       gt[3] + gt[5]*rows),                       # SW
+                (gt[0] + gt[1]*cols + gt[2]*rows,          gt[3] + gt[4]*cols + gt[5]*rows),           # SE
+                (gt[0] + gt[1]*cols/2 + gt[2]*rows/2,      gt[3] + gt[4]*cols/2 + gt[5]*rows/2),      # centre
+            ]
+
+            src_srs = osr.SpatialReference()
+            if wkt:
+                src_srs.ImportFromWkt(wkt)
+            else:
+                src_srs.ImportFromEPSG(4326)
+
+            if src_srs.IsGeographic():
+                def to_latlon(x, y):
+                    return float(y), float(x)
+            else:
+                geo_srs = osr.SpatialReference()
+                geo_srs.ImportFromEPSG(4326)
+                geo_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+                ct = osr.CoordinateTransformation(src_srs, geo_srs)
+                def to_latlon(x, y):
+                    lon, lat, _ = ct.TransformPoint(x, y)
+                    return float(lat), float(lon)
+
+            inc_corners, dec_corners = [], []
+            for x, y in pts_xy[:4]:
+                lat, lon = to_latlon(x, y)
+                res = calc_igrf(lat, lon, 0.0, year)
+                if res is None:
+                    return None, None, None, None
+                inc, dec, _ = res
+                inc_corners.append(inc)
+                dec_corners.append(dec)
+
+            ctr_x, ctr_y = pts_xy[4]
+            lat_c, lon_c = to_latlon(ctr_x, ctr_y)
+            res_c = calc_igrf(lat_c, lon_c, 0.0, year)
+            if res_c is None:
+                return None, None, None, None
+            inc_center, dec_center, _ = res_c
+
+            return inc_corners, dec_corners, inc_center, dec_center
+        except Exception:
+            return None, None, None, None
 
     def _show_power_spectrum(self):
         in_r = self._resolve_input()

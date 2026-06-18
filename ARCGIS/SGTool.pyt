@@ -259,14 +259,30 @@ class LaunchGUI:
                         maps = proj.listMaps()
                         if maps:
                             m = maps[0]
+                            added_names = []
                             for p in new_paths:
                                 try:
                                     m.addDataFromPath(p)
                                     seen.add(p)
+                                    added_names.append(
+                                        os.path.splitext(os.path.basename(p))[0])
                                     messages.addMessage(
                                         f"Added to map: {os.path.basename(p)}")
                                 except Exception:
                                     pass
+                            # Zoom the active map view to the first new layer
+                            # so it appears in the canvas immediately.
+                            try:
+                                av = proj.activeView
+                                if av and hasattr(av, 'camera') and added_names:
+                                    for n in added_names:
+                                        lyrs = m.listLayers(n)
+                                        if lyrs:
+                                            ext = lyrs[0].getExtent()
+                                            av.camera.setExtent(ext)
+                                            break
+                            except Exception:
+                                pass
                             arcpy.RefreshActiveView()
                             arcpy.RefreshTOC()
                 except Exception:

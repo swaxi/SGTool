@@ -1154,8 +1154,13 @@ class SGToolDockWidget(QDockWidget):
             _tr("comma separated list of CSS colour names or comma separated RGB triplets"))
         self.textEdit_2_colour_list.setFixedHeight(70)
 
+        self.pushButton_pick_rgb = QPushButton("Pick RGB")
+        self.pushButton_pick_rgb.setToolTip(
+            _tr("Pick RGB from map: click button then click a point on the loaded RGB raster"))
+
         g.addWidget(self.label_43,               1, 0)
-        g.addWidget(self.textEdit_2_colour_list, 1, 1, 1, 2)
+        g.addWidget(self.textEdit_2_colour_list, 1, 1)
+        g.addWidget(self.pushButton_pick_rgb,    1, 2)
 
         # Example line
         self.lineEdit = QLineEdit(

@@ -1066,12 +1066,16 @@ class SGToolApp(tk.Tk):
         lbl(rrg1, "Input RGB raster:").pack(side="left")
         self.v_rgb_in = tk.StringVar()
         entry(rrg1, self.v_rgb_in, 32).pack(side="left", padx=2)
-        btn(rrg1, "Browse…", lambda: _browse_file(self.v_rgb_in), w=8).pack(side="left")
+        btn(rrg1, "Browse…", self._browse_rgb_in, w=8).pack(side="left")
         lbl(rg, "Colour list (CSS names or R,G,B – comma separated on one line):").pack(anchor="w", padx=4)
         self.v_rgb_colours = tk.Text(rg, height=5, bg=ENTRY_BG, fg=FG,
                                      font=FONT_MONO, relief="sunken", bd=1)
         self.v_rgb_colours.pack(fill="x", padx=4, pady=2)
-        self.v_rgb_colours.insert("1.0", "45,133,186,251,248,183,215,26,29")
+        self.v_rgb_colours.insert("1.0", "")
+        rrg2 = tk.Frame(rg, bg=BG); rrg2.pack(fill="x", padx=4, pady=2)
+        tip(btn(rrg2, "Pick RGB from image", self._pick_rgb_from_image, w=20),
+            "Open a preview of the RGB raster and click anywhere to sample\n"
+            "the R,G,B values at that pixel — appended to the colour list").pack(side="left")
         rrg3 = tk.Frame(rg, bg=BG); rrg3.pack(fill="x", padx=4, pady=2)
         lbl(rrg3, "Min val:").pack(side="left")
         self.v_rgb_min = tk.StringVar(value="0.0")
@@ -1727,6 +1731,98 @@ class SGToolApp(tk.Tk):
         out_ds = None
         self._record_pending(out_r)
         self.after(0, lambda: self._status(f"RGB→Grayscale done → {out_r}"))
+
+    def _browse_rgb_in(self):
+        path = filedialog.askopenfilename(
+            filetypes=[("Raster files", "*.tif *.tiff *.img"), ("All files", "*.*")])
+        if not path:
+            return
+        self.v_rgb_in.set(path)
+        self._record_pending(path)
+        name = os.path.basename(path)
+        self._layer_map[name] = path
+        vals = list(self._layer_combo["values"])
+        if name not in vals:
+            vals.insert(0, name)
+            self._layer_combo["values"] = vals
+        self._status(f"RGB raster loaded: {name}")
+
+    def _pick_rgb_from_image(self):
+        in_r = self.v_rgb_in.get()
+        if not in_r or not os.path.exists(in_r):
+            messagebox.showwarning("No input", "Set the RGB input raster path first.")
+            return
+
+        try:
+            from osgeo import gdal
+            ds = gdal.Open(in_r, gdal.GA_ReadOnly)
+            if ds is None or ds.RasterCount < 3:
+                messagebox.showwarning("Error", "Cannot open raster or fewer than 3 bands.")
+                return
+            r_arr = ds.GetRasterBand(1).ReadAsArray()
+            g_arr = ds.GetRasterBand(2).ReadAsArray()
+            b_arr = ds.GetRasterBand(3).ReadAsArray()
+            orig_h, orig_w = r_arr.shape
+            ds = None
+        except Exception as e:
+            messagebox.showerror("Error opening raster", str(e))
+            return
+
+        try:
+            from PIL import Image, ImageTk
+        except ImportError:
+            messagebox.showerror(
+                "Missing library",
+                "Pillow is required for image preview.\n"
+                "Install it with:  pip install Pillow")
+            return
+
+        r_u8 = np.clip(r_arr, 0, 255).astype(np.uint8)
+        g_u8 = np.clip(g_arr, 0, 255).astype(np.uint8)
+        b_u8 = np.clip(b_arr, 0, 255).astype(np.uint8)
+        rgb_img = Image.fromarray(np.dstack([r_u8, g_u8, b_u8]))
+
+        max_size = 600
+        scale = min(max_size / orig_w, max_size / orig_h, 1.0)
+        thumb_w = max(1, int(orig_w * scale))
+        thumb_h = max(1, int(orig_h * scale))
+        thumb = rgb_img.resize((thumb_w, thumb_h), Image.LANCZOS)
+
+        win = tk.Toplevel(self)
+        win.title("Pick RGB – click image to sample colour")
+        win.configure(bg=BG)
+        win.resizable(False, False)
+
+        tk.Label(win,
+                 text="Click anywhere on the image to append that pixel's R,G,B to the colour list.\n"
+                      "Click multiple times to pick several colours.",
+                 bg=BG, fg=FG, font=FONT, justify="left").pack(padx=10, pady=(8, 2))
+
+        canvas = tk.Canvas(win, width=thumb_w, height=thumb_h, cursor="crosshair",
+                           bd=0, highlightthickness=0)
+        canvas.pack(padx=10, pady=4)
+        tk_img = ImageTk.PhotoImage(thumb)
+        canvas.create_image(0, 0, anchor="nw", image=tk_img)
+        canvas.image = tk_img  # keep reference
+
+        info_var = tk.StringVar(value="")
+        tk.Label(win, textvariable=info_var, bg=BG, fg=SECTION_FG, font=FONT).pack(pady=2)
+
+        def _on_click(event):
+            px = max(0, min(orig_w - 1, int(event.x / scale)))
+            py = max(0, min(orig_h - 1, int(event.y / scale)))
+            rv = int(r_arr[py, px])
+            gv = int(g_arr[py, px])
+            bv = int(b_arr[py, px])
+            current = self.v_rgb_colours.get("1.0", "end").strip()
+            new_triplet = f"{rv}, {gv}, {bv}"
+            new_text = (current + ", " + new_triplet) if current else new_triplet
+            self.v_rgb_colours.delete("1.0", "end")
+            self.v_rgb_colours.insert("1.0", new_text)
+            info_var.set(f"Pixel ({px}, {py}) → R={rv}  G={gv}  B={bv}  — added to colour list")
+
+        canvas.bind("<Button-1>", _on_click)
+        btn(win, "Done", win.destroy, w=10).pack(pady=(2, 10))
 
     def _parse_lut_string(self, LUT, num_entries=1024):
         """Port of QGIS parse_lut_string."""

@@ -12,6 +12,7 @@
       * Variable RTP code thanks to Gordon Cooper   
       * Add windowed spatial anisotropy calcs   
       * Add chain length calculations for linear features  
+      * Add RGB picker tool to convert LUT to grayscale   
       0.3.5   
       * Redo GUI so it removes need for .ui file and is now scrollable
       * redo RTE code following suggestion from google AI   

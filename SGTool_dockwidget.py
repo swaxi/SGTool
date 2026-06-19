@@ -1156,7 +1156,7 @@ class SGToolDockWidget(QDockWidget):
 
         self.pushButton_pick_rgb = QPushButton("Pick RGB")
         self.pushButton_pick_rgb.setToolTip(
-            _tr("Pick RGB from map: click button then click a point on the loaded RGB raster"))
+            _tr("Pick RGB from map: click button then click a point on the loaded RGB raster\nClick points equally spaced from low to high values"))
 
         g.addWidget(self.label_43,               1, 0)
         g.addWidget(self.textEdit_2_colour_list, 1, 1)

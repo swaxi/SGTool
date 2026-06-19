@@ -151,6 +151,15 @@ class RGBPickerMapTool(QgsMapToolEmitPoint):
         except AttributeError:
             self.setCursor(Qt.CrossCursor)
 
+    def canvasPressEvent(self, event):
+        pass  # consume press; do not propagate
+
+    def canvasReleaseEvent(self, event):
+        # Emit signal ourselves, do NOT call super() — prevents QGIS propagating
+        # this click to the identify handler or any other default behaviour.
+        point = self.toMapCoordinates(event.pos())
+        self.canvasClicked.emit(point, event.button())
+
 
 class SGTool:
     """QGIS Plugin Implementation."""
@@ -2369,11 +2378,19 @@ class SGTool:
         canvas.setMapTool(self._rgb_picker)
 
     def _on_rgb_picked(self, point, button):
+        from qgis.PyQt.QtCore import QTimer
         canvas = self.iface.mapCanvas()
-        if self._prev_map_tool:
-            canvas.setMapTool(self._prev_map_tool)
-        else:
-            canvas.unsetMapTool(self._rgb_picker)
+        prev, picker = self._prev_map_tool, self._rgb_picker
+
+        def _restore():
+            if prev:
+                canvas.setMapTool(prev)
+            else:
+                canvas.unsetMapTool(picker)
+
+        # Defer tool restoration until after the current event cycle so QGIS
+        # cannot re-dispatch this mouse event to the restored (identify) tool.
+        QTimer.singleShot(0, _restore)
 
         rgb_path = self.dlg.lineEdit_2_loadGridPath_2.text()
         if not rgb_path or not os.path.exists(rgb_path):

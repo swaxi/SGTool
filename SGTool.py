@@ -27,6 +27,7 @@ from qgis.PyQt.QtWidgets import QAction, QDockWidget, QFileDialog, QMessageBox
 from qgis.core import (
     Qgis,
     QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
     QgsVectorLayer,
     QgsProject,
     QgsRasterLayer,
@@ -53,6 +54,7 @@ from qgis.core import (
     QgsCoordinateTransformContext,
     QgsMapLayerType,
 )
+from qgis.gui import QgsMapToolEmitPoint
 
 from qgis.PyQt.QtCore import (
     QSettings,
@@ -142,6 +144,26 @@ from .calcs.aseggdf2parser import AsegGdf2Parser
 # from .calcs.euler.euler_python_optimised import euler_deconv_opt
 from .calcs.euler.euler_python import euler_deconv
 from .calcs.euler.estimates_statistics import window_stats
+
+
+class RGBPickerMapTool(QgsMapToolEmitPoint):
+    """One-shot map tool: emits a point on click then deactivates itself."""
+
+    def __init__(self, canvas):
+        super().__init__(canvas)
+        try:
+            self.setCursor(Qt.CursorShape.CrossCursor)
+        except AttributeError:
+            self.setCursor(Qt.CrossCursor)
+
+    def canvasPressEvent(self, event):
+        pass  # consume press; do not propagate
+
+    def canvasReleaseEvent(self, event):
+        # Emit signal ourselves, do NOT call super() — prevents QGIS propagating
+        # this click to the identify handler or any other default behaviour.
+        point = self.toMapCoordinates(event.pos())
+        self.canvasClicked.emit(point, event.button())
 
 
 class SGTool:
@@ -2391,6 +2413,85 @@ class SGTool:
         if os.path.exists(self.diskRGBGridPath) and self.diskRGBGridPath != "":
             self.dlg.lineEdit_2_loadGridPath_2.setText(self.diskRGBGridPath)
             self.last_directory = os.path.dirname(self.diskRGBGridPath)
+            basename = os.path.basename(self.diskRGBGridPath)
+            filename_without_extension = os.path.splitext(basename)[0]
+            self.rgb_layer = QgsRasterLayer(
+                self.diskRGBGridPath, filename_without_extension
+            )
+            if not self.is_layer_loaded(self.diskRGBGridPath):
+                QgsProject.instance().addMapLayer(self.rgb_layer)
+
+    def _on_pick_rgb_clicked(self):
+        canvas = self.iface.mapCanvas()
+        self._prev_map_tool = canvas.mapTool()
+        self._rgb_picker = RGBPickerMapTool(canvas)
+        self._rgb_picker.canvasClicked.connect(self._on_rgb_picked)
+        canvas.setMapTool(self._rgb_picker)
+
+    def _on_rgb_picked(self, point, button):
+        from qgis.PyQt.QtCore import QTimer
+        canvas = self.iface.mapCanvas()
+        prev, picker = self._prev_map_tool, self._rgb_picker
+
+        def _restore():
+            if prev:
+                canvas.setMapTool(prev)
+            else:
+                canvas.unsetMapTool(picker)
+
+        # Defer tool restoration until after the current event cycle so QGIS
+        # cannot re-dispatch this mouse event to the restored (identify) tool.
+        QTimer.singleShot(0, _restore)
+
+        rgb_path = self.dlg.lineEdit_2_loadGridPath_2.text()
+        if not rgb_path or not os.path.exists(rgb_path):
+            self.iface.messageBar().pushMessage(
+                "SGTool", "No RGB grid loaded", level=Qgis.Warning, duration=5
+            )
+            return
+
+        ds = gdal.Open(rgb_path)
+        if ds is None or ds.RasterCount < 3:
+            self.iface.messageBar().pushMessage(
+                "SGTool", "Grid must have at least 3 bands", level=Qgis.Warning, duration=5
+            )
+            return
+
+        # Transform canvas point to layer CRS if needed
+        layer_crs = QgsCoordinateReferenceSystem()
+        layer_crs.createFromWkt(ds.GetProjection())
+        canvas_crs = canvas.mapSettings().destinationCrs()
+        sample_point = point
+        if layer_crs.isValid() and layer_crs != canvas_crs:
+            try:
+                transform = QgsCoordinateTransform(
+                    canvas_crs, layer_crs, QgsProject.instance()
+                )
+                sample_point = transform.transform(point)
+            except Exception:
+                pass
+
+        inv_gt = gdal.InvGeoTransform(ds.GetGeoTransform())
+        px, py = gdal.ApplyGeoTransform(inv_gt, sample_point.x(), sample_point.y())
+        px, py = int(px), int(py)
+
+        if px < 0 or py < 0 or px >= ds.RasterXSize or py >= ds.RasterYSize:
+            self.iface.messageBar().pushMessage(
+                "SGTool", "Click is outside image extent", level=Qgis.Warning, duration=5
+            )
+            return
+
+        r = int(ds.GetRasterBand(1).ReadAsArray(px, py, 1, 1)[0][0])
+        g = int(ds.GetRasterBand(2).ReadAsArray(px, py, 1, 1)[0][0])
+        b = int(ds.GetRasterBand(3).ReadAsArray(px, py, 1, 1)[0][0])
+
+        current = self.dlg.textEdit_2_colour_list.toPlainText().strip()
+        new_triplet = f"{r}, {g}, {b}"
+        if current:
+            new_text = current + ", " + new_triplet
+        else:
+            new_text = new_triplet
+        self.dlg.textEdit_2_colour_list.setPlainText(new_text)
 
     def processRGB(self):
         """
@@ -3912,6 +4013,8 @@ class SGTool:
                     )
                 )
             )
+
+            self.dlg.pushButton_pick_rgb.clicked.connect(self._on_pick_rgb_clicked)
 
             self.dlg.pushButton_idw_2.clicked.connect(self.procIDWGridding)
             self.dlg.pushButton_bspline_3.clicked.connect(self.procmultibsplineGridding)

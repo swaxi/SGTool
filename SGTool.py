@@ -27,11 +27,15 @@ from qgis.PyQt.QtWidgets import QAction, QDockWidget, QFileDialog, QMessageBox
 from qgis.core import (
     Qgis,
     QgsCoordinateReferenceSystem,
-    QgsCoordinateTransform,
     QgsVectorLayer,
     QgsProject,
     QgsRasterLayer,
     QgsSingleBandGrayRenderer,
+    QgsSingleBandPseudoColorRenderer,
+    QgsColorRampShader,
+    QgsRasterShader,
+    QgsStyle,
+    QgsCptCityColorRamp,
     QgsFeature,
     QgsField,
     QgsProcessingFeedback,
@@ -49,7 +53,6 @@ from qgis.core import (
     QgsCoordinateTransformContext,
     QgsMapLayerType,
 )
-from qgis.gui import QgsMapToolEmitPoint
 
 from qgis.PyQt.QtCore import (
     QSettings,
@@ -139,26 +142,6 @@ from .calcs.aseggdf2parser import AsegGdf2Parser
 # from .calcs.euler.euler_python_optimised import euler_deconv_opt
 from .calcs.euler.euler_python import euler_deconv
 from .calcs.euler.estimates_statistics import window_stats
-
-
-class RGBPickerMapTool(QgsMapToolEmitPoint):
-    """One-shot map tool: emits a point on click then deactivates itself."""
-
-    def __init__(self, canvas):
-        super().__init__(canvas)
-        try:
-            self.setCursor(Qt.CursorShape.CrossCursor)
-        except AttributeError:
-            self.setCursor(Qt.CrossCursor)
-
-    def canvasPressEvent(self, event):
-        pass  # consume press; do not propagate
-
-    def canvasReleaseEvent(self, event):
-        # Emit signal ourselves, do NOT call super() — prevents QGIS propagating
-        # this click to the identify handler or any other default behaviour.
-        point = self.toMapCoordinates(event.pos())
-        self.canvasClicked.emit(point, event.button())
 
 
 class SGTool:
@@ -1940,6 +1923,51 @@ class SGTool:
         else:
             return True
 
+    def _applyAnisoOrientStyle(self):
+        layer_name = self.base_name + "_SS_AnisoOrient"
+        layers = QgsProject.instance().mapLayersByName(layer_name)
+        if not layers:
+            return
+        layer = layers[0]
+
+        provider = layer.dataProvider()
+        stats = provider.bandStatistics(1)
+
+        style = QgsStyle.defaultStyle()
+        target = "Full_saturation_spectrum_CCW"
+        ramp = style.colorRamp(target)
+
+        if ramp is None:
+            # Case-insensitive search in style library
+            for name in style.colorRampNames():
+                if name.lower() == target.lower():
+                    ramp = style.colorRamp(name)
+                    break
+
+        if ramp is None:
+            # Load from cpt-city catalogue and save into the style library
+            cpt_ramp = QgsCptCityColorRamp("ggr/Full_saturation_spectrum_CCW", "")
+            if cpt_ramp.count() > 0:
+                style.addColorRamp(target, cpt_ramp, True)
+                ramp = style.colorRamp(target)
+                print(f"Loaded '{target}' from cpt-city and saved to style library.")
+            else:
+                print(f"Colour ramp '{target}' not found in style library or cpt-city catalogue.")
+                return
+
+        ramp_shader = QgsColorRampShader(stats.minimumValue, stats.maximumValue)
+        ramp_shader.setColorRampType(QgsColorRampShader.Type.Interpolated)
+        ramp_shader.setSourceColorRamp(ramp)
+        ramp_shader.classifyColorRamp(classes=256)
+
+        raster_shader = QgsRasterShader()
+        raster_shader.setRasterShaderFunction(ramp_shader)
+
+        renderer = QgsSingleBandPseudoColorRenderer(provider, 1, raster_shader)
+        layer.setRenderer(renderer)
+        layer.setOpacity(0.5)
+        layer.triggerRepaint()
+
     def addNewGrid(self, stdClip=True):
         """
         Adds a new grid layer to the QGIS project. If a layer with the same name already exists,
@@ -2240,6 +2268,7 @@ class SGTool:
                 self.new_grid = self._aniso_orientation
                 self.suffix = "_SS_AnisoOrient"
                 self.addNewGrid(stdClip=False)  # adds _SS_AnisoOrient
+                self._applyAnisoOrientStyle()
             if self.SS_ChainLength:
                 self.procSS_ChainLength()
             if self.SS_Streamline:
@@ -2362,85 +2391,6 @@ class SGTool:
         if os.path.exists(self.diskRGBGridPath) and self.diskRGBGridPath != "":
             self.dlg.lineEdit_2_loadGridPath_2.setText(self.diskRGBGridPath)
             self.last_directory = os.path.dirname(self.diskRGBGridPath)
-            basename = os.path.basename(self.diskRGBGridPath)
-            filename_without_extension = os.path.splitext(basename)[0]
-            self.rgb_layer = QgsRasterLayer(
-                self.diskRGBGridPath, filename_without_extension
-            )
-            if not self.is_layer_loaded(self.diskRGBGridPath):
-                QgsProject.instance().addMapLayer(self.rgb_layer)
-
-    def _on_pick_rgb_clicked(self):
-        canvas = self.iface.mapCanvas()
-        self._prev_map_tool = canvas.mapTool()
-        self._rgb_picker = RGBPickerMapTool(canvas)
-        self._rgb_picker.canvasClicked.connect(self._on_rgb_picked)
-        canvas.setMapTool(self._rgb_picker)
-
-    def _on_rgb_picked(self, point, button):
-        from qgis.PyQt.QtCore import QTimer
-        canvas = self.iface.mapCanvas()
-        prev, picker = self._prev_map_tool, self._rgb_picker
-
-        def _restore():
-            if prev:
-                canvas.setMapTool(prev)
-            else:
-                canvas.unsetMapTool(picker)
-
-        # Defer tool restoration until after the current event cycle so QGIS
-        # cannot re-dispatch this mouse event to the restored (identify) tool.
-        QTimer.singleShot(0, _restore)
-
-        rgb_path = self.dlg.lineEdit_2_loadGridPath_2.text()
-        if not rgb_path or not os.path.exists(rgb_path):
-            self.iface.messageBar().pushMessage(
-                "SGTool", "No RGB grid loaded", level=Qgis.Warning, duration=5
-            )
-            return
-
-        ds = gdal.Open(rgb_path)
-        if ds is None or ds.RasterCount < 3:
-            self.iface.messageBar().pushMessage(
-                "SGTool", "Grid must have at least 3 bands", level=Qgis.Warning, duration=5
-            )
-            return
-
-        # Transform canvas point to layer CRS if needed
-        layer_crs = QgsCoordinateReferenceSystem()
-        layer_crs.createFromWkt(ds.GetProjection())
-        canvas_crs = canvas.mapSettings().destinationCrs()
-        sample_point = point
-        if layer_crs.isValid() and layer_crs != canvas_crs:
-            try:
-                transform = QgsCoordinateTransform(
-                    canvas_crs, layer_crs, QgsProject.instance()
-                )
-                sample_point = transform.transform(point)
-            except Exception:
-                pass
-
-        inv_gt = gdal.InvGeoTransform(ds.GetGeoTransform())
-        px, py = gdal.ApplyGeoTransform(inv_gt, sample_point.x(), sample_point.y())
-        px, py = int(px), int(py)
-
-        if px < 0 or py < 0 or px >= ds.RasterXSize or py >= ds.RasterYSize:
-            self.iface.messageBar().pushMessage(
-                "SGTool", "Click is outside image extent", level=Qgis.Warning, duration=5
-            )
-            return
-
-        r = int(ds.GetRasterBand(1).ReadAsArray(px, py, 1, 1)[0][0])
-        g = int(ds.GetRasterBand(2).ReadAsArray(px, py, 1, 1)[0][0])
-        b = int(ds.GetRasterBand(3).ReadAsArray(px, py, 1, 1)[0][0])
-
-        current = self.dlg.textEdit_2_colour_list.toPlainText().strip()
-        new_triplet = f"{r}, {g}, {b}"
-        if current:
-            new_text = current + ", " + new_triplet
-        else:
-            new_text = new_triplet
-        self.dlg.textEdit_2_colour_list.setPlainText(new_text)
 
     def processRGB(self):
         """
@@ -3962,8 +3912,6 @@ class SGTool:
                     )
                 )
             )
-
-            self.dlg.pushButton_pick_rgb.clicked.connect(self._on_pick_rgb_clicked)
 
             self.dlg.pushButton_idw_2.clicked.connect(self.procIDWGridding)
             self.dlg.pushButton_bspline_3.clicked.connect(self.procmultibsplineGridding)

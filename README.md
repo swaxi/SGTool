@@ -332,7 +332,7 @@ Independent Component Analysis separates a multivariate signal into additive, st
    
 ## Gridding   
 **Import points**   
-Imports point data in csv, ASEG-GDF2 dat or xyz formats   
+Imports point data in csv, ASEG-GDF2 dat or xyz formats. For xyz line data, tie lines can optionally be loaded as well.   
 
 **Gridding**   
 Grids point data using either BSpline or IDW built-in gridding algoithms   
@@ -355,7 +355,7 @@ Create one or more polygons outlining the available data in the grid. Useful, am
 Normalise the means and standard deviations of a series of grids in a directory to minimse mismatches in merged grids. Does not consider overlaps between grids, simply standardises data and removes a first or second order regional.     
    
 **Convert LUT to grayscale**   
-Takes a 3-band registered RGB image and converts it to a monotonically increasing grayscale image if you provide the correct Look Up Table, uses matplotlib CSS Colour names: https://matplotlib.org/stable/gallery/color/named_colors.html#css-colors   
+Takes a 3-band registered RGB image and converts it to a monotonically increasing grayscale image if you provide the correct Look Up Table, either as matplotlib CSS Colour names (https://matplotlib.org/stable/gallery/color/named_colors.html#css-colors) or as a list of RGB triplets.   
 
    
 # How To   

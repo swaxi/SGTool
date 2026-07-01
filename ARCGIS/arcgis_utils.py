@@ -7,7 +7,6 @@ arcpy is not available so the GUI can also run stand-alone or in QGIS.
 
 import os
 import sys
-import time
 import numpy as np
 
 # ---------------------------------------------------------------------------
@@ -38,7 +37,6 @@ def raster_to_numpy(raster_path):
         array2d      – float64 with NaN replacing nodata
     """
     raster_path = str(raster_path)
-    t0 = time.perf_counter()
 
     # --- arcpy path ---
     try:
@@ -54,7 +52,6 @@ def raster_to_numpy(raster_path):
         arr    = arcpy.RasterToNumPyArray(raster_path, nodata_to_value=np.nan).astype(np.float64)
         # Some rasters return int; nodata may already be filled – ensure NaN
         arr[arr == nodata] = np.nan
-        print(f"[SGTool timing] raster_to_numpy (arcpy) took {time.perf_counter() - t0:.2f}s for {raster_path}")
         return arr, nodata, ll_x, ll_y, cx, cy, sr
     except Exception:
         pass
@@ -77,7 +74,6 @@ def raster_to_numpy(raster_path):
     ll_y = gt[3] + gt[5] * ds.RasterYSize
     wkt  = ds.GetProjection()
     ds   = None
-    print(f"[SGTool timing] raster_to_numpy (gdal) took {time.perf_counter() - t0:.2f}s for {raster_path}")
     return arr, float(nodata), ll_x, ll_y, cx, cy, wkt
 
 
@@ -92,7 +88,6 @@ def numpy_to_raster(array, output_path, ll_x, ll_y,
     NaNs in *array* are replaced by *nodata* in the output.
     """
     output_path = str(output_path)
-    t0 = time.perf_counter()
     if os.path.exists(output_path):
         try:
             os.remove(output_path)
@@ -123,7 +118,6 @@ def numpy_to_raster(array, output_path, ll_x, ll_y,
         band.SetNoDataValue(float(nodata))
         ds.FlushCache()
         ds = None
-        print(f"[SGTool timing] numpy_to_raster (gdal) took {time.perf_counter() - t0:.2f}s for {output_path}")
         return
     except Exception:
         pass
@@ -135,7 +129,6 @@ def numpy_to_raster(array, output_path, ll_x, ll_y,
     if spatial_ref is not None:
         arcpy.DefineProjection_management(robj, spatial_ref)
     robj.save(output_path)
-    print(f"[SGTool timing] numpy_to_raster (arcpy) took {time.perf_counter() - t0:.2f}s for {output_path}")
 
 
 # ---------------------------------------------------------------------------

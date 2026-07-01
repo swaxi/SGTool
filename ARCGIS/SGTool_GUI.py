@@ -172,7 +172,8 @@ class SGToolApp(tk.Tk):
         super().__init__()
         self.title("SGTool – Geophysical Processing (ArcGIS)")
         self.configure(bg=BG)
-        self.minsize(700, 640)
+        self.geometry("760x900")
+        self.minsize(700, 820)
         self.resizable(True, True)
 
         self._layer_map      = {}   # display_name → file_path
@@ -1200,8 +1201,12 @@ class SGToolApp(tk.Tk):
         self._run_in_thread(self._do_apply_fft, in_r)
 
     def _do_apply_fft(self, in_r):
+        import time
         arr, nodata, ll_x, ll_y, cx, cy, sr = raster_to_numpy(in_r)
-        buf  = int(self.v_buf.get() or 10)
+        max_buf = int(self.v_buf.get() or 10)
+        rows, cols = arr.shape
+        buf  = min(max_buf, rows, cols)
+        print(f"[SGTool timing] grid shape={arr.shape}, FFT buffer used={buf} (field={max_buf})")
         proc = make_processor(cx, cy, buf)
         base, ext = os.path.splitext(in_r)
         if not ext:
@@ -1300,9 +1305,12 @@ class SGToolApp(tk.Tk):
         if self.v_deriv.get():
             self.after(0, lambda: self._status("Derivative…"))
             d = self.v_deriv_dir.get()
-            _save(proc.compute_derivative(
+            _t0 = time.perf_counter()
+            result = proc.compute_derivative(
                 arr, direction=d,
-                order=float(self.v_deriv_pow.get()), buffer_size=buf), f"d{d}")
+                order=float(self.v_deriv_pow.get()), buffer_size=buf)
+            print(f"[SGTool timing] compute_derivative took {time.perf_counter() - _t0:.2f}s")
+            _save(result, f"d{d}")
 
         if self.v_thg.get():
             self.after(0, lambda: self._status("Total Horizontal Gradient…"))

@@ -260,8 +260,8 @@ class SGToolApp(tk.Tk):
                     time.sleep(0.5)
                     if os.path.getmtime(self._info_file) > mtime_before:
                         break
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"SGTool: layer refresh signal failed: {e}")
 
         # Strategy 2: arcpy CURRENT (works only inside the ArcGIS Pro process)
         def _harvest(proj):
@@ -275,8 +275,9 @@ class SGToolApp(tk.Tk):
         try:
             import arcpy
             _harvest(arcpy.mp.ArcGISProject("CURRENT"))
-        except Exception:
-            pass
+        except Exception as e:
+            # Expected to fail when not running inside ArcGIS Pro
+            print(f"SGTool: arcpy CURRENT project harvest unavailable: {e}")
 
         # Strategy 3: read the info file (kept fresh by the watcher every ~30 s)
         if not names and self._info_file and os.path.exists(self._info_file):
@@ -284,8 +285,8 @@ class SGToolApp(tk.Tk):
                 for k, v in json.load(open(self._info_file)).get("layers", {}).items():
                     layer_map[k] = v
                     names.append(k)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"SGTool: failed to read layer info file: {e}")
 
         # All tkinter updates must happen on the main thread
         self.after(0, lambda: self._apply_layer_list(layer_map, names))
@@ -411,8 +412,8 @@ class SGToolApp(tk.Tk):
                 if h.lower() in ("y", "lat", "latitude", "northing", "lat_y", "n"):
                     self.v_y_col.set(h)
                     break
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"SGTool: failed to parse import file headers: {e}")
 
     # ------------------------------------------------------------------
     # Pending-layer queue (watcher in SGTool.pyt picks this up in-process)
@@ -429,8 +430,8 @@ class SGToolApp(tk.Tk):
                 paths.append(path)
             with open(self._pending_file, "w") as f:
                 json.dump(paths, f)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"SGTool: failed to record pending layer path: {e}")
 
     def _on_output_written(self, path):
         """Update status bar and add newly written raster to the layer dropdown."""

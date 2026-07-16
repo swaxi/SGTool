@@ -72,14 +72,6 @@ def runcmd(cmd, format="s"):
     @return:  Returns (exit_code,stdout,stderr)
     """
     import subprocess
-
-    """proc = subprocess.Popen(
-        cmd,
-        shell=True,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )"""
     import shlex
     cmd = shlex.split(cmd)  # or build the list directly
     proc = subprocess.Popen(

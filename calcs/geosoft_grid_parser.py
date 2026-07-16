@@ -448,7 +448,8 @@ def extract_proj_str(fname):
                     if proj.isalnum() is False:
                         proj = "".join(filter(str.isalnum, proj))
 
-                    assert proj.isalnum
+                    if not proj.isalnum():
+                        raise ValueError(f"Malformed EPSG code in {fname}: {proj!r}")
                     break
     return proj
 

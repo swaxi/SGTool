@@ -53,8 +53,8 @@ def raster_to_numpy(raster_path):
         # Some rasters return int; nodata may already be filled – ensure NaN
         arr[arr == nodata] = np.nan
         return arr, nodata, ll_x, ll_y, cx, cy, sr
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"SGTool: arcpy raster read unavailable, falling back to GDAL: {e}")
 
     # --- GDAL path ---
     from osgeo import gdal
@@ -119,8 +119,8 @@ def numpy_to_raster(array, output_path, ll_x, ll_y,
         ds.FlushCache()
         ds = None
         return
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"SGTool: GDAL raster write failed, falling back to arcpy: {e}")
 
     # --- arcpy fallback path ---
     import arcpy
@@ -175,8 +175,8 @@ def raster_center_latlon(raster_path):
             geo = pt.projectAs(arcpy.SpatialReference(4326))
             return float(geo.centroid.Y), float(geo.centroid.X)
         return float(cy), float(cx)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"SGTool: arcpy centre lat/lon unavailable, falling back to GDAL: {e}")
 
     # --- GDAL path ---
     try:

@@ -2468,8 +2468,8 @@ class SGTool:
                     canvas_crs, layer_crs, QgsProject.instance()
                 )
                 sample_point = transform.transform(point)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"SGTool: CRS transform failed, using untransformed point: {e}")
 
         inv_gt = gdal.InvGeoTransform(ds.GetGeoTransform())
         px, py = gdal.ApplyGeoTransform(inv_gt, sample_point.x(), sample_point.y())

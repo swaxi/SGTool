@@ -1140,8 +1140,8 @@ class SGTool:
         # offset afterwards so the B-spline solve keeps its precision.
         # (mba_gridding also mean-centres internally; this is belt-and-braces
         # and makes the behaviour explicit.)
-        z_offset = float(np.min(zs))
-        zs = zs - z_offset
+        # z_offset = float(np.min(zs))
+        # zs = zs - z_offset
 
         # ---- target grid geometry -----------------------------------
         xmin, ymin, nx, ny = self._mba_grid_geometry(
@@ -1171,7 +1171,7 @@ class SGTool:
             )
             return
 
-        grid = grid + z_offset  # restore the removed offset
+        # grid = grid + z_offset  # restore the removed offset
 
         # mba_gridding returns row 0 = ymin; GeoTIFF is written north-up.
         grid = np.flipud(grid)

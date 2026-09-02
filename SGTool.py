@@ -144,6 +144,8 @@ from .calcs.aseggdf2parser import AsegGdf2Parser
 # from .calcs.euler.euler_python_optimised import euler_deconv_opt
 from .calcs.euler.euler_python import euler_deconv
 from .calcs.euler.estimates_statistics import window_stats
+from .calcs.mrvbf import mrvbf as calc_mrvbf
+from .calcs.saga_mba_gridding import mba_gridding
 
 
 class RGBPickerMapTool(QgsMapToolEmitPoint):
@@ -517,7 +519,21 @@ class SGTool:
             self.tr("Perform Inverse Distance Weighting (IDW) gridding\nOpens Standard QGIS Dialog")
         )
         self.dlg.pushButton_bspline_3.setToolTip(
-            self.tr("Perform Multilevel B-Spline gridding\nRequires SAGAProcessing Saga NextGen Provider plugin to be installed")
+            self.tr("Perform Multilevel B-Spline (MBA) gridding of the selected point field\n"
+                    "into a temporary grid (local NumPy translation of SAGA's grid_spline tool)")
+        )
+        self.dlg.lineEdit_bspline_epsilon.setToolTip(
+            self.tr("MBA threshold error (EPSILON): stop refining once every point residual is below this value")
+        )
+        self.dlg.spinBox_bspline_levels.setToolTip(
+            self.tr("MBA maximum number of refinement levels (LEVEL_MAX)")
+        )
+        self.dlg.checkBox_bspline_ignore.setToolTip(
+            self.tr("Drop points whose data value is below the threshold before gridding\n"
+                    "(useful for removing nodata sentinels such as -99999 or -999999.9)")
+        )
+        self.dlg.lineEdit_bspline_ignore.setToolTip(
+            self.tr("Points with a value less than this are excluded from B-Spline gridding")
         )
         self.dlg.label_51.setToolTip(
             self.tr("Number of cells in x & y directions based on spatial extent of points and Cell Size")
@@ -660,17 +676,29 @@ class SGTool:
             self.tr("Size of window for calculation of spatial statistics")
         )
 
-        self.dlg.checkBox_DTM_Class.setToolTip(
-            self.tr("Calculate DTM classification based on curvature and slope\n-1 = concave up\n0 = flat\n1 = convex up\n2 = steep slope")
+        self.dlg.checkBox_MRVBF.setToolTip(
+            self.tr("Multiresolution Valley Bottom Flatness (MRVBF) and Ridge Top\n"
+                    "Flatness (MRRTF) after Gallant & Dowling 2003. Writes _MRVBF,\n"
+                    "_MRRTF and _MRVBF_slope grids plus a 3-band (MRRTF, MRVBF,\n"
+                    "Slope) composite. Requires a projected raster in metres.")
         )
-        self.dlg.lineEdit_DTM_Curve.setToolTip(
-            self.tr("Curvature threshold for DTM classification\nPositive curvature = hill, negative curvature = valley")
+        self.dlg.lineEdit_MRVBF_tslope.setToolTip(
+            self.tr("Initial threshold for slope (percent) at the finest resolution")
         )
-        self.dlg.lineEdit_DTM_Cliff.setToolTip(
-            self.tr("Slope threshold for Steep Slope DTM classification")
+        self.dlg.lineEdit_MRVBF_tpctlv.setToolTip(
+            self.tr("Threshold for lowness percentile (valley bottom flatness)")
         )
-        self.dlg.lineEdit_DTM_Sigma.setToolTip(
-            self.tr("Smoothing parameter for DTM classification\nHigher values will smooth the data more")
+        self.dlg.lineEdit_MRVBF_tpctlr.setToolTip(
+            self.tr("Threshold for upness percentile (ridge top flatness)")
+        )
+        self.dlg.lineEdit_MRVBF_pslope.setToolTip(
+            self.tr("Shape parameter for the slope transformation")
+        )
+        self.dlg.lineEdit_MRVBF_ppctl.setToolTip(
+            self.tr("Shape parameter for the elevation percentile transformation")
+        )
+        self.dlg.lineEdit_MRVBF_maxres.setToolTip(
+            self.tr("Maximum resolution as a percentage of the grid diagonal")
         )
 
         self.dlg.lineEdit_3_DC_wavelength.setToolTip(
@@ -871,10 +899,13 @@ class SGTool:
         self.SS_search_radius   = int(self.dlg.spinBox_SS_SearchRadius.value())
         self.SS_window_size = self.to_int(self.dlg.lineEdit_SS_Window.text())
 
-        self.DTM_Class = self.dlg.checkBox_DTM_Class.isChecked()
-        self.DTM_curvature_threshold = self.to_float(self.dlg.lineEdit_DTM_Curve.text())
-        self.DTM_slope_threshold = self.to_float(self.dlg.lineEdit_DTM_Cliff.text())
-        self.DTM_sigma = self.to_float(self.dlg.lineEdit_DTM_Sigma.text())
+        self.MRVBF = self.dlg.checkBox_MRVBF.isChecked()
+        self.MRVBF_t_slope = self.to_float(self.dlg.lineEdit_MRVBF_tslope.text())
+        self.MRVBF_t_pctl_v = self.to_float(self.dlg.lineEdit_MRVBF_tpctlv.text())
+        self.MRVBF_t_pctl_r = self.to_float(self.dlg.lineEdit_MRVBF_tpctlr.text())
+        self.MRVBF_p_slope = self.to_float(self.dlg.lineEdit_MRVBF_pslope.text())
+        self.MRVBF_p_pctl = self.to_float(self.dlg.lineEdit_MRVBF_ppctl.text())
+        self.MRVBF_max_res = self.to_float(self.dlg.lineEdit_MRVBF_maxres.text())
 
         self.PCA = self.dlg.checkBox_PCA.isChecked()
         self.ICA = self.dlg.checkBox_ICA.isChecked()
@@ -1000,37 +1031,196 @@ class SGTool:
                 "Error", str(e), level=Qgis.MessageLevel.Critical
             )
 
+    @staticmethod
+    def _mba_grid_geometry(data_xmin, data_xmax, data_ymin, data_ymax, cell_size):
+        """SAGA Multilevel B-Spline grid target: the lower-left node is snapped
+        DOWN to a multiple of the cell size and the node count is
+        2 + floor(dataRange / cellSize) -- one node for the snapped minimum,
+        one per whole cell of data range, plus one to span the partial last
+        cell. Returns (xmin, ymin, nx, ny) where xmin/ymin are the coordinates
+        of cell (0, 0)'s centre. Used both for the actual gridding and for the
+        '# Cells' preview labels so they agree with the B-spline output."""
+        xmin = float(np.floor(data_xmin / cell_size) * cell_size)
+        ymin = float(np.floor(data_ymin / cell_size) * cell_size)
+        nx = 2 + int((data_xmax - xmin) / cell_size)
+        ny = 2 + int((data_ymax - ymin) / cell_size)
+        return xmin, ymin, nx, ny
+
     def procmultibsplineGridding(self):
-        gridder = QGISGridData(self.iface)
+        """Multilevel B-Spline (MBA) gridding of the selected point layer /
+        data field into a temporary GeoTIFF, using the local NumPy translation
+        of SAGA's grid_spline tool (calcs/saga_mba_gridding.py).
 
+        Grid geometry (extent, cell size) and the value field are taken from
+        the Grid + Wavelets tab widgets. The result is loaded into the project.
+        """
         layer_name = self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
-        input = self.get_layer_path_by_name(layer_name)
+        if not layer_name:
+            self.iface.messageBar().pushMessage(
+                "Error", self.tr("No points layer selected"),
+                level=Qgis.MessageLevel.Critical,
+            )
+            return
+
+        layers = QgsProject.instance().mapLayersByName(layer_name)
+        if not layers:
+            return
+        layer = layers[0]
+
         zcolumn = self.dlg.comboBox_select_grid_data_field.currentText()
-        cell_size = self.dlg.doubleSpinBox_cellsize.text()
+        if not zcolumn or zcolumn not in [f.name() for f in layer.fields()]:
+            self.iface.messageBar().pushMessage(
+                "Error", self.tr("Select a valid data field to grid"),
+                level=Qgis.MessageLevel.Critical,
+            )
+            return
 
-        layer = QgsProject.instance().mapLayersByName(layer_name)[0]
-        provider = layer.dataProvider()
-        extent = provider.extent()
+        cell_size = float(self.dlg.doubleSpinBox_cellsize.value())
+        epsilon = self.to_float(self.dlg.lineEdit_bspline_epsilon.text())
+        level_max = int(self.dlg.spinBox_bspline_levels.value())
 
-        mask = None
-        alg_id = "sagang:multilevelbspline"
-        try:
-            # Check if the algorithm exists
-            if QgsApplication.processingRegistry().algorithmById(alg_id):
-                # Launch the dialog
-                gridder.launch_multi_bspline_dialog(input, zcolumn, cell_size, mask)
+        # ---- collect scattered points ----------------------------------
+        xs, ys, zs = [], [], []
+        for feat in layer.getFeatures():
+            geom = feat.geometry()
+            if geom is None or geom.isEmpty():
+                continue
+            val = feat[zcolumn]
+            if val is None:
+                continue
+            try:
+                zval = float(val)
+            except (TypeError, ValueError):
+                continue
+            if geom.isMultipart():
+                pts = geom.asMultiPoint()
             else:
-                QMessageBox.information(
-                    None,  # Parent widget
-                    "",
-                    "Missing Plugin for SGTool: "  # Window title
-                    + f"sagang multilevelbspline algorithm not found.\nTry installing the Plugin: Saga Processing Saga NextGen Provider\n\n",
-                    QMessageBox_Ok,  # Buttons parameter
-                )
+                pts = [geom.asPoint()]
+            for pt in pts:
+                xs.append(pt.x())
+                ys.append(pt.y())
+                zs.append(zval)
 
+        if len(xs) < 3:
+            self.iface.messageBar().pushMessage(
+                "Error",
+                self.tr("Need at least 3 valid points with a numeric value to grid"),
+                level=Qgis.MessageLevel.Critical,
+            )
+            return
+
+        xs = np.asarray(xs, dtype=float)
+        ys = np.asarray(ys, dtype=float)
+        zs = np.asarray(zs, dtype=float)
+
+        # ---- optional nodata-sentinel filter -------------------------
+        if self.dlg.checkBox_bspline_ignore.isChecked():
+            thresh = self.to_float(self.dlg.lineEdit_bspline_ignore.text())
+            keep = zs >= thresh
+            dropped = int((~keep).sum())
+            xs, ys, zs = xs[keep], ys[keep], zs[keep]
+            if dropped:
+                self.iface.messageBar().pushMessage(
+                    "B-Spline gridding: ignored %d point(s) with %s < %g"
+                    % (dropped, zcolumn, thresh),
+                    level=Qgis.Info,
+                    duration=8,
+                )
+            if xs.size < 3:
+                self.iface.messageBar().pushMessage(
+                    "Error",
+                    self.tr("Too few points remain after the ignore-value filter"),
+                    level=Qgis.MessageLevel.Critical,
+                )
+                return
+
+        # ---- detrend by the data minimum -----------------------------
+        # Geophysical fields often sit on a large offset with a small dynamic
+        # range (e.g. ~57700 nT +/- 100). Grid the residual and restore the
+        # offset afterwards so the B-spline solve keeps its precision.
+        # (mba_gridding also mean-centres internally; this is belt-and-braces
+        # and makes the behaviour explicit.)
+        # z_offset = float(np.min(zs))
+        # zs = zs - z_offset
+
+        # ---- target grid geometry -----------------------------------
+        xmin, ymin, nx, ny = self._mba_grid_geometry(
+            float(xs.min()), float(xs.max()),
+            float(ys.min()), float(ys.max()), cell_size,
+        )
+        if nx < 2 or ny < 2:
+            self.iface.messageBar().pushMessage(
+                "Error", self.tr("Cell size too large for the point extent"),
+                level=Qgis.MessageLevel.Critical,
+            )
+            return
+
+        try:
+            grid = mba_gridding(
+                xs, ys, zs,
+                cellsize=cell_size,
+                xmin=xmin, ymin=ymin,
+                nx=nx, ny=ny,
+                epsilon=epsilon,
+                level_max=level_max,
+                refinement=False,
+            )
         except Exception as e:
             self.iface.messageBar().pushMessage(
                 "Error", str(e), level=Qgis.MessageLevel.Critical
+            )
+            return
+
+        # grid = grid + z_offset  # restore the removed offset
+
+        # mba_gridding returns row 0 = ymin; GeoTIFF is written north-up.
+        grid = np.flipud(grid)
+
+        out_path = os.path.join(
+            tempfile.gettempdir(),
+            f"{layer_name}_{zcolumn}_bspline.tif",
+        )
+        if os.path.exists(out_path):
+            try:
+                os.remove(out_path)
+            except OSError:
+                out_path = tempfile.NamedTemporaryFile(
+                    suffix=".tif", delete=False
+                ).name
+
+        rows, cols = grid.shape
+        driver = gdal.GetDriverByName("GTiff")
+        ds = driver.Create(out_path, cols, rows, 1, gdal.GDT_Float32)
+        # mba_gridding places cell (0,0) *centre* at (xmin, ymin); GDAL's
+        # geotransform origin is the top-left pixel *corner*.
+        gt_originx = xmin - cell_size / 2.0
+        gt_originy = ymin + (ny - 0.5) * cell_size
+        ds.SetGeoTransform([gt_originx, cell_size, 0, gt_originy, 0, -cell_size])
+        srs = osr.SpatialReference()
+        authid = layer.crs().authid()
+        if authid and ":" in authid:
+            srs.ImportFromEPSG(int(authid.split(":")[1]))
+            ds.SetProjection(srs.ExportToWkt())
+        band = ds.GetRasterBand(1)
+        band.SetNoDataValue(np.nan)
+        band.WriteArray(grid.astype(np.float32))
+        band.FlushCache()
+        band = None
+        ds = None
+
+        layer_out_name = f"{layer_name}_{zcolumn}_bspline"
+        if self.is_layer_loaded(layer_out_name):
+            project = QgsProject.instance()
+            for lyr in project.mapLayersByName(layer_out_name):
+                project.removeMapLayer(lyr.id())
+
+        raster_layer = QgsRasterLayer(out_path, layer_out_name)
+        if raster_layer.isValid():
+            QgsProject.instance().addMapLayer(raster_layer)
+        else:
+            self.iface.messageBar().pushMessage(
+                "Error", self.tr("Failed to load gridded result"),
+                level=Qgis.MessageLevel.Critical,
             )
 
     def get_layer_path_by_name(self, layer_name):
@@ -1696,27 +1886,188 @@ class SGTool:
         self.suffix = "_SS_StreamLen"
         self.addNewGrid(stdClip=False)
 
-    def procDTM_Class(self):
+    def procMRVBF(self):
+        """Multiresolution Valley Bottom Flatness / Ridge Top Flatness.
 
-        selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-        crs = selected_layer.crs()
+        Runs the Gallant & Dowling (2003) MRVBF/MRRTF translation on the
+        selected grid, computes the slope of the same grid with the built-in
+        QGIS slope algorithm, and writes:
+
+            <name>_MRVBF.tif        valley bottom flatness index
+            <name>_MRRTF.tif        ridge top flatness index
+            <name>_MRVBF_slope.tif  slope (degrees) of the input grid
+            <name>_MRVBF_RGB.tif    3-band composite (R=MRRTF, G=MRVBF, B=slope)
+
+        All four are loaded into the project. Geographic (lat/long) rasters
+        are rejected because the algorithm needs cell sizes in metres.
+        """
+        crs = self.layer.crs()
         if crs.isGeographic():
-            long, lat = self.get_grid_centroid(selected_layer)
-            dx, dy = self.SG_Util.arc_degree_to_meters(lat)
-            ave_dxdy = np.sqrt(dx**2.0 + dy**2.0) / 2
-            hzscale = 1 / ave_dxdy
-        else:
-            hzscale = 1.0
+            self.iface.messageBar().pushMessage(
+                self.tr(
+                    "MRVBF needs a projected raster with cell sizes in metres. "
+                    "Reproject the grid to a projected CRS and try again."
+                ),
+                level=Qgis.Warning,
+                duration=15,
+            )
+            return
 
-        self.new_grid = self.SpatialStats.classify_terrain_with_cell_size(
-            self.dy * hzscale,
-            self.dx * hzscale,
-            curvature_threshold=self.DTM_curvature_threshold,
-            slope_threshold=self.DTM_slope_threshold,
-            window_size=self.SS_window_size,
-            sigma=self.DTM_sigma,
+        # SGTool keeps the array north-up (row 0 = north); mrvbf() expects
+        # row 0 = ymin, so flip going in and flip every result back.
+        dem_su = np.flipud(self.raster_array.astype(float))
+        nodata_mask = ~np.isfinite(dem_su)
+
+        extent = self.layer.dataProvider().extent()
+        cellsize = float(self.dx)
+
+        mrvbf_su, mrrtf_su = calc_mrvbf(
+            dem_su,
+            cellsize,
+            xmin=extent.xMinimum(),
+            ymin=extent.yMinimum(),
+            nodata_mask=nodata_mask,
+            t_slope=self.MRVBF_t_slope,
+            t_pctl_v=self.MRVBF_t_pctl_v,
+            t_pctl_r=self.MRVBF_t_pctl_r,
+            p_slope=self.MRVBF_p_slope,
+            p_pctl=self.MRVBF_p_pctl,
+            max_res=self.MRVBF_max_res,
         )
-        self.suffix = "_DTM_Class"
+        mrvbf_grid = np.flipud(mrvbf_su)
+        mrrtf_grid = np.flipud(mrrtf_su)
+
+        # --- MRVBF / MRRTF grids (written + loaded via addNewGrid) ---
+        self.new_grid = mrvbf_grid
+        self.suffix = "_MRVBF"
+        self.addNewGrid(stdClip=False)
+
+        self.new_grid = mrrtf_grid
+        self.suffix = "_MRRTF"
+        self.addNewGrid(stdClip=False)
+
+        # --- slope of the input grid via the built-in QGIS slope algorithm ---
+        slope_path = self.insert_text_before_extension(
+            self.diskGridPath, "_MRVBF_slope"
+        )
+        base, _ext = os.path.splitext(slope_path)
+        slope_path = base + ".tif"
+        if os.path.exists(slope_path):
+            try:
+                os.remove(slope_path)
+            except OSError:
+                pass
+        try:
+            processing.run(
+                "native:slope",
+                {"INPUT": self.diskGridPath, "Z_FACTOR": 1.0, "OUTPUT": slope_path},
+                feedback=QgsProcessingFeedback(),
+            )
+        except Exception:
+            processing.run(
+                "gdal:slope",
+                {
+                    "INPUT": self.diskGridPath,
+                    "BAND": 1,
+                    "SCALE": 1.0,
+                    "AS_PERCENT": False,
+                    "COMPUTE_EDGES": True,
+                    "ZEVENBERGEN": False,
+                    "OUTPUT": slope_path,
+                },
+                feedback=QgsProcessingFeedback(),
+            )
+
+        slope_layer = QgsRasterLayer(slope_path, self.base_name + "_MRVBF_slope")
+        if slope_layer.isValid():
+            QgsProject.instance().addMapLayer(slope_layer)
+
+        sds = gdal.Open(slope_path)
+        slope_arr = sds.GetRasterBand(1).ReadAsArray().astype(float)
+        s_nodata = sds.GetRasterBand(1).GetNoDataValue()
+        s_gt = sds.GetGeoTransform()
+        sds = None
+        if s_nodata is not None:
+            slope_arr[slope_arr == s_nodata] = np.nan
+        if s_gt[5] > 0:  # south-up -> north-up, matching mrvbf_grid orientation
+            slope_arr = np.flipud(slope_arr)
+        slope_arr = self._fit_to_shape(slope_arr, mrvbf_grid.shape)
+
+        # --- 3-band composite: R = MRRTF, G = MRVBF, B = slope ---
+        rgb_path = self.insert_text_before_extension(self.diskGridPath, "_MRVBF_RGB")
+        base, _ext = os.path.splitext(rgb_path)
+        rgb_path = base + ".tif"
+        if self.is_layer_loaded(self.base_name + "_MRVBF_RGB"):
+            project = QgsProject.instance()
+            for lyr in project.mapLayersByName(self.base_name + "_MRVBF_RGB"):
+                project.removeMapLayer(lyr.id())
+        self._write_multiband_raster(
+            [mrrtf_grid, mrvbf_grid, slope_arr], rgb_path, self.layer
+        )
+        rgb_layer = QgsRasterLayer(rgb_path, self.base_name + "_MRVBF_RGB")
+        if rgb_layer.isValid():
+            QgsProject.instance().addMapLayer(rgb_layer)
+
+        # everything for this operation has already been written and loaded
+        self.suffix = ""
+
+    @staticmethod
+    def _fit_to_shape(arr, shape):
+        """Crop/pad arr (with NaN) so it has exactly `shape`."""
+        out = np.full(shape, np.nan, dtype=float)
+        ny = min(arr.shape[0], shape[0])
+        nx = min(arr.shape[1], shape[1])
+        out[:ny, :nx] = arr[:ny, :nx]
+        return out
+
+    def _write_multiband_raster(
+        self, bands, raster_path, reference_layer, no_data_value=np.nan
+    ):
+        """Write a list of equal-shaped 2D arrays as a multi-band Float32
+        GeoTIFF georeferenced from `reference_layer`."""
+        if os.path.exists(raster_path):
+            try:
+                os.remove(raster_path)
+                if os.path.exists(raster_path + ".aux.xml"):
+                    os.remove(raster_path + ".aux.xml")
+            except OSError:
+                self.iface.messageBar().pushMessage(
+                    "Couldn't overwrite " + raster_path,
+                    level=Qgis.Warning,
+                    duration=15,
+                )
+                return -1
+
+        rows, cols = bands[0].shape
+        driver = gdal.GetDriverByName("GTiff")
+        output_raster = driver.Create(
+            raster_path, cols, rows, len(bands), gdal.GDT_Float32
+        )
+
+        provider = reference_layer.dataProvider()
+        extent = provider.extent()
+        output_raster.SetGeoTransform(
+            [
+                extent.xMinimum(),
+                extent.width() / cols,
+                0,
+                extent.yMaximum(),
+                0,
+                -extent.height() / rows,
+            ]
+        )
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(int(reference_layer.crs().authid().split(":")[1]))
+        output_raster.SetProjection(srs.ExportToWkt())
+
+        for i, arr in enumerate(bands, start=1):
+            band = output_raster.GetRasterBand(i)
+            band.SetNoDataValue(no_data_value)
+            band.WriteArray(np.nan_to_num(arr, nan=no_data_value))
+            band.FlushCache()
+            band = None
+        output_raster = None
+        return 0
 
     def procBSDworms(self):
         num_levels = int(self.dlg.spinBox_levels.value())
@@ -2295,9 +2646,8 @@ class SGTool:
                 self.procSS_ChainLength()
             if self.SS_Streamline:
                 self.procSS_Streamline()
-            if self.DTM_Class:
-                self.procDTM_Class()
-                self.addNewGrid(stdClip=True)
+            if self.MRVBF:
+                self.procMRVBF()
             if self.PCA:
                 self.procPCA()
             if self.ICA:
@@ -2359,7 +2709,7 @@ class SGTool:
         self.dlg.checkBox_SS_Anisotropy.setChecked(False)
         self.dlg.checkBox_SS_ChainLength.setChecked(False)
         self.dlg.checkBox_SS_Streamline.setChecked(False)
-        self.dlg.checkBox_DTM_Class.setChecked(False)
+        self.dlg.checkBox_MRVBF.setChecked(False)
         self.dlg.checkBox_PCA.setChecked(False)
         self.dlg.checkBox_ICA.setChecked(False)
         self.dlg.checkBox_ED_Stats.setChecked(False)
@@ -2468,8 +2818,8 @@ class SGTool:
                     canvas_crs, layer_crs, QgsProject.instance()
                 )
                 sample_point = transform.transform(point)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"SGTool: CRS transform failed, using untransformed point: {e}")
 
         inv_gt = gdal.InvGeoTransform(ds.GetGeoTransform())
         px, py = gdal.ApplyGeoTransform(inv_gt, sample_point.x(), sample_point.y())
@@ -4131,15 +4481,17 @@ class SGTool:
             self.dlg.doubleSpinBox_NaN_Below.valueChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_NaN)
             )
-            self.dlg.lineEdit_DTM_Curve.textChanged.connect(
-                lambda: self.update_checkbox(self.dlg.checkBox_DTM_Class)
-            )
-            self.dlg.lineEdit_DTM_Cliff.textChanged.connect(
-                lambda: self.update_checkbox(self.dlg.checkBox_DTM_Class)
-            )
-            self.dlg.lineEdit_DTM_Sigma.textChanged.connect(
-                lambda: self.update_checkbox(self.dlg.checkBox_DTM_Class)
-            )
+            for _mrvbf_edit in (
+                self.dlg.lineEdit_MRVBF_tslope,
+                self.dlg.lineEdit_MRVBF_tpctlv,
+                self.dlg.lineEdit_MRVBF_tpctlr,
+                self.dlg.lineEdit_MRVBF_pslope,
+                self.dlg.lineEdit_MRVBF_ppctl,
+                self.dlg.lineEdit_MRVBF_maxres,
+            ):
+                _mrvbf_edit.textChanged.connect(
+                    lambda: self.update_checkbox(self.dlg.checkBox_MRVBF)
+                )
             self.dlg.mQgsSpinBox_PCA.textChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_PCA)
             )
@@ -4220,11 +4572,9 @@ class SGTool:
 
                     self.cell_size = self.dlg.doubleSpinBox_cellsize.value()
 
-                    self.nx_label = int(
-                        (extent.xMaximum() - extent.xMinimum()) / self.cell_size
-                    )
-                    self.ny_label = int(
-                        (extent.yMaximum() - extent.yMinimum()) / self.cell_size
+                    _, _, self.nx_label, self.ny_label = self._mba_grid_geometry(
+                        extent.xMinimum(), extent.xMaximum(),
+                        extent.yMinimum(), extent.yMaximum(), self.cell_size,
                     )
                     self.dlg.nx_label.setText(str(self.nx_label))
                     self.dlg.ny_label.setText(str(self.ny_label))
@@ -4277,11 +4627,9 @@ class SGTool:
                 self.cell_size = self.dlg.doubleSpinBox_cellsize.value()
 
                 if selected_layer.featureCount() > 0:
-                    self.nx_label = int(
-                        (extent.xMaximum() - extent.xMinimum()) / self.cell_size
-                    )
-                    self.ny_label = int(
-                        (extent.yMaximum() - extent.yMinimum()) / self.cell_size
+                    _, _, self.nx_label, self.ny_label = self._mba_grid_geometry(
+                        extent.xMinimum(), extent.xMaximum(),
+                        extent.yMinimum(), extent.yMaximum(), self.cell_size,
                     )
                     self.dlg.nx_label.setText(str(self.nx_label))
                     self.dlg.ny_label.setText(str(self.ny_label))

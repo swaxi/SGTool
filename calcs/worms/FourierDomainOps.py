@@ -261,15 +261,11 @@ class FourierDomainOps(object):
 
     def buildGradVector(self, fdg):
         """Builds the 2D gradient vector of a FDG."""
-        try:
-            assert isinstance(np.ndarray, fdg.hat_grid)
-        except:
+        if not isinstance(getattr(fdg, "hat_grid", None), np.ndarray):
             fdg.setHatGrid(fdg.simpleFFT(fdg.spatial_grid))
 
-        try:
-            assert isinstance(np.ndarray, fdg.kx)
-            assert isinstance(np.ndarray, fdg.ky)
-        except:
+        if not (isinstance(getattr(fdg, "kx", None), np.ndarray)
+                and isinstance(getattr(fdg, "ky", None), np.ndarray)):
             fdg.buildWavenumbers(fdg.hat_grid)
 
         if self.F_dxOp is None:

@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.3.6
+# Structural Geophysics Tool v0.3.7
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
@@ -8,11 +8,17 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog=0.3.6 
+# changelog=0.3.7
+      * Add native python Multilevel BSpline code converted from SAGA
+      * Add native python MRVBF/MRRTF/Slope RGB code converted from SAGA
+      * Remove DTM Curvature but keep code for now
+      * Remove WTMM from GUI but keep code for now
+      * Fix clash with modern python for worms calcs
+      0.3.6
       * Variable RTP code thanks to Gordon Cooper   
       * Add windowed spatial anisotropy calcs   
       * Add chain length calculations for linear features  
-      * Add RGB picker tool to convert LUT to grayscale   
+      * Add RGB picker tool to convert LUT picture to grayscale   
       0.3.5   
       * Redo GUI so it removes need for .ui file and is now scrollable
       * redo RTE code following suggestion from google AI   
@@ -49,13 +55,12 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
 2) If you get an warning of the type **The following Python packages are required but not installed: scikit-learn** or any other module name the best way to manage this is to install the QGIS Plugin called **qpip** and open it. It will tell you which libraries are missing and allow you to install the correct versions.   
        
    The packages required for specific functions are:   
-   **matplotlib** WTMM, Radial Power Spectrum   
+   **matplotlib** Radial Power Spectrum   
    **scikit-learn** BSDWorms, PCA, ICA   
-   **PyWavelets** WTMM    
 
    If you don't use these functions, there is no need to install the extra packages.   
       
-3) For BSpline Gridding you need to install the plugin **Processing Saga NextGen Provider**   
+
    
 ## ArcGIS Pro:
 1) Download and unzip this respository and store somewhere safe.
@@ -311,10 +316,8 @@ Returns: `_SS_ChainLen`
 From each active pixel (exceeding Aniso threshold) traces forward and backward along the orientation field using sub-pixel bilinear interpolation and double-angle orientation averaging. The path continues while anisotropy remains above the threshold and the step-to-step orientation change stays within Angle tolerance. The total forward + backward path length in pixels is the score. Unlike Chain Length, Streamline Length follows the curvature of a lineament and produces a continuous (non-integer) distance measure.   
 Returns: `_SS_StreamLen`   
 
-**DTM Curvature Classifier**   
-Calculate DTM classification based on curvature and slope   
-Based on Curvature Threshold, Cliff Threshold, Window Size and Smoothing Parameter   
-Classified array where: -1 = concave up; 0 = flat; 1 = convex up and 2 = steep slope  
+**MRRTF / MRVBF / Slope**   
+Calculate DTM classification based on hill top & valley bottom curvature and slope  and combines as RGB.Converted from SAGA code  
    
 ## Multivariate Statistical Analysis   
 **Principal Component Analysis**   
@@ -335,14 +338,11 @@ Independent Component Analysis separates a multivariate signal into additive, st
 Imports point data in csv, ASEG-GDF2 dat or xyz formats. For xyz line data, tie lines can optionally be loaded as well.   
 
 **Gridding**   
-Grids point data using either BSpline or IDW built-in gridding algoithms   
+Grids point data using either BSpline (Converted from SAGA code) or IDW built-in gridding algoithms   
    
 ## Wavelets   
 **BSDWorms**   
 Use wavelet transforms to build multilevel "worms", saves out a single csv file of points (for use in 3D visualisation), and optionally a shapefile (for use in QGIS). Code from Frank Horowitz's bsdwormer  https://bitbucket.org/fghorow/bsdwormer/   
-    
-**WTMM**   
-Use wavelet transforms to build multilevel analysis (Wavelet Transform Modulus Maxima) along a selected linestring (polyline) profile extracted from grid or for imported XYZ data. 
     
 ## Utilities   
 **Threshold to NaN**   
@@ -389,7 +389,7 @@ There are several excellent Open Source or at least free alternatives to this pl
 - Example geophysics data in image above courtesy of Mauritania Govt. and USGS https://anarpam.mr/en/     
 - Worming of grids uses Frank Horowitz's bsdwormer  https://bitbucket.org/fghorow/bsdwormer/
 - Wavelet Transform base code - https://github.com/PyWavelets/pywt 
-- Multilevel BSpline Gridding piggybacks off SAGA code via the plugin Processing Saga NextGen Provider https://github.com/north-road/qgis-processing-saga-nextgen   
+- Multilevel BSpline Gridding and MRVBF converted to python from SAGA code -https://saga-gis.sourceforge.io/
 - Euler Deconvolution uses Felipe F. Melo and Valéria C.F. Barbosa's Reliable Euler method https://github.com/ffigura/Euler-deconvolution-python   
 - Variable RTP modified from code kindly supplied by Gordon Cooper, Uni Witwatersrand, see Cooper & Cowan, Computers & Geosciences 31 (2005) 989–999   https://doi.org/10.1016/j.cageo.2005.02.005
 

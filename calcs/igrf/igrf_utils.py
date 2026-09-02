@@ -414,14 +414,16 @@ class igrf_utils:  # A simple class to put the igrf file values into
         if nmin is None:
             nmin = 1
         else:
-            assert nmin > 0, "Only positive nmin allowed."
+            if nmin <= 0:
+                raise ValueError("Only positive nmin allowed.")
 
         # handle optional argument: nmax
         nmax_coeffs = int(np.sqrt(coeffs.shape[-1] + 1) - 1)  # degree
         if nmax is None:
             nmax = nmax_coeffs
         else:
-            assert nmax > 0, "Only positive nmax allowed."
+            if nmax <= 0:
+                raise ValueError("Only positive nmax allowed.")
 
         if nmax > nmax_coeffs:
             warnings.warn(

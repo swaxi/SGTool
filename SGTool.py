@@ -679,7 +679,7 @@ class SGTool:
         self.dlg.checkBox_MRVBF.setToolTip(
             self.tr("Multiresolution Valley Bottom Flatness (MRVBF) and Ridge Top\n"
                     "Flatness (MRRTF) after Gallant & Dowling 2003. Writes _MRVBF,\n"
-                    "_MRRTF and _MRVBF_slope grids plus a 3-band (MRRTF, MRVBF,\n"
+                    "_MRRTF and _slope grids plus a 3-band (MRRTF, MRVBF,\n"
                     "Slope) composite. Requires a projected raster in metres.")
         )
         self.dlg.lineEdit_MRVBF_tslope.setToolTip(
@@ -1895,7 +1895,7 @@ class SGTool:
 
             <name>_MRVBF.tif        valley bottom flatness index
             <name>_MRRTF.tif        ridge top flatness index
-            <name>_MRVBF_slope.tif  slope (degrees) of the input grid
+            <name>_slope.tif  slope (degrees) of the input grid
             <name>_MRVBF_RGB.tif    3-band composite (R=MRRTF, G=MRVBF, B=slope)
 
         All four are loaded into the project. Geographic (lat/long) rasters
@@ -1948,7 +1948,7 @@ class SGTool:
 
         # --- slope of the input grid via the built-in QGIS slope algorithm ---
         slope_path = self.insert_text_before_extension(
-            self.diskGridPath, "_MRVBF_slope"
+            self.diskGridPath, "_slope"
         )
         base, _ext = os.path.splitext(slope_path)
         slope_path = base + ".tif"
@@ -1978,7 +1978,7 @@ class SGTool:
                 feedback=QgsProcessingFeedback(),
             )
 
-        slope_layer = QgsRasterLayer(slope_path, self.base_name + "_MRVBF_slope")
+        slope_layer = QgsRasterLayer(slope_path, self.base_name + "_slope")
         if slope_layer.isValid():
             QgsProject.instance().addMapLayer(slope_layer)
 

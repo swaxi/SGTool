@@ -8,7 +8,13 @@
     
 ![SGTools image](dialog.png)       
 
-# changelog=0.3.6 
+# changelog=0.3.7
+      * Add native python Multilevel BSpline code converted from SAGA
+      * Add native python MRVBF/MRRTF/Slope RGB code converted from SAGA
+      * Remove DTM Curvature but keep code for now
+      * Remove WTMM from GUI but keep code for now
+      * Fix clash with modern python for worms calcs
+      0.3.6
       * Variable RTP code thanks to Gordon Cooper   
       * Add windowed spatial anisotropy calcs   
       * Add chain length calculations for linear features  

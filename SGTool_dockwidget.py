@@ -644,28 +644,52 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(lbl_search_r,                          6, 6)
         g.addWidget(self.spinBox_SS_SearchRadius,          6, 7)
 
-        # DTM Curvature Classifier
-        self.checkBox_DTM_Class = QCheckBox(_tr("DTM Curvature Classifier"))
-        self.label_74 = QLabel(_tr("Curve Threshold"))
-        self.label_74.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.lineEdit_DTM_Curve = QLineEdit(".0001")
-        self.lineEdit_DTM_Curve.setFixedWidth(55)
-        self.label_73 = QLabel(_tr("Cliff Angle"))
-        self.label_73.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.lineEdit_DTM_Cliff = QLineEdit("5")
-        self.lineEdit_DTM_Cliff.setFixedWidth(40)
-        self.label_75 = QLabel(_tr("Sigma"))
-        self.label_75.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.lineEdit_DTM_Sigma = QLineEdit("0")
-        self.lineEdit_DTM_Sigma.setFixedWidth(40)
+        # MRVBF / MRRTF (Multiresolution Valley Bottom / Ridge Top Flatness)
+        self.checkBox_MRVBF = QCheckBox(_tr("MRVBF / MRRTF / Slope"))
 
-        g.addWidget(self.checkBox_DTM_Class,  7, 0, 1, 2)
-        g.addWidget(self.label_74,            7, 2)
-        g.addWidget(self.lineEdit_DTM_Curve,  7, 3)
-        g.addWidget(self.label_73,            7, 4)
-        g.addWidget(self.lineEdit_DTM_Cliff,  7, 5)
-        g.addWidget(self.label_75,            8, 2)
-        g.addWidget(self.lineEdit_DTM_Sigma,  8, 3)
+        self.label_mrvbf_tslope = QLabel(_tr("Slope Threshold"))
+        self.label_mrvbf_tslope.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.lineEdit_MRVBF_tslope = QLineEdit("16")
+        self.lineEdit_MRVBF_tslope.setFixedWidth(55)
+
+        self.label_mrvbf_tpctlv = QLabel(_tr("Pctl Lowness"))
+        self.label_mrvbf_tpctlv.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.lineEdit_MRVBF_tpctlv = QLineEdit("0.40")
+        self.lineEdit_MRVBF_tpctlv.setFixedWidth(55)
+
+        self.label_mrvbf_tpctlr = QLabel(_tr("Pctl Upness"))
+        self.label_mrvbf_tpctlr.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.lineEdit_MRVBF_tpctlr = QLineEdit("0.35")
+        self.lineEdit_MRVBF_tpctlr.setFixedWidth(55)
+
+        self.label_mrvbf_pslope = QLabel(_tr("Slope Shape"))
+        self.label_mrvbf_pslope.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.lineEdit_MRVBF_pslope = QLineEdit("4")
+        self.lineEdit_MRVBF_pslope.setFixedWidth(55)
+
+        self.label_mrvbf_ppctl = QLabel(_tr("Pctl Shape"))
+        self.label_mrvbf_ppctl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.lineEdit_MRVBF_ppctl = QLineEdit("3")
+        self.lineEdit_MRVBF_ppctl.setFixedWidth(55)
+
+        self.label_mrvbf_maxres = QLabel(_tr("Max Res %"))
+        self.label_mrvbf_maxres.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.lineEdit_MRVBF_maxres = QLineEdit("100")
+        self.lineEdit_MRVBF_maxres.setFixedWidth(55)
+
+        g.addWidget(self.checkBox_MRVBF,        7, 0, 1, 2)
+        g.addWidget(self.label_mrvbf_tslope,    7, 2)
+        g.addWidget(self.lineEdit_MRVBF_tslope, 7, 3)
+        g.addWidget(self.label_mrvbf_tpctlv,    7, 4)
+        g.addWidget(self.lineEdit_MRVBF_tpctlv, 7, 5)
+        g.addWidget(self.label_mrvbf_tpctlr,    8, 2)
+        g.addWidget(self.lineEdit_MRVBF_tpctlr, 8, 3)
+        g.addWidget(self.label_mrvbf_pslope,    8, 4)
+        g.addWidget(self.lineEdit_MRVBF_pslope, 8, 5)
+        g.addWidget(self.label_mrvbf_ppctl,     9, 2)
+        g.addWidget(self.lineEdit_MRVBF_ppctl,  9, 3)
+        g.addWidget(self.label_mrvbf_maxres,    9, 4)
+        g.addWidget(self.lineEdit_MRVBF_maxres, 9, 5)
 
         g.setColumnStretch(8, 1)
         return gb
@@ -754,7 +778,12 @@ class SGToolDockWidget(QDockWidget):
         sl.addWidget(self._group_gridding())
         sl.addWidget(self._group_worm_header())
         sl.addWidget(self._group_worms())
-        sl.addWidget(self._group_wtmm())
+        # WTMM (Wavelet Transform Modulus Maxima) is retained in code but its
+        # UI is hidden — build the widgets so SGTool.py references stay valid,
+        # then keep the group off-screen.
+        self._wtmm_group = self._group_wtmm()
+        self._wtmm_group.setVisible(False)
+        sl.addWidget(self._wtmm_group)
         sl.addStretch()
 
         outer.addWidget(self._scroll_wrap(sc))
@@ -860,14 +889,43 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.label_48,            3, 3)
         g.addWidget(self.ny_label,            3, 4)
 
-        # Gridding buttons
+        # ── IDW gridding (its own row) ───────────────────────────────
         self.pushButton_idw_2 = QPushButton(_tr("IDW Gridding"))
         self.pushButton_idw_2.setStyleSheet("font-weight: bold;")
+        g.addWidget(self.pushButton_idw_2, 4, 1, 1, 3)
+
+        # ── Multilevel B-Spline (MBA) block ──────────────────────────
+        self.label_bspline_hdr = QLabel(_tr("Multilevel B-Spline (MBA)"))
+        self.label_bspline_hdr.setStyleSheet("font-weight: bold;")
+        g.addWidget(self.label_bspline_hdr, 5, 0, 1, 4)
+
+        self.label_bspline_eps = QLabel(_tr("Threshold Error"))
+        self.label_bspline_eps.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.lineEdit_bspline_epsilon = QLineEdit("0.0001")
+        self.lineEdit_bspline_epsilon.setFixedWidth(70)
+
+        self.label_bspline_lvl = QLabel(_tr("Max Levels"))
+        self.label_bspline_lvl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.spinBox_bspline_levels = QSpinBox()
+        self.spinBox_bspline_levels.setMinimum(1)
+        self.spinBox_bspline_levels.setMaximum(20)
+        self.spinBox_bspline_levels.setValue(11)
+        self.spinBox_bspline_levels.setFixedWidth(55)
+
+        self.checkBox_bspline_ignore = QCheckBox(_tr("Ignore values <"))
+        self.lineEdit_bspline_ignore = QLineEdit("-99999")
+        self.lineEdit_bspline_ignore.setFixedWidth(70)
+
+        g.addWidget(self.label_bspline_eps,        6, 0)
+        g.addWidget(self.lineEdit_bspline_epsilon, 6, 1)
+        g.addWidget(self.label_bspline_lvl,        6, 2)
+        g.addWidget(self.spinBox_bspline_levels,   6, 3)
+        g.addWidget(self.checkBox_bspline_ignore,  7, 0, 1, 2)
+        g.addWidget(self.lineEdit_bspline_ignore,  7, 2)
+
         self.pushButton_bspline_3 = QPushButton(_tr("BSpline Gridding"))
         self.pushButton_bspline_3.setStyleSheet("font-weight: bold;")
-
-        g.addWidget(self.pushButton_idw_2,    4, 1)
-        g.addWidget(self.pushButton_bspline_3, 4, 2, 1, 2)
+        g.addWidget(self.pushButton_bspline_3, 8, 1, 1, 3)
 
         g.setColumnStretch(1, 1)
         return gb

@@ -66,21 +66,23 @@ def encode(string):
 
 def runcmd(cmd, format="s"):
     """Run a command
-    @type     cmd:  C{str}
-    @param    cmd:  Command (inc arguments) to run
+    @type     cmd:  C{str} or C{list}
+    @param    cmd:  Command (inc arguments) to run, as a pre-split argument
+                     list (preferred) or a string to be split with shlex
     @rtype:   C{tuple}
     @return:  Returns (exit_code,stdout,stderr)
     """
     import subprocess
     import shlex
-    cmd = shlex.split(cmd)  # or build the list directly
+    if isinstance(cmd, str):
+        cmd = shlex.split(cmd)
     proc = subprocess.Popen(
         cmd,                    # list, not a string
         shell=False,            # explicit, though False is the default
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-    )
+    )  # nosec B603 - fixed executable name, args are never shell-interpreted
     if format.lower() == "s":  # string output
         stdout, stderr = proc.communicate()
     # elif format.lower() == 'f': #file object output #doesn't flush IO buffer, causes python to hang
@@ -170,7 +172,7 @@ def ParseGDALinfo(filepath):
     metadata = {}
     extent = []
 
-    cmd = "gdalinfo -noct " + filepath
+    cmd = ["gdalinfo", "-noct", filepath]
     exit_code, stdout, stderr = runcmd(cmd)
     if exit_code != 0:
         raise Exception(stderr)
@@ -1062,8 +1064,8 @@ class ShapeWriter:
         try:
             gdal.ErrorReset()
             self._shape.Release()
-        except:
-            pass
+        except Exception as e:
+            print(f"SGTool: failed to release shapefile handle: {e}")
 
     def __error__(self, err):
         gdalerr = gdal.GetLastErrorMsg()

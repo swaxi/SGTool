@@ -317,7 +317,7 @@ From each active pixel (exceeding Aniso threshold) traces forward and backward a
 Returns: `_SS_StreamLen`   
 
 **MRRTF / MRVBF / Slope**   
-Calculate DTM classification based on hill top & valley bottom curvature and slope  and combines as RGB.Converted from SAGA code  
+Calculate DTM classification based on hill top & valley bottom curvature and slope  and combines as RGB. Converted from SAGA code  
    
 ## Multivariate Statistical Analysis   
 **Principal Component Analysis**   
@@ -330,9 +330,7 @@ Independent Component Analysis separates a multivariate signal into additive, st
 **Euler Deconvolution**   
 Reliable Euler Deconvolution provides estimates of depth to gravity or magnetic sources based on analysis of gradients. Code derived from Reliable Euler Deconvolution by Felipe F. Melo and Valéria C.F. Barbosa https://github.com/ffigura/Euler-deconvolution-python.   
    
-**Independent Component Analysis**   
-Independent Component Analysis separates a multivariate signal into additive, statistically independent components by maximizing non-Gaussianity, often used to recover source signals from mixed observations.     
-   
+
 ## Gridding   
 **Import points**   
 Imports point data in csv, ASEG-GDF2 dat or xyz formats. For xyz line data, tie lines can optionally be loaded as well.   

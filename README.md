@@ -9,6 +9,7 @@
 ![SGTools image](dialog.png)       
 
 # changelog=0.3.8
+      * retain std df/dz for Euler solutions
       * Improved and debugged Direction Cosine/Butterworth filter
       * Generalise XYZ importer for new variations
       0.3.7

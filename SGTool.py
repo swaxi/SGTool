@@ -106,6 +106,8 @@ except AttributeError:
 # from PyQt5.QtGui import QValidator
 
 import re
+import gc
+import time
 import os.path
 import numpy as np
 from scipy.spatial import cKDTree
@@ -702,7 +704,10 @@ class SGTool:
         )
 
         self.dlg.lineEdit_3_DC_wavelength.setToolTip(
-            self.tr("Wavelength of high frequency noise to be filtered\nSet to 4x line spacing")
+            self.tr("Minimum line spacing in the survey\nNoise band is 2x min spacing to 10x max spacing")
+        )
+        self.dlg.lineEdit_3_DC_maxspacing.setToolTip(
+            self.tr("Maximum line spacing in the survey\nLeave blank if spacing is constant (uses the min value)")
         )
 
         self.dlg.lineEdit_3_DC_scale.setToolTip(
@@ -759,6 +764,7 @@ class SGTool:
         self.DirClean = False
         self.DC_azimuth = 0
         self.DC_lineSpacing = 400
+        self.DC_lineSpacingMax = ""
         self.RTE_P = False
         self.RTE_P_type = "RTP"
         self.RTE_P_inc = 0
@@ -808,6 +814,7 @@ class SGTool:
         self.DirClean = self.dlg.checkBox_3_DirClean.isChecked()
         self.DC_azimuth = self.dlg.lineEdit_3_azimuth.text()
         self.DC_lineSpacing = self.dlg.lineEdit_3_DC_wavelength.text()
+        self.DC_lineSpacingMax = self.dlg.lineEdit_3_DC_maxspacing.text()
         self.DC_scale = self.to_float(self.dlg.lineEdit_3_DC_scale.text())
 
         self.RTE_P = self.dlg.checkBox_4_RTE_P.isChecked()
@@ -1242,22 +1249,32 @@ class SGTool:
         return None
 
     def procDirClean(self):
-        cutoff_wavelength = 4 * float(self.DC_lineSpacing)
-        # if self.unit_check(cutoff_wavelength) or True:
+        min_spacing = float(self.DC_lineSpacing)
+        try:
+            max_spacing = float(self.DC_lineSpacingMax)
+        except (TypeError, ValueError):
+            max_spacing = min_spacing  # blank/invalid: constant line spacing
+        max_spacing = max(max_spacing, min_spacing)
+        # Line noise varies across the lines with wavelengths >= 2x line spacing.
+        # Pass roughly 2x min spacing to 10x max spacing, and let the directional wedge select the
+        # line-parallel noise. The long-wavelength cut matters: regional field
+        # also varies across the lines, so it lies inside the wedge and would
+        # otherwise pass (and be scaled by DC_scale) as offset/trend.
         self.new_grid = self.processor.directional_butterworth_band_pass(
             self.raster_array,
-            1e-8,
-            float(self.DC_lineSpacing),
+            2 * min_spacing,  # low_cut: suppress wavelengths shorter than this
+            10 * max_spacing,  # high_cut: suppress wavelengths longer than this
             direction_angle=float(self.DC_azimuth),
-            direction_width=20,
+            direction_width=45,
             order=4,
-            buffer_size=10,
+            buffer_size=self.buffer,
             buffer_method="mirror",
+            preserve_dc=False,  # zero-centred noise estimate, so DC_scale doesn't scale the mean
         )
-        print("xxxxx")
         nan_mask = np.isnan(self.new_grid)
         self.new_grid[nan_mask] = 1.0
         self.new_grid = self.raster_array - (self.new_grid * self.DC_scale)
+        #self.new_grid = self.new_grid * float(self.DC_scale)
         self.new_grid[nan_mask] = np.nan
         self.suffix = "_DirC"
 
@@ -2375,6 +2392,11 @@ class SGTool:
                 project = QgsProject.instance()
                 layer = project.mapLayersByName(self.base_name + self.suffix)[0]
                 project.removeMapLayer(layer.id())
+                # Drop our reference so the provider releases its file handle
+                # (otherwise Windows refuses to overwrite the .tif on first try)
+                del layer
+                gc.collect()
+                QCoreApplication.processEvents()
 
             self.diskNewGridPath = self.insert_text_before_extension(
                 self.diskGridPath, self.suffix
@@ -3389,10 +3411,21 @@ class SGTool:
         # Check if the file already exists and remove it
         if os.path.exists(raster_path):
             try:
-                os.remove(raster_path)
-                if os.path.exists(raster_path + "aux.xml"):
-                    os.remove(raster_path + "aux.xml")
-            except:
+                # The file handle of a just-removed layer can take a moment to
+                # be released, so retry briefly before giving up.
+                for attempt in range(10):
+                    try:
+                        os.remove(raster_path)
+                        break
+                    except PermissionError:
+                        if attempt == 9:
+                            raise
+                        gc.collect()
+                        QCoreApplication.processEvents()
+                        time.sleep(0.2)
+                if os.path.exists(raster_path + ".aux.xml"):
+                    os.remove(raster_path + ".aux.xml")
+            except Exception:
                 self.iface.messageBar().pushMessage(
                     "Couldn't delete layer, may be open in another program? On windows files on non-C: drive may be hard to delete",
                     level=Qgis.Warning,
@@ -4388,6 +4421,9 @@ class SGTool:
             self.dlg.lineEdit_3_DC_wavelength.textChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_3_DirClean)
             )
+            self.dlg.lineEdit_3_DC_maxspacing.textChanged.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_3_DirClean)
+            )
             self.dlg.lineEdit_3_DC_scale.textChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_3_DirClean)
             )
@@ -4985,23 +5021,36 @@ class SGTool:
         with open(XYZ_file, "r") as file:
             for line in file:
                 line = line.strip()
-                if line.startswith("LINE:"):  # Check for 'LINE:' markers
+                if not line or line.startswith("/"):  # skip blank/comment lines
+                    continue
+                if re.match(r"(?i)^line\b", line):  # Check for 'LINE:'/'Line' markers
                     current_line_number = int(re.search(r"\d+", line).group())
-                elif line.startswith("TIE:"):  # Check for 'TIE:' markers
+                elif re.match(r"(?i)^tie\b", line):  # Check for 'TIE:'/'Tie' markers
                     if load_ties:
                         current_line_number = int(re.search(r"\d+", line).group())
                     else:
                         current_line_number = None
                 elif current_line_number is not None:
-                    try:
-                        parts = list(map(float, line.split()))
-                        if len(parts) >= 2:  # Ensure at least x and y are present
-                            data_list.append(parts + [current_line_number])
-                    except ValueError:
-                        pass
+                    # Drop any non-numeric tokens (e.g. date/time columns) rather
+                    # than discarding the whole row when one field isn't a float.
+                    parts = []
+                    for token in line.split():
+                        try:
+                            parts.append(float(token))
+                        except ValueError:
+                            continue
+                    if len(parts) >= 2:  # Ensure at least x and y are present
+                        data_list.append(parts + [current_line_number])
                 else:
                     if load_ties:
                         print("Invalid line:", line)
+
+        if not data_list:
+            raise ValueError(
+                f"No usable coordinate data found in {XYZ_file}. "
+                "Expected 'LINE:'/'Line' (and optionally 'TIE:'/'Tie') markers "
+                "followed by rows of numeric X Y [values...]."
+            )
         # Process and create the line layer
         line_layer = QgsVectorLayer("LineString?crs=EPSG:" + crs, layer_name, "memory")
         line_provider = line_layer.dataProvider()

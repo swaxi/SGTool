@@ -296,10 +296,13 @@ class SGToolDockWidget(QDockWidget):
         self.label_12.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_3_azimuth = QLineEdit("0")
         self.lineEdit_3_azimuth.setFixedWidth(35)
-        self.label_13 = QLabel(_tr("Wavelength"))
+        self.label_13 = QLabel(_tr("Line Spacing min/max (proj units)"))
         self.label_13.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_3_DC_wavelength = QLineEdit("1000")
         self.lineEdit_3_DC_wavelength.setFixedWidth(55)
+        self.lineEdit_3_DC_maxspacing = QLineEdit("")
+        self.lineEdit_3_DC_maxspacing.setPlaceholderText(_tr("max"))
+        self.lineEdit_3_DC_maxspacing.setFixedWidth(55)
         self.label_16 = QLabel(_tr("Scale"))
         self.label_16.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.lineEdit_3_DC_scale = QLineEdit("3")
@@ -309,7 +312,14 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.label_12,              1, 2)
         g.addWidget(self.lineEdit_3_azimuth,    1, 3)
         g.addWidget(self.label_13,              1, 4)
-        g.addWidget(self.lineEdit_3_DC_wavelength, 1, 5)
+        # min/max spacing share one cell so Scale lines up with the Band Pass
+        # Width widgets in columns 6/7
+        spacing_box = QHBoxLayout()
+        spacing_box.setContentsMargins(0, 0, 0, 0)
+        spacing_box.setSpacing(4)
+        spacing_box.addWidget(self.lineEdit_3_DC_wavelength)
+        spacing_box.addWidget(self.lineEdit_3_DC_maxspacing)
+        g.addLayout(spacing_box,                1, 5)
         g.addWidget(self.label_16,              1, 6)
         g.addWidget(self.lineEdit_3_DC_scale,   1, 7)
 
@@ -1283,7 +1293,7 @@ class SGToolDockWidget(QDockWidget):
 <p><b>Simple Potential Field Calcs to assist WAXI/Agate Structural Geophysics Course</b></p>
 <p><a href="https://waxi4.org">https://waxi4.org</a> &nbsp;
    <a href="https://agate-project.org">https://agate-project.org</a></p>
-<p><b>Example magnetic grid from Mauritania:</b></p>
+<p><b>Example magnetic grid from OMRG Mauritania:</b></p>
 <p><a href="http://tectonique.net/sgtools_data/ogrm_usgs_mag_tmi.tif">grid</a></p>
 <p><b>Noddy Imports:</b></p>
 <p>Existing Noddy mag and grav files can be found at the Atlas of Structural Geophysics:
@@ -1311,4 +1321,8 @@ you are using, go to Code Repository for latest version</p>
 <a href="https://anarpam.mr/en/">https://anarpam.mr/en/</a></p>
 <p>- Worming of grids uses Frank Horowitz's bsdwormer
 <a href="https://bitbucket.org/fghorow/bsdwormer/">https://bitbucket.org/fghorow/bsdwormer/</a></p>
+<p>- Multilevel B-Spline (MBA) Gridding — native Python translation of SAGA's grid_spline algorithm (no external plugin required)</p>
+<p>- Differential (Variable) RTP — G.R.J. Cooper & D.R. Cowan (2005) Taylor-series method</p>
+<p>- MRVBF/MRRTF (Multiresolution Valley Bottom/Ridge Top Flatness) — J.C. Gallant & T.I. Dowling (2003)</p>
+
 </body></html>"""

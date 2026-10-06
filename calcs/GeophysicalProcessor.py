@@ -974,18 +974,24 @@ class GeophysicalProcessor:
         order=4,
         buffer_size=10,
         buffer_method="mirror",
+        preserve_dc=True,
     ):
         """
         Apply a combined Butterworth band-pass filter with directional filtering.
+
+        preserve_dc : bool, optional
+            If True (default) the grid median is added back to the result.
+            Use False to get a zero-centred result (e.g. a noise estimate that
+            will be scaled and subtracted from the original grid).
 
         Parameters
         ----------
         data : array-like
             Input data to be filtered
         low_cut : float
-            Low cut-off wavelength (features with longer wavelengths will be attenuated)
+            Short-wavelength cut-off (wavelengths shorter than this are attenuated)
         high_cut : float
-            High cut-off wavelength (features with shorter wavelengths will be attenuated)
+            Long-wavelength cut-off (wavelengths longer than this are attenuated)
         direction_angle : float, optional
             The primary direction to emphasize, in degrees clockwise from north (0-360)
         direction_width : float, optional
@@ -1027,7 +1033,7 @@ class GeophysicalProcessor:
             # Directional filter component
             # Convert direction angle to radians (0 is north, increases clockwise)
             angle_rad = np.radians(
-                direction_angle
+                -direction_angle
             )  # Convert from N=0 to standard math orientation
 
             # Calculate wavenumber direction
@@ -1053,7 +1059,7 @@ class GeophysicalProcessor:
             return combined_filter
 
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
+            data, filter_function, buffer_size, buffer_method, preserve_dc=preserve_dc
         )
 
     def total_horizontal_gradient(self, data, buffer_size=10, buffer_method="mirror"):

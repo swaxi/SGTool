@@ -1628,7 +1628,7 @@ class SGTool:
                     + ".txt",
                     output[i],
                     delimiter=",",
-                    header="y_source, x_source, z_source, base_level",
+                    header="y_source, x_source, z_source, base_level, std_dfdz",
                     comments="",  # This removes the # prefix
                 )
             # optional windowed stats

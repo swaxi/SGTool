@@ -210,7 +210,8 @@ def euler_deconv(data, xi, yi, zi, shape, area, SI, windowSize, filt):
     Returns:
 
     * classic_est : 2d-array
-        x, y, z and base-level best estimates kept after select a percentage
+        x, y, z, base-level and std of df/dz of the best estimates kept after
+        select a percentage
 
     * classic : 2d-array
         x, y, z, base-level and standard deviation of all estimates
@@ -279,8 +280,9 @@ def euler_deconv(data, xi, yi, zi, shape, area, SI, windowSize, filt):
         (estx.ravel(), esty.ravel(), estz.ravel(), estb.ravel(), stdzmat.ravel()),
         axis=-1,
     )
-    # sort the solutions according to the std of df/dz and filter a percentage
+    # sort the solutions according to the std of df/dz and filter a percentage;
+    # the std of df/dz is kept as the last column for secondary filtering
     classic_est = np.array(sorted(classic, key=lambda l: l[-1], reverse=True))[
-        : int(len(classic) * filt), :-1
+        : int(len(classic) * filt), :
     ]
     return classic_est

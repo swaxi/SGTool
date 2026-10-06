@@ -642,6 +642,7 @@ class SGToolApp(tk.Tk):
         self.v_dirclean  = tk.BooleanVar()
         self.v_dc_az     = tk.StringVar(value="0.0")
         self.v_dc_wl     = tk.StringVar(value="2000.0")
+        self.v_dc_wl_max = tk.StringVar(value="")
         self.v_dc_scale  = tk.StringVar(value="1.0")
         tip(check(r6, "Directional Butterworth", self.v_dirclean),
             "Filter (DirCos + Butterworth) to remove a specific direction and wavelength\n"
@@ -650,13 +651,17 @@ class SGToolApp(tk.Tk):
         tip(entry(r6, self.v_dc_az, 5, chk_var=self.v_dirclean),
             "Azimuth of high-frequency noise to be filtered\n"
             "(degrees clockwise from North)").pack(side="left", padx=2)
-        lbl(r6, "Wavelength:").pack(side="left", padx=(6,0))
-        tip(entry(r6, self.v_dc_wl, 9, chk_var=self.v_dirclean),
-            "Wavelength of high-frequency noise to be filtered\n"
-            "Set to 4× line spacing").pack(side="left", padx=2)
+        lbl(r6, "Line spacing min/max:").pack(side="left", padx=(6,0))
+        tip(entry(r6, self.v_dc_wl, 7, chk_var=self.v_dirclean),
+            "Minimum line spacing in the survey (map units)\n"
+            "Noise band is 2× min spacing to 10× max spacing").pack(side="left", padx=2)
+        tip(entry(r6, self.v_dc_wl_max, 7, chk_var=self.v_dirclean),
+            "Maximum line spacing in the survey (map units)\n"
+            "Leave blank if spacing is constant (uses the min value)").pack(side="left", padx=2)
         lbl(r6, "Scale:").pack(side="left")
         tip(entry(r6, self.v_dc_scale, 5, chk_var=self.v_dirclean),
-            "Multiplier applied to the filtered result").pack(side="left", padx=2)
+            "Multiplier applied to the noise estimate before it is\n"
+            "subtracted from the original grid").pack(side="left", padx=2)
 
         r7 = tk.Frame(ff, bg=BG); r7.pack(fill="x", padx=4, pady=2)
         self.v_regrem   = tk.BooleanVar()
@@ -1265,13 +1270,24 @@ class SGToolApp(tk.Tk):
         if self.v_dirclean.get():
             self.after(0, lambda: self._status("Directional Butterworth…"))
             scale  = float(self.v_dc_scale.get() or "1.0")
-            result = proc.directional_butterworth_band_pass(
+            min_sp = float(self.v_dc_wl.get())
+            try:
+                max_sp = float(self.v_dc_wl_max.get())
+            except ValueError:
+                max_sp = min_sp  # blank/invalid: constant line spacing
+            max_sp = max(max_sp, min_sp)
+            # zero-centred line-noise estimate (2x min to 10x max spacing,
+            # within a 45 degree wedge about the azimuth), scaled and
+            # subtracted from the original grid
+            noise = proc.directional_butterworth_band_pass(
                 arr,
-                1e-8, float(self.v_dc_wl.get()),
+                2 * min_sp, 10 * max_sp,
                 direction_angle=float(self.v_dc_az.get()),
-                direction_width=20,
-                buffer_size=buf)
-            _save(result * scale, "dir")
+                direction_width=45,
+                order=4,
+                buffer_size=buf,
+                preserve_dc=False)
+            _save(arr - noise * scale, "dir")
 
         if self.v_regrem.get():
             self.after(0, lambda: self._status("Remove regional…"))
@@ -1488,7 +1504,7 @@ class SGToolApp(tk.Tk):
         ZI     = np.zeros_like(arr)
         filled = np.where(np.isnan(arr), 0.0, arr)
 
-        # Returns array shape (n_keep, 4): columns [X, Y, Depth, B]
+        # Returns array shape (n_keep, 5): columns [X, Y, Depth, B, StdDfDz]
         res = euler_deconv_optimized(
             filled, XI, YI, ZI, filled.shape, area,
             float(self.v_eu_si.get()),
@@ -1501,9 +1517,9 @@ class SGToolApp(tk.Tk):
         out_csv = os.path.splitext(in_r)[0] + "_euler.csv"
         with open(out_csv, "w", newline="") as f:
             wr = csv.writer(f)
-            wr.writerow(["X", "Y", "Depth", "B"])
+            wr.writerow(["X", "Y", "Depth", "B", "StdDfDz"])
             for row in res:
-                wr.writerow([row[0], row[1], row[2], row[3]])
+                wr.writerow([row[0], row[1], row[2], row[3], row[4]])
         n = len(res)
         self.after(0, lambda: self._status(f"Euler: {n} estimates → {os.path.basename(out_csv)}"))
 

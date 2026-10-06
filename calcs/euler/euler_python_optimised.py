@@ -339,7 +339,8 @@ def euler_deconv_optimized(data, xi, yi, zi, shape, area, SI, windowSize, filt):
     # Sort and filter solutions
     sorted_indices = np.argsort(classic[:, -1])[::-1]  # Sort by std (descending)
     n_keep = int(len(classic) * filt)
-    classic_est = classic[sorted_indices[:n_keep], :-1]
+    # keep the std of df/dz as the last column for secondary filtering
+    classic_est = classic[sorted_indices[:n_keep], :]
     print("Euler finished")
     return classic_est
 

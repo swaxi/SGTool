@@ -650,8 +650,8 @@ class DirectionalButterworthFilter(_RasterTool):
         return [
             self._param("in_raster",      "Input Raster"),
             self._out ("out_raster",      "Output Raster"),
-            self._param("low_cut",        "Low-cut Wavelength (map units)",   "GPDouble", default=2000.0),
-            self._param("high_cut",       "High-cut Wavelength (map units)",  "GPDouble", default=20000.0),
+            self._param("low_cut",        "Short-wavelength Cut (map units)", "GPDouble", default=2000.0),
+            self._param("high_cut",       "Long-wavelength Cut (map units)",  "GPDouble", default=20000.0),
             self._param("direction",      "Azimuth Direction (°, N=0)",       "GPDouble", default=0.0),
             self._param("direction_width","Direction Width (°)",              "GPDouble", default=30.0),
             self._param("order",          "Butterworth Order",                "GPLong",   default=4),
@@ -1097,8 +1097,6 @@ class EulerDeconvolution(_RasterTool):
         rows, cols = arr.shape
 
         from calcs.euler.euler_python_optimised import euler_deconv_optimized
-        from calcs.euler.estimates_statistics import statistics_euler
-
         x_max = ll_x + cols * cx
         y_max = ll_y + rows * cy
         area  = (ll_y, y_max, ll_x, x_max)
@@ -1112,19 +1110,16 @@ class EulerDeconvolution(_RasterTool):
             filled, XI, YI, ZI,
             filled.shape, area, SI, win, filt
         )
-        if results is not None:
-            est_x, est_y, est_z, est_b, stdz = results
-            stat_x, stat_y, stat_z = statistics_euler(
-                est_x, est_y, est_z, stdz, filt)
-
+        if results is not None and len(results) > 0:
+            # results: (n_keep, 5) columns [X, Y, Depth, BaseLevel, StdDfDz]
             import csv
             with open(out_c, "w", newline="") as f:
                 writer = csv.writer(f)
-                writer.writerow(["X", "Y", "Depth", "BaseLevel", "StdZ"])
-                for i in range(len(stat_x)):
-                    writer.writerow([stat_x[i], stat_y[i], stat_z[i], 0, 0])
+                writer.writerow(["X", "Y", "Depth", "BaseLevel", "StdDfDz"])
+                for row in results:
+                    writer.writerow([row[0], row[1], row[2], row[3], row[4]])
             messages.addMessage(
-                f"Euler deconvolution (SI={SI}) → {len(stat_x)} estimates → {out_c}")
+                f"Euler deconvolution (SI={SI}) → {len(results)} estimates → {out_c}")
         else:
             messages.addWarning("Euler deconvolution produced no results.")
 

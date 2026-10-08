@@ -31,6 +31,7 @@ from qgis.core import (
     QgsVectorLayer,
     QgsProject,
     QgsRasterLayer,
+    QgsBilinearRasterResampler,
     QgsSingleBandGrayRenderer,
     QgsSingleBandPseudoColorRenderer,
     QgsColorRampShader,
@@ -65,6 +66,7 @@ from qgis.PyQt.QtCore import (
     Qt,
     QUrl,
     QLocale,
+    QTimer,
 )
 
 
@@ -108,6 +110,7 @@ except AttributeError:
 import re
 import gc
 import time
+import warnings
 import os.path
 import numpy as np
 from scipy.spatial import cKDTree
@@ -320,6 +323,10 @@ class SGTool:
 
         # print "** CLOSING SGTool"
 
+        # drop any live preview rather than leave a temporary layer behind
+        if self._preview_tab is not None:
+            self.discardPreview()
+
         # disconnects
         self.dlg.closingPlugin.disconnect(self.onClosePlugin)
 
@@ -335,6 +342,16 @@ class SGTool:
         """Removes the plugin menu item and icon from QGIS GUI."""
 
         # print "** UNLOAD SGTool"
+
+        # don't leave a temporary preview layer (a broken in-memory source once
+        # the plugin is gone) in the project
+        try:
+            if self._preview_tab is not None:
+                self.discardPreview()
+            elif getattr(self, "preview_layer_id", None):
+                self.removePreviewLayer()
+        except Exception:
+            pass
 
         for action in self.actions:
             self.iface.removePluginMenu(self.tr("&SGTool"), action)
@@ -1248,7 +1265,12 @@ class SGTool:
                     return layer.dataProvider().dataSourceUri().split("|")[0]
         return None
 
-    def procDirClean(self):
+    def _dirclean_grid(self, arr, processor, buffer):
+        """Return arr with scaled directional line-noise estimate subtracted.
+
+        Uses the parameters from parseParams(); shared by the full run
+        (procDirClean) and the live preview.
+        """
         min_spacing = float(self.DC_lineSpacing)
         try:
             max_spacing = float(self.DC_lineSpacingMax)
@@ -1260,25 +1282,488 @@ class SGTool:
         # line-parallel noise. The long-wavelength cut matters: regional field
         # also varies across the lines, so it lies inside the wedge and would
         # otherwise pass (and be scaled by DC_scale) as offset/trend.
-        self.new_grid = self.processor.directional_butterworth_band_pass(
-            self.raster_array,
+        noise = processor.directional_butterworth_band_pass(
+            arr,
             2 * min_spacing,  # low_cut: suppress wavelengths shorter than this
             10 * max_spacing,  # high_cut: suppress wavelengths longer than this
             direction_angle=float(self.DC_azimuth),
             direction_width=45,
             order=4,
-            buffer_size=self.buffer,
+            buffer_size=buffer,
             buffer_method="mirror",
             preserve_dc=False,  # zero-centred noise estimate, so DC_scale doesn't scale the mean
         )
-        nan_mask = np.isnan(self.new_grid)
-        self.new_grid[nan_mask] = 1.0
-        self.new_grid = self.raster_array - (self.new_grid * self.DC_scale)
-        #self.new_grid = self.new_grid * float(self.DC_scale)
-        self.new_grid[nan_mask] = np.nan
+        nan_mask = np.isnan(noise)
+        noise[nan_mask] = 0.0
+        result = arr - noise * self.DC_scale
+        result[nan_mask] = np.nan
+        return result
+
+    def procDirClean(self):
+        self.new_grid = self._dirclean_grid(
+            self.raster_array, self.processor, self.buffer
+        )
         self.suffix = "_DirC"
 
-    def procRTP_E(self, sgtool_instance):
+    # ------------------------------------------------------------------
+    # Live preview of the FFT-filter and Conv+Stats tabs
+    #   - previews the first ticked filter of the active tab in a single
+    #     temporary layer held in GDAL's in-memory filesystem, replaced in
+    #     place whenever a parameter (or the map extent) changes
+    #   - unchecking Preview keeps the result: the full-resolution grid is
+    #     computed (for that filter only) and added as a permanent layer
+    # ------------------------------------------------------------------
+    _preview_only_entry = None
+    _preview_tab = None  # class defaults: update_checkbox can fire before init
+    PREVIEW_PATH = "/vsimem/sgtool_preview.tif"
+    PREVIEW_SUBSAMPLE_SIDE = 600  # max cells on longest side, subsampled mode
+    PREVIEW_EXTENT_SIDE = 2000  # cap on longest side, map-extent mode
+
+    # (flag set by parseParams, proc method, stdClip, checkbox attribute),
+    # in the same order processGeophysics runs them. Filters that need
+    # georeferencing, several outputs or other layers are not previewable.
+    PREVIEW_FILTERS = {
+        0: [  # FFT Filters tab
+            ("DirClean", "procDirClean", True, "checkBox_3_DirClean"),
+            ("RTE_P", "procRTP_E", True, "checkBox_4_RTE_P"),
+            ("RemRegional", "procRemRegional", True, "checkBox_5_regional"),
+            ("Derivative", "procDerivative", True, "checkBox_6_derivative"),
+            ("TA", "procTiltAngle", True, "checkBox_7_tiltDerivative"),
+            ("AS", "procAnalyticSignal", True, "checkBox_8_analyticSignal"),
+            ("Continuation", "procContinuation", True, "checkBox_9_continuation"),
+            ("BandPass", "procBandPass", True, "checkBox_10_bandPass"),
+            ("FreqCut", "procFreqCut", True, "checkBox_10_freqCut"),
+            ("AGC", "procAGC", True, "checkBox_11_1vd_agc"),
+            ("VI", "procvInt", True, "checkBox_4_PGrav"),
+            ("THG", "procTHG", True, "checkBox_11_tot_hz_grad"),
+        ],
+        1: [  # Conv + Stats tab
+            ("Mean", "procMean", True, "checkBox_Mean"),
+            ("Median", "procMedian", True, "checkBox_Median"),
+            ("Gaussian", "procGaussian", True, "checkBox_Gaussian"),
+            ("Direction", "procDirectional", True, "checkBox_Directional"),
+            ("SunShade", "procSunShade", False, "checkBox_SunShading"),
+            ("SS_Min", "procSS_Min", True, "checkBox_SS_Min"),
+            ("SS_Max", "procSS_Max", True, "checkBox_SS_Max"),
+            ("SS_StdDev", "procSS_StdDev", True, "checkBox_SS_StdDev"),
+            ("SS_Variance", "procSS_Variance", True, "checkBox_SS_Variance"),
+            ("SS_Skewness", "procSS_Skewness", True, "checkBox_SS_Skewness"),
+            ("SS_Kurtosis", "procSS_Kurtosis", True, "checkBox_SS_Kurtosis"),
+        ],
+        3: [  # Utils tab
+            ("NaN", "procNaN", True, "checkBox_NaN"),
+        ],
+    }
+
+    # filters on each tab that can't be previewed: disabled (and unticked)
+    # while previewing
+    PREVIEW_DISABLED = {
+        0: [],
+        1: [
+            "checkBox_SS_Anisotropy", "checkBox_SS_ChainLength",
+            "checkBox_SS_Streamline", "checkBox_MRVBF", "checkBox_PCA",
+            "checkBox_ICA", "checkBox_ED", "checkBox_ED_Stats",
+        ],
+        3: ["checkBox_polygons"],
+    }
+
+    # per-tab widget name suffix, grid combo and Apply button
+    PREVIEW_TABS = {
+        0: ("", "mMapLayerComboBox_selectGrid", "pushButton_3_applyProcessing"),
+        1: ("_conv", "mMapLayerComboBox_selectGrid_Conv",
+            "pushButton_3_applyProcessing_Conv"),
+        3: ("_utils", "mMapLayerComboBox_selectGrid_Conv_2",
+            "pushButton_3_applyProcessing_Conv_3"),
+    }
+
+    def _init_preview(self):
+        self.preview_layer_id = None
+        self._preview_tab = None  # tab index while a preview is active
+        self._preview_src = None  # (path, mtime, array, geotransform) cache
+        self._preview_canvas_connected = False
+        self._preview_only_entry = None
+        self._preview_keep = None  # (entry, grid name) while Keep is running
+
+        self._preview_timer = QTimer()
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.setInterval(400)
+        self._preview_timer.timeout.connect(self.updatePreview)
+
+        d = self.dlg
+        for tab, (sfx, combo, _apply) in self.PREVIEW_TABS.items():
+            getattr(d, "checkBox_preview" + sfx).toggled.connect(
+                lambda checked, t=tab: self.onPreviewToggled(checked, t)
+            )
+            # fires on either switch of the pair
+            getattr(d, "radioButton_preview_extent" + sfx).toggled.connect(
+                self.schedulePreview
+            )
+            getattr(d, "pushButton_preview_keep" + sfx).clicked.connect(
+                lambda _checked=False, t=tab: self.keepClicked(t)
+            )
+            # only one filter at a time while previewing: ticking one unticks
+            # the others; parameter edits arrive via update_checkbox
+            for _flag, _method, _clip, cb in self.PREVIEW_FILTERS[tab]:
+                getattr(d, cb).toggled.connect(
+                    lambda checked, t=tab, name=cb: self._on_filter_toggled(
+                        checked, t, name
+                    )
+                )
+            getattr(d, combo).layerChanged.connect(self.schedulePreview)
+        d.tabWidget.currentChanged.connect(self._preview_tab_changed)
+
+    def _preview_widgets(self, tab):
+        """(checkbox, extent radio, grid combo) for the given tab."""
+        sfx, combo, _apply = self.PREVIEW_TABS[tab]
+        d = self.dlg
+        return (
+            getattr(d, "checkBox_preview" + sfx),
+            getattr(d, "radioButton_preview_extent" + sfx),
+            getattr(d, combo),
+        )
+
+    def schedulePreview(self, *args):
+        if self._preview_tab is not None:
+            self._preview_timer.start()  # restarts the debounce
+
+    def _on_filter_toggled(self, checked, tab, checkbox_name):
+        if checked and self._preview_tab == tab:
+            for _f, _m, _c, other in self.PREVIEW_FILTERS[tab]:
+                if other != checkbox_name:
+                    getattr(self.dlg, other).setChecked(False)
+        self.schedulePreview()
+
+    def _preview_enter_mode(self, tab):
+        """Single-filter selection; disable what can't be previewed."""
+        d = self.dlg
+        entry = self._preview_entry(tab)  # first ticked previewable filter
+        for _f, _m, _c, cb in self.PREVIEW_FILTERS[tab]:
+            if entry is None or cb != entry[3]:
+                getattr(d, cb).setChecked(False)
+        for name in self.PREVIEW_DISABLED[tab]:
+            box = getattr(d, name)
+            box.setChecked(False)
+            box.setEnabled(False)
+        sfx, _combo, apply_btn = self.PREVIEW_TABS[tab]
+        getattr(d, apply_btn).setEnabled(False)  # Keep replaces Apply
+        getattr(d, "pushButton_preview_keep" + sfx).setEnabled(True)
+
+    def _preview_exit_mode(self, tab):
+        d = self.dlg
+        for name in self.PREVIEW_DISABLED[tab]:
+            getattr(d, name).setEnabled(True)
+        sfx, _combo, apply_btn = self.PREVIEW_TABS[tab]
+        getattr(d, apply_btn).setEnabled(True)
+        getattr(d, "pushButton_preview_keep" + sfx).setEnabled(False)
+
+    def _preview_tab_changed(self, index):
+        # the preview belongs to one tab's filters: drop it when leaving
+        if self._preview_tab is not None and index != self._preview_tab:
+            self.discardPreview()
+
+    def onPreviewToggled(self, checked, tab):
+        canvas = self.iface.mapCanvas()
+        if checked:
+            if self._preview_tab is not None and self._preview_tab != tab:
+                self.discardPreview()
+            self._preview_tab = tab
+            self._preview_enter_mode(tab)
+            if not self._preview_canvas_connected:
+                canvas.extentsChanged.connect(self.schedulePreview)
+                self._preview_canvas_connected = True
+            self.updatePreview()
+            return
+        # switched off: discard, unless Keep asked for the full-res result
+        self._preview_timer.stop()
+        pending = self._preview_keep
+        self._preview_keep = None
+        self._preview_tab = None
+        # remove the layer first so a failure in the housekeeping below
+        # can never leave a stale preview behind
+        try:
+            self.removePreviewLayer()
+        finally:
+            try:
+                if self._preview_canvas_connected:
+                    canvas.extentsChanged.disconnect(self.schedulePreview)
+            except TypeError:
+                pass  # already disconnected
+            self._preview_canvas_connected = False
+            self._preview_exit_mode(tab)
+        canvas.refresh()
+        if pending is not None:
+            self.keepPreview(*pending)
+
+    def keepClicked(self, tab):
+        """Keep button: full-resolution result as a permanent layer."""
+        if self._preview_tab != tab:
+            return
+        entry = self._preview_entry(tab)
+        if entry is None or self._preview_layer() is None:
+            self.iface.messageBar().pushMessage(
+                "Preview", "Nothing to keep yet",
+                level=Qgis.Info, duration=3,
+            )
+            return
+        self._preview_keep = (entry, self._preview_widgets(tab)[2].currentText())
+        self._preview_widgets(tab)[0].setChecked(False)  # runs onPreviewToggled
+
+    def discardPreview(self):
+        """Switch preview off and drop the temporary layer without keeping it."""
+        tab = self._preview_tab
+        if tab is not None:
+            self._preview_widgets(tab)[0].setChecked(False)
+
+    def keepPreview(self, entry, grid_name):
+        """Replace the preview with a full-resolution permanent result."""
+        self.removePreviewLayer()
+        self.localGridName = grid_name
+        self._preview_only_entry = entry
+        try:
+            self.processGeophysics()
+        finally:
+            self._preview_only_entry = None
+
+    def _preview_entry(self, tab):
+        """First ticked, previewable filter of the tab (or None)."""
+        try:
+            self.parseParams()
+        except Exception:
+            return None
+        for entry in self.PREVIEW_FILTERS[tab]:
+            if getattr(self, entry[0]):
+                if entry[0] == "RTE_P" and self.RTE_P_type == "Diff. RTP":
+                    continue  # needs IGRF corners and writes extra grids
+                return entry
+        return None
+
+    def _preview_layer(self):
+        if not self.preview_layer_id:
+            return None
+        return QgsProject.instance().mapLayer(self.preview_layer_id)
+
+    def removePreviewLayer(self):
+        project = QgsProject.instance()
+        # by id, and by source in case the id was lost (e.g. a layer that was
+        # re-created) so no preview layer can be orphaned in the project
+        ids = {self.preview_layer_id} if self.preview_layer_id else set()
+        for lyr in project.mapLayers().values():
+            if lyr.source().startswith("/vsimem/sgtool_preview"):
+                ids.add(lyr.id())
+        for lyr_id in ids:
+            project.removeMapLayer(lyr_id)
+        self.preview_layer_id = None
+        gc.collect()
+        self._unlink_preview_file()
+        self._preview_src = None  # free the cached full-grid array
+
+    def _unlink_preview_file(self):
+        try:
+            gdal.Unlink(self.PREVIEW_PATH)
+        except RuntimeError:
+            pass  # nothing there yet
+
+    def _read_layer_array(self, layer):
+        """Read band 1 as a north-up float array plus its geotransform."""
+        path = layer.dataProvider().dataSourceUri()
+        try:
+            mtime = os.path.getmtime(path)
+        except OSError:
+            mtime = None
+        if (
+            self._preview_src is not None
+            and self._preview_src[0] == path
+            and self._preview_src[1] == mtime
+        ):
+            return self._preview_src[2], self._preview_src[3]
+        ds = gdal.Open(path)
+        band = ds.GetRasterBand(1)
+        no_data = band.GetNoDataValue()
+        arr = band.ReadAsArray().astype(float)
+        if no_data is not None:
+            arr[arr == no_data] = np.nan
+        gt = ds.GetGeoTransform()
+        ds = None
+        if gt[5] > 0:  # south-up: flip to north-up
+            arr = np.flipud(arr)
+            gt = (gt[0], gt[1], 0.0, gt[3] + arr.shape[0] * gt[5], 0.0, -gt[5])
+        self._preview_src = (path, mtime, arr, gt)
+        return arr, gt
+
+    def _crop_to_canvas(self, arr, gt, layer):
+        canvas = self.iface.mapCanvas()
+        ext = canvas.extent()
+        canvas_crs = canvas.mapSettings().destinationCrs()
+        if canvas_crs != layer.crs():
+            ext = QgsCoordinateTransform(
+                canvas_crs, layer.crs(), QgsProject.instance()
+            ).transformBoundingBox(ext)
+        rows, cols = arr.shape
+        x0, dx, _, y0, _, dyn = gt
+        dy = -dyn
+        c0 = max(0, int(np.floor((ext.xMinimum() - x0) / dx)))
+        c1 = min(cols, int(np.ceil((ext.xMaximum() - x0) / dx)))
+        r0 = max(0, int(np.floor((y0 - ext.yMaximum()) / dy)))
+        r1 = min(rows, int(np.ceil((y0 - ext.yMinimum()) / dy)))
+        if c1 - c0 < 16 or r1 - r0 < 16:
+            return None, None
+        return arr[r0:r1, c0:c1], (x0 + c0 * dx, dx, 0.0, y0 - r0 * dy, 0.0, -dy)
+
+    @staticmethod
+    def _subsample(arr, gt, max_side):
+        """Block-average arr so its longest side is <= max_side cells."""
+        s = int(np.ceil(max(arr.shape) / float(max_side)))
+        if s <= 1:
+            return arr, gt
+        r = (arr.shape[0] // s) * s
+        c = (arr.shape[1] // s) * s
+        blocks = arr[:r, :c].reshape(r // s, s, c // s, s)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            sub = np.nanmean(blocks, axis=(1, 3))
+        return sub, (gt[0], gt[1] * s, 0.0, gt[3], 0.0, gt[5] * s)
+
+    def _run_filter_on(self, entry, arr, dx, dy, grid_name):
+        """Run one filter's proc method on arr without disturbing the main state.
+
+        The proc* methods work on instance attributes, so swap in the
+        (cropped/subsampled) array, run the method, then restore.
+        """
+        names = (
+            "raster_array", "dx", "dy", "buffer", "processor", "convolution",
+            "SG_Util", "SpatialStats", "localGridName", "new_grid", "suffix",
+        )
+        saved = {n: getattr(self, n, None) for n in names}
+        try:
+            buffer = min(arr.shape)
+            max_buf = self.to_int(self.dlg.lineEdit_13_max_buffer.text())
+            if buffer > max_buf:
+                buffer = max_buf
+            self.raster_array = arr
+            self.dx, self.dy, self.buffer = dx, dy, buffer
+            self.processor = GeophysicalProcessor(dx, dy, buffer)
+            self.convolution = ConvolutionFilter(arr)
+            self.SG_Util = SG_Util(arr)
+            self.SpatialStats = SpatialStats(arr)
+            self.localGridName = grid_name
+            self.new_grid = None
+            self.suffix = ""
+            getattr(self, entry[1])()
+            return self.new_grid, self.suffix
+        finally:
+            for n, v in saved.items():
+                setattr(self, n, v)
+
+    def updatePreview(self):
+        tab = self._preview_tab
+        if tab is None:
+            return
+        chk, rad_extent, combo = self._preview_widgets(tab)
+        name = combo.currentText()
+        layers = QgsProject.instance().mapLayersByName(name) if name else []
+        src = layers[0] if layers else None
+        if (
+            src is None
+            or not isinstance(src, QgsRasterLayer)
+            or not src.isValid()
+            or src.id() == self.preview_layer_id
+        ):
+            return
+        entry = self._preview_entry(tab)
+        if entry is None:
+            # nothing (previewable) ticked: clear the stale image but stay in
+            # preview mode so ticking a filter brings it straight back
+            self.removePreviewLayer()
+            diff_rtp = self.RTE_P and self.RTE_P_type == "Diff. RTP"
+            self.iface.messageBar().pushMessage(
+                "Preview",
+                "Differential RTP can't be previewed" if diff_rtp
+                else "Tick a filter to preview",
+                level=Qgis.Info, duration=3,
+            )
+            return
+        try:
+            arr, gt = self._read_layer_array(src)
+            if rad_extent.isChecked():
+                arr, gt = self._crop_to_canvas(arr, gt, src)
+                if arr is None:
+                    self.iface.messageBar().pushMessage(
+                        "Preview", "Map extent does not cover enough of the grid",
+                        level=Qgis.Warning, duration=3,
+                    )
+                    return
+                arr, gt = self._subsample(arr, gt, self.PREVIEW_EXTENT_SIDE)
+            else:
+                arr, gt = self._subsample(arr, gt, self.PREVIEW_SUBSAMPLE_SIDE)
+
+            dx, dy = gt[1], -gt[5]
+            if entry[0] == "DirClean" and dx > float(self.DC_lineSpacing):
+                self.iface.messageBar().pushMessage(
+                    "Preview",
+                    "Preview cell size exceeds the line spacing, so line noise "
+                    "is under-sampled. Use Map extent and zoom in.",
+                    level=Qgis.Warning, duration=3,
+                )
+            grid, suffix = self._run_filter_on(entry, arr, dx, dy, name)
+            if grid is None:
+                self.iface.messageBar().pushMessage(
+                    "Preview", "Nothing to preview for these settings",
+                    level=Qgis.Info, duration=3,
+                )
+                return
+            self._write_preview(
+                grid, gt, src, f"{name}{suffix}_preview", std_clip=entry[2]
+            )
+        except Exception as e:
+            self.iface.messageBar().pushMessage(
+                "Preview", str(e), level=Qgis.Warning, duration=5
+            )
+
+    def _write_preview(self, grid, gt, src, layer_name, std_clip=True):
+        rows, cols = grid.shape
+        self._unlink_preview_file()
+        ds = gdal.GetDriverByName("GTiff").Create(
+            self.PREVIEW_PATH, cols, rows, 1, gdal.GDT_Float32
+        )
+        ds.SetGeoTransform(gt)
+        ds.SetProjection(src.crs().toWkt())
+        band = ds.GetRasterBand(1)
+        band.SetNoDataValue(np.nan)
+        band.WriteArray(grid.astype(np.float32))
+        band.FlushCache()
+        band = None
+        ds = None
+
+        layer = self._preview_layer()
+        if layer is None:
+            layer = QgsRasterLayer(self.PREVIEW_PATH, layer_name)
+            if not layer.isValid():
+                raise RuntimeError("Could not create preview layer")
+            QgsProject.instance().addMapLayer(layer)
+            self.preview_layer_id = layer.id()
+        else:
+            layer.setDataSource(self.PREVIEW_PATH, layer_name, "gdal")
+        self._apply_stretch(layer, std_clip)
+        # smooth the blocky look of a coarse preview when zoomed in
+        # (setDataSource resets the pipe, so this is set on every update)
+        layer.resampleFilter().setZoomedInResampler(QgsBilinearRasterResampler())
+        layer.triggerRepaint()
+
+    @staticmethod
+    def _apply_stretch(layer, std_clip=True):
+        """Stretch a single-band grey layer to mean +/- 2 std (or min/max)."""
+        stats = layer.dataProvider().bandStatistics(1)
+        renderer = layer.renderer()
+        if isinstance(renderer, QgsSingleBandGrayRenderer):
+            ce = renderer.contrastEnhancement()
+            if std_clip:
+                ce.setMinimumValue(stats.mean - 2 * stats.stdDev)
+                ce.setMaximumValue(stats.mean + 2 * stats.stdDev)
+            else:
+                ce.setMinimumValue(stats.minimumValue)
+                ce.setMaximumValue(stats.maximumValue)
+
+    def procRTP_E(self, sgtool_instance=None):
         if self.RTE_P_inc == "0" and self.RTE_P_dec == "0":
             self.iface.messageBar().pushMessage(
                 "You need to define Inc and Dec first!", level=Qgis.Warning, duration=15
@@ -2580,6 +3065,17 @@ class SGTool:
             self.PCAICA = PCAICA(self.raster_array)
 
             self.suffix = ""
+            if self._preview_only_entry is not None:
+                # "keep" from the live preview: full-resolution run of the
+                # previewed filter only, regardless of other ticked filters
+                flag, method, std_clip, checkbox = self._preview_only_entry
+                self.new_grid = None
+                getattr(self, method)()
+                if self.new_grid is not None:
+                    self.addNewGrid(stdClip=std_clip)
+                getattr(self.dlg, checkbox).setChecked(False)
+                setattr(self, flag, False)
+                return
             if self.DirClean:
                 self.procDirClean()
                 self.addNewGrid(stdClip=True)
@@ -4220,6 +4716,7 @@ class SGTool:
             if self.dlg == None:
                 # Create the dockwidget (after translation) and keep reference
                 self.dlg = SGToolDockWidget()
+                self._gui_initialised = False
 
             # connect to provide cleanup on closing of dockwidget
             self.dlg.closingPlugin.connect(self.onClosePlugin)
@@ -4244,6 +4741,16 @@ class SGTool:
                         break
             # Raise the docked widget above others
             self.dlg.show()
+
+            # The dialog is kept after the dock is closed (see onClosePlugin),
+            # so its combo boxes are already filled and its signals already
+            # connected when the plugin is reopened. Repeating the set-up below
+            # would duplicate combo entries (e.g. x,y,z,x,y,z) and signal
+            # connections, so only do it once per dialog.
+            if getattr(self, "_gui_initialised", False):
+                return
+            self._gui_initialised = True
+
             self.define_tips()
 
             # Access the QgsMapLayerComboBox by its objectName
@@ -4299,6 +4806,7 @@ class SGTool:
                 self.processGeophysics_fft
             )
             self.update_wavelet_choices()
+            self._init_preview()
 
             self.dlg.pushButton_3_applyProcessing_Conv_3.clicked.connect(
                 self.processGeophysics_fft
@@ -4547,6 +5055,7 @@ class SGTool:
     def update_checkbox(self, checkbox):
         """Generic method to set a checkbox to checked state."""
         checkbox.setChecked(True)
+        self.schedulePreview()  # live preview follows parameter edits
 
     def get_layer_fields(self, layer):
         """

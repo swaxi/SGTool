@@ -7,7 +7,7 @@ name=SGTool
 qgisMinimumVersion=3.24
 qgisMaximumVersion=4.99
 description=Simple Potential Field Processing
-version=0.3.7
+version=0.3.8
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
@@ -23,9 +23,14 @@ hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
 changelog=0.3.8
       * retain std df/dz for Euler solutions
-      * Improved and debugged Direction Cosine/Butterworth filter
+      * Improved and debugged Direction Cosine/Butterworth filter: min/max line spacing inputs define the noise band, noise estimate is zero-centred before scaling and subtraction
+      * Add live Preview (FFT Filters, Conv + Stats and Utils tabs): one temporary layer that updates as parameters change, for the current map extent or a subsampled grid, with Keep to save the full resolution result
+      * Apply Processing moved to a fixed bar at the top of the tabs, next to the Preview controls
+      * Fix repeated entries in menus and duplicated signal connections when the plugin is reopened
+      * Fix first recalculation failing to overwrite an existing output grid on Windows
+      * ArcGIS Pro: Euler CSV includes std df/dz, Euler toolbox tool repaired, directional filter updated to match QGIS
       * Generalise XYZ importer for new variations
-      0.3.7 
+      0.3.7
       * Add native python Multilevel BSpline code converted from SAGA
       * Add native python MRVBF/MRRTF/Slope RGB code converted from SAGA
       * Remove DTM Curvature but keep code for now

@@ -149,7 +149,7 @@ from .calcs.aseggdf2parser import AsegGdf2Parser
 # from .calcs.euler.euler_python_optimised import euler_deconv_opt
 from .calcs.euler.euler_python import euler_deconv
 from .calcs.euler.estimates_statistics import window_stats
-from .calcs.sgt_metadata import write_sgt_metadata
+from .calcs.sgt_metadata import write_sgt_metadata, remove_sgt_metadata
 from .calcs.mrvbf import mrvbf as calc_mrvbf
 from .calcs.saga_mba_gridding import mba_gridding
 
@@ -1052,6 +1052,11 @@ class SGTool:
             output_path, source, operation, parameters, self._software_version()
         )
 
+    def remove_metadata(self, output_path):
+        """Delete the .sgt.xml sidecar of an output that is being deleted or
+        replaced, so it is not left behind describing a file that has gone."""
+        remove_sgt_metadata(output_path)
+
     def _filter_metadata(self, suffix):
         """(operation, parameters) for the filter that produced `suffix`.
 
@@ -1357,6 +1362,7 @@ class SGTool:
         if os.path.exists(out_path):
             try:
                 os.remove(out_path)
+                self.remove_metadata(out_path)
             except OSError:
                 out_path = tempfile.NamedTemporaryFile(
                     suffix=".tif", delete=False
@@ -2435,6 +2441,7 @@ class SGTool:
                     else:
                         # It's a file
                         os.remove(file_path)
+                        self.remove_metadata(file_path)
                         # print(f"File '{file_path}' has been deleted")
                         file_deleted = True
                 except Exception as e:
@@ -2694,6 +2701,7 @@ class SGTool:
         if os.path.exists(slope_path):
             try:
                 os.remove(slope_path)
+                self.remove_metadata(slope_path)
             except OSError:
                 pass
         try:
@@ -2781,6 +2789,7 @@ class SGTool:
         if os.path.exists(raster_path):
             try:
                 os.remove(raster_path)
+                self.remove_metadata(raster_path)
                 if os.path.exists(raster_path + ".aux.xml"):
                     os.remove(raster_path + ".aux.xml")
             except OSError:
@@ -3862,6 +3871,7 @@ class SGTool:
         if os.path.exists(geotiff_path):
             try:
                 os.remove(geotiff_path)
+                self.remove_metadata(geotiff_path)
                 if os.path.exists(geotiff_path + "aux.xml"):
                     os.remove(geotiff_path + "aux.xml")
             except:
@@ -4007,6 +4017,7 @@ class SGTool:
                         filename_without_extension
                     ):
                         os.remove(self.diskGridPath)
+                        self.remove_metadata(self.diskGridPath)
                         if os.path.exists(self.diskGridPath + ".aux.xml"):
                             os.remove(self.diskGridPath + ".aux.xml")
 
@@ -4213,6 +4224,7 @@ class SGTool:
                 for attempt in range(10):
                     try:
                         os.remove(raster_path)
+                        self.remove_metadata(raster_path)
                         break
                     except PermissionError:
                         if attempt == 9:

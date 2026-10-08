@@ -30,6 +30,54 @@ def sidecar_path(output_path):
     return str(output_path) + SIDECAR_SUFFIX
 
 
+def remove_sgt_metadata(output_path):
+    """Delete <output_path>.sgt.xml if present (call when the output itself is
+    deleted or replaced, so a stale sidecar is not left describing it).
+    Returns True if a sidecar was removed."""
+    path = sidecar_path(output_path)
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+            return True
+    except OSError:
+        pass
+    return False
+
+
+def _modified_text(timestamp):
+    return datetime.datetime.fromtimestamp(timestamp).astimezone().isoformat(
+        timespec="seconds"
+    )
+
+
+def sidecar_status(output_path, tolerance_seconds=2.0):
+    """Does the sidecar still describe the file beside it?
+
+    The sidecar records the output's size and modified time when it is written.
+    Returns
+      "current"  size and modified time still match
+      "stale"    the file has changed since (e.g. overwritten by another tool)
+      "missing"  no sidecar, or the output file itself is gone
+      "unknown"  sidecar has no size/time record (written by an older version)
+    """
+    path = sidecar_path(output_path)
+    if not os.path.exists(path) or not os.path.exists(output_path):
+        return "missing"
+    try:
+        out = ET.parse(path).getroot().find("output")
+        size = out.findtext("sizeBytes") if out is not None else None
+        modified = out.findtext("modified") if out is not None else None
+        if size is None or modified is None:
+            return "unknown"
+        st = os.stat(output_path)
+        recorded = datetime.datetime.fromisoformat(modified).timestamp()
+        if int(size) == st.st_size and abs(recorded - st.st_mtime) <= tolerance_seconds:
+            return "current"
+        return "stale"
+    except (OSError, ET.ParseError, ValueError):
+        return "unknown"
+
+
 def _clean_path(path):
     """Strip QGIS provider suffixes such as 'file.tif|layername=x'."""
     return os.path.abspath(str(path).split("|")[0])
@@ -41,6 +89,15 @@ def _value_text(value):
     return str(value)
 
 
+def _drop_histograms(root):
+    """Remove GDAL <Histograms> blocks (bulky, and repeated at every level of
+    a processing chain) but keep the band statistics beside them."""
+    for parent in list(root.iter()):
+        for child in list(parent):
+            if child.tag == "Histograms":
+                parent.remove(child)
+
+
 def _embed_xml_file(parent, kind, file_path):
     """Append the contents of an existing XML file under parent, if readable."""
     try:
@@ -48,7 +105,10 @@ def _embed_xml_file(parent, kind, file_path):
             return
         node = ET.SubElement(parent, "sourceXml", {"type": kind, "file": file_path})
         try:
-            node.append(ET.parse(file_path).getroot())
+            embedded = ET.parse(file_path).getroot()
+            if kind == "gdal-pam":
+                _drop_histograms(embedded)
+            node.append(embedded)
         except ET.ParseError:
             # not well-formed: keep the raw text so nothing is lost
             with open(file_path, "r", encoding="utf-8", errors="replace") as f:
@@ -113,6 +173,13 @@ def write_sgt_metadata(
 
         out = ET.SubElement(root, "output")
         ET.SubElement(out, "path").text = os.path.abspath(str(output_path))
+        try:
+            # recorded so sidecar_status() can tell if the file changed later
+            st = os.stat(output_path)
+            ET.SubElement(out, "sizeBytes").text = str(st.st_size)
+            ET.SubElement(out, "modified").text = _modified_text(st.st_mtime)
+        except OSError:
+            pass  # output not on disk (yet): nothing to record
         if operation:
             ET.SubElement(root, "operation").text = str(operation)
 

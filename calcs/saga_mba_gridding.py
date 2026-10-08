@@ -303,6 +303,7 @@ def mba_gridding(
     points_dtype=np.float64,
     output_dtype=np.float64,
     verbose: bool = False,
+    callback=None,
 ) -> np.ndarray:
     """
     Multilevel B-Spline (MBA) interpolation of scattered points onto a
@@ -334,6 +335,9 @@ def mba_gridding(
     verbose : bool
         If True, print the same per-level diagnostics SAGA logs
         (level / errors / maximum / mean).
+    callback : callable, optional
+        called as callback(fraction_done) at the start of each level; it may
+        raise calcs.sgt_cancel.OperationCancelled to stop the calculation.
 
     Returns
     -------
@@ -374,6 +378,8 @@ def mba_gridding(
         b_continue = True
         level = 0
         while b_continue and level < level_max:
+            if callback is not None:
+                callback(level / float(level_max))
             pnx, pny, phi = _ba_set_phi(x, y, m_z, cellsize_lvl, xmin, ymin,
                                          target_xrange, target_yrange, phi_dtype)
 
@@ -393,6 +399,8 @@ def mba_gridding(
         i = 0
         level = 0
         while b_continue and level < level_max:
+            if callback is not None:
+                callback(level / float(level_max))
             i = level % 2
             pnx, pny, phi_new = _ba_set_phi(x, y, m_z, cellsize_lvl, xmin, ymin,
                                              target_xrange, target_yrange, phi_dtype)

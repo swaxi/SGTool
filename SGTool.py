@@ -112,7 +112,10 @@ except AttributeError:
 
 import re
 import gc
+import copy
+import traceback
 import time
+import threading
 import warnings
 import os.path
 import numpy as np
@@ -160,6 +163,10 @@ from .calcs.sgt_metadata import (
     save_sgt_metadata_xml,
     sgt_metadata_xml_text,
 )
+from .sgt_tasks import SGToolTask
+from .sgt_processing import SGToolProvider
+from .calcs.sgt_cancel import OperationCancelled
+from .calcs.layer_shim import LayerShim
 from .calcs.mrvbf import mrvbf as calc_mrvbf
 from .calcs.saga_mba_gridding import mba_gridding
 
@@ -316,8 +323,15 @@ class SGTool:
 
         return action
 
+    def initProcessing(self):
+        """Register the SGTool filters as QGIS Processing algorithms."""
+        if getattr(self, "provider", None) is None:
+            self.provider = SGToolProvider()
+            QgsApplication.processingRegistry().addProvider(self.provider)
+
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
+        self.initProcessing()
 
         icon_path = ":/plugins/SGTool/icon.png"
         self.add_action(
@@ -363,6 +377,13 @@ class SGTool:
                 self.removePreviewLayer()
         except Exception:
             pass
+
+        if self._task is not None:
+            self._task.cancel()  # don't leave a calculation running without a plugin
+
+        if getattr(self, "provider", None) is not None:
+            QgsApplication.processingRegistry().removeProvider(self.provider)
+            self.provider = None
 
         for action in self.actions:
             self.iface.removePluginMenu(self.tr("&SGTool"), action)
@@ -946,6 +967,15 @@ class SGTool:
         self.ICA = self.dlg.checkBox_ICA.isChecked()
         self.ED = self.dlg.checkBox_ED.isChecked()
 
+        # Read here, on the main thread, because background calculations must
+        # not touch widgets.
+        self.sun_shade_relief = self.dlg.checkBox_relief.isChecked()
+        self.pca_components = int(self.dlg.mQgsSpinBox_PCA.value())
+        self.ica_components = int(self.dlg.mQgsSpinBox_ICA.value())
+        self.ED_window = self.to_int(self.dlg.lineEdit_ED_Window.text())
+        self.ED_threshold = self.to_float(self.dlg.doubleSpinBox_ED_Threshold.text())
+        self.ED_stats = self.dlg.checkBox_ED_Stats.isChecked()
+
     def loadGrid(self):
         """
         Loads a raster grid from the specified file path, adds it to the QGIS project if not already loaded,
@@ -1154,6 +1184,206 @@ class SGTool:
         replaced, so it is not left behind describing a file that has gone."""
         remove_sgt_metadata(output_path)
 
+    # ------------------------------------------------------------------
+    # Background calculation
+    #
+    # A job is prepared on the main thread (read the grid, snapshot the
+    # parameters, anything that needs QGIS layers or dialogs), the compute
+    # steps run on a *copy* of the plugin object in a worker thread (so the
+    # dialog can be used meanwhile without affecting the running job), and the
+    # results are written / loaded into QGIS back on the main thread.
+    # Code that may run in the worker must not touch layers, widgets or the
+    # message bar: use self._grid_info for grid facts, self._notify() for
+    # messages and self._emit() / self._call_later() for outputs.
+    # ------------------------------------------------------------------
+    _task = None  # the running SGToolTask (set on the plugin, not on the copy)
+    _task_ref = None  # the task, as seen by the copy running in the worker
+    _results = None  # outputs queued by a running job (None: apply at once)
+    _pending_messages = None  # messages queued from the worker thread
+    _grid_info = None  # grid facts read from the layer on the main thread
+    _igrf = None  # IGRF corner values for differential RTP
+
+    def _notify(self, message, level=None, duration=10):
+        """Show a message. Safe from the worker thread: it is queued and shown
+        when the job finishes."""
+        level = Qgis.Info if level is None else level
+        if threading.current_thread() is threading.main_thread():
+            self.iface.messageBar().pushMessage(
+                "SGTool", message, level=level, duration=duration
+            )
+        elif self._pending_messages is not None:
+            self._pending_messages.append((message, level, duration))
+        else:
+            print(f"SGTool: {message}")
+
+    def _flush_messages(self, messages):
+        for message, level, duration in messages:
+            self.iface.messageBar().pushMessage(
+                "SGTool", message, level=level, duration=duration
+            )
+        del messages[:]
+
+    @staticmethod
+    def _make_grid_info(layer):
+        """Facts about a raster layer that calculations need, read on the main
+        thread so the worker never touches the layer."""
+        ext = layer.extent()
+        crs = layer.crs()
+        return {
+            "geographic": crs.isGeographic(),
+            "authid": crs.authid(),
+            "extent": (ext.xMinimum(), ext.yMinimum(), ext.xMaximum(), ext.yMaximum()),
+            "centroid": (
+                (ext.xMinimum() + ext.xMaximum()) / 2.0,
+                (ext.yMinimum() + ext.yMaximum()) / 2.0,
+            ),
+        }
+
+    def _grid_facts(self):
+        """The grid info for this job (looked up from the layer if no job has
+        stored it, e.g. when a method is called directly)."""
+        if self._grid_info is None:
+            layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
+            self._grid_info = self._make_grid_info(layer)
+        return self._grid_info
+
+    def _is_geographic(self):
+        return self._grid_facts()["geographic"]
+
+    def _grid_centroid(self):
+        return self._grid_facts()["centroid"]
+
+    # -- outputs ---------------------------------------------------------
+    def _emit(self, grid, suffix, std_clip=True, after=None, load_layer=True):
+        """Hand a finished grid to the output stage. In a background job it is
+        queued and written/loaded on the main thread when the job finishes;
+        otherwise it is written and loaded straight away."""
+        self.new_grid = grid
+        self.suffix = suffix
+        item = {
+            "kind": "grid",
+            "grid": grid,
+            "suffix": suffix,
+            "std_clip": std_clip,
+            "meta": self._filter_metadata(suffix),  # read now, from this job's snapshot
+            "after": after,
+            "load_layer": load_layer,
+        }
+        if self._results is None:
+            self._apply_result(item)
+        else:
+            self._results.append(item)
+
+    def _call_later(self, fn):
+        """Run fn on the main thread once the compute steps have finished
+        (loading layers, anything needing QGIS). Immediately if not in a job."""
+        if self._results is None:
+            fn()
+        else:
+            self._results.append({"kind": "call", "fn": fn})
+
+    def _apply_result(self, item):
+        if item["kind"] == "grid":
+            self.new_grid = item["grid"]
+            self.suffix = item["suffix"]
+            self.addNewGrid(
+                stdClip=item["std_clip"],
+                meta=item["meta"],
+                load_layer=item["load_layer"],
+            )
+            if item.get("after"):
+                item["after"]()
+        elif item["kind"] == "call":
+            item["fn"]()
+
+    # -- running a job -----------------------------------------------------
+    def _busy_buttons(self):
+        """(apply buttons, cancel buttons) of every tab that starts jobs."""
+        d = self.dlg
+        applies, cancels = [], []
+        for tab, (sfx, _combo, apply_name) in self.PREVIEW_TABS.items():
+            applies.append((tab, getattr(d, apply_name)))
+            cancels.append(getattr(d, "pushButton_cancel" + sfx))
+        cancels.append(d.pushButton_cancel_grid)  # Grid + Wavelets tab
+        return applies, cancels
+
+    def _set_busy(self, busy):
+        applies, cancels = self._busy_buttons()
+        for tab, button in applies:
+            # while previewing, Apply stays off whatever the job state (Keep is used)
+            button.setEnabled(not busy and self._preview_tab != tab)
+        for button in cancels:
+            button.setEnabled(busy)
+
+    def start_task(self, description, work, on_success, messages=None):
+        """Run work(task) in a background task. Returns False if one is already
+        running. on_success(result) runs on the main thread if it completes."""
+        if self._task is not None:
+            self.iface.messageBar().pushMessage(
+                "SGTool",
+                "A calculation is already running. Wait for it to finish, or cancel it.",
+                level=Qgis.Warning,
+                duration=6,
+            )
+            return False
+        messages = messages if messages is not None else []
+
+        def done(task, ok):
+            self._task = None
+            self._set_busy(False)
+            self._flush_messages(messages)
+            if ok:
+                try:
+                    on_success(task.result)
+                except Exception:
+                    print(traceback.format_exc())
+                    self.iface.messageBar().pushMessage(
+                        "SGTool",
+                        f"{description}: could not save the results (see the Python console)",
+                        level=Qgis.Critical,
+                        duration=15,
+                    )
+            elif task.cancelled:
+                self.iface.messageBar().pushMessage(
+                    "SGTool", f"Cancelled: {description}",
+                    level=Qgis.Info, duration=6,
+                )
+            else:
+                print(task.error)
+                last = (task.error or "").strip().splitlines()[-1:] or ["unknown error"]
+                self.iface.messageBar().pushMessage(
+                    "SGTool", f"{description} failed: {last[0]}",
+                    level=Qgis.Critical, duration=15,
+                )
+
+        task = SGToolTask(description, work, done)
+        self._task = task
+        self._set_busy(True)
+        QgsApplication.taskManager().addTask(task)
+        return True
+
+    def _busy(self):
+        """True (after telling the user) if a calculation is already running."""
+        if self._task is None:
+            return False
+        self.iface.messageBar().pushMessage(
+            "SGTool",
+            "A calculation is already running. Wait for it to finish, or cancel it.",
+            level=Qgis.Warning,
+            duration=6,
+        )
+        return True
+
+    def cancel_task(self):
+        """Cancel button: stop the running calculation at its next checkpoint."""
+        if self._task is not None:
+            self._task.cancel()
+            self.iface.messageBar().pushMessage(
+                "SGTool",
+                "Cancelling... the calculation stops at its next checkpoint",
+                level=Qgis.Info, duration=4,
+            )
+
     def _filter_metadata(self, suffix):
         """(operation, parameters) for the filter that produced `suffix`.
 
@@ -1184,6 +1414,12 @@ class SGTool:
             return "Differential reduction to pole", {
                 "date": "-".join(str(v) for v in reversed(self.RTE_P_date))
             }
+        if s in ("_DRTP_inc", "_DRTP_dec"):
+            return (
+                "Differential RTP: interpolated "
+                + ("inclination" if s.endswith("inc") else "declination")
+                + " field"
+            ), {"date": "-".join(str(v) for v in reversed(self.RTE_P_date))}
         if s.startswith("_RR_"):
             return "Remove regional", {"polynomial_order": self.RemRegional_order}
         if s.startswith("_d") and s[-1:] in ("x", "y", "z"):
@@ -1231,7 +1467,7 @@ class SGTool:
             return "Sun shading", {
                 "azimuth": self.sun_shade_az,
                 "zenith": self.sun_shade_zn,
-                "relief_shading": self.dlg.checkBox_relief.isChecked(),
+                "relief_shading": self.sun_shade_relief,
             }
         if s == "_Clean":
             return "Threshold to NaN", {
@@ -1329,7 +1565,10 @@ class SGTool:
 
         Grid geometry (extent, cell size) and the value field are taken from
         the Grid + Wavelets tab widgets. The result is loaded into the project.
+        The gridding runs as a background task.
         """
+        if self._busy():
+            return
         layer_name = self.dlg.mMapLayerComboBox_selectGrid_3.currentText()
         if not layer_name:
             self.iface.messageBar().pushMessage(
@@ -1431,8 +1670,18 @@ class SGTool:
             )
             return
 
-        try:
-            grid = mba_gridding(
+        # the numerical work runs in the background; the file and layer follow
+        source_path = layer.source().split("|")[0]
+        authid = layer.crs().authid()
+        ignore_below = (
+            self.to_float(self.dlg.lineEdit_bspline_ignore.text())
+            if self.dlg.checkBox_bspline_ignore.isChecked()
+            else None
+        )
+        n_points = int(xs.size)
+
+        def work(task):
+            return mba_gridding(
                 xs, ys, zs,
                 cellsize=cell_size,
                 xmin=xmin, ymin=ymin,
@@ -1440,13 +1689,24 @@ class SGTool:
                 epsilon=epsilon,
                 level_max=level_max,
                 refinement=False,
+                callback=task.callback(),
             )
-        except Exception as e:
-            self.iface.messageBar().pushMessage(
-                "Error", str(e), level=Qgis.MessageLevel.Critical
-            )
-            return
 
+        def finish(grid):
+            self._finish_bspline(
+                grid, layer_name, zcolumn, cell_size, epsilon, level_max,
+                n_points, ignore_below, xmin, ymin, ny, authid, source_path,
+            )
+
+        self.start_task(
+            f"SGTool: B-spline gridding ({layer_name}, {zcolumn})", work, finish
+        )
+
+    def _finish_bspline(
+        self, grid, layer_name, zcolumn, cell_size, epsilon, level_max,
+        n_points, ignore_below, xmin, ymin, ny, authid, source_path,
+    ):
+        """Main thread, after the job: write the GeoTIFF and load it."""
         # grid = grid + z_offset  # restore the removed offset
 
         # mba_gridding returns row 0 = ymin; GeoTIFF is written north-up.
@@ -1474,7 +1734,6 @@ class SGTool:
         gt_originy = ymin + (ny - 0.5) * cell_size
         ds.SetGeoTransform([gt_originx, cell_size, 0, gt_originy, 0, -cell_size])
         srs = osr.SpatialReference()
-        authid = layer.crs().authid()
         if authid and ":" in authid:
             srs.ImportFromEPSG(int(authid.split(":")[1]))
             ds.SetProjection(srs.ExportToWkt())
@@ -1490,17 +1749,15 @@ class SGTool:
             "cell_size": cell_size,
             "epsilon": epsilon,
             "max_levels": level_max,
-            "points_used": int(xs.size),
+            "points_used": n_points,
         }
-        if self.dlg.checkBox_bspline_ignore.isChecked():
-            bspline_params["ignore_values_below"] = self.to_float(
-                self.dlg.lineEdit_bspline_ignore.text()
-            )
+        if ignore_below is not None:
+            bspline_params["ignore_values_below"] = ignore_below
         self.write_metadata(
             out_path,
             "Multilevel B-spline gridding",
             bspline_params,
-            source=layer.source().split("|")[0],
+            source=source_path,
         )
 
         layer_out_name = f"{layer_name}_{zcolumn}_bspline"
@@ -1547,28 +1804,14 @@ class SGTool:
             max_spacing = float(self.DC_lineSpacingMax)
         except (TypeError, ValueError):
             max_spacing = min_spacing  # blank/invalid: constant line spacing
-        max_spacing = max(max_spacing, min_spacing)
-        # Line noise varies across the lines with wavelengths >= 2x line spacing.
-        # Pass roughly 2x min spacing to 10x max spacing, and let the directional wedge select the
-        # line-parallel noise. The long-wavelength cut matters: regional field
-        # also varies across the lines, so it lies inside the wedge and would
-        # otherwise pass (and be scaled by DC_scale) as offset/trend.
-        noise = processor.directional_butterworth_band_pass(
+        return processor.line_noise_removal(
             arr,
-            2 * min_spacing,  # low_cut: suppress wavelengths shorter than this
-            10 * max_spacing,  # high_cut: suppress wavelengths longer than this
-            direction_angle=float(self.DC_azimuth),
-            direction_width=45,
-            order=4,
+            float(self.DC_azimuth),
+            min_spacing,
+            max_spacing,
+            scale=self.DC_scale,
             buffer_size=buffer,
-            buffer_method="mirror",
-            preserve_dc=False,  # zero-centred noise estimate, so DC_scale doesn't scale the mean
         )
-        nan_mask = np.isnan(noise)
-        noise[nan_mask] = 0.0
-        result = arr - noise * self.DC_scale
-        result[nan_mask] = np.nan
-        return result
 
     def procDirClean(self):
         self.new_grid = self._dirclean_grid(
@@ -1672,6 +1915,9 @@ class SGTool:
             getattr(d, "pushButton_preview_keep" + sfx).clicked.connect(
                 lambda _checked=False, t=tab: self.keepClicked(t)
             )
+            getattr(d, "pushButton_cancel" + sfx).clicked.connect(
+                lambda _checked=False: self.cancel_task()
+            )
             # only one filter at a time while previewing: ticking one unticks
             # the others; parameter edits arrive via update_checkbox
             for _flag, _method, _clip, cb in self.PREVIEW_FILTERS[tab]:
@@ -1681,6 +1927,7 @@ class SGTool:
                     )
                 )
             getattr(d, combo).layerChanged.connect(self.schedulePreview)
+        d.pushButton_cancel_grid.clicked.connect(lambda _checked=False: self.cancel_task())
         d.tabWidget.currentChanged.connect(self._preview_tab_changed)
 
     def _preview_widgets(self, tab):
@@ -1903,9 +2150,14 @@ class SGTool:
         names = (
             "raster_array", "dx", "dy", "buffer", "processor", "convolution",
             "SG_Util", "SpatialStats", "localGridName", "new_grid", "suffix",
+            "_grid_info", "_results", "_task_ref",
         )
         saved = {n: getattr(self, n, None) for n in names}
         try:
+            layers = QgsProject.instance().mapLayersByName(grid_name)
+            self._grid_info = self._make_grid_info(layers[0]) if layers else None
+            self._results = None  # the preview shows one grid, nothing is written
+            self._task_ref = None
             buffer = min(arr.shape)
             max_buf = self.to_int(self.dlg.lineEdit_13_max_buffer.text())
             if buffer > max_buf:
@@ -2036,9 +2288,7 @@ class SGTool:
 
     def procRTP_E(self, sgtool_instance=None):
         if self.RTE_P_inc == "0" and self.RTE_P_dec == "0":
-            self.iface.messageBar().pushMessage(
-                "You need to define Inc and Dec first!", level=Qgis.Warning, duration=15
-            )
+            self._notify("You need to define Inc and Dec first!", Qgis.Warning, 15)
         else:
             if self.RTE_P_type == "RTP":
                 self.new_grid = self.processor.reduction_to_pole(
@@ -2064,11 +2314,12 @@ class SGTool:
         Uses the Cooper/Cowan rtp() for all 13 Taylor-series calls,
         giving results identical to the reference standalone implementation.
         """
-        inc_corners, dec_corners, inc_center, dec_center = self.get_igrf_corners()
+        # the IGRF values are worked out on the main thread before the job starts
+        inc_corners, dec_corners, inc_center, dec_center = self._igrf or (None,) * 4
         if inc_corners is None:
-            self.iface.messageBar().pushMessage(
+            self._notify(
                 "Var. RTP: could not compute IGRF corners — check layer CRS and date.",
-                level=Qgis.Warning, duration=15,
+                Qgis.Warning, 15,
             )
             return
 
@@ -2084,23 +2335,15 @@ class SGTool:
             np.flipud(data), nr, nc, inc_corners, dec_corners,
             inc_center=inc_center, dec_center=dec_center,
         )
-        self.new_grid = np.flipud(varrtp)
-        self.suffix = "_DRTP"
-
         # Save inc/dec field grids to disk alongside the output (not added to QGIS)
         # Flip south-up grids back to north-up to match GeoTIFF convention
+        # (written like any output, but not added to the project)
         for grid, tag in ((np.flipud(incv_deg), "_DRTP_inc"), (np.flipud(decv_deg), "_DRTP_dec")):
-            out_path = self.insert_text_before_extension(self.diskGridPath, tag)
-            if ".tif" not in out_path.lower():
-                out_path = os.path.splitext(out_path)[0] + ".tif"
-            if self.numpy_array_to_raster(grid, out_path, reference_layer=self.layer) != -1:
-                self.write_metadata(
-                    out_path,
-                    "Differential RTP: interpolated "
-                    + ("inclination" if tag.endswith("inc") else "declination")
-                    + " field",
-                    {"date": "-".join(str(v) for v in reversed(self.RTE_P_date))},
-                )
+            self._emit(grid, tag, std_clip=False, load_layer=False)
+
+        # the main result is emitted by the caller from new_grid / suffix
+        self.new_grid = np.flipud(varrtp)
+        self.suffix = "_DRTP"
 
     def procRemRegional(self):
 
@@ -2137,19 +2380,16 @@ class SGTool:
         self.suffix = "_AS"
 
     def procContinuation(self):
-        selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-
-        crs = selected_layer.crs()
-        if crs.isGeographic():
-            long, lat = self.get_grid_centroid(selected_layer)
+        if self._is_geographic():
+            long, lat = self._grid_centroid()
             dx, dy = self.SG_Util.arc_degree_to_meters(lat)
             ave_dxdy = np.sqrt(dx**2.0 + dy**2.0) / 2
 
             height = float(self.cont_height) / ave_dxdy
-            self.iface.messageBar().pushMessage(
+            self._notify(
                 "Height roughly converted to metres, since this is a geographic projection",
-                level=Qgis.Success,
-                duration=15,
+                Qgis.Success,
+                15,
             )
         else:
             height = float(self.cont_height)
@@ -2194,13 +2434,11 @@ class SGTool:
         self.suffix = "_THG"
 
     def procvInt(self):
-        selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-        crs = selected_layer.crs()
-        if crs.isGeographic():
-            self.iface.messageBar().pushMessage(
+        if self._is_geographic():
+            self._notify(
                 "Vertical integration requires a metre-based projection system",
-                level=Qgis.Warning,
-                duration=15,
+                Qgis.Warning,
+                15,
             )
         else:
             self.new_grid = self.processor.vertical_integration(
@@ -2263,13 +2501,9 @@ class SGTool:
 
     def procSunShade(self):
 
-        if self.dlg.checkBox_relief.isChecked():
-            selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[
-                0
-            ]
-            crs = selected_layer.crs()
-            if crs.isGeographic():
-                long, lat = self.get_grid_centroid(selected_layer)
+        if self.sun_shade_relief:
+            if self._is_geographic():
+                long, lat = self._grid_centroid()
                 dx, dy = self.SG_Util.arc_degree_to_meters(lat)
                 ave_dxdy = np.sqrt(dx**2.0 + dy**2.0) / 2
                 hzscale = 1 * ave_dxdy
@@ -2293,16 +2527,16 @@ class SGTool:
             )
         self.suffix = "_Sh"
 
-    def procEulerDeconvolution(self, data):
-        selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-        self.diskGridPath = selected_layer.dataProvider().dataSourceUri()
-        crs = selected_layer.crs()
+    def procEulerDeconvolution(self, data=None):
+        # (self.diskGridPath is the selected grid's file, set when the job started)
+        if data is None:
+            data = self.raster_array
 
-        if crs.isGeographic():
-            self.iface.messageBar().pushMessage(
+        if self._is_geographic():
+            self._notify(
                 "This is a geographic projection, you need to convert it to a projected CRS",
-                level=Qgis.Warning,
-                duration=15,
+                Qgis.Warning,
+                15,
             )
             return False
         else:
@@ -2310,12 +2544,10 @@ class SGTool:
             data, mask = self.processor.fill_nan(data)
 
             shape = (data.shape[0], data.shape[1])
-            provider = selected_layer.dataProvider()
 
-            # Get raster dimensions
-            area = provider.extent()
-            # use south, north, west, east order
-            area = [area.yMinimum(), area.yMaximum(), area.xMinimum(), area.xMaximum()]
+            # grid extent, in south, north, west, east order
+            xmin, ymin, xmax, ymax = self._grid_facts()["extent"]
+            area = [ymin, ymax, xmin, xmax]
             # print("area", area)
             # Assuming your data array is called 'data'
             rows, cols = data.shape
@@ -2340,9 +2572,9 @@ class SGTool:
             # print("yi[:200]", yi[:200])
             # print("zi[:200]", zi[:200])
             # moving data window size
-            winsize = self.to_int(self.dlg.lineEdit_ED_Window.text())
+            winsize = self.ED_window
             # percentage of the solutions that will be keep
-            filt = self.to_float(self.dlg.doubleSpinBox_ED_Threshold.text())
+            filt = self.ED_threshold
 
             # print("winsize,filt", winsize, filt)
             # empty array for multiple SIs
@@ -2365,10 +2597,19 @@ class SGTool:
             """
             Euler deconvolution for multiple SIs
             """
-            for SI in SI_vet:
+            for si_index, SI in enumerate(SI_vet):
                 print(f"Processing Euler Deconvolution for SI = {SI}")
+                # progress and cancel: each structural index is a quarter of the work
+                callback = (
+                    self._task_ref.callback(
+                        100.0 * si_index / len(SI_vet),
+                        100.0 * (si_index + 1) / len(SI_vet),
+                    )
+                    if self._task_ref is not None
+                    else None
+                )
                 classic_result = euler_deconv(
-                    data, xi, yi, zi, shape, area, SI, winsize, filt
+                    data, xi, yi, zi, shape, area, SI, winsize, filt, callback=callback
                 )
                 classic_result[1, :] = (
                     area[0] - classic_result[1, :] + area[1]
@@ -2409,7 +2650,7 @@ class SGTool:
                     },
                 )
             # optional windowed stats
-            if self.dlg.checkBox_ED_Stats.isChecked():
+            if self.ED_stats:
                 # classic(est_classic, area_classic, SI_vet, self.localGridName, head_tail[0])
                 window_results = window_stats(
                     est_classic,
@@ -2438,52 +2679,61 @@ class SGTool:
                             },
                         )
 
-            self.iface.messageBar().pushMessage(
+            self._notify(
                 "Euler Solutions saved to same directory as input grid",
-                level=Qgis.Success,
-                duration=15,
+                Qgis.Success,
+                15,
             )
 
-    def procPCA(self):
+    def _check_sklearn(self, what):
+        """Main thread: True if scikit-learn is installed, else tell the user."""
         try:
-            import sklearn
+            import sklearn  # noqa: F401
+
+            return True
         except ImportError:
             QMessageBox.information(
                 None,  # Parent widget
                 "",
                 "Missing Packages for SGTool: "  # Window title
-                + f"The following Python packages are required for PCAs, but not installed: scikit-learn\n\n"
+                + f"The following Python packages are required for {what}, but not installed: scikit-learn\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 f"!pip3 install scikit-learn",  # Message text
                 QMessageBox_Ok,  # Buttons parameter
             )
             return False
-        self.suffix = "_PCA"
-        selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-        self.diskGridPath = selected_layer.dataProvider().dataSourceUri()
-        self.diskNewGridPath = self.insert_text_before_extension(
-            self.diskGridPath, self.suffix
-        )
-        n_components = int(self.dlg.mQgsSpinBox_PCA.value())
-        self.delete_layer_and_file(self.localGridName + self.suffix)
 
+    def _prepare_component_analysis(self, suffix):
+        """Main thread, before the job starts: clear an earlier output of the
+        same name (layer and file) and check the input grid loads."""
+        self.delete_layer_and_file(self.localGridName + suffix)
         raster_layer = QgsRasterLayer(self.diskGridPath, "Input Raster")
         if not raster_layer.isValid():
             raise ValueError(f"Failed to load raster layer: {self.diskGridPath}")
 
+    def _load_component_layer(self, out_path, layer_name, operation, params):
+        """Main thread, after the job: record provenance and add the layer."""
+        self.write_metadata(out_path, operation, params)
+        QgsProject.instance().addMapLayer(QgsRasterLayer(out_path, layer_name))
+
+    def procPCA(self):
+        self.suffix = "_PCA"
+        self.diskNewGridPath = self.insert_text_before_extension(
+            self.diskGridPath, self.suffix
+        )
+        n_components = self.pca_components
         components, variance_ratio = self.PCAICA.pca_with_nans(
             self.diskGridPath, self.diskNewGridPath, n_components
         )
         if components is not None:
-            self.write_metadata(
-                self.diskNewGridPath,
-                "Principal component analysis",
-                {"n_components": n_components},
+            self._call_later(
+                lambda out=self.diskNewGridPath, name=self.localGridName + self.suffix: (
+                    self._load_component_layer(
+                        out, name, "Principal component analysis",
+                        {"n_components": n_components},
+                    )
+                )
             )
-            PCA_raster_layer = QgsRasterLayer(
-                self.diskNewGridPath, self.localGridName + self.suffix
-            )
-            QgsProject.instance().addMapLayer(PCA_raster_layer)
 
     def delete_layer_and_file(self, layer_name, file_path=None):
         """
@@ -2549,71 +2799,42 @@ class SGTool:
         return layer_deleted, file_deleted
 
     def procICA(self):
-        try:
-            import sklearn
-        except ImportError:
-            QMessageBox.information(
-                None,  # Parent widget
-                "",
-                "Missing Packages for SGTool: "  # Window title
-                + f"The following Python packages are required for ICAs, but not installed: scikit-learn\n\n"
-                "Please open the QGIS Python Console and run the following command:\n\n"
-                f"!pip3 install scikit-learn",  # Message text
-                QMessageBox_Ok,  # Buttons parameter
-            )
-            return False
         self.suffix = "_ICA"
-        selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-
-        self.diskGridPath = selected_layer.dataProvider().dataSourceUri()
         self.diskNewGridPath = self.insert_text_before_extension(
             self.diskGridPath, self.suffix
         )
-        n_components = int(self.dlg.mQgsSpinBox_ICA.value())
-        self.delete_layer_and_file(self.localGridName + self.suffix)
-
-        raster_layer = QgsRasterLayer(self.diskGridPath, "Input Raster")
-        if not raster_layer.isValid():
-            raise ValueError(f"Failed to load raster layer: {self.diskGridPath}")
-
+        n_components = self.ica_components
         mixing_matrix, unmixing_matrix = self.PCAICA.ica_with_nans(
             self.diskGridPath, self.diskNewGridPath, n_components
         )
         if mixing_matrix is not None:
-            self.write_metadata(
-                self.diskNewGridPath,
-                "Independent component analysis",
-                {"n_components": n_components},
+            self._call_later(
+                lambda out=self.diskNewGridPath, name=self.localGridName + self.suffix: (
+                    self._load_component_layer(
+                        out, name, "Independent component analysis",
+                        {"n_components": n_components},
+                    )
+                )
             )
-            ICA_raster_layer = QgsRasterLayer(
-                self.diskNewGridPath, self.localGridName + self.suffix
-            )
-            QgsProject.instance().addMapLayer(ICA_raster_layer)
 
     def procPolygons(self):
-        if self.localGridName and self.localGridName != "":
-            self.parseParams()
+        input_raster_path = self.diskGridPath
+        output_path = self.insert_text_before_extension(input_raster_path, "_boundary")
+        output_path_shp = self.SG_Util.create_data_boundary_lines(
+            input_raster_path, output_path
+        )
+        name = self.localGridName + "_boundary"
+        self._call_later(
+            lambda: self._load_boundary_layer(output_path_shp, input_raster_path, name)
+        )
 
-            self.layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-            input_raster_path = self.layer.dataProvider().dataSourceUri()
-            output_path = self.insert_text_before_extension(
-                input_raster_path, "_boundary"
-            )
-            output_path_shp = self.SG_Util.create_data_boundary_lines(
-                input_raster_path, output_path
-            )
-            layer = QgsVectorLayer(output_path_shp, self.localGridName + "_boundary")
-            if not layer.isValid():
-                raise ValueError(f"Failed to load layer: {output_path_shp}")
-            else:
-                self.write_metadata(
-                    output_path_shp,
-                    "Grid boundary outline",
-                    {},
-                    source=input_raster_path,
-                )
-                # Add the layer to the current QGIS project
-                QgsProject.instance().addMapLayer(layer)
+    def _load_boundary_layer(self, shapefile, source_path, layer_name):
+        """Main thread, after the job: record provenance and add the layer."""
+        layer = QgsVectorLayer(shapefile, layer_name)
+        if not layer.isValid():
+            raise ValueError(f"Failed to load layer: {shapefile}")
+        self.write_metadata(shapefile, "Grid boundary outline", {}, source=source_path)
+        QgsProject.instance().addMapLayer(layer)
 
     def procNaN(self):
         self.new_grid = self.SG_Util.Threshold2Nan(
@@ -2625,17 +2846,24 @@ class SGTool:
         self.suffix = "_Clean"
 
     def procNormalise(self):
-        processor = GeophysicalProcessor(None, None, None)
+        if self._busy():
+            return
         inpath = self.input_directory
         outpath = self.output_directory
         order = self.dlg.radioButton_normalise_1st.isChecked()
-        if (
+        if not (
             os.path.exists(inpath)
             and os.path.exists(outpath)
             and inpath != ""
             and outpath != ""
         ):
-            processor.normalise_geotiffs(inpath, outpath, order)
+            return
+
+        def work(task):
+            processor = GeophysicalProcessor(None, None, None)
+            processor.normalise_geotiffs(inpath, outpath, order, callback=task.callback())
+
+        def finish(_result):
             for name in sorted(os.listdir(inpath)):
                 if not name.lower().endswith(".tif"):
                     continue
@@ -2652,6 +2880,8 @@ class SGTool:
                         },
                         source=os.path.join(inpath, name),
                     )
+
+        self.start_task("SGTool: Normalise grids", work, finish)
 
     def procSS_Min(self):
         self.new_grid = self.SpatialStats.calculate_windowed_stats(
@@ -2715,8 +2945,7 @@ class SGTool:
             angle_tolerance=self.SS_angle_tolerance,
             search_radius=self.SS_search_radius,
         )
-        self.suffix = "_SS_ChainLen"
-        self.addNewGrid(stdClip=False)
+        self._emit(self.new_grid, "_SS_ChainLen", std_clip=False)
 
     def procSS_Streamline(self):
         aniso_map, orient_map = self._get_anisotropy_maps()
@@ -2726,8 +2955,16 @@ class SGTool:
             angle_tolerance=self.SS_angle_tolerance,
             max_steps=self.SS_max_steps,
         )
-        self.suffix = "_SS_StreamLen"
-        self.addNewGrid(stdClip=False)
+        self._emit(self.new_grid, "_SS_StreamLen", std_clip=False)
+
+    def procSS_AnisotropyBoth(self):
+        """Local anisotropy: the magnitude grid and the orientation grid."""
+        self.procSS_Anisotropy()
+        self._emit(self.new_grid, "_SS_AnisoMag", std_clip=True)
+        self._emit(
+            self._aniso_orientation, "_SS_AnisoOrient", std_clip=False,
+            after=self._applyAnisoOrientStyle,
+        )
 
     def procMRVBF(self):
         """Multiresolution Valley Bottom Flatness / Ridge Top Flatness.
@@ -2744,15 +2981,14 @@ class SGTool:
         All four are loaded into the project. Geographic (lat/long) rasters
         are rejected because the algorithm needs cell sizes in metres.
         """
-        crs = self.layer.crs()
-        if crs.isGeographic():
-            self.iface.messageBar().pushMessage(
+        if self._is_geographic():
+            self._notify(
                 self.tr(
                     "MRVBF needs a projected raster with cell sizes in metres. "
                     "Reproject the grid to a projected CRS and try again."
                 ),
-                level=Qgis.Warning,
-                duration=15,
+                Qgis.Warning,
+                15,
             )
             return
 
@@ -2761,14 +2997,14 @@ class SGTool:
         dem_su = np.flipud(self.raster_array.astype(float))
         nodata_mask = ~np.isfinite(dem_su)
 
-        extent = self.layer.dataProvider().extent()
+        grid_xmin, grid_ymin, _xmax, _ymax = self._grid_facts()["extent"]
         cellsize = float(self.dx)
 
         mrvbf_su, mrrtf_su = calc_mrvbf(
             dem_su,
             cellsize,
-            xmin=extent.xMinimum(),
-            ymin=extent.yMinimum(),
+            xmin=grid_xmin,
+            ymin=grid_ymin,
             nodata_mask=nodata_mask,
             t_slope=self.MRVBF_t_slope,
             t_pctl_v=self.MRVBF_t_pctl_v,
@@ -2781,14 +3017,15 @@ class SGTool:
         mrrtf_grid = np.flipud(mrrtf_su)
 
         # --- MRVBF / MRRTF grids (written + loaded via addNewGrid) ---
-        self.new_grid = mrvbf_grid
-        self.suffix = "_MRVBF"
-        self.addNewGrid(stdClip=False)
+        self._emit(mrvbf_grid, "_MRVBF", std_clip=False)
+        self._emit(mrrtf_grid, "_MRRTF", std_clip=False)
 
-        self.new_grid = mrrtf_grid
-        self.suffix = "_MRRTF"
-        self.addNewGrid(stdClip=False)
+        # the slope and composite use QGIS's slope algorithm and layers, so
+        # they are done on the main thread once the grids above are saved
+        self._call_later(lambda: self._mrvbf_slope_and_composite(mrvbf_grid, mrrtf_grid))
 
+    def _mrvbf_slope_and_composite(self, mrvbf_grid, mrrtf_grid):
+        """Main thread: slope of the input grid and the MRRTF/MRVBF/slope RGB."""
         # --- slope of the input grid via the built-in QGIS slope algorithm ---
         slope_path = self.insert_text_before_extension(
             self.diskGridPath, "_slope"
@@ -2866,9 +3103,6 @@ class SGTool:
         if rgb_layer.isValid():
             QgsProject.instance().addMapLayer(rgb_layer)
 
-        # everything for this operation has already been written and loaded
-        self.suffix = ""
-
     @staticmethod
     def _fit_to_shape(arr, shape):
         """Crop/pad arr (with NaN) so it has exactly `shape`."""
@@ -2929,145 +3163,132 @@ class SGTool:
         return 0
 
     def procBSDworms(self):
+        if self._busy():
+            return False
         num_levels = int(self.dlg.spinBox_levels.value())
         bottom_level = self.to_int(self.dlg.doubleSpinBox_base.text())
         delta_z = self.to_float(self.dlg.doubleSpinBox_inc.text())
         layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-        crs = layer.crs()
 
-        if crs.isGeographic():
+        if layer.crs().isGeographic():
             self.iface.messageBar().pushMessage(
                 "This is a geographic projection, you need to convert it to a projected CRS",
                 level=Qgis.Warning,
                 duration=15,
             )
             return False
-        else:
-            if layer.isValid():
-                self.diskGridPath = layer.dataProvider().dataSourceUri()
-                self.dx = layer.rasterUnitsPerPixelX()
-                self.dy = layer.rasterUnitsPerPixelY()
-                if not self.validCRS(layer):
-                    return False
-                crs = int(layer.crs().authid().split(":")[1])
+        if not layer.isValid():
+            return False
 
-                self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
-                shps = self.dlg.checkBox_worms_shp.isChecked()
-                if shps:
-                    try:
-                        import sklearn
-                    except ImportError:
-                        QMessageBox.information(
-                            None,  # Parent widget
-                            "",
-                            "Missing Packages for SGTool: "  # Window title
-                            + f"The following Python packages are required for conversion to shapefile, but not installed: scikit-learn\n\n"
-                            "Please open the QGIS Python Console and run the following command:\n\n"
-                            f"!pip3 install scikit-learn",  # Message text
-                            QMessageBox_Ok,  # Buttons parameter
-                        )
-                        return False
+        self.diskGridPath = layer.dataProvider().dataSourceUri()
+        self.dx = layer.rasterUnitsPerPixelX()
+        self.dy = layer.rasterUnitsPerPixelY()
+        if not self.validCRS(layer):
+            return False
+        crs = int(layer.crs().authid().split(":")[1])
 
-                """             
-                # Access the raster data provider
-                provider = layer.dataProvider()
+        self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
+        shps = self.dlg.checkBox_worms_shp.isChecked()
+        if shps and not self._check_sklearn("conversion to shapefile"):
+            return False
 
-                # Get raster dimensions
-                cols = provider.xSize()  # Number of columns
-                rows = provider.ySize()  # Number of rows
+        # the calculation runs in the background on a snapshot; it must not
+        # touch the layer, so only plain facts about it are passed along
+        self._grid_info = self._make_grid_info(layer)
+        self._pending_messages = []
+        runner = copy.copy(self)
+        self.start_task(
+            f"SGTool: Worms ({self.localGridName})",
+            lambda task: runner._run_worms(
+                task, num_levels, bottom_level, delta_z, shps, crs
+            ),
+            on_success=lambda _result: runner._finish_worms(
+                num_levels, bottom_level, delta_z, shps
+            ),
+            messages=runner._pending_messages,
+        )
+        return True
 
-                # Read raster data as a block
-                band = 1  # Specify the band number (1-based index)
-                raster_block = provider.block(band, provider.extent(), cols, rows)
+    def _run_worms(self, task, num_levels, bottom_level, delta_z, shps, crs):
+        """Worker thread: read the grid and run the worming."""
+        # Read raster data via GDAL (consistent row ordering across platforms)
+        ds = gdal.Open(self.diskGridPath)
+        band = ds.GetRasterBand(1)
+        no_data_value = band.GetNoDataValue()  # Band 1
+        band_data = ds.GetRasterBand(1).ReadAsArray()  # Always row0=north
+        nodata = ds.GetRasterBand(1).GetNoDataValue()
+        if nodata is not None:
+            band_data = band_data.astype(float)
+            band_data[band_data == nodata] = np.nan
 
-                # Copy the block data into a NumPy array
-                extent = layer.extent()
-                rows, cols = layer.height(), layer.width()
-                raster_block = provider.block(1, extent, cols, rows)  # !!!!!
-                self.raster_array = np.zeros((rows, cols))
-                for i in range(rows):
-                    for j in range(cols):
-                        self.raster_array[i, j] = raster_block.value(i, j)
-            
-                """
-                # Read raster data via GDAL (consistent row ordering across platforms)
-                ds = gdal.Open(self.diskGridPath)
-                band = ds.GetRasterBand(1)
-                no_data_value = band.GetNoDataValue()  # Band 1
-                band_data = ds.GetRasterBand(1).ReadAsArray()  # Always row0=north
-                nodata = ds.GetRasterBand(1).GetNoDataValue()
-                if nodata is not None:
-                    band_data = band_data.astype(float)
-                    band_data[band_data == nodata] = np.nan
+        self.raster_array = band_data
+        if no_data_value is not None:
+            self.raster_array[self.raster_array == no_data_value] = np.nan
+        ds = None
 
-                self.raster_array = band_data
-                if no_data_value is not None:
-                    self.raster_array[self.raster_array == no_data_value] = np.nan
-                ds = None
+        info = self._grid_facts()
+        self.processor.bsdwormer(
+            self.raster_array,
+            LayerShim(info["extent"], info["authid"]),
+            self.diskGridPath,
+            num_levels,
+            bottom_level,
+            delta_z,
+            shps,
+            crs,
+            callback=task.callback(),
+        )
 
-                self.processor.bsdwormer(
-                    self.raster_array,
-                    layer,
-                    self.diskGridPath,
-                    num_levels,
-                    bottom_level,
-                    delta_z,
-                    shps,
-                    crs,
+    def _finish_worms(self, num_levels, bottom_level, delta_z, shps):
+        """Main thread, after the job: provenance, message and layer."""
+        worm_dir, worm_file = os.path.split(self.diskGridPath)
+        worm_stem = os.path.splitext(worm_file)[0]
+        worm_params = {
+            "levels": num_levels,
+            "bottom_level": bottom_level,
+            "level_increment": delta_z,
+            "shapefile": shps,
+        }
+        worm_outputs = [
+            (
+                worm_dir + "/" + worm_stem + "_worms.csv",
+                "Worms (BSDWormer) points",
+            ),
+            (
+                self.insert_text_before_extension(self.diskGridPath, "_padded"),
+                "Worms padded and tapered input grid",
+            ),
+        ]
+        if shps:
+            worm_outputs.append(
+                (
+                    worm_dir + "/" + worm_stem + "_worms.shp",
+                    "Worms (BSDWormer) polylines",
                 )
-                worm_dir, worm_file = os.path.split(self.diskGridPath)
-                worm_stem = os.path.splitext(worm_file)[0]
-                worm_params = {
-                    "levels": num_levels,
-                    "bottom_level": bottom_level,
-                    "level_increment": delta_z,
-                    "shapefile": shps,
-                }
-                worm_outputs = [
-                    (
-                        worm_dir + "/" + worm_stem + "_worms.csv",
-                        "Worms (BSDWormer) points",
-                    ),
-                    (
-                        self.insert_text_before_extension(
-                            self.diskGridPath, "_padded"
-                        ),
-                        "Worms padded and tapered input grid",
-                    ),
-                ]
-                if shps:
-                    worm_outputs.append(
-                        (
-                            worm_dir + "/" + worm_stem + "_worms.shp",
-                            "Worms (BSDWormer) polylines",
-                        )
-                    )
-                for worm_path, worm_op in worm_outputs:
-                    if os.path.exists(worm_path):
-                        self.write_metadata(
-                            worm_path, worm_op, worm_params, source=self.diskGridPath
-                        )
-                self.iface.messageBar().pushMessage(
-                    "Worms saved to same directory as original grid",
-                    level=Qgis.Success,
-                    duration=15,
+            )
+        for worm_path, worm_op in worm_outputs:
+            if os.path.exists(worm_path):
+                self.write_metadata(
+                    worm_path, worm_op, worm_params, source=self.diskGridPath
                 )
+        self.iface.messageBar().pushMessage(
+            "Worms saved to same directory as original grid",
+            level=Qgis.Success,
+            duration=15,
+        )
 
-            if shps:
+        if shps:
+            head_tail = os.path.split(self.diskGridPath)
+            out_path = head_tail[0] + "/" + head_tail[1].split(".")[0] + "_worms.shp"
+            layer_name = head_tail[1].split(".")[0] + "_worms.shp"
 
-                head_tail = os.path.split(self.diskGridPath)
-                out_path = (
-                    head_tail[0] + "/" + head_tail[1].split(".")[0] + "_worms.shp"
-                )
-                layer_name = head_tail[1].split(".")[0] + "_worms.shp"
+            layer = QgsVectorLayer(out_path, layer_name)
 
-                layer = QgsVectorLayer(out_path, layer_name)
-
-                if not layer.isValid():
-                    raise ValueError(f"Failed to load layer: {out_path}")
-                else:
-                    # Add the layer to the current QGIS project
-                    QgsProject.instance().addMapLayer(layer)
+            if not layer.isValid():
+                raise ValueError(f"Failed to load layer: {out_path}")
+            else:
+                # Add the layer to the current QGIS project
+                QgsProject.instance().addMapLayer(layer)
 
     def set_normalise_in(self):
         """
@@ -3175,13 +3396,11 @@ class SGTool:
             - A warning message is displayed in the QGIS message bar if the length is invalid.
         """
 
-        selected_layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-        crs = selected_layer.crs()
-        if crs.isGeographic() and length > 100:
-            self.iface.messageBar().pushMessage(
+        if self._is_geographic() and length > 100:
+            self._notify(
                 "Since this is a geographic projection, you need to specify lengths in degrees",
-                level=Qgis.Warning,
-                duration=15,
+                Qgis.Warning,
+                15,
             )
             return False
         else:
@@ -3232,8 +3451,12 @@ class SGTool:
         layer.setOpacity(0.5)
         layer.triggerRepaint()
 
-    def addNewGrid(self, stdClip=True):
+    def addNewGrid(self, stdClip=True, meta=None, load_layer=True):
         """
+        meta: (operation, parameters) for the provenance record; worked out
+        from self.suffix if not given. load_layer=False writes the file (and
+        its provenance) without adding it to the project.
+
         Adds a new grid layer to the QGIS project. If a layer with the same name already exists,
         it removes the existing layer before adding the new one. The method also handles raster
         file creation, statistics calculation, and renderer configuration for the new layer.
@@ -3295,8 +3518,10 @@ class SGTool:
                 no_data_value=np.nan,
             )
             if err != -1:
-                op, params = self._filter_metadata(self.suffix)
+                op, params = meta if meta is not None else self._filter_metadata(self.suffix)
                 self.write_metadata(self.diskNewGridPath, op, params)
+                if not load_layer:
+                    return
                 con_raster_layer = QgsRasterLayer(
                     self.diskNewGridPath, self.base_name + self.suffix
                 )
@@ -3394,6 +3619,9 @@ class SGTool:
 
         process = False
 
+        if self._busy():
+            return
+
         if self.localGridName and self.localGridName != "":
             self.parseParams()
 
@@ -3456,116 +3684,151 @@ class SGTool:
             self.PCAICA = PCAICA(self.raster_array)
 
             self.suffix = ""
-            if self._preview_only_entry is not None:
+            self._grid_info = self._make_grid_info(self.layer)
+
+            keep_entry = self._preview_only_entry
+            if keep_entry is not None:
                 # "keep" from the live preview: full-resolution run of the
-                # previewed filter only, regardless of other ticked filters
-                flag, method, std_clip, checkbox = self._preview_only_entry
-                self.new_grid = None
-                getattr(self, method)()
-                if self.new_grid is not None:
-                    self.addNewGrid(stdClip=std_clip)
-                getattr(self.dlg, checkbox).setChecked(False)
-                setattr(self, flag, False)
+                # previewed filter only, regardless of any other ticked filters
+                jobs = [(keep_entry[0], keep_entry[1], keep_entry[2], True)]
+            else:
+                jobs = self._pipeline_jobs()
+            jobs = self._prepare_jobs(jobs)
+            if not jobs:
                 return
-            if self.DirClean:
-                self.procDirClean()
-                self.addNewGrid(stdClip=True)
-            if self.RTE_P:
-                if self.RTE_P_type == "Diff. RTP":
-                    self.procVRTP()
-                else:
-                    self.procRTP_E(sgtool_instance=self)
-                self.addNewGrid(stdClip=True)
-            if self.RemRegional:
-                self.procRemRegional()
-                self.addNewGrid(stdClip=True)
-            if self.Derivative:
-                self.procDerivative()
-                self.addNewGrid(stdClip=True)
-            if self.TA:
-                self.procTiltAngle()
-                self.addNewGrid(stdClip=True)
-            if self.AS:
-                self.procAnalyticSignal()
-                self.addNewGrid(stdClip=True)
-            if self.Continuation:
-                self.procContinuation()
-                self.addNewGrid(stdClip=True)
-            if self.BandPass:
-                self.procBandPass()
-                self.addNewGrid(stdClip=True)
-            if self.FreqCut:
-                self.procFreqCut()
-                self.addNewGrid(stdClip=True)
-            if self.AGC:
-                self.procAGC()
-                self.addNewGrid(stdClip=True)
-            if self.VI:
-                self.procvInt()
-                self.addNewGrid(stdClip=True)
-            if self.THG:
-                self.procTHG()
-                self.addNewGrid(stdClip=True)
+            self._start_pipeline(jobs, keep_entry)
 
-            if self.Mean:
-                self.procMean()
-                self.addNewGrid(stdClip=True)
-            if self.Median:
-                self.procMedian()
-                self.addNewGrid(stdClip=True)
-            if self.Gaussian:
-                self.procGaussian()
-                self.addNewGrid(stdClip=True)
-            if self.Direction:
-                self.procDirectional()
-                self.addNewGrid(stdClip=True)
-            if self.SunShade:
-                self.procSunShade()
-                self.addNewGrid(stdClip=False)
-            if self.NaN:
-                self.procNaN()
-                self.addNewGrid(stdClip=True)
+    # Calculations in the order they run: (flag, method, std-clip the display,
+    # auto). auto=True means the method sets self.new_grid / self.suffix and
+    # the result is queued for it; otherwise the method queues its own outputs.
+    PIPELINE_JOBS = (
+        ("DirClean", "procDirClean", True, True),
+        ("RTE_P", None, True, True),  # procRTP_E, or procVRTP for differential RTP
+        ("RemRegional", "procRemRegional", True, True),
+        ("Derivative", "procDerivative", True, True),
+        ("TA", "procTiltAngle", True, True),
+        ("AS", "procAnalyticSignal", True, True),
+        ("Continuation", "procContinuation", True, True),
+        ("BandPass", "procBandPass", True, True),
+        ("FreqCut", "procFreqCut", True, True),
+        ("AGC", "procAGC", True, True),
+        ("VI", "procvInt", True, True),
+        ("THG", "procTHG", True, True),
+        ("Mean", "procMean", True, True),
+        ("Median", "procMedian", True, True),
+        ("Gaussian", "procGaussian", True, True),
+        ("Direction", "procDirectional", True, True),
+        ("SunShade", "procSunShade", False, True),
+        ("NaN", "procNaN", True, True),
+        ("SS_Min", "procSS_Min", True, True),
+        ("SS_Max", "procSS_Max", True, True),
+        ("SS_Kurtosis", "procSS_Kurtosis", True, True),
+        ("SS_StdDev", "procSS_StdDev", True, True),
+        ("SS_Variance", "procSS_Variance", True, True),
+        ("SS_Skewness", "procSS_Skewness", True, True),
+        ("SS_Anisotropy", "procSS_AnisotropyBoth", True, False),
+        ("SS_ChainLength", "procSS_ChainLength", True, False),
+        ("SS_Streamline", "procSS_Streamline", True, False),
+        ("MRVBF", "procMRVBF", True, False),
+        ("PCA", "procPCA", True, False),
+        ("ICA", "procICA", True, False),
+        ("Polygons", "procPolygons", True, False),
+        ("ED", "procEulerDeconvolution", True, False),
+    )
 
-            if self.SS_Min:
-                self.procSS_Min()
-                self.addNewGrid(stdClip=True)
-            if self.SS_Max:
-                self.procSS_Max()
-                self.addNewGrid(stdClip=True)
-            if self.SS_Kurtosis:
-                self.procSS_Kurtosis()
-                self.addNewGrid(stdClip=True)
-            if self.SS_StdDev:
-                self.procSS_StdDev()
-                self.addNewGrid(stdClip=True)
-            if self.SS_Variance:
-                self.procSS_Variance()
-                self.addNewGrid(stdClip=True)
-            if self.SS_Skewness:
-                self.procSS_Skewness()
-                self.addNewGrid(stdClip=True)
-            if self.SS_Anisotropy:
-                self.procSS_Anisotropy()
-                self.addNewGrid(stdClip=True)   # adds _SS_AnisoMag
-                self.new_grid = self._aniso_orientation
-                self.suffix = "_SS_AnisoOrient"
-                self.addNewGrid(stdClip=False)  # adds _SS_AnisoOrient
-                self._applyAnisoOrientStyle()
-            if self.SS_ChainLength:
-                self.procSS_ChainLength()
-            if self.SS_Streamline:
-                self.procSS_Streamline()
-            if self.MRVBF:
-                self.procMRVBF()
-            if self.PCA:
-                self.procPCA()
-            if self.ICA:
-                self.procICA()
-            if self.Polygons:
-                self.procPolygons()
-            if self.ED:
-                self.procEulerDeconvolution(self.raster_array)
+    def _pipeline_jobs(self):
+        """The calculations ticked in the dialog, in running order."""
+        jobs = []
+        for flag, method, std_clip, auto in self.PIPELINE_JOBS:
+            if not getattr(self, flag):
+                continue
+            if flag == "RTE_P":
+                method = "procVRTP" if self.RTE_P_type == "Diff. RTP" else "procRTP_E"
+            jobs.append((flag, method, std_clip, auto))
+        return jobs
 
+    def _prepare_jobs(self, jobs):
+        """Main thread, before the background job starts: everything that needs
+        QGIS layers or dialogs. Returns the jobs that can go ahead."""
+        ready = []
+        for job in jobs:
+            flag = job[0]
+            if flag in ("PCA", "ICA"):
+                what = "PCAs" if flag == "PCA" else "ICAs"
+                if not self._check_sklearn(what):
+                    continue
+                self._prepare_component_analysis("_" + flag)
+            elif flag == "RTE_P" and job[1] == "procVRTP":
+                # IGRF values come from the date widget and the layer
+                self._igrf = self.get_igrf_corners()
+            ready.append(job)
+        return ready
+
+    # Short names for the task manager
+    _JOB_LABELS = {
+        "DirClean": "Directional clean", "RTE_P": "RTP/RTE", "RemRegional": "Remove regional",
+        "Derivative": "Derivative", "TA": "Tilt angle", "AS": "Analytic signal",
+        "Continuation": "Continuation", "BandPass": "Band pass", "FreqCut": "High/Low pass",
+        "AGC": "AGC", "VI": "Vertical integration", "THG": "Total horizontal gradient",
+        "Mean": "Mean", "Median": "Median", "Gaussian": "Gaussian", "Direction": "Directional",
+        "SunShade": "Sun shading", "NaN": "Threshold to NaN", "SS_Min": "Min", "SS_Max": "Max",
+        "SS_Kurtosis": "Kurtosis", "SS_StdDev": "Std dev", "SS_Variance": "Variance",
+        "SS_Skewness": "Skewness", "SS_Anisotropy": "Anisotropy", "SS_ChainLength": "Chain length",
+        "SS_Streamline": "Streamline length", "MRVBF": "MRVBF", "PCA": "PCA", "ICA": "ICA",
+        "Polygons": "Boundary outline", "ED": "Euler deconvolution",
+    }
+
+    def _start_pipeline(self, jobs, keep_entry=None):
+        """Run the jobs in a background task on a snapshot of this plugin
+        object; write and load the results on the main thread afterwards."""
+        self._pending_messages = []
+        runner = copy.copy(self)  # the job's own state: the dialog can change freely
+        runner._results = []
+        labels = ", ".join(self._JOB_LABELS.get(j[0], j[0]) for j in jobs)
+        self.start_task(
+            f"SGTool: {labels} ({self.localGridName})",
+            lambda task: runner._run_pipeline(jobs, task),
+            on_success=lambda results: runner._finish_pipeline(results, keep_entry),
+            messages=runner._pending_messages,
+        )
+
+    def _run_pipeline(self, jobs, task):
+        """Worker thread: run each calculation, queueing its outputs."""
+        self._task_ref = task
+        n = len(jobs)
+        for i, (flag, method, std_clip, auto) in enumerate(jobs):
+            task.check(100.0 * i / n)
+            self.new_grid = None
+            self.suffix = ""
+            getattr(self, method)()
+            if auto and self.new_grid is not None:
+                self._emit(self.new_grid, self.suffix, std_clip)
+        task.check(100.0)
+        return self._results
+
+    def _finish_pipeline(self, results, keep_entry=None):
+        """Main thread: write the queued outputs and load them into QGIS."""
+        for item in results:
+            try:
+                self._apply_result(item)
+            except Exception:
+                print(traceback.format_exc())
+                self.iface.messageBar().pushMessage(
+                    "SGTool",
+                    "An output could not be saved (see the Python console)",
+                    level=Qgis.Warning, duration=10,
+                )
+        if keep_entry is not None:
+            flag = keep_entry[0]
+            checkbox = next(
+                (e[3] for tab_filters in self.PREVIEW_FILTERS.values()
+                 for e in tab_filters if e[0] == flag),
+                None,
+            )
+            if checkbox:
+                getattr(self.dlg, checkbox).setChecked(False)
+            setattr(self, flag, False)
+        else:
             self.resetCheckBoxes()
 
     def resetCheckBoxes(self):
@@ -3772,50 +4035,69 @@ class SGTool:
             None
         """
 
+        if self._busy():
+            return
+
         self.diskRGBGridPath = self.dlg.lineEdit_2_loadGridPath_2.text()
-        if self.diskRGBGridPath != "":
-            if os.path.exists(self.diskRGBGridPath):
-                LUT_list = self.dlg.textEdit_2_colour_list.toPlainText()
+        if self.diskRGBGridPath == "" or not os.path.exists(self.diskRGBGridPath):
+            return
 
-                if LUT_list != "":
+        LUT_list = self.dlg.textEdit_2_colour_list.toPlainText()
+        if LUT_list == "":
+            self.iface.messageBar().pushMessage(
+                "First define a CSS Colour list <a href='https://matplotlib.org/stable/gallery/color/named_colors.html#css-colors'> (See here for list of colours)</a>",
+                level=Qgis.Info,
+                duration=15,
+            )
+            return
 
-                    result, RGBGridPath_gray = self.convert_RGB_to_grey(
-                        self.diskRGBGridPath, LUT_list
-                    )
-                    if result:
+        # the colour table needs matplotlib; say so now, on the main thread,
+        # rather than from inside the background task
+        try:
+            import matplotlib.colors  # noqa: F401
+        except ImportError:
+            QMessageBox.information(
+                None,  # Parent widget
+                "",
+                "Missing Packages for SGTool: "  # Window title
+                + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
+                "Please open the QGIS Python Console and run the following command:\n\n"
+                f"!pip3 install matplotlib",  # Message text
+                QMessageBox_Ok,  # Buttons parameter
+            )
+            return
 
-                        basename = os.path.basename(RGBGridPath_gray)
-                        filename_without_extension = os.path.splitext(basename)[0]
+        rgb_path = self.diskRGBGridPath
+        lut_min = self.dlg.mQgsDoubleSpinBox_LUT_min.value()
+        lut_max = self.dlg.mQgsDoubleSpinBox_LUT_max.value()
+        self._pending_messages = []
+        runner = copy.copy(self)
 
-                        self.layer = QgsRasterLayer(
-                            RGBGridPath_gray, filename_without_extension
-                        )
-                        """try:
-                            test_proj = self.layer.crs().authid()
-                            self.layer.setCrs(test_proj)
+        def work(task):
+            return runner.convert_RGB_to_grey(rgb_path, LUT_list, lut_min, lut_max)
 
-                        except:
-                            # Define the new CRS (e.g., EPSG:4326 for WGS84)
-                            new_crs = QgsCoordinateReferenceSystem("EPSG:4326")
-                            # Set the CRS for the raster layer
-                            self.layer.setCrs(new_crs)"""
-                        if not self.is_layer_loaded(filename_without_extension):
-                            QgsProject.instance().addMapLayer(self.layer)
+        def finish(outcome):
+            result, RGBGridPath_gray = outcome
+            if result:
+                basename = os.path.basename(RGBGridPath_gray)
+                filename_without_extension = os.path.splitext(basename)[0]
 
-                    else:
-                        if RGBGridPath_gray != -3:
-                            self.iface.messageBar().pushMessage(
-                                "Conversion failed, check CSS colour names",
-                                level=Qgis.Warning,
-                                duration=15,
-                            )
+                self.layer = QgsRasterLayer(RGBGridPath_gray, filename_without_extension)
+                if not self.is_layer_loaded(filename_without_extension):
+                    QgsProject.instance().addMapLayer(self.layer)
+            elif RGBGridPath_gray != -3:
+                self.iface.messageBar().pushMessage(
+                    "Conversion failed, check CSS colour names",
+                    level=Qgis.Warning,
+                    duration=15,
+                )
 
-                else:
-                    self.iface.messageBar().pushMessage(
-                        "First define a CSS Colour list <a href='https://matplotlib.org/stable/gallery/color/named_colors.html#css-colors'> (See here for list of colours)</a>",
-                        level=Qgis.Info,
-                        duration=15,
-                    )
+        self.start_task(
+            f"SGTool: Convert {os.path.basename(rgb_path)} to grey scale",
+            work,
+            finish,
+            messages=runner._pending_messages,
+        )
 
     def select_grid_file(self):
         """
@@ -4080,103 +4362,103 @@ class SGTool:
               not already loaded.
         """
 
-        # load grd file and store in memory
-        if self.diskGridPath != "":
-            if not os.path.exists(self.diskGridPath):
-                self.iface.messageBar().pushMessage(
-                    "File: " + self.diskGridPath + " not found",
-                    level=Qgis.Warning,
-                    duration=3,
-                )
-            else:
-                grid, header, Gdata_type = load_oasis_montaj_grid_optimized(
-                    self.diskGridPath
-                )
-                # grid,header,Gdata_type=load_oasis_montaj_grid(self.diskGridPath)
-                if Gdata_type == -1:
-                    self.iface.messageBar().pushMessage(
-                        "Sorry, can't read 'SHORT' or 'INT' data types at the moment",
-                        level=Qgis.Warning,
-                        duration=30,
-                    )
-                    return
-                else:
-                    source_grd = self.diskGridPath  # kept for the metadata sidecar
-                    directory_path = os.path.dirname(self.diskGridPath)
-                    basename = os.path.basename(self.diskGridPath)
-                    filename_without_extension = os.path.splitext(basename)[0]
-                    self.diskGridPath = (
-                        directory_path + "/" + filename_without_extension + ".tif"
-                    )
-
-                    fn = self.diskGridPath
-                    if os.path.exists(self.diskGridPath) and not self.is_layer_loaded(
-                        filename_without_extension
-                    ):
-                        os.remove(self.diskGridPath)
-                        self.remove_metadata(self.diskGridPath)
-                        if os.path.exists(self.diskGridPath + ".aux.xml"):
-                            os.remove(self.diskGridPath + ".aux.xml")
-
-                    basename = os.path.basename(self.diskGridPath)
-                    extension = os.path.splitext(basename)[1].lower()
-                    if extension == "ers":
-                        driver = gdal.GetDriverByName("ERS")
-                    else:
-                        driver = gdal.GetDriverByName("GTiff")
-
-                    if header["ordering"] == 1:
-                        ds = driver.Create(
-                            fn,
-                            xsize=header["shape_e"],
-                            ysize=header["shape_v"],
-                            bands=1,
-                            eType=Gdata_type,
-                        )
-                    else:
-                        ds = driver.Create(
-                            fn,
-                            xsize=header["shape_v"],
-                            ysize=header["shape_e"],
-                            bands=1,
-                            eType=Gdata_type,
-                        )
-
-                    ds.GetRasterBand(1).WriteArray(grid)
-                    geot = [
-                        header["x_origin"] - (header["spacing_e"] / 2),
-                        header["spacing_e"],
-                        0,
-                        header["y_origin"] - (header["spacing_v"] / 2),
-                        0,
-                        header["spacing_e"],
-                    ]
-                    ds.SetGeoTransform(geot)
-                    srs = osr.SpatialReference()
-
-                    srs.ImportFromEPSG(int(epsg))
-                    ds.SetProjection(srs.ExportToWkt())
-                    ds.FlushCache()
-                    ds = None
-
-                    # any <file>.grd.xml beside the source is embedded by the helper
-                    self.write_metadata(
-                        self.diskGridPath,
-                        "Convert Geosoft grid to GeoTIFF",
-                        {"epsg": epsg},
-                        source=source_grd,
-                    )
-
-                    self.layer = QgsRasterLayer(
-                        self.diskGridPath, filename_without_extension
-                    )
-                    if not self.is_layer_loaded(filename_without_extension):
-                        QgsProject.instance().addMapLayer(self.layer)
-
-        else:
+        # The file is read and converted in a background task; the layer is
+        # loaded when it finishes.
+        if self._busy():
+            return
+        if self.diskGridPath == "":
             self.iface.messageBar().pushMessage(
                 "You need to select a file first", level=Qgis.Warning, duration=3
             )
+            return
+        if not os.path.exists(self.diskGridPath):
+            self.iface.messageBar().pushMessage(
+                "File: " + self.diskGridPath + " not found",
+                level=Qgis.Warning,
+                duration=3,
+            )
+            return
+
+        source_grd = self.diskGridPath  # kept for the provenance record
+        directory_path = os.path.dirname(source_grd)
+        basename = os.path.basename(source_grd)
+        filename_without_extension = os.path.splitext(basename)[0]
+        tif_path = directory_path + "/" + filename_without_extension + ".tif"
+
+        if os.path.exists(tif_path) and not self.is_layer_loaded(
+            filename_without_extension
+        ):
+            os.remove(tif_path)
+            self.remove_metadata(tif_path)
+            if os.path.exists(tif_path + ".aux.xml"):
+                os.remove(tif_path + ".aux.xml")
+
+        def work(task):
+            grid, header, Gdata_type = load_oasis_montaj_grid_optimized(source_grd)
+            # grid,header,Gdata_type=load_oasis_montaj_grid(source_grd)
+            if Gdata_type == -1:
+                return False
+            task.check(60)
+
+            driver = gdal.GetDriverByName("GTiff")
+            if header["ordering"] == 1:
+                ds = driver.Create(
+                    tif_path,
+                    xsize=header["shape_e"],
+                    ysize=header["shape_v"],
+                    bands=1,
+                    eType=Gdata_type,
+                )
+            else:
+                ds = driver.Create(
+                    tif_path,
+                    xsize=header["shape_v"],
+                    ysize=header["shape_e"],
+                    bands=1,
+                    eType=Gdata_type,
+                )
+
+            ds.GetRasterBand(1).WriteArray(grid)
+            geot = [
+                header["x_origin"] - (header["spacing_e"] / 2),
+                header["spacing_e"],
+                0,
+                header["y_origin"] - (header["spacing_v"] / 2),
+                0,
+                header["spacing_e"],
+            ]
+            ds.SetGeoTransform(geot)
+            srs = osr.SpatialReference()
+
+            srs.ImportFromEPSG(int(epsg))
+            ds.SetProjection(srs.ExportToWkt())
+            ds.FlushCache()
+            ds = None
+            return True
+
+        def finish(converted):
+            if not converted:
+                self.iface.messageBar().pushMessage(
+                    "Sorry, can't read 'SHORT' or 'INT' data types at the moment",
+                    level=Qgis.Warning,
+                    duration=30,
+                )
+                return
+            self.diskGridPath = tif_path
+
+            # any <file>.grd.xml beside the source is embedded by the helper
+            self.write_metadata(
+                tif_path,
+                "Convert Geosoft grid to GeoTIFF",
+                {"epsg": epsg},
+                source=source_grd,
+            )
+
+            self.layer = QgsRasterLayer(tif_path, filename_without_extension)
+            if not self.is_layer_loaded(filename_without_extension):
+                QgsProject.instance().addMapLayer(self.layer)
+
+        self.start_task(f"SGTool: Convert {basename} to GeoTIFF", work, finish)
 
     def select_point_file(self):
         start_directory = self.last_directory if self.last_directory else os.getcwd()
@@ -6063,12 +6345,16 @@ class SGTool:
         layer_tree = QgsProject.instance().layerTreeRoot()
         layer_tree.findLayer(layer2.id()).setItemVisibilityChecked(False)
 
-    def convert_RGB_to_grey(self, RGBGridPath, LUT):
+    def convert_RGB_to_grey(self, RGBGridPath, LUT, lut_min=None, lut_max=None):
         """
         Converts a 3-band RGB GeoTIFF to a grayscale GeoTIFF using a specified LUT (Look-Up Table).
+        Runs in a background task: it reads no widgets (pass lut_min / lut_max)
+        and reports through self._notify.
         Args:
             RGBGridPath (str): The file path to the input 3-band RGB GeoTIFF.
             LUT (str): A comma-separated string of CSS color values representing the Look-Up Table.
+            lut_min, lut_max (float): values the 0..1 table range maps to
+                (read from the dialog if not given).
         Returns:
             tuple:
                 - result (bool): True if the conversion was successful, False otherwise.
@@ -6089,15 +6375,11 @@ class SGTool:
         # Open the 3-band TIF using GDAL
         dataset = gdal.Open(RGBGridPath, gdal.GA_ReadOnly)
         if not dataset:
-            self.iface.messageBar().pushMessage(
-                "Unable to open the dataset.", level=Qgis.Warning, duration=15
-            )
+            self._notify("Unable to open the dataset.", Qgis.Warning, 15)
             return False, -3
 
         if dataset.RasterCount < 3:
-            self.iface.messageBar().pushMessage(
-                "Data file must have at least 3 layers", level=Qgis.Warning, duration=15
-            )
+            self._notify("Data file must have at least 3 layers", Qgis.Warning, 15)
             return False, -3
 
         red = dataset.GetRasterBand(1).ReadAsArray().astype(float)
@@ -6148,8 +6430,12 @@ class SGTool:
         scalar_grid[black_mask] = np.nan
 
         # Scale data
-        LUT_min = self.dlg.mQgsDoubleSpinBox_LUT_min.value()
-        LUT_max = self.dlg.mQgsDoubleSpinBox_LUT_max.value()
+        LUT_min = (
+            lut_min if lut_min is not None else self.dlg.mQgsDoubleSpinBox_LUT_min.value()
+        )
+        LUT_max = (
+            lut_max if lut_max is not None else self.dlg.mQgsDoubleSpinBox_LUT_max.value()
+        )
         scalar_grid = (scalar_grid * (LUT_max - LUT_min)) + LUT_min
 
         # Prepare output file
@@ -6167,10 +6453,10 @@ class SGTool:
             print(
                 RGBGridPath_gray, dataset.RasterXSize, dataset.RasterYSize, projection
             )
-            self.iface.messageBar().pushMessage(
+            self._notify(
                 "Unable to create the output dataset, maybe check projection is set?",
-                level=Qgis.Warning,
-                duration=15,
+                Qgis.Warning,
+                15,
             )
             return False, -3
 

@@ -149,6 +149,15 @@ class SGToolDockWidget(QDockWidget):
         )
         keep.setEnabled(False)  # only while a preview is active
 
+        cancel = QPushButton(_tr("Cancel"))
+        cancel.setToolTip(
+            _tr("Stop the running calculation. It stops at its next checkpoint "
+                "(between steps, and inside long loops such as Euler "
+                "deconvolution), and nothing from it is saved.")
+        )
+        cancel.setEnabled(False)  # only while a calculation is running
+
+        setattr(self, "pushButton_cancel" + suffix, cancel)
         setattr(self, "checkBox_preview" + suffix, chk)
         setattr(self, "radioButton_preview_extent" + suffix, rad_extent)
         setattr(self, "radioButton_preview_sub" + suffix, rad_sub)
@@ -160,6 +169,7 @@ class SGToolDockWidget(QDockWidget):
         bl.setContentsMargins(0, 0, 0, 0)
         bl.setSpacing(6)
         bl.addWidget(apply_button)
+        bl.addWidget(cancel)
         bl.addSpacing(10)
         bl.addWidget(chk)
         bl.addWidget(rad_extent)
@@ -841,6 +851,20 @@ class SGToolDockWidget(QDockWidget):
         outer = QVBoxLayout(tab)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
+
+        # Fixed bar: gridding and worms run as background tasks
+        bar = QWidget()
+        bar_layout = QHBoxLayout(bar)
+        bar_layout.setContentsMargins(6, 4, 6, 0)
+        self.pushButton_cancel_grid = QPushButton(_tr("Cancel running calculation"))
+        self.pushButton_cancel_grid.setToolTip(
+            _tr("Stop the running calculation. It stops at its next checkpoint "
+                "and nothing from it is saved.")
+        )
+        self.pushButton_cancel_grid.setEnabled(False)  # only while one is running
+        bar_layout.addWidget(self.pushButton_cancel_grid)
+        bar_layout.addStretch()
+        outer.addWidget(bar)
 
         sc = QWidget()
         sl = QVBoxLayout(sc)

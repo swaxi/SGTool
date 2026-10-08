@@ -6,6 +6,7 @@ from qgis.PyQt.QtWidgets import (
     QScrollArea, QTabWidget, QPushButton, QLabel, QLineEdit,
     QCheckBox, QRadioButton, QComboBox, QGroupBox, QDateEdit,
     QTextEdit, QTextBrowser, QSpinBox, QDoubleSpinBox, QFrame,
+    QButtonGroup,
 )
 from qgis.gui import (
     QgsMapLayerComboBox, QgsProjectionSelectionWidget,
@@ -109,6 +110,65 @@ class SGToolDockWidget(QDockWidget):
         return scroll
 
     # ------------------------------------------------------------------
+    # Helper: Apply button + live-preview controls (fixed bar above the
+    # scroll area). `suffix` keeps the widget names unique per tab.
+    # ------------------------------------------------------------------
+    def _apply_preview_bar(self, apply_button, suffix=""):
+        chk = QCheckBox(_tr("Preview"))
+        chk.setToolTip(
+            _tr(
+                "Live preview of one filter in a single temporary layer that "
+                "updates as you change parameters.\n"
+                "Only one filter can be ticked while previewing, and filters "
+                "that can't be previewed are disabled.\n"
+                "Unchecking discards the preview; use Keep to save the "
+                "full-resolution result as a permanent layer."
+            )
+        )
+        rad_extent = QRadioButton(_tr("Map extent"))
+        rad_extent.setToolTip(
+            _tr("Preview at full resolution for the current map canvas extent\n"
+                "(pan/zoom to update; edges show filter edge effects)")
+        )
+        rad_extent.setChecked(True)
+        rad_sub = QRadioButton(_tr("Subsampled grid"))
+        rad_sub.setToolTip(
+            _tr("Preview the whole grid, block-averaged to a coarser cell size.\n"
+                "Fast, but filters set in pixels (convolution, stats, AGC) act on\n"
+                "the coarser cells, and line noise is lost if the cell size\n"
+                "exceeds the line spacing.")
+        )
+        # explicit group so these don't share exclusivity with other radios
+        group = QButtonGroup(self)
+        group.addButton(rad_extent)
+        group.addButton(rad_sub)
+        keep = QPushButton(_tr("Keep"))
+        keep.setToolTip(
+            _tr("Compute the previewed filter at full resolution, add it as a "
+                "permanent layer and switch preview off")
+        )
+        keep.setEnabled(False)  # only while a preview is active
+
+        setattr(self, "checkBox_preview" + suffix, chk)
+        setattr(self, "radioButton_preview_extent" + suffix, rad_extent)
+        setattr(self, "radioButton_preview_sub" + suffix, rad_sub)
+        setattr(self, "pushButton_preview_keep" + suffix, keep)
+        setattr(self, "buttonGroup_preview" + suffix, group)
+
+        bar = QWidget()
+        bl = QHBoxLayout(bar)
+        bl.setContentsMargins(0, 0, 0, 0)
+        bl.setSpacing(6)
+        bl.addWidget(apply_button)
+        bl.addSpacing(10)
+        bl.addWidget(chk)
+        bl.addWidget(rad_extent)
+        bl.addWidget(rad_sub)
+        bl.addWidget(keep)
+        bl.addStretch()
+        return bar
+
+    # ------------------------------------------------------------------
     # TAB 1 – FFT Filters
     # ------------------------------------------------------------------
     def _tab_fft_filters(self):
@@ -145,6 +205,14 @@ class SGToolDockWidget(QDockWidget):
 
         outer.addWidget(top)
 
+        # ── Fixed: Apply Processing + live preview controls ─────────
+        self.pushButton_3_applyProcessing = QPushButton(_tr("Apply Processing"))
+        self.pushButton_3_applyProcessing.setStyleSheet(
+            "font-weight: bold;")
+        outer.addWidget(
+            self._apply_preview_bar(self.pushButton_3_applyProcessing)
+        )
+
         # ── Scrollable middle ────────────────────────────────────────
         scroll_content = QWidget()
         sl = QVBoxLayout(scroll_content)
@@ -157,15 +225,11 @@ class SGToolDockWidget(QDockWidget):
 
         outer.addWidget(self._scroll_wrap(scroll_content), 1)
 
-        # ── Fixed bottom: Apply Processing row ──────────────────────
+        # ── Fixed bottom: buffer / version row ──────────────────────
         bot = QWidget()
         bl = QHBoxLayout(bot)
         bl.setContentsMargins(0, 2, 0, 0)
         bl.setSpacing(6)
-
-        self.pushButton_3_applyProcessing = QPushButton(_tr("Apply Processing"))
-        self.pushButton_3_applyProcessing.setStyleSheet(
-            "font-weight: bold;")
 
         self.label_37 = QLabel(_tr("Max FFT Buffer (pixels)"))
         self.label_37.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -179,7 +243,6 @@ class SGToolDockWidget(QDockWidget):
 
         self.label_41_units = QLabel(_tr("Units"))
 
-        bl.addWidget(self.pushButton_3_applyProcessing)
         bl.addStretch()
         bl.addWidget(self.label_37)
         bl.addWidget(self.lineEdit_13_max_buffer)
@@ -473,6 +536,16 @@ class SGToolDockWidget(QDockWidget):
         tl.addWidget(self.mMapLayerComboBox_selectGrid_Conv, 1)
         outer.addWidget(top)
 
+        # ── Fixed: Apply Processing + live preview controls ─────────
+        self.pushButton_3_applyProcessing_Conv = QPushButton(_tr("Apply Processing"))
+        self.pushButton_3_applyProcessing_Conv.setStyleSheet(
+            "font-weight: bold;")
+        outer.addWidget(
+            self._apply_preview_bar(
+                self.pushButton_3_applyProcessing_Conv, suffix="_conv"
+            )
+        )
+
         # ── Scrollable middle ────────────────────────────────────────
         sc = QWidget()
         sl = QVBoxLayout(sc)
@@ -484,17 +557,6 @@ class SGToolDockWidget(QDockWidget):
         sl.addWidget(self._group_euler())
         sl.addStretch()
         outer.addWidget(self._scroll_wrap(sc), 1)
-
-        # ── Fixed bottom: Apply Processing ───────────────────────────
-        bot = QWidget()
-        bl = QHBoxLayout(bot)
-        bl.setContentsMargins(0, 2, 0, 0)
-        self.pushButton_3_applyProcessing_Conv = QPushButton(_tr("Apply Processing"))
-        self.pushButton_3_applyProcessing_Conv.setStyleSheet(
-            "font-weight: bold;")
-        bl.addWidget(self.pushButton_3_applyProcessing_Conv)
-        bl.addStretch()
-        outer.addWidget(bot)
         return tab
 
     # ------------------------------------------------------------------
@@ -1058,15 +1120,10 @@ class SGToolDockWidget(QDockWidget):
         tab.setStyleSheet("#Utils { " + TAB_BG + " }")
 
         outer = QVBoxLayout(tab)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
+        outer.setContentsMargins(6, 6, 6, 6)
+        outer.setSpacing(4)
 
-        sc = QWidget()
-        sl = QVBoxLayout(sc)
-        sl.setContentsMargins(6, 6, 6, 6)
-        sl.setSpacing(6)
-
-        # Select Grid (top of Utils)
+        # ── Fixed top: Select Grid ───────────────────────────────────
         top_row = QWidget()
         tl = QHBoxLayout(top_row)
         tl.setContentsMargins(0, 0, 0, 0)
@@ -1075,21 +1132,25 @@ class SGToolDockWidget(QDockWidget):
         self.mMapLayerComboBox_selectGrid_Conv_2 = QgsMapLayerComboBox()
         tl.addWidget(self.label_56)
         tl.addWidget(self.mMapLayerComboBox_selectGrid_Conv_2, 1)
-        sl.addWidget(top_row)
+        outer.addWidget(top_row)
+
+        # ── Fixed: Apply Processing + live preview controls ─────────
+        self.pushButton_3_applyProcessing_Conv_3 = QPushButton(_tr("Apply Processing"))
+        self.pushButton_3_applyProcessing_Conv_3.setStyleSheet("font-weight: bold;")
+        outer.addWidget(
+            self._apply_preview_bar(
+                self.pushButton_3_applyProcessing_Conv_3, suffix="_utils"
+            )
+        )
+
+        # ── Scrollable middle ────────────────────────────────────────
+        sc = QWidget()
+        sl = QVBoxLayout(sc)
+        sl.setContentsMargins(2, 2, 2, 2)
+        sl.setSpacing(6)
 
         sl.addWidget(self._group_nan_threshold())
         sl.addWidget(self._group_clip_polygon())
-
-        # Apply Processing
-        apply_row = QWidget()
-        al = QHBoxLayout(apply_row)
-        al.setContentsMargins(0, 0, 0, 0)
-        self.pushButton_3_applyProcessing_Conv_3 = QPushButton(_tr("Apply Processing"))
-        self.pushButton_3_applyProcessing_Conv_3.setStyleSheet("font-weight: bold;")
-        al.addWidget(self.pushButton_3_applyProcessing_Conv_3)
-        al.addStretch()
-        sl.addWidget(apply_row)
-
         sl.addWidget(self._group_normalise())
         sl.addWidget(self._group_lut_convert())
         sl.addStretch()
@@ -1310,7 +1371,7 @@ or a python wrapper at <a href="https://github.com/cgre-aachen/pynoddy">https://
 <p>Help File reflects latest changes on GitHub. If a feature is not available in the version
 you are using, go to Code Repository for latest version</p>
 <p><b>Code development</b></p>
-<p>- Calcs ChatGPT and Mark Jessell</p>
+<p>- Calcs Claude, ChatGPT and Mark Jessell</p>
 <p>- Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin
 <a href="https://g-sherman.github.io/Qgis-Plugin-Builder/">https://g-sherman.github.io/Qgis-Plugin-Builder/</a></p>
 <p>- IGRF calculation - using pyIGRF
@@ -1324,5 +1385,5 @@ you are using, go to Code Repository for latest version</p>
 <p>- Multilevel B-Spline (MBA) Gridding — native Python translation of SAGA's grid_spline algorithm (no external plugin required)</p>
 <p>- Differential (Variable) RTP — G.R.J. Cooper & D.R. Cowan (2005) Taylor-series method</p>
 <p>- MRVBF/MRRTF (Multiresolution Valley Bottom/Ridge Top Flatness) — J.C. Gallant & T.I. Dowling (2003)</p>
-
+<p>- Euler Deconvolution uses Felipe F. Melo and Valéria C.F. Barbosa's Reliable Euler method https://github.com/ffigura/Euler-deconvolution-python</p>
 </body></html>"""

@@ -25,7 +25,8 @@ changelog=0.3.8
       * retain std df/dz for Euler solutions
       * Improved and debugged Direction Cosine/Butterworth filter: min/max line spacing inputs define the noise band, noise estimate is zero-centred before scaling and subtraction
       * Add live Preview (FFT Filters, Conv + Stats and Utils tabs): one temporary layer that updates as parameters change, for the current map extent or a subsampled grid, with Keep to save the full resolution result
-      * Add provenance metadata: every saved file gets a filename.sgt.xml sidecar with creation time, source file(s) and their XML, and the parameters used. Output size and time are recorded so a changed file can be detected, and the sidecar is removed when the plugin deletes its file
+      * Add provenance metadata: how each saved file was made (creation time, source file(s) and their XML, operation and parameters, chained through successive steps) is embedded in saved GeoTIFFs, or in a filename.sgt.xml sidecar for files that cannot carry it
+      * Add Read metadata button to the Utils tab to show a grid's processing history in a new window
       * Apply Processing moved to a fixed bar at the top of the tabs, next to the Preview controls
       * Fix repeated entries in menus and duplicated signal connections when the plugin is reopened
       * Fix first recalculation failing to overwrite an existing output grid on Windows

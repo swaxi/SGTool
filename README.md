@@ -12,7 +12,8 @@
       * retain std df/dz for Euler solutions
       * Improved and debugged Direction Cosine/Butterworth filter: min/max line spacing inputs define the noise band, noise estimate is zero-centred before scaling and subtraction
       * Add live Preview (FFT Filters, Conv + Stats and Utils tabs): one temporary layer that updates as parameters change, for the current map extent or a subsampled grid, with Keep to save the full resolution result
-      * Add provenance metadata: every saved file gets a filename.sgt.xml sidecar with creation time, source file(s) and their XML, and the parameters used. Output size and time are recorded so a changed file can be detected, and the sidecar is removed when the plugin deletes its file
+      * Add provenance metadata: how each saved file was made (creation time, source file(s) and their XML, operation and parameters, chained through successive steps) is embedded in saved GeoTIFFs, or in a filename.sgt.xml sidecar for files that cannot carry it
+      * Add Read metadata button to the Utils tab to show a grid's processing history in a new window
       * Apply Processing moved to a fixed bar at the top of the tabs, next to the Preview controls
       * Fix repeated entries in menus and duplicated signal connections when the plugin is reopened
       * Fix first recalculation failing to overwrite an existing output grid on Windows
@@ -114,15 +115,17 @@ The **FFT Filters**, **Conv + Stats** and **Utils** (Threshold to NaN) tabs have
 
 ## Provenance Metadata (QGIS)   
 
-Every file the plugin saves to disk gets a small XML sidecar next to it, named after the file with `.sgt.xml` added (for example `grid_DirC.tif` gets `grid_DirC.tif.sgt.xml`). It records:   
+Every file the plugin saves records how it was made. For **GeoTIFFs** this is stored inside the file itself, in its own GDAL metadata domain (`SGTOOL`, item `provenance_xml`), the same way the Noddy grid import stores its header, so it travels with the file when it is copied or renamed. The operation, creation time and SGTool version are also written as ordinary GeoTIFF metadata items (`SGTOOL_OPERATION`, `SGTOOL_CREATED`, `SGTOOL_VERSION`) so they show in the QGIS layer properties. Files that cannot carry metadata (shapefiles, csv and txt outputs) get a small XML sidecar instead, named after the file with `.sgt.xml` added (for example `pts.csv.shp.sgt.xml`); the same sidecar is the fallback if a GeoTIFF cannot be updated (for example because it is locked). The record contains:   
 
 - **When**: the date and time of creation (with time zone) and the SGTool version.   
-- **Source**: the path of the file or files it was made from, plus any XML metadata those sources carry: their own `.sgt.xml` (so a chain of processing steps can be followed back to the original data), GDAL `.aux.xml` (the band statistics, without the bulky histogram), and other `.xml` sidecars such as the `.grd.xml` that accompanies Geosoft grids.   
+- **Source**: the path of the file or files it was made from, plus any XML metadata those sources carry: their own SGTool record (embedded or sidecar, so each step contains the steps before it and a chain of processing can be followed back to the original data), GDAL `.aux.xml` (the band statistics, without the bulky histogram), and other `.xml` sidecars such as the `.grd.xml` that accompanies Geosoft grids.   
 - **How**: the operation and the parameters that were set to create it (for example azimuth, line spacing and scale for the directional filter, or structural index and window size for Euler deconvolution).   
 
-The sidecar also records the output's size and modified time when it was written, so it can be checked later: if another program overwrites the file, those no longer match and the sidecar is out of date (`sidecar_status()` in `calcs/sgt_metadata.py` reports `current`, `stale`, `missing` or `unknown`). When the plugin itself overwrites or deletes a file it replaces or removes the sidecar too.   
+**Reading it back**: on the **Utils** tab, select a grid and press **Read metadata of selected grid**. A new window shows the history (this step, then each earlier step nested beneath the file it produced, with the parameters used and the source statistics) and the raw XML. If the grid has no SGTool metadata, a message at the top of the map canvas says so.   
 
-This covers filter outputs, gridding, imports and conversions, Euler solutions and window statistics, PCA/ICA, MRVBF, worms, grid normalisation and boundary outlines. Temporary preview layers are not saved to disk so get no sidecar, but a result made with **Keep** does. Writing the sidecar can never stop a calculation: if it fails, a message is printed to the Python console and processing carries on. (Grids made through the GRASS IDW dialog are written by that dialog and do not get a sidecar yet.)   
+Sidecars record the output's size and modified time when written, so a sidecar left beside a file that another program has since overwritten can be recognised (`sidecar_status()` in `calcs/sgt_metadata.py` reports `current`, `stale`, `missing` or `unknown`). When the plugin overwrites or deletes a file it also removes any old-style sidecar for it. Metadata embedded in a GeoTIFF needs no such clean-up as it is part of the file, and files made by earlier SGTool versions with a `.sgt.xml` sidecar are still read.   
+
+This covers filter outputs, gridding, imports and conversions, Euler solutions and window statistics, PCA/ICA, MRVBF, worms, grid normalisation and boundary outlines. Temporary preview layers are not saved to disk so carry no record, but a result made with **Keep** does. Recording provenance can never stop a calculation: if it fails, a message is printed to the Python console and processing carries on. (Grids made through the GRASS IDW dialog are written by that dialog and do not get a sidecar yet.)   
 
 ## Grav/Mag Filters   
    

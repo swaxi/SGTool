@@ -23,7 +23,10 @@
 """
 
 from qgis.PyQt.QtGui import QIcon, QDesktopServices, QValidator
-from qgis.PyQt.QtWidgets import QAction, QDockWidget, QFileDialog, QMessageBox
+from qgis.PyQt.QtWidgets import (
+    QAction, QDockWidget, QFileDialog, QMessageBox,
+    QDialog, QVBoxLayout, QTabWidget, QTextBrowser, QPlainTextEdit, QWidget,
+)
 from qgis.core import (
     Qgis,
     QgsCoordinateReferenceSystem,
@@ -149,7 +152,13 @@ from .calcs.aseggdf2parser import AsegGdf2Parser
 # from .calcs.euler.euler_python_optimised import euler_deconv_opt
 from .calcs.euler.euler_python import euler_deconv
 from .calcs.euler.estimates_statistics import window_stats
-from .calcs.sgt_metadata import write_sgt_metadata, remove_sgt_metadata
+from .calcs.sgt_metadata import (
+    write_sgt_metadata,
+    remove_sgt_metadata,
+    read_sgt_metadata,
+    format_sgt_metadata_html,
+    sgt_metadata_xml_text,
+)
 from .calcs.mrvbf import mrvbf as calc_mrvbf
 from .calcs.saga_mba_gridding import mba_gridding
 
@@ -1051,6 +1060,64 @@ class SGTool:
         write_sgt_metadata(
             output_path, source, operation, parameters, self._software_version()
         )
+
+    def show_metadata(self):
+        """Read the SGTool provenance of the grid selected in the Utils tab and
+        show it in a new window (or say there is none)."""
+        name = self.dlg.mMapLayerComboBox_selectGrid_Conv_2.currentText()
+        layers = QgsProject.instance().mapLayersByName(name) if name else []
+        if not layers or not isinstance(layers[0], QgsRasterLayer):
+            self.iface.messageBar().pushMessage(
+                "SGTool metadata", "Select a grid first",
+                level=Qgis.Info, duration=5,
+            )
+            return
+        path = layers[0].source().split("|")[0]
+        root = read_sgt_metadata(path)
+        if root is None:
+            self.iface.messageBar().pushMessage(
+                "SGTool metadata",
+                f"No SGTool metadata found for {name}",
+                level=Qgis.Info, duration=6,
+            )
+            return
+        self._show_metadata_window(name, root)
+
+    def _show_metadata_window(self, name, root):
+        main_window = self.iface.mainWindow()
+        win = QDialog(main_window if isinstance(main_window, QWidget) else None)
+        win.setWindowTitle(f"SGTool metadata: {name}")
+        win.resize(760, 640)
+        try:
+            win.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        except AttributeError:
+            win.setAttribute(Qt.WA_DeleteOnClose)
+
+        tabs = QTabWidget()
+        summary = QTextBrowser()
+        summary.setHtml(format_sgt_metadata_html(root))
+        raw = QPlainTextEdit()
+        raw.setReadOnly(True)
+        raw.setPlainText(sgt_metadata_xml_text(root))
+        tabs.addTab(summary, "History")
+        tabs.addTab(raw, "XML")
+        layout = QVBoxLayout(win)
+        layout.addWidget(tabs)
+
+        # keep a reference so the (modeless) window is not garbage collected,
+        # and forget it when it closes: WA_DeleteOnClose deletes the C++ object,
+        # so the stale Python wrapper must never be touched afterwards
+        if not hasattr(self, "_metadata_windows"):
+            self._metadata_windows = []
+        self._metadata_windows.append(win)
+        win.destroyed.connect(
+            lambda *_args, w=win: self._metadata_windows.remove(w)
+            if w in self._metadata_windows
+            else None
+        )
+        win.show()
+        win.raise_()
+        return win
 
     def remove_metadata(self, output_path):
         """Delete the .sgt.xml sidecar of an output that is being deleted or
@@ -5120,6 +5187,7 @@ class SGTool:
             )
             self.update_wavelet_choices()
             self._init_preview()
+            self.dlg.pushButton_read_metadata.clicked.connect(self.show_metadata)
 
             self.dlg.pushButton_3_applyProcessing_Conv_3.clicked.connect(
                 self.processGeophysics_fft

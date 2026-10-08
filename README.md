@@ -12,6 +12,7 @@
       * retain std df/dz for Euler solutions
       * Improved and debugged Direction Cosine/Butterworth filter: min/max line spacing inputs define the noise band, noise estimate is zero-centred before scaling and subtraction
       * Add live Preview (FFT Filters, Conv + Stats and Utils tabs): one temporary layer that updates as parameters change, for the current map extent or a subsampled grid, with Keep to save the full resolution result
+      * Add provenance metadata: every saved file gets a filename.sgt.xml sidecar with creation time, source file(s) and their XML, and the parameters used. Output size and time are recorded so a changed file can be detected, and the sidecar is removed when the plugin deletes its file
       * Apply Processing moved to a fixed bar at the top of the tabs, next to the Preview controls
       * Fix repeated entries in menus and duplicated signal connections when the plugin is reopened
       * Fix first recalculation failing to overwrite an existing output grid on Windows
@@ -110,6 +111,18 @@ The **FFT Filters**, **Conv + Stats** and **Utils** (Threshold to NaN) tabs have
 - **Keep**: calculates the previewed filter at full resolution, adds it as a normal permanent layer (with the usual name and suffix), and switches preview off.   
 - **Unticking Preview** (or closing the plugin, or changing tab) discards the temporary layer. Unticking the last ticked filter clears the image but keeps preview mode on, so ticking a filter brings it straight back.   
 - The preview layer is shown with bilinear resampling when zoomed in to reduce the blocky look of a coarse preview.   
+
+## Provenance Metadata (QGIS)   
+
+Every file the plugin saves to disk gets a small XML sidecar next to it, named after the file with `.sgt.xml` added (for example `grid_DirC.tif` gets `grid_DirC.tif.sgt.xml`). It records:   
+
+- **When**: the date and time of creation (with time zone) and the SGTool version.   
+- **Source**: the path of the file or files it was made from, plus any XML metadata those sources carry: their own `.sgt.xml` (so a chain of processing steps can be followed back to the original data), GDAL `.aux.xml` (the band statistics, without the bulky histogram), and other `.xml` sidecars such as the `.grd.xml` that accompanies Geosoft grids.   
+- **How**: the operation and the parameters that were set to create it (for example azimuth, line spacing and scale for the directional filter, or structural index and window size for Euler deconvolution).   
+
+The sidecar also records the output's size and modified time when it was written, so it can be checked later: if another program overwrites the file, those no longer match and the sidecar is out of date (`sidecar_status()` in `calcs/sgt_metadata.py` reports `current`, `stale`, `missing` or `unknown`). When the plugin itself overwrites or deletes a file it replaces or removes the sidecar too.   
+
+This covers filter outputs, gridding, imports and conversions, Euler solutions and window statistics, PCA/ICA, MRVBF, worms, grid normalisation and boundary outlines. Temporary preview layers are not saved to disk so get no sidecar, but a result made with **Keep** does. Writing the sidecar can never stop a calculation: if it fails, a message is printed to the Python console and processing carries on. (Grids made through the GRASS IDW dialog are written by that dialog and do not get a sidecar yet.)   
 
 ## Grav/Mag Filters   
    

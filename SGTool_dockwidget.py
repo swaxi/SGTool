@@ -1149,6 +1149,7 @@ class SGToolDockWidget(QDockWidget):
         sl.setContentsMargins(2, 2, 2, 2)
         sl.setSpacing(6)
 
+        sl.addWidget(self._group_metadata())
         sl.addWidget(self._group_nan_threshold())
         sl.addWidget(self._group_clip_polygon())
         sl.addWidget(self._group_normalise())
@@ -1157,6 +1158,29 @@ class SGToolDockWidget(QDockWidget):
 
         outer.addWidget(self._scroll_wrap(sc))
         return tab
+
+    # ------------------------------------------------------------------
+    # Group: SGTool provenance metadata reader
+    # ------------------------------------------------------------------
+    def _group_metadata(self):
+        gb = QGroupBox(_tr("SGTool Metadata"))
+        g = QGridLayout(gb)
+        g.setSpacing(4)
+
+        self.pushButton_read_metadata = QPushButton(
+            _tr("Read metadata of selected grid")
+        )
+        self.pushButton_read_metadata.setToolTip(
+            _tr(
+                "Show how the selected grid was made: when, from which source "
+                "file(s), and with which operation and parameters, back through "
+                "every earlier SGTool step.\n"
+                "This provenance is stored inside GeoTIFFs saved by SGTool."
+            )
+        )
+        g.addWidget(self.pushButton_read_metadata, 0, 0)
+        g.setColumnStretch(1, 1)
+        return gb
 
     # ------------------------------------------------------------------
     # Group: Threshold to NaN

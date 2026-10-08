@@ -16,6 +16,7 @@ effect between steps and inside long loops (Euler deconvolution, B-spline
 levels); a single FFT call cannot be interrupted part-way.
 """
 
+import gc
 import os
 
 import numpy as np
@@ -25,6 +26,7 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.core import (
     QgsProcessing,
     QgsProcessingAlgorithm,
+    QgsProcessingContext,
     QgsProcessingException,
     QgsProcessingParameterBoolean,
     QgsProcessingParameterEnum,
@@ -172,6 +174,53 @@ class GridContext:
         _long, lat = self.centroid
         dx, dy = self.sg_util.arc_degree_to_meters(lat)
         return np.sqrt(dx**2.0 + dy**2.0) / 2
+
+
+def _fmt(value):
+    """A number as the plugin dialog would show it in a file name: 500.0 -> '500'."""
+    return "%.10g" % float(value)
+
+
+# File-name suffix for each filter, the same as the dialog gives its outputs
+# (grid.tif -> grid_d1z.tif), worked out from the algorithm's settings.
+SUFFIXES = {
+    "directional_line_noise": lambda p: (
+        "_DirC_noise" if p["OUTPUT_TYPE"].startswith("Noise") else "_DirC"
+    ),
+    "reduction_to_pole": lambda p: "_RTP",
+    "reduction_to_equator": lambda p: "_RTE",
+    "continuation": lambda p: ("_UC_" if p["DIRECTION"] == "up" else "_DC_") + _fmt(p["HEIGHT"]),
+    "vertical_integration": lambda p: "_VI",
+    "remove_regional": lambda p: "_RR_" + p["ORDER"][0] + "o",
+    "band_pass": lambda p: (
+        "_BP_" + _fmt(p["LOW_CUT"] if p["LOW_CUT"] > 0 else 1e-10) + "_" + _fmt(p["HIGH_CUT"])
+    ),
+    "high_low_pass": lambda p: ("_LP_" if p["TYPE"] == "Low" else "_HP_") + _fmt(p["CUTOFF"]),
+    "automatic_gain_control": lambda p: "_AGC",
+    "derivative": lambda p: "_d" + _fmt(p["POWER"]) + p["DIRECTION"],
+    "tilt_angle": lambda p: "_TA",
+    "analytic_signal": lambda p: "_AS",
+    "total_horizontal_gradient": lambda p: "_THG",
+    "mean_filter": lambda p: "_Mn",
+    "median_filter": lambda p: "_Md",
+    "gaussian_filter": lambda p: "_Gs",
+    "directional_filter": lambda p: "_Dr",
+    "sun_shading": lambda p: "_Sh",
+    "windowed_statistic": lambda p: {
+        "min": "_SS_Min", "max": "_SS_Max", "std": "_SS_StdDev",
+        "variance": "_SS_Var", "skewness": "_SS_Skew", "kurtosis": "_SS_Kurt",
+    }[p["STATISTIC"]],
+    "threshold_to_nan": lambda p: "_Clean",
+    "pca": lambda p: "_PCA",
+    "ica": lambda p: "_ICA",
+}
+
+
+def auto_output_path(source_path, suffix, extension=".tif"):
+    """Where the dialog would save a result: next to the source, named after it
+    plus the processing step."""
+    base, _ext = os.path.splitext(source_path)
+    return base + suffix + extension
 
 
 def _check_length(g, length):
@@ -567,11 +616,80 @@ class _SGToolAlgorithm(QgsProcessingAlgorithm):
     def groupId(self):
         return self.spec["group"][0]
 
-    def shortHelpString(self):
-        return self.spec["help"]
-
     def tags(self):
         return ["sgtool", "geophysics", "potential field", "grid"]
+
+    OUTPUT_HELP = (
+        "\n\nOutput: choose a file, or leave it empty to save next to the input "
+        "named after it plus the processing step (for example grid_d1z.tif), "
+        "and add it to the project, as the SGTool dialog does."
+    )
+
+    def helpString(self):
+        return self.spec["help"] + self.OUTPUT_HELP
+
+    def shortHelpString(self):
+        return self.spec["help"] + self.OUTPUT_HELP
+
+    def _auto_target(self, parameters, context):
+        """The automatic output path for these settings, or None. Subclasses
+        that save a grid next to their input provide it."""
+        return None
+
+    def prepareAlgorithm(self, parameters, context, feedback):
+        """Runs on the main thread before the calculation. If the result will
+        replace a grid that is open in QGIS, remove that layer from the project
+        first (as the SGTool dialog does) so the file is not locked."""
+        if parameters.get(self.OUTPUT) in (None, ""):
+            try:
+                target = self._auto_target(parameters, context)
+            except Exception:
+                target = None
+            if target and os.path.exists(target):
+                project = context.project()
+                if project is not None:
+                    wanted = os.path.normcase(os.path.abspath(target))
+                    for lyr in list(project.mapLayers().values()):
+                        source = lyr.source().split("|")[0]
+                        if os.path.normcase(os.path.abspath(source)) == wanted:
+                            project.removeMapLayer(lyr.id())
+                    gc.collect()  # let go of the file handle
+        return True
+
+    def _resolve_output(self, parameters, context, auto_path, layer_name, raster=True):
+        """(path to write, chosen automatically?)
+
+        A file picked by the user is used as given. If the output is left
+        empty the result goes to auto_path (the dialog's naming) and, for
+        grids, is queued to be loaded into the project under layer_name.
+        An existing file of that name is replaced, as in the dialog."""
+        if raster:
+            chosen = self.parameterAsOutputLayer(parameters, self.OUTPUT, context)
+        else:
+            chosen = self.parameterAsFileOutput(parameters, self.OUTPUT, context)
+        if chosen:
+            return chosen, False
+        if os.path.exists(auto_path):
+            try:
+                os.remove(auto_path)
+            except OSError:
+                raise QgsProcessingException(
+                    f"{auto_path} already exists and could not be replaced. If it is "
+                    "open in QGIS, remove that layer first (or choose another output file)."
+                )
+            for stale in (auto_path + ".aux.xml", auto_path + ".sgt.xml"):
+                if os.path.exists(stale):
+                    try:
+                        os.remove(stale)
+                    except OSError:
+                        pass
+        project = context.project()
+        if raster and project is not None:
+            context.addLayerToLoadOnCompletion(
+                auto_path,
+                QgsProcessingContext.LayerDetails(layer_name, project, self.OUTPUT),
+            )
+        return auto_path, True
 
     def icon(self):
         return QIcon(os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.png"))
@@ -595,15 +713,31 @@ class RasterFilterAlgorithm(_SGToolAlgorithm):
             )
             buf.setMinimum(0)
             self.addParameter(buf)
-        self.addParameter(QgsProcessingParameterRasterDestination(self.OUTPUT, "Output grid"))
+        # optional, not created by default: left empty it is saved next to the
+        # input with the dialog's naming (see _resolve_output)
+        self.addParameter(
+            QgsProcessingParameterRasterDestination(
+                self.OUTPUT, "Output grid (optional: default is next to the input)",
+                None, True, False,
+            )
+        )
+
+    def _auto_target(self, parameters, context):
+        layer = self.parameterAsRasterLayer(parameters, self.INPUT, context)
+        if layer is None:
+            return None
+        values = _read_values(self, self.spec["params"], parameters, context)
+        return auto_output_path(
+            layer.source().split("|")[0], SUFFIXES[self.spec["id"]](values)
+        )
 
     def processAlgorithm(self, parameters, context, feedback):
         layer = self.parameterAsRasterLayer(parameters, self.INPUT, context)
         if layer is None:
             raise QgsProcessingException("Select an input grid")
         source_path = layer.source().split("|")[0]
-        out_path = self.parameterAsOutputLayer(parameters, self.OUTPUT, context)
         values = _read_values(self, self.spec["params"], parameters, context)
+        suffix = SUFFIXES[self.spec["id"]](values)
         buffer = (
             self.parameterAsInt(parameters, self.BUFFER, context) if self.spec["fft"] else 0
         )
@@ -622,6 +756,10 @@ class RasterFilterAlgorithm(_SGToolAlgorithm):
             if result is None:
                 raise QgsProcessingException("Nothing was calculated for these settings")
             feedback.setProgress(85)
+            out_path, _auto = self._resolve_output(
+                parameters, context,
+                auto_output_path(source_path, suffix), layer.name() + suffix,
+            )
             write_grid(out_path, np.asarray(result), gt, projection)
         except OperationCancelled:
             return {}
@@ -663,7 +801,8 @@ class EulerAlgorithm(_SGToolAlgorithm):
         self.addParameter(keep)
         self.addParameter(
             QgsProcessingParameterFileDestination(
-                self.OUTPUT, "Euler solutions", "CSV files (*.csv)"
+                self.OUTPUT, "Euler solutions (optional: default is next to the input)",
+                "CSV files (*.csv)", None, True, False,
             )
         )
 
@@ -672,7 +811,6 @@ class EulerAlgorithm(_SGToolAlgorithm):
         if layer is None:
             raise QgsProcessingException("Select an input grid")
         source_path = layer.source().split("|")[0]
-        out_path = self.parameterAsFileOutput(parameters, self.OUTPUT, context)
         si_index = self.parameterAsEnum(parameters, self.SI, context)
         SI = self.SI_VALUES[si_index]
         winsize = self.parameterAsInt(parameters, self.WINDOW, context)
@@ -708,6 +846,12 @@ class EulerAlgorithm(_SGToolAlgorithm):
         except OperationCancelled:
             return {}
 
+        # the dialog's name for these solutions: <grid>_estimates_SI_<n>, here as .csv
+        out_path, _auto = self._resolve_output(
+            parameters, context,
+            auto_output_path(source_path, f"_estimates_SI_{si_index}", ".csv"),
+            "", raster=False,
+        )
         np.savetxt(out_path, result, delimiter=",", header=self.HEADER, comments="")
         write_sgt_metadata(
             out_path, source_path, "Euler deconvolution",
@@ -739,7 +883,20 @@ class ComponentAnalysisAlgorithm(_SGToolAlgorithm):
         )
         n.setMinimum(1)
         self.addParameter(n)
-        self.addParameter(QgsProcessingParameterRasterDestination(self.OUTPUT, "Output grid"))
+        self.addParameter(
+            QgsProcessingParameterRasterDestination(
+                self.OUTPUT, "Output grid (optional: default is next to the input)",
+                None, True, False,
+            )
+        )
+
+    def _auto_target(self, parameters, context):
+        layer = self.parameterAsRasterLayer(parameters, self.INPUT, context)
+        if layer is None:
+            return None
+        return auto_output_path(
+            layer.source().split("|")[0], SUFFIXES[self.spec["id"]]({})
+        )
 
     def processAlgorithm(self, parameters, context, feedback):
         try:
@@ -753,8 +910,13 @@ class ComponentAnalysisAlgorithm(_SGToolAlgorithm):
         if layer is None:
             raise QgsProcessingException("Select an input grid")
         source_path = layer.source().split("|")[0]
-        out_path = self.parameterAsOutputLayer(parameters, self.OUTPUT, context)
         n = self.parameterAsInt(parameters, self.COMPONENTS, context)
+        suffix = SUFFIXES[self.spec["id"]]({})
+        # the analysis writes the file itself, so the output is settled first
+        out_path, _auto = self._resolve_output(
+            parameters, context,
+            auto_output_path(source_path, suffix), layer.name() + suffix,
+        )
         feedback.setProgress(10)
         analysis = PCAICA([[0.0]])  # the methods work from the file paths
         if self.spec["id"] == "pca":
@@ -817,7 +979,36 @@ class BSplineGriddingAlgorithm(_SGToolAlgorithm):
                 _number_type("Double"), None, True,
             )
         )
-        self.addParameter(QgsProcessingParameterRasterDestination(self.OUTPUT, "Output grid"))
+        self.addParameter(
+            QgsProcessingParameterRasterDestination(
+                self.OUTPUT, "Output grid (optional: default is next to the input points)",
+                None, True, False,
+            )
+        )
+
+    def _points_naming(self, parameters, context):
+        """(points layer name, its file or None, automatic output path): the
+        dialog's name <points>_<field>_bspline, next to the points file (the
+        temp folder if the points are not a file, e.g. a memory layer)."""
+        field = self.parameterAsString(parameters, self.FIELD, context)
+        points_layer = self.parameterAsVectorLayer(parameters, self.INPUT, context)
+        layer_name, file_path = "points", None
+        if points_layer is not None:
+            layer_name = points_layer.name()
+            candidate = points_layer.source().split("|")[0]
+            if os.path.isfile(candidate):
+                file_path = candidate
+        suffix = f"_{field}_bspline"
+        if file_path:
+            return layer_name, file_path, auto_output_path(file_path, suffix)
+        import tempfile
+
+        return layer_name, None, os.path.join(
+            tempfile.gettempdir(), layer_name + suffix + ".tif"
+        )
+
+    def _auto_target(self, parameters, context):
+        return self._points_naming(parameters, context)[2]
 
     def processAlgorithm(self, parameters, context, feedback):
         source = self.parameterAsSource(parameters, self.INPUT, context)
@@ -832,7 +1023,6 @@ class BSplineGriddingAlgorithm(_SGToolAlgorithm):
             if parameters.get(self.IGNORE_BELOW) not in (None, "")
             else None
         )
-        out_path = self.parameterAsOutputLayer(parameters, self.OUTPUT, context)
 
         xs, ys, zs = [], [], []
         for feat in source.getFeatures():
@@ -884,6 +1074,12 @@ class BSplineGriddingAlgorithm(_SGToolAlgorithm):
         grid = np.flipud(grid)  # row 0 = ymin from the gridder; GeoTIFF is north-up
         gt = (xmin - cell_size / 2.0, cell_size, 0.0,
               ymin + (ny - 0.5) * cell_size, 0.0, -cell_size)
+
+        # source file and name of the points layer, for provenance and naming
+        layer_name, source_layer_path, auto_path = self._points_naming(parameters, context)
+        out_path, _auto = self._resolve_output(
+            parameters, context, auto_path, layer_name + f"_{field}_bspline"
+        )
         write_grid(out_path, grid, gt, source.sourceCrs().toWkt())
 
         params = {
@@ -892,11 +1088,6 @@ class BSplineGriddingAlgorithm(_SGToolAlgorithm):
         }
         if ignore_below is not None:
             params["ignore_values_below"] = ignore_below
-        source_layer_path = None
-        try:
-            source_layer_path = context.getMapLayer(parameters[self.INPUT]).source().split("|")[0]
-        except Exception:
-            pass
         write_sgt_metadata(
             out_path, source_layer_path, "Multilevel B-spline gridding", params,
             _plugin_version(),

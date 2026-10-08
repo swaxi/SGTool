@@ -149,6 +149,7 @@ from .calcs.aseggdf2parser import AsegGdf2Parser
 # from .calcs.euler.euler_python_optimised import euler_deconv_opt
 from .calcs.euler.euler_python import euler_deconv
 from .calcs.euler.estimates_statistics import window_stats
+from .calcs.sgt_metadata import write_sgt_metadata
 from .calcs.mrvbf import mrvbf as calc_mrvbf
 from .calcs.saga_mba_gridding import mba_gridding
 
@@ -1029,6 +1030,155 @@ class SGTool:
         # Combine directory and new file name
         return os.path.join(dir_name, new_file_name)
 
+    # ------------------------------------------------------------------
+    # Provenance metadata: every file the plugin saves gets a
+    # <file>.sgt.xml sidecar recording when and how it was made
+    # ------------------------------------------------------------------
+    def _software_version(self):
+        try:
+            return self.show_version().strip()
+        except Exception:
+            return None
+
+    def write_metadata(self, output_path, operation, parameters=None, source=None):
+        """Write <output_path>.sgt.xml (never raises).
+
+        source defaults to the grid currently being processed
+        (self.diskGridPath); pass a path or list of paths to override.
+        """
+        if source is None:
+            source = getattr(self, "diskGridPath", None)
+        write_sgt_metadata(
+            output_path, source, operation, parameters, self._software_version()
+        )
+
+    def _filter_metadata(self, suffix):
+        """(operation, parameters) for the filter that produced `suffix`.
+
+        Read from the parameters parseParams() stored when processing started.
+        """
+        s = suffix or ""
+        if s == "_DirC":
+            min_sp = float(self.DC_lineSpacing)
+            try:
+                max_sp = max(float(self.DC_lineSpacingMax), min_sp)
+            except (TypeError, ValueError):
+                max_sp = min_sp
+            return "Directional Cosine/Butterworth line-noise removal", {
+                "azimuth": self.DC_azimuth,
+                "line_spacing_min": min_sp,
+                "line_spacing_max": max_sp,
+                "scale": self.DC_scale,
+                "band_wavelength_min": 2 * min_sp,
+                "band_wavelength_max": 10 * max_sp,
+                "direction_width_deg": 45,
+                "butterworth_order": 4,
+            }
+        if s in ("_RTP", "_RTE"):
+            return (
+                "Reduction to pole" if s == "_RTP" else "Reduction to equator"
+            ), {"inclination": self.RTE_P_inc, "declination": self.RTE_P_dec}
+        if s == "_DRTP":
+            return "Differential reduction to pole", {
+                "date": "-".join(str(v) for v in reversed(self.RTE_P_date))
+            }
+        if s.startswith("_RR_"):
+            return "Remove regional", {"polynomial_order": self.RemRegional_order}
+        if s.startswith("_d") and s[-1:] in ("x", "y", "z"):
+            return "Derivative", {
+                "direction": self.derive_direction,
+                "power": self.derive_power,
+            }
+        if s == "_TA":
+            return "Tilt angle", {}
+        if s == "_AS":
+            return "Analytic signal", {}
+        if s == "_THG":
+            return "Total horizontal gradient", {}
+        if s == "_VI":
+            return "Vertical integration", {}
+        if s.startswith("_UC_") or s.startswith("_DC_"):
+            return (
+                "Upward continuation" if s.startswith("_UC_")
+                else "Downward continuation"
+            ), {"height": self.cont_height}
+        if s.startswith("_BP_"):
+            return "Band pass", {
+                "low_cut": self.band_low,
+                "high_cut": self.band_high,
+                "transition_width": self.band_width,
+            }
+        if s.startswith("_LP_") or s.startswith("_HP_"):
+            return (
+                "Low pass" if s.startswith("_LP_") else "High pass"
+            ), {
+                "cutoff_wavelength": self.FreqCut_cut,
+                "transition_width": self.FreqCut_width,
+            }
+        if s == "_AGC":
+            return "Automatic gain control", {"window_pixels": self.agc_window}
+        if s == "_Mn":
+            return "Mean filter", {"filter_size": self.mean_conv_size}
+        if s == "_Md":
+            return "Median filter", {"filter_size": self.median_conv_size}
+        if s == "_Gs":
+            return "Gaussian filter", {"sigma": self.gauss_rad}
+        if s == "_Dr":
+            return "Directional filter", {"direction": self.directional_dir}
+        if s == "_Sh":
+            return "Sun shading", {
+                "azimuth": self.sun_shade_az,
+                "zenith": self.sun_shade_zn,
+                "relief_shading": self.dlg.checkBox_relief.isChecked(),
+            }
+        if s == "_Clean":
+            return "Threshold to NaN", {
+                "condition": self.NaN_Condition,
+                "above": self.NaN_Above,
+                "below": self.NaN_Below,
+            }
+        stats = {
+            "_SS_Min": "min", "_SS_Max": "max", "_SS_StdDev": "std",
+            "_SS_Var": "variance", "_SS_Skew": "skewness", "_SS_Kurt": "kurtosis",
+        }
+        if s in stats:
+            return "Windowed statistic", {
+                "statistic": stats[s],
+                "window_size": self.SS_window_size,
+            }
+        if s in ("_SS_AnisoMag", "_SS_AnisoOrient"):
+            return "Local anisotropy", {
+                "window_size": self.SS_window_size,
+                "window_type": self.SS_anisotropy_window_type,
+            }
+        if s in ("_SS_ChainLen", "_SS_StreamLen"):
+            params = {
+                "window_size": self.SS_window_size,
+                "anisotropy_threshold": self.SS_aniso_threshold,
+                "angle_tolerance": self.SS_angle_tolerance,
+            }
+            if s == "_SS_ChainLen":
+                params["search_radius"] = self.SS_search_radius
+                return "Anisotropy chain length", params
+            params["max_steps"] = self.SS_max_steps
+            return "Anisotropy streamline length", params
+        if s in ("_MRVBF", "_MRRTF"):
+            return (
+                "Multiresolution valley bottom flatness" if s == "_MRVBF"
+                else "Multiresolution ridge top flatness"
+            ), self._mrvbf_parameters()
+        return (s.lstrip("_") or "Processing"), {}
+
+    def _mrvbf_parameters(self):
+        return {
+            "t_slope": self.MRVBF_t_slope,
+            "t_pctl_v": self.MRVBF_t_pctl_v,
+            "t_pctl_r": self.MRVBF_t_pctl_r,
+            "p_slope": self.MRVBF_p_slope,
+            "p_pctl": self.MRVBF_p_pctl,
+            "max_res": self.MRVBF_max_res,
+        }
+
     def procIDWGridding(self):
         gridder = QGISGridData(self.iface)
 
@@ -1231,6 +1381,24 @@ class SGTool:
         band.FlushCache()
         band = None
         ds = None
+
+        bspline_params = {
+            "data_field": zcolumn,
+            "cell_size": cell_size,
+            "epsilon": epsilon,
+            "max_levels": level_max,
+            "points_used": int(xs.size),
+        }
+        if self.dlg.checkBox_bspline_ignore.isChecked():
+            bspline_params["ignore_values_below"] = self.to_float(
+                self.dlg.lineEdit_bspline_ignore.text()
+            )
+        self.write_metadata(
+            out_path,
+            "Multilevel B-spline gridding",
+            bspline_params,
+            source=layer.source().split("|")[0],
+        )
 
         layer_out_name = f"{layer_name}_{zcolumn}_bspline"
         if self.is_layer_loaded(layer_out_name):
@@ -1822,7 +1990,14 @@ class SGTool:
             out_path = self.insert_text_before_extension(self.diskGridPath, tag)
             if ".tif" not in out_path.lower():
                 out_path = os.path.splitext(out_path)[0] + ".tif"
-            self.numpy_array_to_raster(grid, out_path, reference_layer=self.layer)
+            if self.numpy_array_to_raster(grid, out_path, reference_layer=self.layer) != -1:
+                self.write_metadata(
+                    out_path,
+                    "Differential RTP: interpolated "
+                    + ("inclination" if tag.endswith("inc") else "declination")
+                    + " field",
+                    {"date": "-".join(str(v) for v in reversed(self.RTE_P_date))},
+                )
 
     def procRemRegional(self):
 
@@ -2103,18 +2278,32 @@ class SGTool:
             # convert the list to an array
             output = np.asarray(est_classic)
             # save the estimates in distinct files according to the SI
+            euler_header = "y_source, x_source, z_source, base_level, std_dfdz"
             for i in range(len(SI_vet)):
-                np.savetxt(
+                est_path = (
                     head_tail[0]
                     + "/"
                     + self.localGridName
                     + "_estimates_SI_"
                     + str(i)
-                    + ".txt",
+                    + ".txt"
+                )
+                np.savetxt(
+                    est_path,
                     output[i],
                     delimiter=",",
-                    header="y_source, x_source, z_source, base_level, std_dfdz",
+                    header=euler_header,
                     comments="",  # This removes the # prefix
+                )
+                self.write_metadata(
+                    est_path,
+                    "Euler deconvolution",
+                    {
+                        "structural_index": SI_vet[i],
+                        "window_size": winsize,
+                        "fraction_of_solutions_kept": filt,
+                        "columns": euler_header,
+                    },
                 )
             # optional windowed stats
             if self.dlg.checkBox_ED_Stats.isChecked():
@@ -2129,6 +2318,22 @@ class SGTool:
                     winsize,
                     detailed_stats=True,
                 )
+                stats_files = [
+                    f"{head_tail[0]}/{self.localGridName}_window_stats_SI_"
+                    f"{0 if si == 0.001 else si}.txt"
+                    for si in SI_vet
+                ] + [f"{head_tail[0]}/{self.localGridName}_window_summary.txt"]
+                for stats_file in stats_files:
+                    if os.path.exists(stats_file):
+                        self.write_metadata(
+                            stats_file,
+                            "Euler deconvolution window statistics",
+                            {
+                                "window_size": winsize,
+                                "fraction_of_solutions_kept": filt,
+                                "structural_indices": SI_vet,
+                            },
+                        )
 
             self.iface.messageBar().pushMessage(
                 "Euler Solutions saved to same directory as input grid",
@@ -2167,6 +2372,11 @@ class SGTool:
             self.diskGridPath, self.diskNewGridPath, n_components
         )
         if components is not None:
+            self.write_metadata(
+                self.diskNewGridPath,
+                "Principal component analysis",
+                {"n_components": n_components},
+            )
             PCA_raster_layer = QgsRasterLayer(
                 self.diskNewGridPath, self.localGridName + self.suffix
             )
@@ -2266,6 +2476,11 @@ class SGTool:
             self.diskGridPath, self.diskNewGridPath, n_components
         )
         if mixing_matrix is not None:
+            self.write_metadata(
+                self.diskNewGridPath,
+                "Independent component analysis",
+                {"n_components": n_components},
+            )
             ICA_raster_layer = QgsRasterLayer(
                 self.diskNewGridPath, self.localGridName + self.suffix
             )
@@ -2287,6 +2502,12 @@ class SGTool:
             if not layer.isValid():
                 raise ValueError(f"Failed to load layer: {output_path_shp}")
             else:
+                self.write_metadata(
+                    output_path_shp,
+                    "Grid boundary outline",
+                    {},
+                    source=input_raster_path,
+                )
                 # Add the layer to the current QGIS project
                 QgsProject.instance().addMapLayer(layer)
 
@@ -2311,6 +2532,22 @@ class SGTool:
             and outpath != ""
         ):
             processor.normalise_geotiffs(inpath, outpath, order)
+            for name in sorted(os.listdir(inpath)):
+                if not name.lower().endswith(".tif"):
+                    continue
+                out_file = os.path.join(outpath, name)
+                if os.path.exists(out_file) and os.path.abspath(
+                    out_file
+                ) != os.path.abspath(os.path.join(inpath, name)):
+                    self.write_metadata(
+                        out_file,
+                        "Normalise grids",
+                        {
+                            "gradient_removed": "1st order" if order else "2nd order",
+                            "scaled_to_std_of_first_grid": True,
+                        },
+                        source=os.path.join(inpath, name),
+                    )
 
     def procSS_Min(self):
         self.new_grid = self.SpatialStats.calculate_windowed_stats(
@@ -2480,6 +2717,10 @@ class SGTool:
                 feedback=QgsProcessingFeedback(),
             )
 
+        if os.path.exists(slope_path):
+            self.write_metadata(
+                slope_path, "Slope (degrees)", {"z_factor": 1.0}
+            )
         slope_layer = QgsRasterLayer(slope_path, self.base_name + "_slope")
         if slope_layer.isValid():
             QgsProject.instance().addMapLayer(slope_layer)
@@ -2503,9 +2744,19 @@ class SGTool:
             project = QgsProject.instance()
             for lyr in project.mapLayersByName(self.base_name + "_MRVBF_RGB"):
                 project.removeMapLayer(lyr.id())
-        self._write_multiband_raster(
-            [mrrtf_grid, mrvbf_grid, slope_arr], rgb_path, self.layer
-        )
+        if (
+            self._write_multiband_raster(
+                [mrrtf_grid, mrvbf_grid, slope_arr], rgb_path, self.layer
+            )
+            == 0
+        ):
+            rgb_params = self._mrvbf_parameters()
+            rgb_params["bands"] = "R=MRRTF, G=MRVBF, B=slope"
+            self.write_metadata(
+                rgb_path,
+                "MRVBF/MRRTF/slope RGB composite",
+                rgb_params,
+            )
         rgb_layer = QgsRasterLayer(rgb_path, self.base_name + "_MRVBF_RGB")
         if rgb_layer.isValid():
             QgsProject.instance().addMapLayer(rgb_layer)
@@ -2658,6 +2909,38 @@ class SGTool:
                     shps,
                     crs,
                 )
+                worm_dir, worm_file = os.path.split(self.diskGridPath)
+                worm_stem = os.path.splitext(worm_file)[0]
+                worm_params = {
+                    "levels": num_levels,
+                    "bottom_level": bottom_level,
+                    "level_increment": delta_z,
+                    "shapefile": shps,
+                }
+                worm_outputs = [
+                    (
+                        worm_dir + "/" + worm_stem + "_worms.csv",
+                        "Worms (BSDWormer) points",
+                    ),
+                    (
+                        self.insert_text_before_extension(
+                            self.diskGridPath, "_padded"
+                        ),
+                        "Worms padded and tapered input grid",
+                    ),
+                ]
+                if shps:
+                    worm_outputs.append(
+                        (
+                            worm_dir + "/" + worm_stem + "_worms.shp",
+                            "Worms (BSDWormer) polylines",
+                        )
+                    )
+                for worm_path, worm_op in worm_outputs:
+                    if os.path.exists(worm_path):
+                        self.write_metadata(
+                            worm_path, worm_op, worm_params, source=self.diskGridPath
+                        )
                 self.iface.messageBar().pushMessage(
                     "Worms saved to same directory as original grid",
                     level=Qgis.Success,
@@ -2906,6 +3189,8 @@ class SGTool:
                 no_data_value=np.nan,
             )
             if err != -1:
+                op, params = self._filter_metadata(self.suffix)
+                self.write_metadata(self.diskNewGridPath, op, params)
                 con_raster_layer = QgsRasterLayer(
                     self.diskNewGridPath, self.base_name + self.suffix
                 )
@@ -3642,6 +3927,13 @@ class SGTool:
         dataset.FlushCache()
         dataset = None
 
+        self.write_metadata(
+            geotiff_path,
+            "Import Noddy grid",
+            dict(metadata, data_type=dataType),
+            source=input_file,
+        )
+
         self.layer = QgsRasterLayer(geotiff_path, layer_name)
         if not self.is_layer_loaded(layer_name):
             QgsProject.instance().addMapLayer(self.layer)
@@ -3702,6 +3994,7 @@ class SGTool:
                     )
                     return
                 else:
+                    source_grd = self.diskGridPath  # kept for the metadata sidecar
                     directory_path = os.path.dirname(self.diskGridPath)
                     basename = os.path.basename(self.diskGridPath)
                     filename_without_extension = os.path.splitext(basename)[0]
@@ -3757,6 +4050,14 @@ class SGTool:
                     ds.SetProjection(srs.ExportToWkt())
                     ds.FlushCache()
                     ds = None
+
+                    # any <file>.grd.xml beside the source is embedded by the helper
+                    self.write_metadata(
+                        self.diskGridPath,
+                        "Convert Geosoft grid to GeoTIFF",
+                        {"epsg": epsg},
+                        source=source_grd,
+                    )
 
                     self.layer = QgsRasterLayer(
                         self.diskGridPath, filename_without_extension
@@ -5250,6 +5551,16 @@ class SGTool:
                             y_field,
                             self.points_epsg,
                         )
+                        self.write_metadata(
+                            output_path,
+                            "Import ASEG-GDF2 (.dat) points",
+                            {
+                                "x_field": x_field,
+                                "y_field": y_field,
+                                "epsg": self.points_epsg,
+                            },
+                            source=self.diskPointsPath,
+                        )
 
                         layer = QgsVectorLayer(output_path, file_name)
                         # Add the layer to the current QGIS project
@@ -5307,7 +5618,13 @@ class SGTool:
         layer = QgsVectorLayer(uri, layer_name, "delimitedtext")
         if not layer.isValid():
             raise ValueError(f"Failed to load layer: {file_path}")
-        self.save_layer_as_shapefile(layer, output_path)
+        if self.save_layer_as_shapefile(layer, output_path):
+            self.write_metadata(
+                output_path,
+                "Import points from delimited text",
+                {"x_field": x_field, "y_field": y_field, "crs": crs},
+                source=file_path,
+            )
 
         layer2 = QgsVectorLayer(output_path, layer_name)
         # Add the layer to the current QGIS project
@@ -5620,7 +5937,13 @@ class SGTool:
 
         if not point_layer.isValid():
             raise ValueError(f"Failed to load layer: {XYZ_file}")
-        self.save_layer_as_shapefile(point_layer, output_path)
+        if self.save_layer_as_shapefile(point_layer, output_path):
+            self.write_metadata(
+                output_path,
+                "Import line (XYZ) data",
+                {"crs": f"EPSG:{crs}", "layer_name": layer_name, "load_tie_lines": load_ties},
+                source=XYZ_file,
+            )
 
         layer2 = QgsVectorLayer(output_path, basename)
         # Add the layer to the current QGIS project
@@ -5752,6 +6075,13 @@ class SGTool:
         output_band = None
         output_dataset = None
         dataset = None
+
+        self.write_metadata(
+            RGBGridPath_gray,
+            "RGB image to grey scale",
+            {"lookup_table": LUT, "scale_min": LUT_min, "scale_max": LUT_max},
+            source=RGBGridPath,
+        )
 
         result = True
         return result, RGBGridPath_gray

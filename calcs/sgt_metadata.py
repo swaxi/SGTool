@@ -415,6 +415,16 @@ def format_sgt_metadata_html(root):
     return "".join(parts)
 
 
+def save_sgt_metadata_xml(root, grid_path):
+    """Write a provenance element to <grid_path>.sgt.xml (replacing any existing
+    file) and return that path. Raises OSError if it cannot be written."""
+    path = sidecar_path(_clean_path(grid_path))
+    if hasattr(ET, "indent"):
+        ET.indent(root, space="  ")
+    ET.ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
+    return path
+
+
 def sgt_metadata_xml_text(root):
     """Pretty-printed XML text of a provenance element."""
     return _to_text(root)

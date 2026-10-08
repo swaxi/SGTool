@@ -157,6 +157,7 @@ from .calcs.sgt_metadata import (
     remove_sgt_metadata,
     read_sgt_metadata,
     format_sgt_metadata_html,
+    save_sgt_metadata_xml,
     sgt_metadata_xml_text,
 )
 from .calcs.mrvbf import mrvbf as calc_mrvbf
@@ -1061,9 +1062,9 @@ class SGTool:
             output_path, source, operation, parameters, self._software_version()
         )
 
-    def show_metadata(self):
-        """Read the SGTool provenance of the grid selected in the Utils tab and
-        show it in a new window (or say there is none)."""
+    def _selected_grid_metadata(self):
+        """(layer name, file path, provenance) for the grid selected in the
+        Utils tab, or None after telling the user why there is nothing."""
         name = self.dlg.mMapLayerComboBox_selectGrid_Conv_2.currentText()
         layers = QgsProject.instance().mapLayersByName(name) if name else []
         if not layers or not isinstance(layers[0], QgsRasterLayer):
@@ -1071,7 +1072,7 @@ class SGTool:
                 "SGTool metadata", "Select a grid first",
                 level=Qgis.Info, duration=5,
             )
-            return
+            return None
         path = layers[0].source().split("|")[0]
         root = read_sgt_metadata(path)
         if root is None:
@@ -1080,8 +1081,37 @@ class SGTool:
                 f"No SGTool metadata found for {name}",
                 level=Qgis.Info, duration=6,
             )
+            return None
+        return name, path, root
+
+    def show_metadata(self):
+        """Read the SGTool provenance of the grid selected in the Utils tab and
+        show it in a new window (or say there is none)."""
+        found = self._selected_grid_metadata()
+        if found:
+            self._show_metadata_window(found[0], found[2])
+
+    def save_metadata_xml(self):
+        """Save the selected grid's SGTool provenance as <grid file>.sgt.xml
+        in the grid's folder."""
+        found = self._selected_grid_metadata()
+        if not found:
             return
-        self._show_metadata_window(name, root)
+        name, path, root = found
+        try:
+            out_path = save_sgt_metadata_xml(root, path)
+        except OSError as e:
+            self.iface.messageBar().pushMessage(
+                "SGTool metadata",
+                f"Could not save metadata for {name}: {e}",
+                level=Qgis.Warning, duration=8,
+            )
+            return
+        self.iface.messageBar().pushMessage(
+            "SGTool metadata",
+            f"Saved metadata for {name} to {out_path}",
+            level=Qgis.Success, duration=8,
+        )
 
     def _show_metadata_window(self, name, root):
         main_window = self.iface.mainWindow()
@@ -5188,6 +5218,7 @@ class SGTool:
             self.update_wavelet_choices()
             self._init_preview()
             self.dlg.pushButton_read_metadata.clicked.connect(self.show_metadata)
+            self.dlg.pushButton_save_metadata_xml.clicked.connect(self.save_metadata_xml)
 
             self.dlg.pushButton_3_applyProcessing_Conv_3.clicked.connect(
                 self.processGeophysics_fft

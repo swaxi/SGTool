@@ -1920,10 +1920,23 @@ class SGToolApp(tk.Tk):
     # ======================================================================
     def _calc_igrf(self):
         try:
-            from arcgis_utils import calc_igrf, raster_center_latlon
+            from arcgis_utils import (calc_igrf, raster_center_latlon,
+                                      get_noddy_mag_params)
+
+            in_r = self._resolve_input()
+
+            # Noddy GeoTIFF: use the field stored in its metadata
+            noddy = get_noddy_mag_params(in_r) if in_r else None
+            if noddy is not None:
+                inc, dec, F = noddy
+                self.v_inc.set(f"{inc:.2f}")
+                self.v_dec.set(f"{dec:.2f}")
+                self.v_intensity.set(f"{F:.1f}")
+                self._status(f"Noddy metadata: inc={inc:.2f}°  dec={dec:.2f}°  "
+                             f"F={F:.1f} nT")
+                return
 
             # Auto-populate Lat/Lon from the selected raster centre
-            in_r = self._resolve_input()
             if in_r:
                 centre = raster_center_latlon(in_r)
                 if centre is not None:
@@ -1952,7 +1965,12 @@ class SGToolApp(tk.Tk):
         Cooper_Cowan_rtpvariable (row nr = geographic north, row 1 = south).
         Returns (None, None, None, None) on any failure.
         """
-        from arcgis_utils import calc_igrf
+        from arcgis_utils import calc_igrf, get_noddy_mag_params
+        noddy = get_noddy_mag_params(in_r)
+        if noddy is not None:
+            # Noddy GeoTIFF: uniform field, so centre equals corners
+            inc, dec, _ = noddy
+            return [inc] * 4, [dec] * 4, inc, dec
         try:
             from osgeo import gdal, osr
             ds = gdal.Open(str(in_r), gdal.GA_ReadOnly)

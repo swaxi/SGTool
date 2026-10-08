@@ -256,3 +256,25 @@ def calc_igrf(lat, lon, altitude_km, date_decimal):
         return float(inc), float(dec), float(F)
     except Exception:
         return None
+
+
+def get_noddy_mag_params(raster_path):
+    """
+    Read inclination, declination and intensity from the GeoTIFF metadata
+    written when a Noddy grid is imported.
+    Returns (inc, dec, intensity) as floats, or None if the metadata is absent.
+    """
+    try:
+        from osgeo import gdal
+
+        ds = gdal.Open(str(raster_path).split("|")[0], gdal.GA_ReadOnly)
+        if ds is None:
+            return None
+        md = ds.GetMetadata()
+        ds = None
+        if not all(k in md for k in ("inclination", "declination", "intensity")):
+            return None
+        return (float(md["inclination"]), float(md["declination"]),
+                float(md["intensity"]))
+    except Exception:
+        return None

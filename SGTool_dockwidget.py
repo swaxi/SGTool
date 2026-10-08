@@ -1178,8 +1178,17 @@ class SGToolDockWidget(QDockWidget):
                 "This provenance is stored inside GeoTIFFs saved by SGTool."
             )
         )
+        self.pushButton_save_metadata_xml = QPushButton(_tr("Save as XML"))
+        self.pushButton_save_metadata_xml.setToolTip(
+            _tr(
+                "Save the selected grid's SGTool metadata as an XML file "
+                "called <grid file>.sgt.xml in the same folder as the grid "
+                "(replacing any existing file of that name)"
+            )
+        )
         g.addWidget(self.pushButton_read_metadata, 0, 0)
-        g.setColumnStretch(1, 1)
+        g.addWidget(self.pushButton_save_metadata_xml, 0, 1)
+        g.setColumnStretch(2, 1)
         return gb
 
     # ------------------------------------------------------------------

@@ -14,10 +14,11 @@ class LayerShim:
     layer.dataProvider().extent() -> width()/height()/xMinimum()/yMaximum()...
     and layer.crs().authid()."""
 
-    def __init__(self, extent, authid):
+    def __init__(self, extent, authid, geographic=False):
         """extent = (xmin, ymin, xmax, ymax); authid e.g. 'EPSG:28350'."""
         self._xmin, self._ymin, self._xmax, self._ymax = extent
         self._authid = authid
+        self._geographic = bool(geographic)
 
     # QgsRasterLayer / QgsRasterDataProvider
     def dataProvider(self):
@@ -51,3 +52,6 @@ class LayerShim:
     # QgsCoordinateReferenceSystem
     def authid(self):
         return self._authid
+
+    def isGeographic(self):
+        return self._geographic

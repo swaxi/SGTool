@@ -366,5 +366,138 @@ Useful for visualizing topography and enhancing features</source><translation>�
 90 = directly overhead, 0 = horizon</source><translation>太阳阴影的天顶角
 90 = 正上方，0 = 地平线</translation></message>
     <message><source>Uses Grass-like shading algorithm for softer shading</source><translation>使用类GRASS阴影算法实现更柔和的阴影效果</translation></message>
+    <!-- ── Added in 0.3.8 ── -->
+    <message><source>Angle tol°:</source><translation>角度容差°：</translation></message>
+    <message><source>Aniso thresh:</source><translation>各向异性阈值：</translation></message>
+    <message><source>Apply steps</source><translation>应用步骤</translation></message>
+    <message><source>Apply the same steps to another grid</source><translation>对另一栅格应用相同步骤</translation></message>
+    <message><source>Apply the same steps to another grid...</source><translation>对另一栅格应用相同步骤...</translation></message>
+    <message><source>Apply to grid:</source><translation>应用到栅格：</translation></message>
+    <message><source>Calculate local anisotropy magnitude (0–1) and dominant orientation (degrees)
+Returns two layers: _SS_AnisoMag and _SS_AnisoOrient</source><translation>计算局部各向异性强度 (0–1) 和主导方向（度）
+返回两个图层：_SS_AnisoMag 和 _SS_AnisoOrient</translation></message>
+    <message><source>Cancel</source><translation>取消</translation></message>
+    <message><source>Cancel running calculation</source><translation>取消正在运行的计算</translation></message>
+    <message><source>Cell size too large for the point extent</source><translation>像元大小相对于点的范围过大</translation></message>
+    <message><source>Chain Length</source><translation>链长度</translation></message>
+    <message><source>Chain Length: how many pixels ahead to cast the orientation ray when searching for the next connected pixel (1=8-neighbours only, 2–3 recommended for oblique features)</source><translation>链长度：搜索下一个相连像素时沿方向射线向前探查的像素数（1 = 仅 8 邻域，斜向特征建议 2–3）</translation></message>
+    <message><source>Compute the previewed filter at full resolution, add it as a permanent layer and switch preview off</source><translation>以完整分辨率计算预览的滤波器，将其添加为永久图层并关闭预览</translation></message>
+    <message><source>Date of the survey, for the IGRF model</source><translation>测量日期，用于 IGRF 模型</translation></message>
+    <message><source>Drop points whose data value is below the threshold before gridding
+(useful for removing nodata sentinels such as -99999 or -999999.9)</source><translation>在生成栅格之前丢弃数值低于阈值的点
+（可用于去除 -99999 或 -999999.9 等无数据标记值）</translation></message>
+    <message><source>Failed to load gridded result</source><translation>无法加载生成的栅格结果</translation></message>
+    <message><source>Half-width of the directional wedge in degrees: noise whose direction is within this angle of the azimuth is kept in the noise estimate, with a cosine taper. Wider keeps more of the noise (and more of the geology).</source><translation>方向楔的半宽度（度）：方向与方位角之差在此角度内的噪声会保留在噪声估计中，并带余弦渐变。越宽保留的噪声（和地质信号）越多。</translation></message>
+    <message><source>History of %s: %d steps, %d can be repeated. Steps run oldest first, each on the result of the one before.</source><translation>%s 的历史：共 %d 个步骤，其中 %d 个可以重复。步骤从最早的开始依次运行，每一步基于上一步的结果。</translation></message>
+    <message><source>Ignore values &lt;</source><translation>忽略小于以下值的数据 &lt;</translation></message>
+    <message><source>Inclination and declination for the reductions to the pole / equator are recalculated from IGRF for the new grid. Survey date:</source><translation>化极 / 化赤道的磁倾角和磁偏角将根据 IGRF 为新栅格重新计算。测量日期：</translation></message>
+    <message><source>Initial threshold for slope (percent) at the finest resolution</source><translation>最精细分辨率下的初始坡度阈值（百分比）</translation></message>
+    <message><source>Inverse Distance Weighting</source><translation>反距离加权</translation></message>
+    <message><source>Keep</source><translation>保留</translation></message>
+    <message><source>Keep this step's result as a file. Untick to delete it once the next step has been made from it (the last result is always kept).</source><translation>将此步骤的结果保存为文件。取消勾选则在下一步基于它完成后将其删除（最后一个结果始终保留）。</translation></message>
+    <message><source>Line Spacing min/max (proj units)</source><translation>测线间距 最小/最大（投影单位）</translation></message>
+    <message><source>Live preview of one filter in a single temporary layer that updates as you change parameters.
+Only one filter can be ticked while previewing, and filters that can't be previewed are disabled.
+Unchecking discards the preview; use Keep to save the full-resolution result as a permanent layer.</source><translation>在单个临时图层中实时预览一个滤波器，修改参数时自动更新。
+预览时只能勾选一个滤波器，无法预览的滤波器会被禁用。
+取消勾选将放弃预览；使用“保留”可将完整分辨率结果保存为永久图层。</translation></message>
+    <message><source>Local Anisotropy</source><translation>局部各向异性</translation></message>
+    <message><source>MBA maximum number of refinement levels (LEVEL_MAX)</source><translation>MBA 最大细化层数 (LEVEL_MAX)</translation></message>
+    <message><source>MBA threshold error (EPSILON): stop refining once every point residual is below this value</source><translation>MBA 阈值误差 (EPSILON)：当所有点的残差都小于该值时停止细化</translation></message>
+    <message><source>MRVBF / MRRTF / Slope</source><translation>MRVBF / MRRTF / 坡度</translation></message>
+    <message><source>MRVBF needs a projected raster with cell sizes in metres. Reproject the grid to a projected CRS and try again.</source><translation>MRVBF 需要像元大小以米为单位的投影栅格。请将栅格重投影到投影坐标系后重试。</translation></message>
+    <message><source>Map extent</source><translation>地图范围</translation></message>
+    <message><source>Max Levels</source><translation>最大层数</translation></message>
+    <message><source>Max Res %</source><translation>最大分辨率 %</translation></message>
+    <message><source>Max steps:</source><translation>最大步数：</translation></message>
+    <message><source>Maximum line spacing in the survey
+Leave blank if spacing is constant (uses the min value)</source><translation>测量中的最大测线间距
+如果间距恒定请留空（将使用最小值）</translation></message>
+    <message><source>Maximum number of sub-pixel steps per direction for Streamline Length</source><translation>流线长度每个方向的最大亚像素步数</translation></message>
+    <message><source>Maximum orientation difference (degrees) between adjacent pixels to be chained</source><translation>相邻像素被连接成链所允许的最大方向差（度）</translation></message>
+    <message><source>Maximum resolution as a percentage of the grid diagonal</source><translation>最大分辨率，以栅格对角线的百分比表示</translation></message>
+    <message><source>Minimum anisotropy magnitude for a pixel to be considered part of a feature (0–1)</source><translation>像素被视为特征一部分所需的最小各向异性强度 (0–1)</translation></message>
+    <message><source>Minimum line spacing in the survey
+Noise band is 2x min spacing to 10x max spacing</source><translation>测量中的最小测线间距
+噪声频带为最小间距的 2 倍到最大间距的 10 倍</translation></message>
+    <message><source>Multilevel B-Spline (MBA)</source><translation>多层 B 样条 (MBA)</translation></message>
+    <message><source>Multiresolution Valley Bottom Flatness (MRVBF) and Ridge Top
+Flatness (MRRTF) after Gallant &amp; Dowling 2003. Writes _MRVBF,
+_MRRTF and _slope grids plus a 3-band (MRRTF, MRVBF,
+Slope) composite. Requires a projected raster in metres.</source><translation>Gallant 和 Dowling 2003 的多分辨率谷底平坦度 (MRVBF) 与山脊顶平坦度
+(MRRTF)。输出 _MRVBF、_MRRTF 和 _slope 栅格，以及一个 3 波段
+（MRRTF、MRVBF、坡度）合成图。需要以米为单位的投影栅格。</translation></message>
+    <message><source>Need at least 3 valid points with a numeric value to grid</source><translation>至少需要 3 个带数值的有效点才能生成栅格</translation></message>
+    <message><source>No points layer selected</source><translation>未选择点图层</translation></message>
+    <message><source>Pctl Lowness</source><translation>低洼百分位</translation></message>
+    <message><source>Pctl Shape</source><translation>形状百分位</translation></message>
+    <message><source>Pctl Upness</source><translation>隆起百分位</translation></message>
+    <message><source>Perform Multilevel B-Spline (MBA) gridding of the selected point field
+into a temporary grid (local NumPy translation of SAGA's grid_spline tool)</source><translation>对所选点字段进行多层 B 样条 (MBA) 插值，
+生成临时栅格（SAGA grid_spline 工具的本地 NumPy 实现）</translation></message>
+    <message><source>Pick RGB from map: click button then click a point on the loaded RGB raster
+Click points equally spaced from low to high values</source><translation>从地图拾取 RGB：点击按钮，然后点击已加载 RGB 栅格上的点
+请按从低值到高值的顺序点击等间距的点</translation></message>
+    <message><source>Points with a value less than this are excluded from B-Spline gridding</source><translation>数值小于此值的点将被排除在 B 样条插值之外</translation></message>
+    <message><source>Preview</source><translation>预览</translation></message>
+    <message><source>Preview at full resolution for the current map canvas extent
+(pan/zoom to update; edges show filter edge effects)</source><translation>按当前地图画布范围以完整分辨率预览
+（平移/缩放以更新；边缘会显示滤波器的边缘效应）</translation></message>
+    <message><source>Preview the whole grid, block-averaged to a coarser cell size.
+Fast, but filters set in pixels (convolution, stats, AGC) act on
+the coarser cells, and line noise is lost if the cell size
+exceeds the line spacing.</source><translation>预览整个栅格，按块平均到更粗的像元大小。
+速度快，但以像素设定的滤波器（卷积、统计、AGC）将作用于
+更粗的像元，且当像元大小超过测线间距时，测线噪声会丢失。</translation></message>
+    <message><source>RTP: Reduction to Pole (high mag latitudes &gt;20°)
+Diff. RTP: Variable (Differential) RTP using Cooper/Cowan Taylor series — accounts for spatial variation in inc/dec across the survey area
+RTE: Reduction to Equator (low mag latitudes &lt;20°)</source><translation>RTP：化极（高磁纬度 &gt;20°）
+差分 RTP：使用 Cooper/Cowan 泰勒级数的变化（差分）化极——考虑测区内磁倾角/磁偏角的空间变化
+RTE：化赤道（低磁纬度 &lt;20°）</translation></message>
+    <message><source>Read metadata of selected grid</source><translation>读取所选栅格的元数据</translation></message>
+    <message><source>Reduction to pole or equator
+The reduction to the pole (RTP), differential RTP or to Equator (RTE) is a process in geophysics
+where magnetic data are transformed to look as though
+ they were measured at the magnetic pole/equator
+Corrects the asymmetry of magnetic anomalies caused by
+ the Earth's field, making them appear directly above their sources
+ Differential RTP (code derived from Cooper &amp; Cowan 2005) calculates RTP with spatially varying inclination and declination</source><translation>化极或化赤道
+化极 (RTP)、差分化极或化赤道 (RTE) 是一种地球物理处理方法，
+将磁数据转换为如同在磁极/磁赤道测得的结果。
+它校正地球磁场造成的磁异常不对称，
+使异常出现在其场源正上方。
+差分化极（代码源自 Cooper 和 Cowan 2005）使用随空间变化的磁倾角和磁偏角计算化极</translation></message>
+    <message><source>Repeat the processing steps in the selected grid's history on another grid, each on the result of the one before.
+Magnetic reductions (RTP, RTE, differential RTP) get a new inclination and declination from the IGRF model for the new grid.</source><translation>在另一个栅格上重复所选栅格历史中的处理步骤，每一步基于上一步的结果。
+磁场归算（RTP、RTE、差分 RTP）将根据 IGRF 模型为新栅格取得新的磁倾角和磁偏角。</translation></message>
+    <message><source>SGTool Metadata</source><translation>SGTool 元数据</translation></message>
+    <message><source>Save as XML</source><translation>另存为 XML</translation></message>
+    <message><source>Save the selected grid's SGTool metadata as an XML file called &lt;grid file&gt;.sgt.xml in the same folder as the grid (replacing any existing file of that name)</source><translation>将所选栅格的 SGTool 元数据保存为与栅格位于同一文件夹的 XML 文件 &lt;栅格文件&gt;.sgt.xml（会替换同名的现有文件）</translation></message>
+    <message><source>Score each pixel by sub-pixel forward+backward path length along the orientation field
+(handles curves; slower than Chain Length)</source><translation>按沿方向场的亚像素前向+后向路径长度为每个像素打分
+（可处理曲线；比链长度慢）</translation></message>
+    <message><source>Score each pixel by the length of the oriented chain it belongs to
+(discrete 8-connected, fast)</source><translation>按每个像素所属定向链的长度为其打分
+（离散 8 连通，速度快）</translation></message>
+    <message><source>Search r:</source><translation>搜索半径：</translation></message>
+    <message><source>Select a valid data field to grid</source><translation>请选择用于生成栅格的有效数据字段</translation></message>
+    <message><source>Shape parameter for the elevation percentile transformation</source><translation>高程百分位变换的形状参数</translation></message>
+    <message><source>Shape parameter for the slope transformation</source><translation>坡度变换的形状参数</translation></message>
+    <message><source>Show how the selected grid was made: when, from which source file(s), and with which operation and parameters, back through every earlier SGTool step.
+This provenance is stored inside GeoTIFFs saved by SGTool.</source><translation>显示所选栅格是如何生成的：何时、由哪些源文件、经过什么操作和参数，并追溯此前的每个 SGTool 步骤。
+这些来源信息存储在 SGTool 保存的 GeoTIFF 中。</translation></message>
+    <message><source>Slope Shape</source><translation>坡度形状</translation></message>
+    <message><source>Slope Threshold</source><translation>坡度阈值</translation></message>
+    <message><source>Square</source><translation>方形</translation></message>
+    <message><source>Stop the running calculation. It stops at its next checkpoint (between steps, and inside long loops such as Euler deconvolution), and nothing from it is saved.</source><translation>停止正在运行的计算。它会在下一个检查点（步骤之间以及欧拉反褶积等长循环内部）停止，且不保存任何结果。</translation></message>
+    <message><source>Stop the running calculation. It stops at its next checkpoint and nothing from it is saved.</source><translation>停止正在运行的计算。它会在下一个检查点停止，且不保存任何结果。</translation></message>
+    <message><source>Streamline Length</source><translation>流线长度</translation></message>
+    <message><source>Subsampled grid</source><translation>抽稀栅格</translation></message>
+    <message><source>Threshold Error</source><translation>阈值误差</translation></message>
+    <message><source>Threshold for lowness percentile (valley bottom flatness)</source><translation>低洼百分位阈值（谷底平坦度）</translation></message>
+    <message><source>Threshold for upness percentile (ridge top flatness)</source><translation>隆起百分位阈值（山脊顶平坦度）</translation></message>
+    <message><source>Too few points remain after the ignore-value filter</source><translation>忽略值过滤后剩余的点太少</translation></message>
+    <message><source>Wedge</source><translation>楔角</translation></message>
+    <message><source>max</source><translation>最大</translation></message>
 </context>
 </TS>

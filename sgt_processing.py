@@ -721,7 +721,7 @@ class RasterFilterAlgorithm(_SGToolAlgorithm):
         # input with the dialog's naming (see _resolve_output)
         self.addParameter(
             QgsProcessingParameterRasterDestination(
-                self.OUTPUT, "Output grid (optional: default is next to the input)",
+                self.OUTPUT, "Output grid (optional: default is standard SGTool file naming convention in same directory as input file)",
                 None, True, False,
             )
         )
@@ -805,7 +805,7 @@ class EulerAlgorithm(_SGToolAlgorithm):
         self.addParameter(keep)
         self.addParameter(
             QgsProcessingParameterFileDestination(
-                self.OUTPUT, "Euler solutions (optional: default is next to the input)",
+                self.OUTPUT, "Euler solutions (optional: default is standard SGTool file naming convention in same directory as input file)",
                 "CSV files (*.csv)", None, True, False,
             )
         )
@@ -889,7 +889,7 @@ class ComponentAnalysisAlgorithm(_SGToolAlgorithm):
         self.addParameter(n)
         self.addParameter(
             QgsProcessingParameterRasterDestination(
-                self.OUTPUT, "Output grid (optional: default is next to the input)",
+                self.OUTPUT, "Output grid (optional: default is standard SGTool file naming convention in same directory as input file)",
                 None, True, False,
             )
         )
@@ -985,7 +985,7 @@ class BSplineGriddingAlgorithm(_SGToolAlgorithm):
         )
         self.addParameter(
             QgsProcessingParameterRasterDestination(
-                self.OUTPUT, "Output grid (optional: default is next to the input points)",
+                self.OUTPUT, "Output grid (optional: default is standard SGTool file naming convention in same directory as input points)",
                 None, True, False,
             )
         )

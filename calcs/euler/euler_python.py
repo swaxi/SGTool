@@ -185,7 +185,7 @@ def moving_window(data, dx, dy, dz, xi, yi, zi, windowSize):
             )
 
 
-def euler_deconv(data, xi, yi, zi, shape, area, SI, windowSize, filt):
+def euler_deconv(data, xi, yi, zi, shape, area, SI, windowSize, filt, callback=None):
     """
     Euler deconvolution - solves the system of equations
     for each moving data window
@@ -206,6 +206,9 @@ def euler_deconv(data, xi, yi, zi, shape, area, SI, windowSize, filt):
         size of the window - equal in both directions
     * filt : float
         percentage of the solutions that will be keep
+    * callback : callable, optional
+        called as callback(fraction_done) once per row of windows; it may
+        raise calcs.sgt_cancel.OperationCancelled to stop the calculation
 
     Returns:
 
@@ -234,6 +237,8 @@ def euler_deconv(data, xi, yi, zi, shape, area, SI, windowSize, filt):
     for east, south, windata, windx, windy, windz, winx, winy, winz in moving_window(
         data, dx, dy, dz, xi, yi, zi, (windowSize, windowSize)
     ):
+        if callback is not None and east == 0:
+            callback(south / float(data.shape[0]))  # once per row of windows
         # to keep the same size of the window throughout the grid
         if windata.shape[0] != windowSize or windata.shape[1] != windowSize:
             continue

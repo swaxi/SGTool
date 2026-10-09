@@ -1062,6 +1062,63 @@ class GeophysicalProcessor:
             data, filter_function, buffer_size, buffer_method, preserve_dc=preserve_dc
         )
 
+    def line_noise_removal(
+        self,
+        data,
+        azimuth,
+        min_spacing,
+        max_spacing=None,
+        scale=1.0,
+        buffer_size=10,
+        direction_width=45,
+        order=4,
+        return_noise=False,
+    ):
+        """
+        Remove line-parallel (acquisition) noise from a grid.
+
+        Line noise varies across the lines with wavelengths of at least twice
+        the line spacing. A zero-centred noise estimate is made by passing
+        roughly 2 x min_spacing to 10 x max_spacing wavelengths through a
+        directional wedge about `azimuth` (the long-wavelength cut matters:
+        regional field also varies across the lines, so it lies inside the
+        wedge and would otherwise pass as offset/trend). The estimate,
+        multiplied by `scale`, is subtracted from the data.
+
+        Parameters
+        ----------
+        data : 2D array (north-up, NaN for no data)
+        azimuth : direction of the wedge, degrees clockwise from north
+        min_spacing, max_spacing : smallest / largest line spacing, in map
+            units (max_spacing defaults to min_spacing for constant spacing)
+        scale : multiplier applied to the noise estimate before subtraction
+        direction_width, order : wedge half-width (degrees) and Butterworth order
+        return_noise : return the scaled noise estimate instead of the
+            corrected grid
+
+        Returns
+        -------
+        2D array with NaN where the input was NaN
+        """
+        min_spacing = float(min_spacing)
+        max_spacing = max(float(max_spacing or min_spacing), min_spacing)
+        noise = self.directional_butterworth_band_pass(
+            data,
+            2 * min_spacing,  # low_cut: suppress wavelengths shorter than this
+            10 * max_spacing,  # high_cut: suppress wavelengths longer than this
+            direction_angle=float(azimuth),
+            direction_width=direction_width,
+            order=order,
+            buffer_size=buffer_size,
+            buffer_method="mirror",
+            preserve_dc=False,  # zero-centred, so scale doesn't scale the mean
+        )
+        nan_mask = np.isnan(noise)
+        noise[nan_mask] = 0.0
+        result = noise * scale if return_noise else data - noise * scale
+        result[nan_mask] = np.nan
+        return result
+
     def total_horizontal_gradient(self, data, buffer_size=10, buffer_method="mirror"):
         """
         Compute the total horizontal gradient (THG) of a 2D grid using Fourier filtering.
@@ -1156,10 +1213,13 @@ class GeophysicalProcessor:
         return self.restore_nan(unbuffered_data, nan_mask)
 
     def bsdwormer(
-        self, image, layer, gridPath, num_levels, bottom_level, delta_z, shps, crs
+        self, image, layer, gridPath, num_levels, bottom_level, delta_z, shps, crs,
+        callback=None,
     ):
         # code borrows heavilly from bsdwormer example ipynb template example
         # adds on the fly calc of padded grid
+        # callback(fraction_done) is called before each level and may raise
+        # calcs.sgt_cancel.OperationCancelled to stop the calculation.
 
         print(gridPath, num_levels, bottom_level, delta_z)
         # load grid and convert to numpy
@@ -1233,6 +1293,8 @@ class GeophysicalProcessor:
         print("num_levels", num_levels)
 
         for dz in range(0, num_levels):
+            if callback is not None:
+                callback(dz / float(num_levels))
             dzm = (dz * delta_z) + bottom_level
             if dzm == 0:
                 dzm = 0.01
@@ -1542,7 +1604,7 @@ class GeophysicalProcessor:
         data[data < -1e38] = safe_nodata_value
         return data, safe_nodata_value
 
-    def normalise_geotiffs(self, input_folder, output_folder, order):
+    def normalise_geotiffs(self, input_folder, output_folder, order, callback=None):
         """
         Process multiple GeoTIFF files by normalizing them using parameters from the first GeoTIFF.
         Args:
@@ -1566,7 +1628,10 @@ class GeophysicalProcessor:
             return
 
         first = True
-        for tiff_file in tiff_files:
+        for file_index, tiff_file in enumerate(tiff_files):
+            if callback is not None:
+                # may raise calcs.sgt_cancel.OperationCancelled to stop
+                callback(file_index / float(len(tiff_files)))
             # print("tiff_file", tiff_file)
             ds = gdal.Open(tiff_file, gdal.GA_ReadOnly)
             band = ds.GetRasterBand(1)

@@ -22,6 +22,8 @@ repository=https://github.com/swaxi/SGTool
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
 changelog=0.3.8
+      * Line-noise filter: new Wedge width setting; fix the filter removing too little noise (the opposite spectral lobe was not being filtered); Scale now defaults to 1
+      * Add Apply the same steps to another grid (Utils tab): repeats the processing steps recorded in a grid's history on another grid, recalculating inclination and declination from IGRF for RTP, RTE and differential RTP, with a choice of which intermediate results to keep. Also a Processing algorithm
       * retain std df/dz for Euler solutions
       * Improved and debugged Direction Cosine/Butterworth filter: min/max line spacing inputs define the noise band, noise estimate is zero-centred before scaling and subtraction
       * Add live Preview (FFT Filters, Conv + Stats and Utils tabs): one temporary layer that updates as parameters change, for the current map extent or a subsampled grid, with Keep to save the full resolution result

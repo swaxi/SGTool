@@ -1040,8 +1040,13 @@ class GeophysicalProcessor:
             # Use arctan2 to get angle in all quadrants
             k_angle = np.arctan2(ky, kx)
 
-            # Find smallest angular difference (handles wrap-around)
-            angle_diff = np.abs(np.mod(k_angle - angle_rad + np.pi, 2 * np.pi) - np.pi)
+            # Find smallest angular difference. A grid's spectrum is symmetric
+            # (every wavevector has an opposite one), so the direction is an
+            # axis, not an arrow: measure the angle modulo 180 degrees, so that
+            # k and -k are kept or removed together. (Measured modulo 360 the
+            # opposite lobe was removed and the real part of the result lost
+            # half its amplitude.)
+            angle_diff = np.abs(np.mod(k_angle - angle_rad + np.pi / 2, np.pi) - np.pi / 2)
 
             # Convert width to radians
             width_rad = np.radians(direction_width)

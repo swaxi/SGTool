@@ -356,7 +356,6 @@ class SGToolDockWidget(QDockWidget):
         g = QGridLayout(gb)
         g.setSpacing(4)
 
-        # Row 0: Radial Power Spectrum button (right-aligned)
         self.pushButton_rad_power_spectrum = QPushButton(_tr("Radial Power Spectrum"))
         row0 = QHBoxLayout()
         row0.addStretch()
@@ -378,8 +377,20 @@ class SGToolDockWidget(QDockWidget):
         self.lineEdit_3_DC_maxspacing.setFixedWidth(55)
         self.label_16 = QLabel(_tr("Scale"))
         self.label_16.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.lineEdit_3_DC_scale = QLineEdit("3")
+        # (1 is about right since the filter keeps both halves of the spectrum;
+        # it used to be 3 to make up for losing half the amplitude)
+        self.lineEdit_3_DC_scale = QLineEdit("1")
         self.lineEdit_3_DC_scale.setFixedWidth(35)
+        self.label_wedge = QLabel(_tr("Wedge"))
+        self.label_wedge.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.lineEdit_3_DC_width = QLineEdit("45")
+        self.lineEdit_3_DC_width.setFixedWidth(35)
+        self.lineEdit_3_DC_width.setToolTip(
+            _tr("Half-width of the directional wedge in degrees: noise whose "
+                "direction is within this angle of the azimuth is kept in the "
+                "noise estimate, with a cosine taper. Wider keeps more of the "
+                "noise (and more of the geology).")
+        )
 
         g.addWidget(self.checkBox_3_DirClean,   1, 0, 1, 2)
         g.addWidget(self.label_12,              1, 2)
@@ -395,6 +406,13 @@ class SGToolDockWidget(QDockWidget):
         g.addLayout(spacing_box,                1, 5)
         g.addWidget(self.label_16,              1, 6)
         g.addWidget(self.lineEdit_3_DC_scale,   1, 7)
+        wedge_box = QHBoxLayout()
+        wedge_box.setContentsMargins(0, 0, 0, 0)
+        wedge_box.setSpacing(4)
+        wedge_box.addWidget(self.label_wedge)
+        wedge_box.addWidget(self.lineEdit_3_DC_width)
+        wedge_box.addStretch()
+        g.addLayout(wedge_box,                  1, 8)
 
         # Row 2: Remove Regional
         self.checkBox_5_regional = QCheckBox(_tr("Remove Regional"))
@@ -1210,8 +1228,20 @@ class SGToolDockWidget(QDockWidget):
                 "(replacing any existing file of that name)"
             )
         )
+        self.pushButton_replay_history = QPushButton(
+            _tr("Apply the same steps to another grid...")
+        )
+        self.pushButton_replay_history.setToolTip(
+            _tr(
+                "Repeat the processing steps in the selected grid's history on "
+                "another grid, each on the result of the one before.\n"
+                "Magnetic reductions (RTP, RTE, differential RTP) get a new "
+                "inclination and declination from the IGRF model for the new grid."
+            )
+        )
         g.addWidget(self.pushButton_read_metadata, 0, 0)
         g.addWidget(self.pushButton_save_metadata_xml, 0, 1)
+        g.addWidget(self.pushButton_replay_history, 1, 0, 1, 2)
         g.setColumnStretch(2, 1)
         return gb
 

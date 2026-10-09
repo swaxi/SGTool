@@ -35,6 +35,7 @@ from qgis.core import (
     QgsProcessingParameterFileDestination,
     QgsProcessingParameterNumber,
     QgsProcessingParameterRasterDestination,
+    QgsProcessingOutputNumber,
     QgsProcessingParameterRasterLayer,
     QgsProcessingProvider,
 )
@@ -241,6 +242,7 @@ def _c_line_noise(g, p):
         p["LINE_SPACING_MAX"] or None,
         scale=p["SCALE"],
         buffer_size=g.buffer,
+        direction_width=p["WEDGE"],
         return_noise=p["OUTPUT_TYPE"].startswith("Noise"),
     )
 
@@ -412,7 +414,7 @@ FILTER_SPECS = [
         help=(
             "Removes line-parallel acquisition noise. A zero-centred noise "
             "estimate is made from wavelengths between 2 x the smallest and 10 x "
-            "the largest line spacing within a 45 degree wedge about the given "
+            "the largest line spacing within a wedge (45 degrees by default) about the given "
             "azimuth, multiplied by the scale, and subtracted from the grid."
         ),
         params=[
@@ -421,6 +423,7 @@ FILTER_SPECS = [
             _dbl("LINE_SPACING_MAX", "Largest line spacing (map units, 0 = same as smallest)",
                  0.0, minimum=0.0),
             _dbl("SCALE", "Scale applied to the noise estimate before subtracting", 1.0),
+            _dbl("WEDGE", "Wedge half-width (degrees)", 45.0, minimum=1.0, maximum=90.0),
             _opt("OUTPUT_TYPE", "Output", ["Corrected grid", "Noise estimate"]),
         ],
     ),
@@ -640,7 +643,8 @@ class _SGToolAlgorithm(QgsProcessingAlgorithm):
         """Runs on the main thread before the calculation. If the result will
         replace a grid that is open in QGIS, remove that layer from the project
         first (as the SGTool dialog does) so the file is not locked."""
-        if parameters.get(self.OUTPUT) in (None, ""):
+        output_key = getattr(self, "OUTPUT", None)  # (some algorithms have none)
+        if output_key and parameters.get(output_key) in (None, ""):
             try:
                 target = self._auto_target(parameters, context)
             except Exception:
@@ -1142,3 +1146,7 @@ class SGToolProvider(QgsProcessingProvider):
         for spec in COMPONENT_SPECS:
             self.addAlgorithm(ComponentAnalysisAlgorithm(spec))
         self.addAlgorithm(BSplineGriddingAlgorithm(BSPLINE_SPEC))
+        # imported here: the replay module itself builds on this one
+        from .sgt_replay_algorithm import ReplayHistoryAlgorithm, REPLAY_SPEC
+
+        self.addAlgorithm(ReplayHistoryAlgorithm(REPLAY_SPEC))

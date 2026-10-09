@@ -62,6 +62,7 @@ from qgis.gui import QgsMapToolEmitPoint
 
 from qgis.PyQt.QtCore import (
     QSettings,
+    QDate,
     QTranslator,
     QCoreApplication,
     QFileInfo,
@@ -164,7 +165,13 @@ from .calcs.sgt_metadata import (
     sgt_metadata_xml_text,
 )
 from .sgt_tasks import SGToolTask
-from .sgt_processing import SGToolProvider
+from .sgt_processing import SGToolProvider, read_grid
+from .calcs.igrf.igrf_field import calc_igrf
+from .calcs.workflow import history_steps
+from .sgt_workflow import (
+    plan_steps, run_replay, output_paths, uniform_field, check_igrf_possible,
+)
+from .sgt_replay_dialog import ReplayDialog
 from .calcs.sgt_cancel import OperationCancelled
 from .calcs.layer_shim import LayerShim
 from .calcs.mrvbf import mrvbf as calc_mrvbf
@@ -814,6 +821,7 @@ class SGTool:
         self.DC_azimuth = 0
         self.DC_lineSpacing = 400
         self.DC_lineSpacingMax = ""
+        self.DC_width = 45
         self.RTE_P = False
         self.RTE_P_type = "RTP"
         self.RTE_P_inc = 0
@@ -865,6 +873,10 @@ class SGTool:
         self.DC_lineSpacing = self.dlg.lineEdit_3_DC_wavelength.text()
         self.DC_lineSpacingMax = self.dlg.lineEdit_3_DC_maxspacing.text()
         self.DC_scale = self.to_float(self.dlg.lineEdit_3_DC_scale.text())
+        try:
+            self.DC_width = float(self.dlg.lineEdit_3_DC_width.text())
+        except ValueError:
+            self.DC_width = 45.0  # blank/invalid: the usual wedge
 
         self.RTE_P = self.dlg.checkBox_4_RTE_P.isChecked()
         self.RTE_P_type = self.dlg.comboBox_3_rte_p_list.currentText()
@@ -1143,6 +1155,122 @@ class SGTool:
             level=Qgis.Success, duration=8,
         )
 
+    # ------------------------------------------------------------------
+    # Replay a processing history on another grid
+    # ------------------------------------------------------------------
+    def _release_paths(self, paths):
+        """Remove from the project any layer whose file is about to be
+        replaced, so the file is not locked (Windows)."""
+        wanted = {os.path.normcase(os.path.abspath(p)) for p in paths}
+        project = QgsProject.instance()
+        for lyr in list(project.mapLayers().values()):
+            source = os.path.normcase(os.path.abspath(lyr.source().split("|")[0]))
+            if source in wanted:
+                project.removeMapLayer(lyr.id())
+        gc.collect()
+        QCoreApplication.processEvents()
+
+    def replay_history(self, _checked=False):
+        """Apply the steps in the selected grid's history to another grid."""
+        if self._busy():
+            return
+        found = self._selected_grid_metadata()
+        if not found:
+            return
+        name, _path, root = found
+        _origin, steps = history_steps(root)
+        plan = plan_steps(steps)
+        if not any(p["replayable"] for p in plan):
+            self.iface.messageBar().pushMessage(
+                "SGTool",
+                f"The history of {name} has no steps that can be repeated",
+                level=Qgis.Info, duration=8,
+            )
+            return
+
+        recorded = next((p["date"] for p in plan if p["date"] is not None), None)
+        default_date = (
+            QDate(recorded.year, recorded.month, recorded.day)
+            if recorded is not None
+            else self.dlg.dateEdit.date()
+        )
+        main_window = self.iface.mainWindow()
+        dialog = ReplayDialog(
+            name, plan, default_date,
+            parent=main_window if isinstance(main_window, QWidget) else None,
+            tr=self.tr,
+        )
+        if not dialog.exec():
+            return
+        items = dialog.selected_items()
+        layer = dialog.target_layer()
+        if not items:
+            self.iface.messageBar().pushMessage(
+                "SGTool", "No steps were chosen", level=Qgis.Info, duration=5
+            )
+            return
+        if layer is None or not isinstance(layer, QgsRasterLayer):
+            self.iface.messageBar().pushMessage(
+                "SGTool", "Choose the grid to apply the steps to",
+                level=Qgis.Warning, duration=6,
+            )
+            return
+
+        target_path = layer.source().split("|")[0]
+        when = dialog.settings()
+        grid_info = self._make_grid_info(layer)
+        needs_field = any(i["igrf"] for i in items)
+        if needs_field and uniform_field(target_path) is None:
+            why = check_igrf_possible(grid_info)
+            if why:
+                self.iface.messageBar().pushMessage(
+                    "SGTool", why, level=Qgis.Warning, duration=10
+                )
+                return
+
+        paths = output_paths(target_path, items)
+        self._release_paths(paths)
+        layer_name = layer.name()
+
+        def work(task):
+            return run_replay(
+                target_path, items, grid_info, when=when,
+                task=task,
+            )
+
+        self.start_task(
+            f"SGTool: apply {len(items)} steps to {layer_name}",
+            work,
+            on_success=lambda result: self._finish_replay(result, layer_name),
+        )
+
+    def _finish_replay(self, result, source_name):
+        """Main thread: load the last grid and say what was done."""
+        final = result["final"]
+        # every result that was kept, oldest first, so the last one ends on top
+        for path in result["outputs"]:
+            new_layer = QgsRasterLayer(path, os.path.splitext(os.path.basename(path))[0])
+            if new_layer.isValid():
+                QgsProject.instance().addMapLayer(new_layer)
+                # the same stretch the dialog gives its results (sun shading: min/max)
+                self._apply_stretch(new_layer, path not in result["min_max"])
+                new_layer.triggerRepaint()
+        n = result["n_steps"]
+        text = (
+            f"Applied {n} step{'s' if n != 1 else ''} to {source_name}; the result is "
+            f"{os.path.basename(final)}"
+        )
+        kept = len(result["outputs"]) - 1
+        if kept > 0:
+            text += f" ({kept} earlier step{'s' if kept != 1 else ''} saved beside it)"
+        self.iface.messageBar().pushMessage(
+            "SGTool", text, level=Qgis.Success, duration=15
+        )
+        for line in result["log"]:
+            self.iface.messageBar().pushMessage(
+                "SGTool", line, level=Qgis.Info, duration=15
+            )
+
     def _show_metadata_window(self, name, root):
         main_window = self.iface.mainWindow()
         win = QDialog(main_window if isinstance(main_window, QWidget) else None)
@@ -1403,7 +1531,7 @@ class SGTool:
                 "scale": self.DC_scale,
                 "band_wavelength_min": 2 * min_sp,
                 "band_wavelength_max": 10 * max_sp,
-                "direction_width_deg": 45,
+                "direction_width_deg": self.DC_width,
                 "butterworth_order": 4,
             }
         if s in ("_RTP", "_RTE"):
@@ -1811,6 +1939,7 @@ class SGTool:
             max_spacing,
             scale=self.DC_scale,
             buffer_size=buffer,
+            direction_width=self.DC_width,
         )
 
     def procDirClean(self):
@@ -5004,89 +5133,9 @@ class SGTool:
               coordinates as needed.
         """
 
-        igrf_gen = "14"
-        itype = 1
-        d1 = d2 = d3 = None
-        colat = 90 - lat
-        iut = IGRF(d1, d2, d3)
-
-        # Load in the file of coefficients
-        # IGRF_FILE = r"./SHC_files/IGRF" + igrf_gen + ".SHC"
-        IGRF_FILE = (
-            os.path.dirname(os.path.realpath(__file__))
-            + "/calcs/igrf/SHC_files/IGRF"
-            + igrf_gen
-            + ".SHC"
-        )
-        from pathlib import Path
-
-        def convert_to_native_path(mixed_path):
-            return str(Path(mixed_path))
-
-        IGRF_FILE_norm = convert_to_native_path(IGRF_FILE)
-        igrf = iut.load_shcfile(IGRF_FILE_norm, None)
-
-        # Interpolate the geomagnetic coefficients to the desired date(s)
-        # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-        f = interpolate.interp1d(igrf.time, igrf.coeffs, fill_value="extrapolate")
-        coeffs = f(date)
-
-        # Compute the main field B_r, B_theta and B_phi value for the location(s)
-        Br, Bt, Bp = iut.synth_values(
-            coeffs.T, alt, colat, lon, igrf.parameters["nmax"]
-        )
-
-        # For the SV, find the 5 year period in which the date lies and compute
-        # the SV within that period. IGRF has constant SV between each 5 year period
-        # We don't need to subtract 1900 but it makes it clearer:
-        epoch = (date - 1900) // 5
-        epoch_start = epoch * 5
-        # Add 1900 back on plus 1 year to account for SV in nT per year (nT/yr):
-        coeffs_sv = f(1900 + epoch_start + 1) - f(1900 + epoch_start)
-        Brs, Bts, Bps = iut.synth_values(
-            coeffs_sv.T, alt, colat, lon, igrf.parameters["nmax"]
-        )
-
-        # Use the main field coefficients from the start of each five epoch
-        # to compute the SV for Dec, Inc, Hor and Total Field (F)
-        # [Note: these are non-linear components of X, Y and Z so treat separately]
-        coeffsm = f(1900 + epoch_start)
-        Brm, Btm, Bpm = iut.synth_values(
-            coeffsm.T, alt, colat, lon, igrf.parameters["nmax"]
-        )
-
-        # Rearrange to X, Y, Z components
-        X = -Bt
-        Y = Bp
-        Z = -Br
-        # For the SV
-        dX = -Bts
-        dY = Bps
-        dZ = -Brs
-        Xm = -Btm
-        Ym = Bpm
-        Zm = -Brm
-        if itype == 1:
-            # alt = input("Enter altitude in km: ").rstrip()
-            # alt = iut.check_float(alt)
-            alt, colat, sd, cd = iut.gg_to_geo(alt, colat)
-
-        # Rotate back to geodetic coords if needed
-        if itype == 1:
-            t = X
-            X = X * cd + Z * sd
-            Z = Z * cd - t * sd
-            t = dX
-            dX = dX * cd + dZ * sd
-            dZ = dZ * cd - t * sd
-            t = Xm
-            Xm = Xm * cd + Zm * sd
-            Zm = Zm * cd - t * sd
-
-        intensity = np.sqrt(X**2 + Y**2 + Z**2)
-        # Compute the four non-linear components
-        dec, hoz, inc, eff = iut.xyz2dhif(X, Y, Z)
-        return inc, dec, intensity
+        # the calculation lives in calcs/igrf/igrf_field.py so that background
+        # jobs and Processing algorithms can use it too
+        return calc_igrf(date, alt, lat, lon)
 
     def extract_raster_to_numpy(self, raster_layer):
         """
@@ -5501,6 +5550,7 @@ class SGTool:
             self._init_preview()
             self.dlg.pushButton_read_metadata.clicked.connect(self.show_metadata)
             self.dlg.pushButton_save_metadata_xml.clicked.connect(self.save_metadata_xml)
+            self.dlg.pushButton_replay_history.clicked.connect(self.replay_history)
 
             self.dlg.pushButton_3_applyProcessing_Conv_3.clicked.connect(
                 self.processGeophysics_fft
@@ -5627,6 +5677,9 @@ class SGTool:
                 lambda: self.update_checkbox(self.dlg.checkBox_3_DirClean)
             )
             self.dlg.lineEdit_3_DC_scale.textChanged.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_3_DirClean)
+            )
+            self.dlg.lineEdit_3_DC_width.textChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_3_DirClean)
             )
             self.dlg.lineEdit_6_int.textChanged.connect(

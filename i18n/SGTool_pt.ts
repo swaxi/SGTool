@@ -367,5 +367,141 @@ Usa ângulos de azimute e zénite para criar um efeito de relevo sombreado.
 90 = directly overhead, 0 = horizon</source><translation>Ângulo de zénite para sombreamento solar
 90 = diretamente acima, 0 = horizonte</translation></message>
     <message><source>Uses Grass-like shading algorithm for softer shading</source><translation>Usa algoritmo de sombreamento tipo GRASS para sombreamento mais suave</translation></message>
+    <!-- ── Added in 0.3.8 ── -->
+    <message><source>Angle tol°:</source><translation>Tol. ângulo°:</translation></message>
+    <message><source>Aniso thresh:</source><translation>Limiar aniso:</translation></message>
+    <message><source>Apply steps</source><translation>Aplicar passos</translation></message>
+    <message><source>Apply the same steps to another grid</source><translation>Aplicar os mesmos passos a outra grelha</translation></message>
+    <message><source>Apply the same steps to another grid...</source><translation>Aplicar os mesmos passos a outra grelha...</translation></message>
+    <message><source>Apply to grid:</source><translation>Aplicar à grelha:</translation></message>
+    <message><source>Calculate local anisotropy magnitude (0–1) and dominant orientation (degrees)
+Returns two layers: _SS_AnisoMag and _SS_AnisoOrient</source><translation>Calcula a magnitude da anisotropia local (0–1) e a orientação dominante (graus)
+Devolve duas camadas: _SS_AnisoMag e _SS_AnisoOrient</translation></message>
+    <message><source>Cancel</source><translation>Cancelar</translation></message>
+    <message><source>Cancel running calculation</source><translation>Cancelar o cálculo em curso</translation></message>
+    <message><source>Cell size too large for the point extent</source><translation>O tamanho da célula é demasiado grande para a extensão dos pontos</translation></message>
+    <message><source>Chain Length</source><translation>Comprimento da cadeia</translation></message>
+    <message><source>Chain Length: how many pixels ahead to cast the orientation ray when searching for the next connected pixel (1=8-neighbours only, 2–3 recommended for oblique features)</source><translation>Comprimento da cadeia: quantos pixels à frente se projeta o raio de orientação ao procurar o pixel ligado seguinte (1 = apenas 8 vizinhos, 2–3 recomendado para feições oblíquas)</translation></message>
+    <message><source>Compute the previewed filter at full resolution, add it as a permanent layer and switch preview off</source><translation>Calcula o filtro pré-visualizado em resolução total, adiciona-o como camada permanente e desativa a pré-visualização</translation></message>
+    <message><source>Date of the survey, for the IGRF model</source><translation>Data do levantamento, para o modelo IGRF</translation></message>
+    <message><source>Drop points whose data value is below the threshold before gridding
+(useful for removing nodata sentinels such as -99999 or -999999.9)</source><translation>Descarta os pontos cujo valor está abaixo do limiar antes de gerar a grelha
+(útil para remover valores sentinela de sem dados como -99999 ou -999999.9)</translation></message>
+    <message><source>Failed to load gridded result</source><translation>Falha ao carregar o resultado da grelha</translation></message>
+    <message><source>Half-width of the directional wedge in degrees: noise whose direction is within this angle of the azimuth is kept in the noise estimate, with a cosine taper. Wider keeps more of the noise (and more of the geology).</source><translation>Semilargura da cunha direcional em graus: o ruído cuja direção esteja dentro deste ângulo do azimute é mantido na estimativa do ruído, com um alisamento em cosseno. Mais larga mantém mais ruído (e mais geologia).</translation></message>
+    <message><source>History of %s: %d steps, %d can be repeated. Steps run oldest first, each on the result of the one before.</source><translation>Histórico de %s: %d passos, %d podem ser repetidos. Os passos executam-se do mais antigo para o mais recente, cada um sobre o resultado do anterior.</translation></message>
+    <message><source>Ignore values &lt;</source><translation>Ignorar valores &lt;</translation></message>
+    <message><source>Inclination and declination for the reductions to the pole / equator are recalculated from IGRF for the new grid. Survey date:</source><translation>A inclinação e a declinação das reduções ao polo / equador são recalculadas a partir do IGRF para a nova grelha. Data do levantamento:</translation></message>
+    <message><source>Initial threshold for slope (percent) at the finest resolution</source><translation>Limiar inicial de declive (percentagem) na resolução mais fina</translation></message>
+    <message><source>Inverse Distance Weighting</source><translation>Ponderação pelo Inverso da Distância</translation></message>
+    <message><source>Keep</source><translation>Guardar</translation></message>
+    <message><source>Keep this step's result as a file. Untick to delete it once the next step has been made from it (the last result is always kept).</source><translation>Guarda o resultado deste passo como ficheiro. Desmarque para o eliminar depois de o passo seguinte ter sido feito a partir dele (o último resultado é sempre guardado).</translation></message>
+    <message><source>Line Spacing min/max (proj units)</source><translation>Espaçamento das linhas mín/máx (unidades proj.)</translation></message>
+    <message><source>Live preview of one filter in a single temporary layer that updates as you change parameters.
+Only one filter can be ticked while previewing, and filters that can't be previewed are disabled.
+Unchecking discards the preview; use Keep to save the full-resolution result as a permanent layer.</source><translation>Pré-visualização em direto de um filtro numa única camada temporária que se atualiza ao alterar os parâmetros.
+Só um filtro pode ser marcado durante a pré-visualização, e os filtros que não podem ser pré-visualizados ficam desativados.
+Desmarcar descarta a pré-visualização; use Guardar para gravar o resultado em resolução total como camada permanente.</translation></message>
+    <message><source>Local Anisotropy</source><translation>Anisotropia local</translation></message>
+    <message><source>MBA maximum number of refinement levels (LEVEL_MAX)</source><translation>MBA: número máximo de níveis de refinamento (LEVEL_MAX)</translation></message>
+    <message><source>MBA threshold error (EPSILON): stop refining once every point residual is below this value</source><translation>MBA: erro limiar (EPSILON): para o refinamento quando o resíduo de todos os pontos é inferior a este valor</translation></message>
+    <message><source>MRVBF / MRRTF / Slope</source><translation>MRVBF / MRRTF / Declive</translation></message>
+    <message><source>MRVBF needs a projected raster with cell sizes in metres. Reproject the grid to a projected CRS and try again.</source><translation>O MRVBF precisa de um raster projetado com tamanho de célula em metros. Reprojete a grelha para um SRC projetado e tente novamente.</translation></message>
+    <message><source>Map extent</source><translation>Extensão do mapa</translation></message>
+    <message><source>Max Levels</source><translation>Níveis máx.</translation></message>
+    <message><source>Max Res %</source><translation>Res. máx. %</translation></message>
+    <message><source>Max steps:</source><translation>Passos máx.:</translation></message>
+    <message><source>Maximum line spacing in the survey
+Leave blank if spacing is constant (uses the min value)</source><translation>Espaçamento máximo das linhas no levantamento
+Deixe em branco se o espaçamento for constante (usa o valor mínimo)</translation></message>
+    <message><source>Maximum number of sub-pixel steps per direction for Streamline Length</source><translation>Número máximo de passos subpixel por direção para o comprimento da linha de corrente</translation></message>
+    <message><source>Maximum orientation difference (degrees) between adjacent pixels to be chained</source><translation>Diferença máxima de orientação (graus) entre pixels adjacentes para serem encadeados</translation></message>
+    <message><source>Maximum resolution as a percentage of the grid diagonal</source><translation>Resolução máxima como percentagem da diagonal da grelha</translation></message>
+    <message><source>Minimum anisotropy magnitude for a pixel to be considered part of a feature (0–1)</source><translation>Magnitude mínima de anisotropia para um pixel ser considerado parte de uma feição (0–1)</translation></message>
+    <message><source>Minimum line spacing in the survey
+Noise band is 2x min spacing to 10x max spacing</source><translation>Espaçamento mínimo das linhas no levantamento
+A banda de ruído vai de 2x o espaçamento mínimo a 10x o máximo</translation></message>
+    <message><source>Multilevel B-Spline (MBA)</source><translation>B-Spline Multinível (MBA)</translation></message>
+    <message><source>Multiresolution Valley Bottom Flatness (MRVBF) and Ridge Top
+Flatness (MRRTF) after Gallant &amp; Dowling 2003. Writes _MRVBF,
+_MRRTF and _slope grids plus a 3-band (MRRTF, MRVBF,
+Slope) composite. Requires a projected raster in metres.</source><translation>Planura multirresolução de fundo de vale (MRVBF) e de topo de crista
+(MRRTF) segundo Gallant e Dowling 2003. Escreve as grelhas _MRVBF,
+_MRRTF e _slope e um composto de 3 bandas (MRRTF, MRVBF,
+Declive). Requer um raster projetado em metros.</translation></message>
+    <message><source>Need at least 3 valid points with a numeric value to grid</source><translation>São necessários pelo menos 3 pontos válidos com valor numérico para gerar a grelha</translation></message>
+    <message><source>No points layer selected</source><translation>Nenhuma camada de pontos selecionada</translation></message>
+    <message><source>Pctl Lowness</source><translation>Pctl depressão</translation></message>
+    <message><source>Pctl Shape</source><translation>Pctl forma</translation></message>
+    <message><source>Pctl Upness</source><translation>Pctl elevação</translation></message>
+    <message><source>Perform Multilevel B-Spline (MBA) gridding of the selected point field
+into a temporary grid (local NumPy translation of SAGA's grid_spline tool)</source><translation>Realiza a interpolação B-Spline Multinível (MBA) do campo de pontos selecionado
+numa grelha temporária (tradução local para NumPy da ferramenta grid_spline do SAGA)</translation></message>
+    <message><source>Pick RGB from map: click button then click a point on the loaded RGB raster
+Click points equally spaced from low to high values</source><translation>Escolher RGB no mapa: clique no botão e depois num ponto do raster RGB carregado
+Clique em pontos equiespaçados de valores baixos a altos</translation></message>
+    <message><source>Points with a value less than this are excluded from B-Spline gridding</source><translation>Os pontos com valor inferior a este são excluídos da interpolação B-Spline</translation></message>
+    <message><source>Preview</source><translation>Pré-visualização</translation></message>
+    <message><source>Preview at full resolution for the current map canvas extent
+(pan/zoom to update; edges show filter edge effects)</source><translation>Pré-visualização em resolução total para a extensão atual do mapa
+(desloque/amplie para atualizar; as margens mostram efeitos de bordo do filtro)</translation></message>
+    <message><source>Preview the whole grid, block-averaged to a coarser cell size.
+Fast, but filters set in pixels (convolution, stats, AGC) act on
+the coarser cells, and line noise is lost if the cell size
+exceeds the line spacing.</source><translation>Pré-visualização de toda a grelha, com média por blocos para um tamanho de célula maior.
+Rápida, mas os filtros definidos em pixels (convolução, estatísticas, AGC) atuam sobre
+as células maiores, e o ruído de linhas perde-se se o tamanho da célula
+exceder o espaçamento das linhas.</translation></message>
+    <message><source>RTP: Reduction to Pole (high mag latitudes &gt;20°)
+Diff. RTP: Variable (Differential) RTP using Cooper/Cowan Taylor series — accounts for spatial variation in inc/dec across the survey area
+RTE: Reduction to Equator (low mag latitudes &lt;20°)</source><translation>RTP: Redução ao Polo (latitudes magnéticas altas &gt;20°)
+RTP dif.: RTP variável (diferencial) com séries de Taylor de Cooper/Cowan — tem em conta a variação espacial de inc/dec na área do levantamento
+RTE: Redução ao Equador (latitudes magnéticas baixas &lt;20°)</translation></message>
+    <message><source>Read metadata of selected grid</source><translation>Ler metadados da grelha selecionada</translation></message>
+    <message><source>Reduction to pole or equator
+The reduction to the pole (RTP), differential RTP or to Equator (RTE) is a process in geophysics
+where magnetic data are transformed to look as though
+ they were measured at the magnetic pole/equator
+Corrects the asymmetry of magnetic anomalies caused by
+ the Earth's field, making them appear directly above their sources
+ Differential RTP (code derived from Cooper &amp; Cowan 2005) calculates RTP with spatially varying inclination and declination</source><translation>Redução ao polo ou ao equador
+A redução ao polo (RTP), a RTP diferencial ou a redução ao Equador (RTE) é um processo geofísico
+que transforma os dados magnéticos para parecerem
+ medidos no polo/equador magnético
+Corrige a assimetria das anomalias magnéticas causada pelo
+ campo terrestre, fazendo-as aparecer diretamente acima das suas fontes
+ A RTP diferencial (código derivado de Cooper e Cowan 2005) calcula a RTP com inclinação e declinação variáveis no espaço</translation></message>
+    <message><source>Repeat the processing steps in the selected grid's history on another grid, each on the result of the one before.
+Magnetic reductions (RTP, RTE, differential RTP) get a new inclination and declination from the IGRF model for the new grid.</source><translation>Repete noutra grelha os passos de processamento do histórico da grelha selecionada, cada um sobre o resultado do anterior.
+As reduções magnéticas (RTP, RTE, RTP diferencial) recebem uma nova inclinação e declinação do modelo IGRF para a nova grelha.</translation></message>
+    <message><source>SGTool Metadata</source><translation>Metadados do SGTool</translation></message>
+    <message><source>Save as XML</source><translation>Guardar como XML</translation></message>
+    <message><source>Save the selected grid's SGTool metadata as an XML file called &lt;grid file&gt;.sgt.xml in the same folder as the grid (replacing any existing file of that name)</source><translation>Guarda os metadados do SGTool da grelha selecionada num ficheiro XML chamado &lt;ficheiro da grelha&gt;.sgt.xml na mesma pasta da grelha (substituindo qualquer ficheiro existente com esse nome)</translation></message>
+    <message><source>Score each pixel by sub-pixel forward+backward path length along the orientation field
+(handles curves; slower than Chain Length)</source><translation>Pontua cada pixel pelo comprimento do percurso subpixel para a frente e para trás ao longo do campo de orientação
+(trata curvas; mais lento que o comprimento da cadeia)</translation></message>
+    <message><source>Score each pixel by the length of the oriented chain it belongs to
+(discrete 8-connected, fast)</source><translation>Pontua cada pixel pelo comprimento da cadeia orientada a que pertence
+(8-conectada discreta, rápida)</translation></message>
+    <message><source>Search r:</source><translation>Raio de pesquisa:</translation></message>
+    <message><source>Select a valid data field to grid</source><translation>Selecione um campo de dados válido para gerar a grelha</translation></message>
+    <message><source>Shape parameter for the elevation percentile transformation</source><translation>Parâmetro de forma para a transformação do percentil de elevação</translation></message>
+    <message><source>Shape parameter for the slope transformation</source><translation>Parâmetro de forma para a transformação do declive</translation></message>
+    <message><source>Show how the selected grid was made: when, from which source file(s), and with which operation and parameters, back through every earlier SGTool step.
+This provenance is stored inside GeoTIFFs saved by SGTool.</source><translation>Mostra como a grelha selecionada foi criada: quando, a partir de que ficheiro(s) de origem e com que operação e parâmetros, recuando por todos os passos anteriores do SGTool.
+Esta proveniência é guardada dentro dos GeoTIFF gravados pelo SGTool.</translation></message>
+    <message><source>Slope Shape</source><translation>Forma do declive</translation></message>
+    <message><source>Slope Threshold</source><translation>Limiar de declive</translation></message>
+    <message><source>Square</source><translation>Quadrada</translation></message>
+    <message><source>Stop the running calculation. It stops at its next checkpoint (between steps, and inside long loops such as Euler deconvolution), and nothing from it is saved.</source><translation>Para o cálculo em curso. Pára no próximo ponto de controlo (entre passos e dentro de ciclos longos como a deconvolução de Euler), e nada é guardado.</translation></message>
+    <message><source>Stop the running calculation. It stops at its next checkpoint and nothing from it is saved.</source><translation>Para o cálculo em curso. Pára no próximo ponto de controlo e nada é guardado.</translation></message>
+    <message><source>Streamline Length</source><translation>Comprimento da linha de corrente</translation></message>
+    <message><source>Subsampled grid</source><translation>Grelha subamostrada</translation></message>
+    <message><source>Threshold Error</source><translation>Erro limiar</translation></message>
+    <message><source>Threshold for lowness percentile (valley bottom flatness)</source><translation>Limiar do percentil de depressão (planura de fundo de vale)</translation></message>
+    <message><source>Threshold for upness percentile (ridge top flatness)</source><translation>Limiar do percentil de elevação (planura de topo de crista)</translation></message>
+    <message><source>Too few points remain after the ignore-value filter</source><translation>Restam demasiado poucos pontos após o filtro de valores ignorados</translation></message>
+    <message><source>Wedge</source><translation>Cunha</translation></message>
+    <message><source>max</source><translation>máx</translation></message>
 </context>
 </TS>

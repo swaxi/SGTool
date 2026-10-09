@@ -263,6 +263,19 @@ class SGToolDockWidget(QDockWidget):
         outer.addWidget(bot)
         return tab
 
+    @staticmethod
+    def _bullet_check(bullet, checkbox):
+        """The dot-point marker and its checkbox side by side at the left edge, so
+        the checkbox lines up with those of filters that have no marker."""
+        box = QHBoxLayout()
+        box.setContentsMargins(0, 0, 0, 0)
+        box.setSpacing(2)
+        bullet.setFixedWidth(10)
+        box.addWidget(bullet)
+        box.addWidget(checkbox)
+        box.addStretch()
+        return box
+
     # ------------------------------------------------------------------
     # Group: Grav/Mag Filters
     # ------------------------------------------------------------------
@@ -317,8 +330,7 @@ class SGToolDockWidget(QDockWidget):
         self.label_26.setAlignment(Qt.AlignCenter)
         self.checkBox_4_PGrav = QCheckBox(
             _tr("Vertical Integration (apply to RTE/P result to get Pseudo Gravity)"))
-        g.addWidget(self.label_26,        2, 0)
-        g.addWidget(self.checkBox_4_PGrav, 2, 1, 1, 4)
+        g.addLayout(self._bullet_check(self.label_26, self.checkBox_4_PGrav), 2, 0, 1, 5)
 
         # Row 3: ● Continuation / Direction / Height
         self.label_28 = QLabel("●")
@@ -440,8 +452,7 @@ class SGToolDockWidget(QDockWidget):
         self.lineEdit_3_BP_width = QLineEdit("5000")
         self.lineEdit_3_BP_width.setFixedWidth(55)
 
-        g.addWidget(self.label_29,              3, 0)
-        g.addWidget(self.checkBox_10_bandPass,  3, 1)
+        g.addLayout(self._bullet_check(self.label_29, self.checkBox_10_bandPass), 3, 0, 1, 2)
         g.addWidget(self.label_22,              3, 2)
         g.addWidget(self.lineEdit_12_bandPassLow, 3, 3)
         g.addWidget(self.label_23,              3, 4)
@@ -466,8 +477,7 @@ class SGToolDockWidget(QDockWidget):
         self.lineEdit_3_HLP_width = QLineEdit("5000")
         self.lineEdit_3_HLP_width.setFixedWidth(55)
 
-        g.addWidget(self.label_32,              4, 0)
-        g.addWidget(self.checkBox_10_freqCut,   4, 1)
+        g.addLayout(self._bullet_check(self.label_32, self.checkBox_10_freqCut), 4, 0, 1, 2)
         g.addWidget(self.label_35,              4, 2)
         g.addWidget(self.comboBox_2_FreqCutType, 4, 3)
         g.addWidget(self.label_34,              4, 4)
@@ -484,8 +494,7 @@ class SGToolDockWidget(QDockWidget):
         self.lineEdit_13_agc_window = QLineEdit("10")
         self.lineEdit_13_agc_window.setFixedWidth(45)
 
-        g.addWidget(self.label_30,              5, 0)
-        g.addWidget(self.checkBox_11_1vd_agc,   5, 1, 1, 2)
+        g.addLayout(self._bullet_check(self.label_30, self.checkBox_11_1vd_agc), 5, 0, 1, 3)
         g.addWidget(self.label_24,              5, 4)
         g.addWidget(self.lineEdit_13_agc_window, 5, 5)
 
@@ -1004,14 +1013,17 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.ny_label,            3, 4)
 
         # ── IDW gridding (its own row) ───────────────────────────────
+        self.label_idw_hdr = QLabel(_tr("Inverse Distance Weighting"))
+        self.label_idw_hdr.setStyleSheet("font-weight: bold;")
+        g.addWidget(self.label_idw_hdr, 4, 0, 1, 4)
         self.pushButton_idw_2 = QPushButton(_tr("IDW Gridding"))
         self.pushButton_idw_2.setStyleSheet("font-weight: bold;")
-        g.addWidget(self.pushButton_idw_2, 4, 1, 1, 3)
+        g.addWidget(self.pushButton_idw_2, 5, 1, 1, 3)
 
         # ── Multilevel B-Spline (MBA) block ──────────────────────────
         self.label_bspline_hdr = QLabel(_tr("Multilevel B-Spline (MBA)"))
         self.label_bspline_hdr.setStyleSheet("font-weight: bold;")
-        g.addWidget(self.label_bspline_hdr, 5, 0, 1, 4)
+        g.addWidget(self.label_bspline_hdr, 6, 0, 1, 4)
 
         self.label_bspline_eps = QLabel(_tr("Threshold Error"))
         self.label_bspline_eps.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -1030,16 +1042,16 @@ class SGToolDockWidget(QDockWidget):
         self.lineEdit_bspline_ignore = QLineEdit("-99999")
         self.lineEdit_bspline_ignore.setFixedWidth(70)
 
-        g.addWidget(self.label_bspline_eps,        6, 0)
-        g.addWidget(self.lineEdit_bspline_epsilon, 6, 1)
-        g.addWidget(self.label_bspline_lvl,        6, 2)
-        g.addWidget(self.spinBox_bspline_levels,   6, 3)
-        g.addWidget(self.checkBox_bspline_ignore,  7, 0, 1, 2)
-        g.addWidget(self.lineEdit_bspline_ignore,  7, 2)
+        g.addWidget(self.label_bspline_eps,        7, 0)
+        g.addWidget(self.lineEdit_bspline_epsilon, 7, 1)
+        g.addWidget(self.label_bspline_lvl,        7, 2)
+        g.addWidget(self.spinBox_bspline_levels,   7, 3)
+        g.addWidget(self.checkBox_bspline_ignore,  8, 0, 1, 2)
+        g.addWidget(self.lineEdit_bspline_ignore,  8, 2)
 
         self.pushButton_bspline_3 = QPushButton(_tr("BSpline Gridding"))
         self.pushButton_bspline_3.setStyleSheet("font-weight: bold;")
-        g.addWidget(self.pushButton_bspline_3, 8, 1, 1, 3)
+        g.addWidget(self.pushButton_bspline_3, 9, 1, 1, 3)
 
         g.setColumnStretch(1, 1)
         return gb
@@ -1241,8 +1253,8 @@ class SGToolDockWidget(QDockWidget):
         )
         g.addWidget(self.pushButton_read_metadata, 0, 0)
         g.addWidget(self.pushButton_save_metadata_xml, 0, 1)
-        g.addWidget(self.pushButton_replay_history, 1, 0, 1, 2)
-        g.setColumnStretch(2, 1)
+        g.addWidget(self.pushButton_replay_history, 0, 2)  # right of Save as XML
+        g.setColumnStretch(3, 1)
         return gb
 
     # ------------------------------------------------------------------

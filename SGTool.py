@@ -2203,6 +2203,12 @@ class SGTool:
         gc.collect()
         self._unlink_preview_file()
         self._preview_src = None  # free the cached full-grid array
+        # redraw now: otherwise the old preview stays on the map until the
+        # canvas is next panned or zoomed
+        try:
+            self.iface.mapCanvas().refresh()
+        except Exception:
+            pass
 
     def _unlink_preview_file(self):
         try:

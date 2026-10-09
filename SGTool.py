@@ -113,6 +113,7 @@ except AttributeError:
 
 import re
 import gc
+import contextlib
 import copy
 import traceback
 import time
@@ -375,6 +376,10 @@ class SGTool:
 
         # print "** UNLOAD SGTool"
 
+        try:
+            self.iface.currentLayerChanged.disconnect(self._active_layer_changed)
+        except (TypeError, RuntimeError):
+            pass
         # don't leave a temporary preview layer (a broken in-memory source once
         # the plugin is gone) in the project
         try:
@@ -1271,6 +1276,117 @@ class SGTool:
                 "SGTool", line, level=Qgis.Info, duration=15
             )
 
+    # ------------------------------------------------------------------
+    # Keep the preview on top, and the active layer and dropdowns in step
+    # ------------------------------------------------------------------
+    _moving_preview = False  # True while the preview is being re-ordered
+    _syncing_layers = False  # True while the panel and dropdowns are being synced
+
+    @contextlib.contextmanager
+    def _keep_selection(self):
+        """Adding, moving or removing the preview layer makes QGIS select another
+        layer in the Layers panel. That must not change the SGTool dropdowns
+        (the preview would then be redone on the wrong layer), so the panel
+        selection is put back afterwards and the sync is paused meanwhile."""
+        was_syncing = self._syncing_layers
+        self._syncing_layers = True
+        try:
+            active = self.iface.activeLayer()
+        except Exception:
+            active = None
+        try:
+            yield
+        finally:
+            try:
+                if (
+                    active is not None
+                    and not self._is_preview_layer(active)
+                    and QgsProject.instance().mapLayer(active.id()) is not None
+                ):
+                    self.iface.setActiveLayer(active)
+            except Exception:
+                pass
+            self._syncing_layers = was_syncing
+
+    def _move_preview_to_top(self, *_args):
+        """Put the preview layer first in the Layers panel so it is always
+        visible. Runs when the preview is created and whenever the layer tree
+        changes (a layer added, or dragged above it)."""
+        if self._moving_preview:
+            return
+        layer = self._preview_layer()
+        if layer is None:
+            return
+        root = QgsProject.instance().layerTreeRoot()
+        node = root.findLayer(layer.id())
+        if node is None:
+            return
+        children = root.children()
+        if children and children[0].parent() is root and node.parent() is root:
+            first = children[0]
+            if getattr(first, "layerId", None) and first.layerId() == layer.id():
+                return  # already on top
+        self._moving_preview = True
+        try:
+            with self._keep_selection():
+                clone = node.clone()
+                root.insertChildNode(0, clone)
+                node.parent().removeChildNode(node)
+        finally:
+            self._moving_preview = False
+
+    def _sync_layer_combos(self):
+        """Every layer dropdown of the dialog that can list a layer."""
+        d = self.dlg
+        return [
+            getattr(d, name)
+            for name in (
+                "mMapLayerComboBox_selectGrid",
+                "mMapLayerComboBox_selectGrid_Conv",
+                "mMapLayerComboBox_selectGrid_Conv_2",
+                "mMapLayerComboBox_selectGrid_3",
+                "mMapLayerComboBox_selectGrid_worms",
+                "mMapLayerComboBox_selectVectors",
+            )
+            if hasattr(d, name)
+        ]
+
+    def _is_preview_layer(self, layer):
+        return layer is not None and (
+            layer.id() == getattr(self, "preview_layer_id", None)
+            or layer.source().startswith("/vsimem/sgtool_preview")
+        )
+
+    def _active_layer_changed(self, layer):
+        """The layer selected in the QGIS Layers panel becomes the current choice
+        of every SGTool dropdown that lists it."""
+        if self._syncing_layers or layer is None or self.dlg is None:
+            return
+        if self._is_preview_layer(layer):
+            return  # the preview is not an input
+        self._syncing_layers = True
+        try:
+            for combo in self._sync_layer_combos():
+                listed = {combo.layer(i).id() for i in range(combo.count()) if combo.layer(i)}
+                if layer.id() in listed and (
+                    combo.currentLayer() is None or combo.currentLayer().id() != layer.id()
+                ):
+                    combo.setLayer(layer)
+        finally:
+            self._syncing_layers = False
+
+    def _combo_layer_changed(self, layer):
+        """A layer chosen in an SGTool dropdown becomes the selected layer in
+        the QGIS Layers panel (and so the choice in the other dropdowns)."""
+        if self._syncing_layers or layer is None:
+            return
+        if self._is_preview_layer(layer):
+            return
+        active = self.iface.activeLayer()
+        if active is not None and active.id() == layer.id():
+            return
+        self.iface.setActiveLayer(layer)
+
     def _show_metadata_window(self, name, root):
         main_window = self.iface.mainWindow()
         win = QDialog(main_window if isinstance(main_window, QWidget) else None)
@@ -1958,6 +2074,7 @@ class SGTool:
     # ------------------------------------------------------------------
     _preview_only_entry = None
     _preview_tab = None  # class defaults: update_checkbox can fire before init
+    _preview_tree_connected = False
     PREVIEW_PATH = "/vsimem/sgtool_preview.tif"
     PREVIEW_SUBSAMPLE_SIDE = 600  # max cells on longest side, subsampled mode
     PREVIEW_EXTENT_SIDE = 2000  # cap on longest side, map-extent mode
@@ -2139,7 +2256,11 @@ class SGTool:
             self._preview_exit_mode(tab)
         canvas.refresh()
         if pending is not None:
-            self.keepPreview(*pending)
+            self.keepPreview(*pending)  # reads the ticked filter, so untick afterwards
+        # preview off: leave no filter ticked on this tab (a job started above
+        # already holds its own copy of the settings)
+        for _f, _m, _c, cb in self.PREVIEW_FILTERS[tab]:
+            getattr(self.dlg, cb).setChecked(False)
 
     def keepClicked(self, tab):
         """Keep button: full-resolution result as a permanent layer."""
@@ -2197,9 +2318,18 @@ class SGTool:
         for lyr in project.mapLayers().values():
             if lyr.source().startswith("/vsimem/sgtool_preview"):
                 ids.add(lyr.id())
-        for lyr_id in ids:
-            project.removeMapLayer(lyr_id)
+        with self._keep_selection():
+            for lyr_id in ids:
+                project.removeMapLayer(lyr_id)
         self.preview_layer_id = None
+        if self._preview_tree_connected:
+            try:
+                QgsProject.instance().layerTreeRoot().addedChildren.disconnect(
+                    self._move_preview_to_top
+                )
+            except (TypeError, RuntimeError):
+                pass
+            self._preview_tree_connected = False
         gc.collect()
         self._unlink_preview_file()
         self._preview_src = None  # free the cached full-grid array
@@ -2397,8 +2527,15 @@ class SGTool:
             layer = QgsRasterLayer(self.PREVIEW_PATH, layer_name)
             if not layer.isValid():
                 raise RuntimeError("Could not create preview layer")
-            QgsProject.instance().addMapLayer(layer)
-            self.preview_layer_id = layer.id()
+            with self._keep_selection():
+                QgsProject.instance().addMapLayer(layer)
+                self.preview_layer_id = layer.id()
+                if not self._preview_tree_connected:
+                    QgsProject.instance().layerTreeRoot().addedChildren.connect(
+                        self._move_preview_to_top
+                    )
+                    self._preview_tree_connected = True
+                self._move_preview_to_top()
         else:
             layer.setDataSource(self.PREVIEW_PATH, layer_name, "gdal")
         self._apply_stretch(layer, std_clip)
@@ -5557,6 +5694,10 @@ class SGTool:
             self.dlg.pushButton_read_metadata.clicked.connect(self.show_metadata)
             self.dlg.pushButton_save_metadata_xml.clicked.connect(self.save_metadata_xml)
             self.dlg.pushButton_replay_history.clicked.connect(self.replay_history)
+            # the layer selected in the QGIS Layers panel and the SGTool dropdowns follow each other
+            self.iface.currentLayerChanged.connect(self._active_layer_changed)
+            for combo in self._sync_layer_combos():
+                combo.layerChanged.connect(self._combo_layer_changed)
 
             self.dlg.pushButton_3_applyProcessing_Conv_3.clicked.connect(
                 self.processGeophysics_fft

@@ -253,15 +253,38 @@ class SGToolDockWidget(QDockWidget):
 
         self.label_41_units = QLabel(_tr("Units"))
 
-        bl.addStretch()
         bl.addWidget(self.label_37)
         bl.addWidget(self.lineEdit_13_max_buffer)
         bl.addWidget(self.label_27)
         bl.addWidget(self.version_label)
         bl.addWidget(self.label_41_units)
+        bl.addStretch()  # keep the row at the left of the tab
+        self._info_labels = [self.label_41_units]
+        self._version_labels = [self.version_label]
 
         outer.addWidget(bot)
         return tab
+
+    def _grid_info_bar(self):
+        """The version and grid information row (units, CRS, pixels, pixel size)
+        for the bottom of a tab. Each tab needs its own widgets, which the plugin
+        updates together with those of the first tab."""
+        bar = QWidget()
+        bl = QHBoxLayout(bar)
+        bl.setContentsMargins(0, 2, 0, 0)
+        bl.setSpacing(6)
+        version_text = QLabel(_tr("Version"))
+        version_text.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
+        version = QLabel(self._version_labels[0].text())
+        version.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        info = QLabel(self._info_labels[0].text())
+        bl.addWidget(version_text)
+        bl.addWidget(version)
+        bl.addWidget(info)
+        bl.addStretch()
+        self._version_labels.append(version)
+        self._info_labels.append(info)
+        return bar
 
     @staticmethod
     def _bullet_check(bullet, checkbox):
@@ -594,6 +617,7 @@ class SGToolDockWidget(QDockWidget):
         sl.addWidget(self._group_euler())
         sl.addStretch()
         outer.addWidget(self._scroll_wrap(sc), 1)
+        outer.addWidget(self._grid_info_bar())
         return tab
 
     # ------------------------------------------------------------------
@@ -909,7 +933,8 @@ class SGToolDockWidget(QDockWidget):
         sl.addWidget(self._wtmm_group)
         sl.addStretch()
 
-        outer.addWidget(self._scroll_wrap(sc))
+        outer.addWidget(self._scroll_wrap(sc), 1)
+        outer.addWidget(self._grid_info_bar())
         return tab
 
     # ------------------------------------------------------------------
@@ -1210,7 +1235,8 @@ class SGToolDockWidget(QDockWidget):
         sl.addWidget(self._group_lut_convert())
         sl.addStretch()
 
-        outer.addWidget(self._scroll_wrap(sc))
+        outer.addWidget(self._scroll_wrap(sc), 1)
+        outer.addWidget(self._grid_info_bar())
         return tab
 
     # ------------------------------------------------------------------

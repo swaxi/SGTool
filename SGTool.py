@@ -380,6 +380,11 @@ class SGTool:
             self.iface.currentLayerChanged.disconnect(self._active_layer_changed)
         except (TypeError, RuntimeError):
             pass
+        for signal in (QgsProject.instance().layersRemoved, QgsProject.instance().cleared):
+            try:
+                signal.disconnect(self._clear_grid_info_if_no_grids)
+            except (TypeError, RuntimeError):
+                pass
         # don't leave a temporary preview layer (a broken in-memory source once
         # the plugin is gone) in the project
         try:
@@ -5447,11 +5452,38 @@ class SGTool:
                 0
             ]
             if selected_layer.isValid():
-                crs = selected_layer.crs()
-                if crs.isGeographic():
-                    self.dlg.label_41_units.setText("Units: deg")
-                else:
-                    self.dlg.label_41_units.setText("Units: m")
+                self._show_grid_info(selected_layer)
+
+    @staticmethod
+    def _grid_info_text(layer):
+        """Units, size in pixels and pixel size of a raster layer, for the bottom row
+        of the first tab, e.g. "Units: m   CRS: EPSG:28350   Pixels: 120 x 120   Pixel size: 100 m"."""
+        unit = "deg" if layer.crs().isGeographic() else "m"
+        crs = layer.crs()
+        text = f"Units: {unit}   CRS: {crs.authid() or crs.description()}"
+        width, height = layer.width(), layer.height()
+        if width > 0 and height > 0:
+            ext = layer.extent()
+            dx, dy = ext.width() / width, ext.height() / height
+            size = f"{dx:.6g}" if abs(dx - dy) <= 1e-9 * max(abs(dx), abs(dy)) else f"{dx:.6g} x {dy:.6g}"
+            text += f"   Pixels: {width} x {height}   Pixel size: {size} {unit}"
+        return text
+
+    def _clear_grid_info_if_no_grids(self, *_args):
+        """Reset the units / CRS / pixel information once no grid is left in the
+        project (the temporary preview layer does not count)."""
+        if self.dlg is None or not hasattr(self.dlg, "_info_labels"):
+            return
+        for lyr in QgsProject.instance().mapLayers().values():
+            if isinstance(lyr, QgsRasterLayer) and not self._is_preview_layer(lyr):
+                return
+        for label in self.dlg._info_labels:
+            label.setText(self.tr("Units"))
+
+    def _show_grid_info(self, layer):
+        text = self._grid_info_text(layer)
+        for label in self.dlg._info_labels:  # the row at the bottom of each tab
+            label.setText(text)
 
     def update_paths_utils(self):
         """
@@ -5486,11 +5518,7 @@ class SGTool:
                 0
             ]
             if selected_layer.isValid():
-                crs = selected_layer.crs()
-                if crs.isGeographic():
-                    self.dlg.label_41_units.setText("Units: deg")
-                else:
-                    self.dlg.label_41_units.setText("Units: m")
+                self._show_grid_info(selected_layer)
 
     def update_paths_conv(self):
         """
@@ -5525,11 +5553,7 @@ class SGTool:
                 0
             ]
             if selected_layer.isValid():
-                crs = selected_layer.crs()
-                if crs.isGeographic():
-                    self.dlg.label_41_units.setText("Units: deg")
-                else:
-                    self.dlg.label_41_units.setText("Units: m")
+                self._show_grid_info(selected_layer)
 
     def update_paths_worms(self):
         """
@@ -5566,11 +5590,7 @@ class SGTool:
                 0
             ]
             if selected_layer.isValid():
-                crs = selected_layer.crs()
-                if crs.isGeographic():
-                    self.dlg.label_41_units.setText("Units: deg")
-                else:
-                    self.dlg.label_41_units.setText("Units: m")
+                self._show_grid_info(selected_layer)
 
     # --------------------------------------------------------------------------
     def show_version(self):
@@ -5582,7 +5602,7 @@ class SGTool:
             for line in metadata:
                 parts = line.split("=")
                 if len(parts) == 2 and parts[0] == "version":
-                    plugin_version = parts[1]
+                    plugin_version = parts[1].strip()  # without the line break
 
             return plugin_version
 
@@ -5659,7 +5679,8 @@ class SGTool:
                 QgsMapLayerProxyModel.PointLayer
             )
 
-            self.dlg.version_label.setText(self.show_version())
+            for label in self.dlg._version_labels:
+                label.setText(self.show_version())
 
             self.deriv_dir_list = []
             self.deriv_dir_list.append("z")
@@ -5696,6 +5717,8 @@ class SGTool:
             self.dlg.pushButton_replay_history.clicked.connect(self.replay_history)
             # the layer selected in the QGIS Layers panel and the SGTool dropdowns follow each other
             self.iface.currentLayerChanged.connect(self._active_layer_changed)
+            QgsProject.instance().layersRemoved.connect(self._clear_grid_info_if_no_grids)
+            QgsProject.instance().cleared.connect(self._clear_grid_info_if_no_grids)
             for combo in self._sync_layer_combos():
                 combo.layerChanged.connect(self._combo_layer_changed)
 
@@ -5744,11 +5767,7 @@ class SGTool:
                     return
 
                 selected_layer = selected_layer[0]
-                crs = selected_layer.crs()
-                if crs.isGeographic():
-                    self.dlg.label_41_units.setText("Units: deg")
-                else:
-                    self.dlg.label_41_units.setText("Units: m")
+                self._show_grid_info(selected_layer)
 
             self.dlg.lineEdit_Mean_size.setValidator(OddPositiveIntegerValidator())
             self.dlg.lineEdit_Median_size.setValidator(OddPositiveIntegerValidator())

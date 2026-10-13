@@ -91,13 +91,32 @@ def calc_igrf(date, alt, lat, lon):
 
 
 def _to_lonlat(authid):
-    """Transformer from the grid's CRS (an 'EPSG:nnnn' code) to lon/lat."""
-    from pyproj import CRS, Transformer
+    """Transformer (with .transform(x, y) -> lon, lat) from the grid's CRS (an
+    'EPSG:nnnn' code) to lon/lat. Uses pyproj, or GDAL where pyproj is not installed
+    (the ArcGIS Pro Python environment)."""
+    epsg = int(authid.split(":")[1])
+    try:
+        from pyproj import CRS, Transformer
+    except ImportError:
+        from osgeo import osr
 
+        src, dst = osr.SpatialReference(), osr.SpatialReference()
+        src.ImportFromEPSG(epsg)
+        dst.ImportFromEPSG(4326)
+        for ref in (src, dst):
+            if hasattr(osr, "OAMS_TRADITIONAL_GIS_ORDER"):  # x = lon / easting, always
+                ref.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        transform = osr.CoordinateTransformation(src, dst)
+
+        class _OsrTransformer:
+            @staticmethod
+            def transform(x, y):
+                lon, lat, _z = transform.TransformPoint(x, y)
+                return lon, lat
+
+        return _OsrTransformer()
     return Transformer.from_crs(
-        CRS.from_user_input(int(authid.split(":")[1])),
-        CRS.from_user_input(4326),
-        always_xy=True,
+        CRS.from_user_input(epsg), CRS.from_user_input(4326), always_xy=True
     )
 
 

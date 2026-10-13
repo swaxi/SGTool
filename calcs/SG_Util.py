@@ -1,7 +1,6 @@
 import numpy as np
 from collections import defaultdict
 from osgeo import gdal, ogr, osr
-from shapely.geometry import Polygon
 import os
 from collections import defaultdict
 
@@ -195,6 +194,10 @@ class SG_Util:
 
         def identify_holes(rings):
             """Identify which rings are holes in other rings"""
+            # shapely is only needed here, so it is imported here: the rest of SG_Util
+            # (such as the threshold to NaN) works without it
+            from shapely.geometry import Polygon
+
             # Convert rings to Shapely polygons
             polygons = [Polygon(ring) for ring in rings if len(ring) > 3]
 

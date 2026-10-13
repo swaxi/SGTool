@@ -22,14 +22,24 @@ from datetime import date as _date
 
 import numpy as np
 
-from .calcs.layer_shim import LayerShim
-from .calcs.sgt_metadata import write_sgt_metadata
-from .calcs.Cooper_Cowan_rtpvariable import rtpvariable as cooper_rtpvariable
-from .calcs.igrf.igrf_field import grid_field, decimal_year
-from .sgt_processing import (
-    FILTER_SPECS, SUFFIXES, GridContext, auto_output_path, read_grid, write_grid,
-    _plugin_version,
-)
+try:  # as part of the QGIS plugin package
+    from .calcs.layer_shim import LayerShim
+    from .calcs.sgt_metadata import write_sgt_metadata
+    from .calcs.Cooper_Cowan_rtpvariable import rtpvariable as cooper_rtpvariable
+    from .calcs.igrf.igrf_field import grid_field, decimal_year
+    from .sgt_filters import (
+        FILTER_SPECS, SUFFIXES, GridContext, auto_output_path, read_grid, write_grid,
+        _plugin_version,
+    )
+except ImportError:  # from the ArcGIS Pro GUI, where these are top-level modules
+    from calcs.layer_shim import LayerShim
+    from calcs.sgt_metadata import write_sgt_metadata
+    from calcs.Cooper_Cowan_rtpvariable import rtpvariable as cooper_rtpvariable
+    from calcs.igrf.igrf_field import grid_field, decimal_year
+    from sgt_filters import (
+        FILTER_SPECS, SUFFIXES, GridContext, auto_output_path, read_grid, write_grid,
+        _plugin_version,
+    )
 
 DRTP_OPERATION = "Differential reduction to pole"
 LINE_NOISE_OPERATION = "Directional Cosine/Butterworth line-noise removal"

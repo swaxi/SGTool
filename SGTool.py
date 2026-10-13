@@ -2674,8 +2674,9 @@ class SGTool:
         self.suffix = "_d" + str(self.derive_power) + self.derive_direction
 
     def procTiltAngle(self):
-        self.new_grid = self.processor.tilt_angle(
-            self.raster_array, buffer_size=self.buffer
+        # the tilt angle is saved in degrees (-90 to 90), as in the ArcGIS Pro version
+        self.new_grid = np.degrees(
+            self.processor.tilt_angle(self.raster_array, buffer_size=self.buffer)
         )
         self.suffix = "_TA"
 

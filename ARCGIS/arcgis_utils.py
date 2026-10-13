@@ -278,3 +278,364 @@ def get_noddy_mag_params(raster_path):
                 float(md["intensity"]))
     except Exception:
         return None
+
+
+# ---------------------------------------------------------------------------
+# Version, grid information and provenance (shared with the QGIS plugin)
+# ---------------------------------------------------------------------------
+def plugin_version():
+    """SGTool version from metadata.txt (None if it cannot be read)."""
+    try:
+        with open(os.path.join(_SGTOOL, "metadata.txt"), encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("version="):
+                    return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return None
+
+
+def raster_header_info(path):
+    """Size, cell size, extent and CRS of a raster, from its header only.
+
+    Returns a dict (width, height, cell_x, cell_y, extent=(xmin, ymin, xmax, ymax),
+    authid e.g. 'EPSG:28350' or '', crs_name, geographic) or None if the raster
+    cannot be read."""
+    try:
+        from osgeo import gdal, osr
+
+        ds = gdal.Open(str(path).split("|")[0], gdal.GA_ReadOnly)
+        if ds is None:
+            return None
+        width, height = ds.RasterXSize, ds.RasterYSize
+        gt = ds.GetGeoTransform()
+        wkt = ds.GetProjection()
+        ds = None
+        x0, x1 = gt[0], gt[0] + gt[1] * width
+        y0, y1 = gt[3], gt[3] + gt[5] * height
+        authid, name, geographic = "", "", False
+        if wkt:
+            srs = osr.SpatialReference()
+            srs.ImportFromWkt(wkt)
+            name = srs.GetName() or ""
+            geographic = bool(srs.IsGeographic())
+            try:
+                srs.AutoIdentifyEPSG()
+            except Exception:
+                pass
+            code = srs.GetAuthorityCode(None)
+            if code and (srs.GetAuthorityName(None) or "").upper() == "EPSG":
+                authid = f"EPSG:{code}"
+            else:
+                # the file's WKT may carry no code: take a confident database match
+                try:
+                    for match, confidence in srs.FindMatches() or []:
+                        if (confidence >= 90 and match.GetAuthorityCode(None)
+                                and (match.GetAuthorityName(None) or "").upper() == "EPSG"):
+                            authid = f"EPSG:{match.GetAuthorityCode(None)}"
+                            break
+                except Exception:
+                    pass
+        return {
+            "width": width, "height": height,
+            "cell_x": abs(gt[1]), "cell_y": abs(gt[5]),
+            "extent": (min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)),
+            "authid": authid, "crs_name": name, "geographic": geographic,
+        }
+    except Exception:
+        return None
+
+
+def grid_info_text(info):
+    """e.g. "Units: m   CRS: EPSG:28350   Pixels: 120 x 120   Pixel size: 100 m"."""
+    if not info:
+        return ""
+    unit = "deg" if info["geographic"] else "m"
+    crs = info["authid"] or info["crs_name"] or "unknown"
+    text = f"Units: {unit}   CRS: {crs}"
+    w, h = info["width"], info["height"]
+    if w > 0 and h > 0:
+        dx, dy = info["cell_x"], info["cell_y"]
+        size = (f"{dx:.6g}" if abs(dx - dy) <= 1e-9 * max(abs(dx), abs(dy))
+                else f"{dx:.6g} x {dy:.6g}")
+        text += f"   Pixels: {w} x {h}   Pixel size: {size} {unit}"
+    return text
+
+
+def write_provenance(output_path, source_path, operation, parameters=None):
+    """Record how output_path was made, inside the GeoTIFF (see calcs/sgt_metadata).
+    Never raises: provenance must not stop a calculation."""
+    try:
+        from calcs.sgt_metadata import write_sgt_metadata
+
+        write_sgt_metadata(
+            output_path, source_path, operation, parameters or {}, plugin_version()
+        )
+    except Exception as e:
+        print(f"SGTool: could not write provenance for {output_path}: {e}")
+
+
+def step_record(spec_id, **values):
+    """(operation, parameters) for a filter in the form the replay understands:
+    the filter table's own operation name and parameter names (settings not given
+    take their defaults), so a history made here can be replayed on another grid."""
+    from sgt_filters import FILTER_SPECS
+
+    spec = next(s for s in FILTER_SPECS if s["id"] == spec_id)
+    record = {}
+    for p in spec["params"]:
+        if p["name"] in values:
+            record[p["name"]] = values[p["name"]]
+        elif p["kind"] == "enum":
+            record[p["name"]] = p["options"][p["default"]]
+        else:
+            record[p["name"]] = p["default"]
+    for key, value in values.items():
+        record.setdefault(key, value)  # extra items (such as the survey date)
+    return spec["operation"], record
+
+
+def step_suffix(step):
+    """The file-name suffix the QGIS plugin gives the result of a (operation, parameters)
+    step from step_record, e.g. "_RTP", "_d1z", "_UC_500", "_BP_50000_5000". None if the
+    step is not in the shared filter table (the caller then names it)."""
+    if not step:
+        return None
+    operation, values = step
+    from sgt_filters import FILTER_SPECS, SUFFIXES
+
+    for spec in FILTER_SPECS:
+        if spec["operation"] == operation:
+            try:
+                return SUFFIXES[spec["id"]](values)
+            except Exception:
+                return None
+    return None
+
+
+# ---------------------------------------------------------------------------
+# MRVBF / MRRTF (Gallant & Dowling 2003) and the slope and RGB that go with it
+# ---------------------------------------------------------------------------
+MRVBF_DEFAULTS = dict(t_slope=16.0, t_pctl_v=0.40, t_pctl_r=0.35,
+                      p_slope=4.0, p_pctl=3.0, max_res=100.0)
+
+
+def slope_degrees(arr, cx, cy):
+    """Slope of a grid in degrees (3 x 3 Horn method); NaN where the cell or one of
+    its neighbours is no data."""
+    from scipy.ndimage import convolve
+
+    a = np.asarray(arr, dtype=float)
+    nan = ~np.isfinite(a)
+    z = np.where(nan, np.nanmean(a) if (~nan).any() else 0.0, a)
+    kx = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]], dtype=float) / (8.0 * cx)
+    ky = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]], dtype=float) / (8.0 * cy)
+    slope = np.degrees(np.arctan(np.hypot(convolve(z, kx, mode="nearest"),
+                                          convolve(z, ky, mode="nearest"))))
+    slope[convolve(nan.astype(float), np.ones((3, 3)), mode="nearest") > 0] = np.nan
+    return slope
+
+
+def mrvbf_set(arr, ll_x, ll_y, cx, **params):
+    """(MRVBF, MRRTF, slope in degrees) for a north-up DEM array (row 0 = north), as
+    the QGIS plugin makes them. params override MRVBF_DEFAULTS."""
+    from calcs.mrvbf import mrvbf as calc_mrvbf
+
+    settings = dict(MRVBF_DEFAULTS, **params)
+    dem = np.flipud(np.asarray(arr, dtype=float))  # mrvbf() wants row 0 = ymin
+    valid_mask = ~np.isfinite(dem)
+    mrvbf_su, mrrtf_su = calc_mrvbf(dem, float(cx), xmin=ll_x, ymin=ll_y,
+                                    nodata_mask=valid_mask, **settings)
+    return (np.flipud(mrvbf_su), np.flipud(mrrtf_su),
+            slope_degrees(arr, cx, cx))
+
+
+def numpy_to_raster_multiband(bands, output_path, ll_x, ll_y, cell_x, cell_y,
+                              spatial_ref=None, nodata=NODATA):
+    """Write equal-shaped 2-D arrays as the bands of one Float32 GeoTIFF."""
+    from osgeo import gdal
+
+    output_path = str(output_path)
+    if os.path.exists(output_path):
+        try:
+            os.remove(output_path)
+        except OSError:
+            pass
+    out = [np.where(np.isnan(b), nodata, b).astype(np.float32) for b in bands]
+    rows, cols = out[0].shape
+    ds = gdal.GetDriverByName("GTiff").Create(output_path, cols, rows, len(out),
+                                              gdal.GDT_Float32)
+    ds.SetGeoTransform((ll_x, cell_x, 0.0, ll_y + rows * cell_y, 0.0, -cell_y))
+    if isinstance(spatial_ref, str) and spatial_ref:
+        ds.SetProjection(spatial_ref)
+    elif spatial_ref is not None:
+        ds.SetProjection(spatial_ref.exportToString())
+    for i, band_array in enumerate(out, start=1):
+        band = ds.GetRasterBand(i)
+        band.WriteArray(band_array)
+        band.SetNoDataValue(float(nodata))
+    ds.FlushCache()
+    ds = None
+
+
+def write_mrvbf_outputs(in_path, base, ext, arr, ll_x, ll_y, cx, cy, sr, nodata, **params):
+    """Compute MRVBF / MRRTF / slope for in_path and write <base>_MRVBF, _MRRTF,
+    _slope and the 3-band _MRVBF_RGB (R = MRRTF, G = MRVBF, B = slope) like QGIS,
+    each with its provenance. Returns the paths written, in that order."""
+    settings = dict(MRVBF_DEFAULTS, **params)
+    mrvbf_grid, mrrtf_grid, slope = mrvbf_set(arr, ll_x, ll_y, cx, **settings)
+    record = {k: settings[k] for k in ("t_slope", "t_pctl_v", "t_pctl_r",
+                                       "p_slope", "p_pctl", "max_res")}
+    written = []
+    for suffix, grid, operation, rec in (
+        ("_MRVBF", mrvbf_grid, "Multiresolution valley bottom flatness", record),
+        ("_MRRTF", mrrtf_grid, "Multiresolution ridge top flatness", record),
+        ("_slope", slope, "Slope (degrees)", {"z_factor": 1.0}),
+    ):
+        path = f"{base}{suffix}{ext}"
+        numpy_to_raster(grid, path, ll_x, ll_y, cx, cy, sr, nodata)
+        write_provenance(path, in_path, operation, rec)
+        written.append(path)
+    rgb = f"{base}_MRVBF_RGB{ext}"
+    numpy_to_raster_multiband([mrrtf_grid, mrvbf_grid, slope], rgb, ll_x, ll_y, cx, cy, sr, nodata)
+    write_provenance(rgb, in_path, "MRVBF/MRRTF/slope RGB composite",
+                     dict(record, bands="R=MRRTF, G=MRVBF, B=slope"))
+    written.append(rgb)
+    return written
+
+
+# ---------------------------------------------------------------------------
+# Multilevel B-spline gridding of scattered points (native translation of SAGA)
+# ---------------------------------------------------------------------------
+def list_point_fields(path):
+    """Attribute names of a point file readable by OGR (shapefile, GeoPackage, ...)."""
+    from osgeo import ogr
+
+    ds = ogr.Open(str(path))
+    if ds is None:
+        return []
+    layer = ds.GetLayer(0)
+    definition = layer.GetLayerDefn()
+    names = [definition.GetFieldDefn(i).GetName() for i in range(definition.GetFieldCount())]
+    ds = None
+    return names
+
+
+def read_points_ogr(path, field):
+    """x, y and the numeric value of `field` for every point of an OGR point file, as
+    arrays, plus the file's CRS as WKT. Values stored as text (as the SGTool importer
+    writes them) are converted; points without a number are skipped."""
+    from osgeo import ogr
+
+    ds = ogr.Open(str(path))
+    if ds is None:
+        raise IOError(f"Cannot open points file: {path}")
+    layer = ds.GetLayer(0)
+    srs = layer.GetSpatialRef()
+    wkt = srs.ExportToWkt() if srs is not None else ""
+    xs, ys, zs = [], [], []
+    for feat in layer:
+        geom = feat.GetGeometryRef()
+        if geom is None or geom.IsEmpty():
+            continue
+        try:
+            z = float(feat.GetField(field))
+        except (TypeError, ValueError, KeyError):
+            continue
+        if geom.GetGeometryCount() > 0:  # multipoint
+            points = [geom.GetGeometryRef(i) for i in range(geom.GetGeometryCount())]
+        else:
+            points = [geom]
+        for pt in points:
+            xs.append(pt.GetX())
+            ys.append(pt.GetY())
+            zs.append(z)
+    ds = None
+    return np.array(xs), np.array(ys), np.array(zs), wkt
+
+
+def grid_points_to_file(xs, ys, zs, out_path, source_path, field, cell_size,
+                        epsilon=1e-4, level_max=11, ignore_below=None,
+                        spatial_ref=None, callback=None):
+    """Multilevel B-spline gridding of points into a GeoTIFF, with the QGIS plugin's
+    grid geometry (lower-left node snapped down to a multiple of the cell size) and its
+    provenance. Returns the number of points used."""
+    from calcs.saga_mba_gridding import mba_gridding
+
+    xs, ys, zs = (np.asarray(v, dtype=float) for v in (xs, ys, zs))
+    if ignore_below is not None:
+        keep = zs >= ignore_below
+        xs, ys, zs = xs[keep], ys[keep], zs[keep]
+    if xs.size < 3:
+        raise ValueError("Need at least 3 valid points with a numeric value to grid")
+    xmin = float(np.floor(xs.min() / cell_size) * cell_size)
+    ymin = float(np.floor(ys.min() / cell_size) * cell_size)
+    nx = 2 + int((xs.max() - xmin) / cell_size)
+    ny = 2 + int((ys.max() - ymin) / cell_size)
+    if nx < 2 or ny < 2:
+        raise ValueError("Cell size too large for the point extent")
+    grid = mba_gridding(xs, ys, zs, cellsize=cell_size, xmin=xmin, ymin=ymin, nx=nx, ny=ny,
+                        epsilon=epsilon, level_max=level_max, refinement=False,
+                        callback=callback)
+    grid = np.flipud(grid)  # the gridder's row 0 is ymin; rasters are written north-up
+    # cell (0, 0) is centred on (xmin, ymin): the raster origin is half a cell lower-left
+    numpy_to_raster(grid, out_path, xmin - cell_size / 2.0, ymin - cell_size / 2.0,
+                    cell_size, cell_size, spatial_ref, NODATA)
+    record = {"data_field": field, "cell_size": cell_size, "epsilon": epsilon,
+              "max_levels": level_max, "points_used": int(xs.size)}
+    if ignore_below is not None:
+        record["ignore_values_below"] = ignore_below
+    write_provenance(out_path, source_path, "Multilevel B-spline gridding", record)
+    return int(xs.size)
+
+
+# ---------------------------------------------------------------------------
+# The ArcGIS Pro map view, as a part of a grid (for the preview window)
+# ---------------------------------------------------------------------------
+def map_view_to_cells(view, raster_path, clip=True):
+    """The extent of the ArcGIS Pro map view as a box of cells in a raster:
+    (x0, y0, x1, y1), x = column, y = row (row 0 at the top), clipped to the raster unless
+    clip is False (the whole map view, which may reach beyond the raster).
+
+    view is what the toolbox tool writes: {"extent": [xmin, ymin, xmax, ymax], "epsg": code
+    or 0, "wkt": text}, in the map's coordinate system. Returns None if the map view does
+    not overlap the raster."""
+    from osgeo import gdal, osr
+
+    ds = gdal.Open(str(raster_path).split("|")[0], gdal.GA_ReadOnly)
+    if ds is None:
+        return None
+    gt, width, height, wkt = ds.GetGeoTransform(), ds.RasterXSize, ds.RasterYSize, ds.GetProjection()
+    ds = None
+    xmin, ymin, xmax, ymax = (float(v) for v in view["extent"])
+    corners = [(xmin, ymin), (xmin, ymax), (xmax, ymin), (xmax, ymax)]
+
+    dst = osr.SpatialReference()
+    if wkt:
+        dst.ImportFromWkt(wkt)
+    src = osr.SpatialReference()
+    epsg = int(view.get("epsg") or 0)
+    if epsg:
+        src.ImportFromEPSG(epsg)
+    elif view.get("wkt"):
+        src.ImportFromWkt(view["wkt"])
+        try:
+            src.MorphFromESRI()
+        except Exception:
+            pass
+    if (epsg or view.get("wkt")) and wkt and not src.IsSame(dst):
+        for ref in (src, dst):
+            if hasattr(osr, "OAMS_TRADITIONAL_GIS_ORDER"):  # x = easting / longitude
+                ref.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        transform = osr.CoordinateTransformation(src, dst)
+        corners = [transform.TransformPoint(x, y)[:2] for x, y in corners]
+
+    cols = [(x - gt[0]) / gt[1] for x, _y in corners]
+    rows = [(y - gt[3]) / gt[5] for _x, y in corners]
+    x0, x1 = max(0.0, min(cols)), min(float(width), max(cols))
+    y0, y1 = max(0.0, min(rows)), min(float(height), max(rows))
+    if x1 - x0 < 1.0 or y1 - y0 < 1.0:
+        return None  # the map is not looking at this raster
+    if not clip:
+        return (min(cols), min(rows), max(cols), max(rows))
+    return (x0, y0, x1, y1)

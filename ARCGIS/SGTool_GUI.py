@@ -30,7 +30,18 @@ for _p in (_HERE, _SGTOOL,
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from arcgis_utils import raster_to_numpy, numpy_to_raster, make_processor, NODATA
+from arcgis_utils import (raster_to_numpy, numpy_to_raster, make_processor, NODATA,
+                          write_provenance, step_record, raster_header_info,
+                          grid_info_text, plugin_version, step_suffix,
+                          write_mrvbf_outputs, MRVBF_DEFAULTS,
+                          list_point_fields, read_points_ogr, grid_points_to_file,
+                          map_view_to_cells)
+from calcs.sgt_cancel import OperationCancelled
+from sgt_preview_window import PreviewWindow, block_mean
+from calcs.sgt_metadata import (read_sgt_metadata, format_sgt_metadata_text,
+                                sgt_metadata_xml_text, save_sgt_metadata_xml)
+from calcs.workflow import history_steps
+from sgt_workflow import plan_steps, run_replay, uniform_field, check_igrf_possible
 import numpy as np
 
 # ---------------------------------------------------------------------------
@@ -180,9 +191,28 @@ class SGToolApp(tk.Tk):
         self._info_file      = sys.argv[1] if len(sys.argv) > 1 else None
         self._pending_file   = os.path.join(tempfile.gettempdir(), "sgtool_pending.json")
         self._refresh_req    = os.path.join(tempfile.gettempdir(), "sgtool_refresh_req.json")
+        self._tls            = threading.local()   # the cancel token of the job a thread runs
+        # external preview (see 'External preview' below)
+        self.v_preview       = tk.BooleanVar(value=False)
+        self._preview_win    = None     # the preview window, while previewing
+        self._preview_tab    = None     # tab (0 FFT, 1 Conv) the preview belongs to
+        self._preview_gen    = 0        # newest request: older results are dropped
+        self._preview_timer  = None
+        self._preview_src    = None     # (path, mtime, (array, cell x, cell y))
+        self._preview_path   = None
+        self._preview_enforcing = False
+        self._preview_ending = False    # Apply is ending the preview: keep the ticks
+        self._apply_btns     = {}       # tab -> its Apply button (renamed while previewing)
+        self.v_preview.trace_add("write", self._preview_var_changed)
+        self._active_token   = None                # cancel token of the running job
         self._apply_theme()
         self._build_top_bar()
+        self.v_input.trace_add("write", lambda *_: self._update_grid_info())
+        self._update_grid_info()
         self._build_notebook()
+        self._hook_preview_vars(0)
+        for seq in ("<KeyRelease>", "<ButtonRelease-1>", "<<ComboboxSelected>>"):
+            self.bind_all(seq, self._preview_event, add="+")
         self._build_status_bar()
         self.after(200, lambda: threading.Thread(
             target=self._refresh_layers, daemon=True).start())
@@ -240,6 +270,13 @@ class SGToolApp(tk.Tk):
         tk.Label(r1, textvariable=self.v_output_preview,
                  bg=FRAME_BG, fg="#555555", font=FONT_MONO,
                  anchor="w").pack(side="left", padx=4, fill="x", expand=True)
+
+        # ---- Row 2: version and the selected grid's units, CRS, pixels, pixel size ----
+        r2 = tk.Frame(top, bg=FRAME_BG)
+        r2.pack(fill="x", padx=6, pady=(0, 2))
+        self.v_grid_info = tk.StringVar(value="")
+        tk.Label(r2, textvariable=self.v_grid_info, bg=FRAME_BG, fg="#333333",
+                 font=FONT, anchor="w").pack(side="left")
 
         top.columnconfigure(0, weight=1)
 
@@ -299,6 +336,15 @@ class SGToolApp(tk.Tk):
             self.v_input.set(self._layer_map[names[0]])
         self._status(f"Layer list refreshed – {len(names)} raster(s) found." if names
                      else "No raster layers found. Use Browse File or re-launch from ArcGIS Pro.")
+
+    def _update_grid_info(self):
+        """Version, units, CRS, pixel counts and pixel size of the selected grid."""
+        path = self._layer_map.get(self.v_input.get(), self.v_input.get())
+        text = ""
+        if path and os.path.exists(path):
+            text = grid_info_text(raster_header_info(path))
+        version = plugin_version()
+        self.v_grid_info.set((f"Version {version}   " if version else "") + text)
 
     def _on_layer_selected(self, event=None):
         sel = self._layer_combo.get()
@@ -446,6 +492,431 @@ class SGToolApp(tk.Tk):
     # ------------------------------------------------------------------
     # Auto output-path derivation
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # External preview
+    #
+    # ArcGIS Pro gives a separate Python window no map hooks, so the preview has its own
+    # window (sgt_preview_window.PreviewWindow). One filter at a time is ticked; the filter
+    # is run on what is in view (or on the whole grid, reduced) by the very same code that
+    # Apply uses (_fft_steps / _conv_steps), with a _save that keeps the first result
+    # instead of writing it. Preview follows you between the FFT Filters and Conv + Stats
+    # tabs; Apply Preview saves the ticked filter at full resolution.
+    # ------------------------------------------------------------------
+    PREVIEW_FILTERS = {
+        0: ("v_rtp", "v_vint", "v_cont", "v_dirclean", "v_regrem", "v_bp", "v_hlp", "v_agc",
+            "v_deriv", "v_thg", "v_ta", "v_as_"),
+        1: ("v_mean", "v_med", "v_gauss", "v_dconv", "v_sun", "v_ss_min", "v_ss_max", "v_ss_var",
+            "v_ss_std", "v_ss_skew", "v_ss_kurt", "v_ss_aniso", "v_ss_chain", "v_ss_stream",
+            "v_mrvbf", "v_pca", "v_ica", "v_euler"),
+        3: ("v_thresh_en",),  # Utils tab: Threshold to NaN
+    }
+    PREVIEW_NOT_POSSIBLE = ("v_ss_aniso", "v_ss_chain", "v_ss_stream", "v_mrvbf",
+                            "v_pca", "v_ica", "v_euler")
+    PREVIEW_VIEW_SIDE = 1000    # most cells (longest side) calculated for the view
+    PREVIEW_WHOLE_SIDE = 600    # the whole grid is reduced to about this
+    APPLY_TEXT = {0: "Apply FFT Processing", 1: "Apply Conv + Stats", 3: "Apply Threshold \u2192 NaN"}
+
+    def _filter_var(self, name):
+        return getattr(self, name, None)
+
+    def _ticked(self, tab):
+        return [n for n in self.PREVIEW_FILTERS[tab]
+                if self._filter_var(n) is not None and self._filter_var(n).get()]
+
+    def _hook_preview_vars(self, tab):
+        """Watch a tab's filter tick boxes (called once the tab is built)."""
+        for name in self.PREVIEW_FILTERS.get(tab, ()):  # (only two tabs can preview)
+            var = self._filter_var(name)
+            if var is not None:
+                var.trace_add("write", lambda *_a, t=tab, n=name: self._preview_filter_changed(t, n))
+        self._update_apply_text()
+
+    def _update_apply_text(self):
+        on = self.v_preview.get()
+        for tab, button in self._apply_btns.items():
+            button.config(text="Apply Preview" if on else self.APPLY_TEXT[tab])
+
+    def _current_tab(self):
+        try:
+            return self.nb.index(self.nb.select())
+        except (AttributeError, tk.TclError):
+            return 0
+
+    def _preview_var_changed(self, *_):
+        self._update_apply_text()
+        if self.v_preview.get():
+            self._preview_start()
+        else:
+            self._preview_stop(untick=not self._preview_ending)
+
+    def _preview_start(self):
+        tab = self._current_tab()
+        self._preview_tab = tab if tab in self.PREVIEW_FILTERS else None
+        if self._preview_tab is not None:
+            self._enforce_single(self._preview_tab, None)
+        if self._preview_win is None or not self._preview_win.winfo_exists():
+            self._preview_win = PreviewWindow(self, self._preview_view_changed, self._preview_closed,
+                                              self._preview_match_map)
+        self._preview_path = None
+        self._preview_schedule(50)
+
+    def _preview_stop(self, untick):
+        """Close the preview. With untick, also untick the filters (Apply keeps them)."""
+        if self._preview_timer is not None:
+            self.after_cancel(self._preview_timer)
+            self._preview_timer = None
+        self._preview_gen += 1
+        win, self._preview_win = self._preview_win, None
+        if win is not None:
+            try:
+                win.destroy()
+            except tk.TclError:
+                pass
+        if untick:
+            self._preview_enforcing = True
+            try:
+                for tab in self.PREVIEW_FILTERS:
+                    for name in self.PREVIEW_FILTERS[tab]:
+                        var = self._filter_var(name)
+                        if var is not None:
+                            var.set(False)
+            finally:
+                self._preview_enforcing = False
+        self._preview_tab = None
+
+    def _preview_closed(self):
+        """The user closed the preview window."""
+        self.v_preview.set(False)
+
+    def _end_preview_for_apply(self):
+        """Apply while previewing: close the preview but keep the ticked filter, which
+        Apply is about to run (and unticks when it finishes)."""
+        if self.v_preview.get():
+            self._preview_ending = True
+            try:
+                self.v_preview.set(False)
+            finally:
+                self._preview_ending = False
+
+    def _enforce_single(self, tab, keep):
+        """Only one filter of the tab stays ticked: `keep`, else the first ticked."""
+        ticked = self._ticked(tab)
+        if keep is None and ticked:
+            keep = ticked[0]
+        self._preview_enforcing = True
+        try:
+            for name in ticked:
+                if name != keep:
+                    self._filter_var(name).set(False)
+        finally:
+            self._preview_enforcing = False
+
+    def _preview_filter_changed(self, tab, name):
+        if (not self.v_preview.get() or self._preview_tab != tab or self._preview_enforcing):
+            return
+        if self._filter_var(name).get():
+            self._enforce_single(tab, name)
+        self._preview_schedule()
+
+    def _preview_tab_changed(self, idx):
+        """Leaving a previewed tab unticks its filters; Preview stays on and is shown for
+        the tab arrived at (tabs without a preview just wait)."""
+        self._update_apply_text()
+        if not self.v_preview.get():
+            return
+        old = self._preview_tab
+        if old is not None and old != idx:
+            self._preview_enforcing = True
+            try:
+                for name in self.PREVIEW_FILTERS[old]:
+                    var = self._filter_var(name)
+                    if var is not None:
+                        var.set(False)
+            finally:
+                self._preview_enforcing = False
+        self._preview_tab = idx if idx in self.PREVIEW_FILTERS else None
+        if self._preview_tab is not None:
+            self._enforce_single(self._preview_tab, None)
+        self._preview_schedule(50)
+
+    def _preview_event(self, event):
+        """A key or click anywhere in the app: settings may have changed."""
+        if not self.v_preview.get() or self._preview_tab is None:
+            return
+        try:
+            if self._preview_win is not None and event.widget.winfo_toplevel() is self._preview_win:
+                return
+        except (AttributeError, tk.TclError, KeyError):
+            pass
+        self._preview_schedule()
+
+    def _map_view(self, path):
+        """(the ArcGIS Pro map view as a box of cells of the grid at `path`, the map canvas's
+        width / height), or None. The toolbox tool that launched the GUI writes the view to a
+        file every couple of seconds."""
+        try:
+            with open(os.path.join(tempfile.gettempdir(), "sgtool_view.json")) as f:
+                view = json.load(f)
+            if map_view_to_cells(view, path) is None:   # not looking at this grid
+                return None
+            xmin, ymin, xmax, ymax = view["extent"]
+            return (map_view_to_cells(view, path, clip=False),
+                    (xmax - xmin) / (ymax - ymin))
+        except Exception:
+            return None
+
+    def _preview_show_map_view(self, path):
+        """Show in the preview window what the ArcGIS Pro map shows of this grid, in a window
+        of the same shape as the map canvas. False if there is no map view over the grid."""
+        win = self._preview_win
+        found = self._map_view(path) if win is not None else None
+        if found is None:
+            return False
+        box, aspect = found
+        win.match_canvas_aspect(aspect)
+        win.set_view(box)
+        return True
+
+    def _preview_match_map(self):
+        """The Match map view button."""
+        win = self._preview_win
+        if win is None or not win.winfo_exists():
+            return
+        path = self._resolve_input()
+        if not (path and os.path.exists(path) and self._preview_show_map_view(path)):
+            win.set_status("No ArcGIS Pro map view over this grid (the GUI must be launched "
+                           "from the SGTool toolbox, with a map open over the grid)")
+
+    def _preview_view_changed(self):
+        self._preview_schedule(250)
+
+    def _preview_schedule(self, delay=400):
+        if self._preview_timer is not None:
+            self.after_cancel(self._preview_timer)
+        self._preview_timer = self.after(delay, self._preview_refresh)
+
+    def _preview_refresh(self):
+        self._preview_timer = None
+        win = self._preview_win
+        if win is None or not win.winfo_exists():
+            return
+        tab = self._preview_tab
+        if tab is None:
+            win.clear("The preview is on the FFT Filters, Conv + Stats and Utils (threshold) tabs")
+            win.set_status("")
+            return
+        path = self._resolve_input()
+        if not path or not os.path.exists(path):
+            win.clear("Select an input raster")
+            return
+        if path != self._preview_path:  # a new grid: show all of it
+            header = raster_header_info(path)
+            if header is None:
+                win.clear("Cannot read " + os.path.basename(path))
+                return
+            self._preview_path = path
+            win.set_grid(header["height"], header["width"], force=True,
+                         ratio=header["cell_y"] / header["cell_x"])
+            self._preview_show_map_view(path)  # start where the ArcGIS Pro map is looking
+        ticked = self._ticked(tab)
+        if not ticked:
+            win.clear("Tick a filter to preview")
+            win.set_status("")
+            return
+        if ticked[0] in self.PREVIEW_NOT_POSSIBLE or (
+                ticked[0] == "v_rtp" and self.v_rtp_type.get() == "Diff. RTP"):
+            win.clear("This filter cannot be previewed (Apply Preview still runs it)")
+            win.set_status("")
+            return
+        self._preview_gen += 1
+        gen = self._preview_gen
+        win.set_status("Calculating…")
+        threading.Thread(target=self._preview_worker,
+                         args=(gen, tab, path, win.v_mode.get(), win.view_box()),
+                         daemon=True).start()
+
+    def _preview_worker(self, gen, tab, path, mode, view):
+        try:
+            result, error = self._compute_preview(tab, path, mode, view), None
+        except Exception as e:
+            result, error = None, str(e) or type(e).__name__
+        try:
+            self.after(0, self._preview_done, gen, result, error)
+        except (RuntimeError, tk.TclError):
+            pass  # the app is closing
+
+    def _preview_done(self, gen, result, error):
+        win = self._preview_win
+        if gen != self._preview_gen or win is None or not win.winfo_exists():
+            return  # a newer request is under way, or the preview was closed
+        if error:
+            win.clear(error)
+            win.set_status("")
+            return
+        win.show_result(result["filtered"], result["original"], result["box"], result["std_clip"])
+        win.set_status(result["text"])
+
+    def _preview_source(self, path):
+        """(array, cell x, cell y) of the input grid, read once per file."""
+        try:
+            stamp = os.path.getmtime(path)
+        except OSError:
+            stamp = None
+        if self._preview_src is not None and self._preview_src[:2] == (path, stamp):
+            return self._preview_src[2]
+        arr, _nodata, _llx, _lly, cx, cy, _sr = raster_to_numpy(path)
+        self._preview_src = (path, stamp, (arr, cx, cy))
+        return self._preview_src[2]
+
+    def _compute_preview(self, tab, path, mode, view):
+        """Run the ticked filter of `tab` on the part of the grid the preview shows.
+
+        mode "view" calculates what is in `view` = (x0, y0, x1, y1) cells at full detail
+        (reduced if it is large), "whole" the whole grid reduced. Returns a dict with the
+        filtered grid, the input it came from, where it lies (box, in cells of the full
+        grid), whether to stretch by standard deviation, and a line of text."""
+        import math
+        import time
+
+        t0 = time.time()
+        arr, cx, cy = self._preview_source(path)
+        rows, cols = arr.shape
+        if mode == "whole":
+            x0, y0, x1, y1 = 0, 0, cols, rows
+            side = self.PREVIEW_WHOLE_SIDE
+        else:
+            vx0, vy0, vx1, vy1 = view
+            x0, y0 = int(max(0, math.floor(vx0))), int(max(0, math.floor(vy0)))
+            x1, y1 = int(min(cols, math.ceil(vx1))), int(min(rows, math.ceil(vy1)))
+            if x1 - x0 < 16:
+                x0, x1 = max(0, min(x0, cols - 16)), min(cols, max(x1, 16))
+            if y1 - y0 < 16:
+                y0, y1 = max(0, min(y0, rows - 16)), min(rows, max(y1, 16))
+            side = self.PREVIEW_VIEW_SIDE
+        crop = arr[y0:y1, x0:x1]
+        k = max(1, int(math.ceil(max(crop.shape) / side)))
+        sub = block_mean(crop, k)
+        ecx, ecy = cx * k, cy * k
+        buf = max(1, min(int(self.v_buf.get() or 10), *sub.shape))
+        proc = make_processor(ecx, ecy, buf)
+
+        class _Done(Exception):
+            """The first result is all the preview needs."""
+
+        got = {}
+
+        def keep(result, suffix, step=None):
+            got["result"] = np.asarray(result, dtype=float)
+            got["step"] = step
+            raise _Done()
+
+        count = [0]
+        try:
+            if tab == 0:
+                self._fft_steps(path, sub, ecx, ecy, buf, proc, count, keep)
+            elif tab == 3:
+                self._threshold_step(sub, keep)
+            else:
+                self._conv_steps(path, sub, NODATA, 0.0, 0.0, ecx, ecy, None,
+                                 os.path.splitext(path)[0], ".tif", count, keep)
+        except _Done:
+            pass
+        if "result" not in got:
+            raise RuntimeError("Nothing to preview for these settings")
+        operation = got["step"][0] if got["step"] else "Result"
+        text = f"{operation}:  {sub.shape[1]} x {sub.shape[0]} cells"
+        if k > 1:
+            text += f", block-averaged {k} x ({ecx:g} map units per cell)"
+        text += f"   ({time.time() - t0:.1f} s)"
+        try:
+            if self.v_dirclean.get() and ecx > float(self.v_dc_wl.get()):
+                text += "   - cell size exceeds the line spacing: zoom in"
+        except (AttributeError, ValueError):
+            pass
+        return {"filtered": got["result"], "original": sub, "box": (x0, y0, x1, y1),
+                "std_clip": operation != "Sun shading", "text": text}
+
+    def _planned_suffixes(self):
+        """File-name suffixes (QGIS naming) of the results the ticked operations will
+        write, so the 'Output (auto)' line shows the real names."""
+        def val(name, default=None):
+            var = getattr(self, name, None)
+            return var.get() if var is not None else default
+
+        def num(name, default):
+            try:
+                return float(val(name, default))
+            except (TypeError, ValueError):
+                return default
+
+        out = []
+
+        def add(spec_id, **values):
+            out.append(step_suffix(step_record(spec_id, **values)))
+
+        try:
+            if val("v_rtp"):
+                rt = val("v_rtp_type", "Pole")
+                if rt == "Diff. RTP":
+                    out += ["_DRTP", "_DRTP_inc", "_DRTP_dec"]
+                else:
+                    add("reduction_to_equator" if rt == "Equator" else "reduction_to_pole")
+            if val("v_vint"):
+                add("vertical_integration")
+            if val("v_cont"):
+                add("continuation", DIRECTION=val("v_cont_dir", "up"), HEIGHT=num("v_cont_h", 500.0))
+            if val("v_dirclean"):
+                add("directional_line_noise")
+            if val("v_regrem"):
+                add("remove_regional",
+                    ORDER="1st order" if val("v_regorder", "1st") == "1st" else "2nd order")
+            if val("v_bp"):
+                add("band_pass", LOW_CUT=num("v_bp_lo", 50000.0), HIGH_CUT=num("v_bp_hi", 5000.0))
+            if val("v_hlp"):
+                add("high_low_pass", TYPE=val("v_hlp_type", "High"), CUTOFF=num("v_hlp_cut", 5000.0))
+            if val("v_agc"):
+                add("automatic_gain_control")
+            if val("v_deriv"):
+                add("derivative", DIRECTION=val("v_deriv_dir", "z"), POWER=num("v_deriv_pow", 1.0))
+            if val("v_thg"):
+                add("total_horizontal_gradient")
+            if val("v_ta"):
+                add("tilt_angle")
+            if val("v_as_"):
+                add("analytic_signal")
+            if val("v_mean"):
+                add("mean_filter")
+            if val("v_med"):
+                add("median_filter")
+            if val("v_gauss"):
+                add("gaussian_filter")
+            if val("v_dconv"):
+                add("directional_filter")
+            if val("v_sun"):
+                add("sun_shading")
+            for attr, stat in (("v_ss_min", "min"), ("v_ss_max", "max"), ("v_ss_var", "variance"),
+                               ("v_ss_std", "std"), ("v_ss_skew", "skewness"),
+                               ("v_ss_kurt", "kurtosis")):
+                if val(attr):
+                    add("windowed_statistic", STATISTIC=stat)
+            if val("v_ss_aniso"):
+                out += ["_SS_AnisoMag", "_SS_AnisoOrient"]
+            if val("v_ss_chain"):
+                out.append("_SS_ChainLen")
+            if val("v_ss_stream"):
+                out.append("_SS_StreamLen")
+            if val("v_mrvbf"):
+                out += ["_MRVBF", "_MRRTF", "_slope", "_MRVBF_RGB"]
+            if val("v_pca"):
+                out.append("_PCA")
+            if val("v_ica"):
+                out.append("_ICA")
+            if val("v_euler"):
+                out.append(f"_estimates_SI_{int(num('v_eu_si', 1.0))}")
+        except Exception:
+            pass  # a half-typed entry: show what could be worked out
+        return [p for p in out if p]
+
     def _compute_output_path(self):
         """Build output path from input path + suffix describing active operations."""
         in_r = self.v_input.get()
@@ -455,44 +926,7 @@ class SGToolApp(tk.Tk):
         if not in_r or not os.path.exists(in_r):
             return None
 
-        parts = []
-        # -- FFT --
-        if getattr(self, "v_rtp",      tk.BooleanVar()).get():
-            _rt = getattr(self, "v_rtp_type", tk.StringVar(value="Pole")).get()
-            parts.append("rte" if _rt == "Equator" else ("DRTP" if _rt == "Diff. RTP" else "rtp"))
-        if getattr(self, "v_vint",     tk.BooleanVar()).get(): parts.append("vi")
-        if getattr(self, "v_cont",     tk.BooleanVar()).get():
-            parts.append(f"cont_{getattr(self,'v_cont_dir',tk.StringVar(value='up')).get()}")
-        if getattr(self, "v_dirclean", tk.BooleanVar()).get(): parts.append("dir")
-        if getattr(self, "v_regrem",   tk.BooleanVar()).get():
-            parts.append(f"reg{getattr(self,'v_regorder',tk.StringVar(value='1st')).get()[0]}")
-        if getattr(self, "v_bp",       tk.BooleanVar()).get(): parts.append("bp")
-        if getattr(self, "v_hlp",      tk.BooleanVar()).get():
-            parts.append("hp" if getattr(self, "v_hlp_type",
-                          tk.StringVar(value="High")).get() == "High" else "lp")
-        if getattr(self, "v_agc",      tk.BooleanVar()).get(): parts.append("agc")
-        if getattr(self, "v_deriv",    tk.BooleanVar()).get():
-            parts.append(f"d{getattr(self,'v_deriv_dir',tk.StringVar(value='z')).get()}")
-        if getattr(self, "v_thg",      tk.BooleanVar()).get(): parts.append("thg")
-        if getattr(self, "v_ta",       tk.BooleanVar()).get(): parts.append("ta")
-        if getattr(self, "v_as_",      tk.BooleanVar()).get(): parts.append("as")
-        # -- Conv --
-        if getattr(self, "v_mean",     tk.BooleanVar()).get():
-            parts.append(f"mean{getattr(self,'v_mean_n',tk.StringVar(value='3')).get()}")
-        if getattr(self, "v_med",      tk.BooleanVar()).get():
-            parts.append(f"med{getattr(self,'v_med_n',tk.StringVar(value='3')).get()}")
-        if getattr(self, "v_gauss",    tk.BooleanVar()).get(): parts.append("gauss")
-        if getattr(self, "v_dconv",    tk.BooleanVar()).get():
-            parts.append(f"dir{getattr(self,'v_dconv_dir',tk.StringVar(value='N')).get().lower()}")
-        if getattr(self, "v_sun",      tk.BooleanVar()).get(): parts.append("shade")
-        for attr, tag in [("v_ss_min","min"),("v_ss_max","max"),("v_ss_var","var"),
-                          ("v_ss_std","std"),("v_ss_skew","skew"),("v_ss_kurt","kurt"),
-                          ("v_ss_aniso","aniso"),("v_ss_chain","chain"),("v_ss_stream","stream")]:
-            if getattr(self, attr, tk.BooleanVar()).get(): parts.append(tag)
-        if getattr(self, "v_dtm",      tk.BooleanVar()).get(): parts.append("dtm")
-        if getattr(self, "v_pca",      tk.BooleanVar()).get(): parts.append("pca")
-        if getattr(self, "v_ica",      tk.BooleanVar()).get(): parts.append("ica")
-        if getattr(self, "v_euler",    tk.BooleanVar()).get(): parts.append("euler")
+        parts = self._planned_suffixes()
 
         base, ext = os.path.splitext(in_r)
         if not ext:
@@ -500,7 +934,7 @@ class SGToolApp(tk.Tk):
         bn = os.path.basename(base)
         if parts:
             if len(parts) <= 3:
-                preview = ",  ".join(f"{bn}_{p}{ext}" for p in parts)
+                preview = ",  ".join(f"{bn}{p}{ext}" for p in parts)
             else:
                 preview = (f"{len(parts)} outputs: "
                            + ", ".join(parts[:3]) + f"  +{len(parts)-3} more")
@@ -546,6 +980,8 @@ class SGToolApp(tk.Tk):
             self._tab_built.add(idx)
             _, builder = self._tab_specs[idx]
             builder(self._tab_frames[idx].inner)
+            self._hook_preview_vars(idx)
+        self._preview_tab_changed(idx)
 
     # ------------------------------------------------------------------
     # Status bar
@@ -556,6 +992,11 @@ class SGToolApp(tk.Tk):
         self.v_status = tk.StringVar(value="Ready.")
         tk.Label(bar, textvariable=self.v_status,
                  bg=FRAME_BG, fg=FG, font=FONT, anchor="w").pack(side="left", padx=6)
+        self._cancel_btn = tip(btn(bar, "Cancel", self._cancel_job, w=8),
+            "Stop the running calculation now. A step that is part-way through an FFT\n"
+            "finishes in the background, but its result is discarded and nothing is saved.")
+        self._cancel_btn.config(state="disabled")
+        self._cancel_btn.pack(side="right", padx=4, pady=1)
 
     def _status(self, msg):
         self.v_status.set(msg)
@@ -644,6 +1085,7 @@ class SGToolApp(tk.Tk):
         self.v_dc_wl     = tk.StringVar(value="2000.0")
         self.v_dc_wl_max = tk.StringVar(value="")
         self.v_dc_scale  = tk.StringVar(value="1.0")
+        self.v_dc_wedge  = tk.StringVar(value="45")
         tip(check(r6, "Directional Butterworth", self.v_dirclean),
             "Filter (DirCos + Butterworth) to remove a specific direction and wavelength\n"
             "Useful for filtering flight line noise").pack(side="left")
@@ -662,6 +1104,11 @@ class SGToolApp(tk.Tk):
         tip(entry(r6, self.v_dc_scale, 5, chk_var=self.v_dirclean),
             "Multiplier applied to the noise estimate before it is\n"
             "subtracted from the original grid").pack(side="left", padx=2)
+        lbl(r6, "Wedge:").pack(side="left", padx=(6,0))
+        tip(entry(r6, self.v_dc_wedge, 4, chk_var=self.v_dirclean),
+            "Half-width of the directional wedge in degrees: noise whose direction is\n"
+            "within this angle of the azimuth is kept in the noise estimate, with a\n"
+            "cosine taper. Wider keeps more of the noise (and more of the geology).").pack(side="left", padx=2)
 
         r7 = tk.Frame(ff, bg=BG); r7.pack(fill="x", padx=4, pady=2)
         self.v_regrem   = tk.BooleanVar()
@@ -761,8 +1208,13 @@ class SGToolApp(tk.Tk):
         tip(entry(ba, self.v_buf, 5),
             "Maximum buffer applied to grid to reduce edge effects (vignetting)\n"
             "Increase for noisy or clipped-edge grids").pack(side="left", padx=4)
-        tip(btn(ba, "Apply FFT Processing", self._apply_fft, w=22),
-            "Apply selected processing steps to the selected grid").pack(side="right", padx=4)
+        b_fft = btn(ba, "Apply FFT Processing", self._apply_fft, w=22)
+        self._apply_btns[0] = b_fft
+        tip(b_fft, "Apply selected processing steps to the selected grid").pack(side="right", padx=4)
+        tip(check(ba, "Preview", self.v_preview),
+            "Show the selected filter in a separate preview window that updates as you change\n"
+            "settings (zoom and pan to see detail). Only one filter can be ticked while\n"
+            "previewing. Apply Preview then saves the previewed filter at full resolution").pack(side="right", padx=10)
 
     # ======================================================================
     # TAB 2 – CONV + STATS
@@ -845,23 +1297,31 @@ class SGToolApp(tk.Tk):
                                        ("Skewness", self.v_ss_skew), ("Kurtosis", self.v_ss_kurt)]):
             tip(check(ra if i < 3 else rb, txt, v), _ss_tips[txt]).pack(side="left", padx=(0,10))
 
-        rdm = tk.Frame(ss, bg=BG); rdm.pack(fill="x", padx=4, pady=2)
-        self.v_dtm       = tk.BooleanVar()
-        self.v_dtm_curv  = tk.StringVar(value="0.01")
-        self.v_dtm_slope = tk.StringVar(value="45.0")
-        self.v_dtm_sigma = tk.StringVar(value="1.0")
-        tip(check(rdm, "DTM Curvature Classify", self.v_dtm),
-            "Calculate DTM classification based on curvature and slope\n"
-            "-1 = concave up  0 = flat  1 = convex up  2 = steep slope").pack(side="left")
-        lbl(rdm, "Curv:").pack(side="left", padx=(8,0))
-        tip(entry(rdm, self.v_dtm_curv, 5, chk_var=self.v_dtm),
-            "Curvature threshold for DTM classification\nPositive = hill, negative = valley").pack(side="left", padx=2)
-        lbl(rdm, "Slope°:").pack(side="left")
-        tip(entry(rdm, self.v_dtm_slope, 5, chk_var=self.v_dtm),
-            "Slope threshold for Steep Slope DTM classification").pack(side="left", padx=2)
-        lbl(rdm, "σ:").pack(side="left")
-        tip(entry(rdm, self.v_dtm_sigma, 5, chk_var=self.v_dtm),
-            "Smoothing parameter for DTM classification\nHigher values smooth the data more").pack(side="left", padx=2)
+        # ---- MRVBF / MRRTF / slope (needs a projected DEM, cell size in metres) ----
+        rmv1 = tk.Frame(ss, bg=BG); rmv1.pack(fill="x", padx=4, pady=2)
+        rmv2 = tk.Frame(ss, bg=BG); rmv2.pack(fill="x", padx=4, pady=(0, 2))
+        self.v_mrvbf = tk.BooleanVar()
+        d_ = MRVBF_DEFAULTS
+        self.v_mrvbf_ts = tk.StringVar(value=f"{d_['t_slope']:g}")
+        self.v_mrvbf_pv = tk.StringVar(value=f"{d_['t_pctl_v']:.2f}")
+        self.v_mrvbf_pr = tk.StringVar(value=f"{d_['t_pctl_r']:.2f}")
+        self.v_mrvbf_ps = tk.StringVar(value=f"{d_['p_slope']:g}")
+        self.v_mrvbf_pp = tk.StringVar(value=f"{d_['p_pctl']:g}")
+        self.v_mrvbf_mr = tk.StringVar(value=f"{d_['max_res']:g}")
+        tip(check(rmv1, "MRVBF / MRRTF / Slope", self.v_mrvbf),
+            "Multiresolution Valley Bottom Flatness (MRVBF) and Ridge Top Flatness (MRRTF)\n"
+            "after Gallant & Dowling 2003. Writes _MRVBF, _MRRTF and _slope grids plus a\n"
+            "3-band _MRVBF_RGB composite (R=MRRTF, G=MRVBF, B=slope).\n"
+            "Needs a projected DEM with cell size in metres").pack(side="left")
+        for frame, label, var, text in (
+                (rmv1, "Slope threshold:", self.v_mrvbf_ts, "Initial threshold for slope (percent) at the finest resolution"),
+                (rmv1, "Pctl lowness:", self.v_mrvbf_pv, "Threshold for lowness percentile (valley bottom flatness)"),
+                (rmv1, "Pctl upness:", self.v_mrvbf_pr, "Threshold for upness percentile (ridge top flatness)"),
+                (rmv2, "Slope shape:", self.v_mrvbf_ps, "Shape parameter for the slope transformation"),
+                (rmv2, "Pctl shape:", self.v_mrvbf_pp, "Shape parameter for the elevation percentile transformation"),
+                (rmv2, "Max res %:", self.v_mrvbf_mr, "Maximum resolution as a percentage of the grid diagonal")):
+            lbl(frame, label).pack(side="left", padx=(8, 0))
+            tip(entry(frame, var, 6, chk_var=self.v_mrvbf), text).pack(side="left", padx=2)
 
         # ---- Local Anisotropy / Chain Length / Streamline Length ----
         ra1 = tk.Frame(ss, bg=BG); ra1.pack(fill="x", padx=4, pady=2)
@@ -955,8 +1415,14 @@ class SGToolApp(tk.Tk):
             "Percentage uncertainty threshold for depth estimates (0–1)").pack(side="left", padx=2)
 
         ba = tk.Frame(p, bg=BG); ba.pack(fill="x", padx=8, pady=8)
-        tip(btn(ba, "Apply Conv + Stats", self._apply_conv_stats, w=22),
-            "Apply selected processing steps to the selected grid").pack(side="right", padx=4)
+        b_conv = btn(ba, "Apply Conv + Stats", self._apply_conv_stats, w=22)
+        self._apply_btns[1] = b_conv
+        tip(b_conv, "Apply selected processing steps to the selected grid").pack(side="right", padx=4)
+        tip(check(ba, "Preview", self.v_preview),
+            "Show the selected filter in a separate preview window that updates as you change\n"
+            "settings (zoom and pan to see detail). Only one filter can be ticked while\n"
+            "previewing. Apply Preview then saves the previewed filter at full resolution").pack(side="right", padx=10)
+        self._update_apply_text()
 
     # ======================================================================
     # TAB 3 – GRID + WAVELETS
@@ -1002,6 +1468,45 @@ class SGToolApp(tk.Tk):
         tip(btn(ri3, "Import Data", self._import_data, w=12),
             "Load points file and convert to shapefile layer").pack(side="left")
 
+        bs = section(p, "Multilevel B-Spline Gridding")
+        bs.pack(fill="x", padx=8, pady=4)
+        rb1 = tk.Frame(bs, bg=BG); rb1.pack(fill="x", padx=4, pady=2)
+        lbl(rb1, "Points file:").pack(side="left")
+        self.v_bs_file = tk.StringVar()
+        tip(entry(rb1, self.v_bs_file, 40),
+            "Point file to grid (shapefile or GeoPackage).\n"
+            "Filled in after Import Data above").pack(side="left", padx=2)
+        tip(btn(rb1, "Browse…", self._browse_bspline_points, w=8),
+            "Select a point shapefile / GeoPackage").pack(side="left")
+        rb2 = tk.Frame(bs, bg=BG); rb2.pack(fill="x", padx=4, pady=2)
+        lbl(rb2, "Value field:").pack(side="left")
+        self.v_bs_field = tk.StringVar()
+        self._bs_field_combo = ttk.Combobox(rb2, textvariable=self.v_bs_field, width=16, font=FONT)
+        self._bs_field_combo.pack(side="left", padx=2)
+        ToolTip(self._bs_field_combo, "Data field to grid (numbers, or text that holds numbers)")
+        lbl(rb2, "Cell size:").pack(side="left", padx=(8, 0))
+        self.v_bs_cell = tk.StringVar(value="100.0")
+        tip(entry(rb2, self.v_bs_cell, 8), "Output cell size (map units)").pack(side="left", padx=2)
+        rb3 = tk.Frame(bs, bg=BG); rb3.pack(fill="x", padx=4, pady=2)
+        lbl(rb3, "Threshold error:").pack(side="left")
+        self.v_bs_eps = tk.StringVar(value="0.0001")
+        tip(entry(rb3, self.v_bs_eps, 8),
+            "MBA threshold error (EPSILON): stop refining once every point residual is below this value").pack(side="left", padx=2)
+        lbl(rb3, "Max levels:").pack(side="left", padx=(8, 0))
+        self.v_bs_levels = tk.StringVar(value="11")
+        tip(entry(rb3, self.v_bs_levels, 4),
+            "MBA maximum number of refinement levels (LEVEL_MAX)").pack(side="left", padx=2)
+        self.v_bs_ignore = tk.BooleanVar(value=False)
+        self.v_bs_ignore_val = tk.StringVar(value="-99999")
+        tip(check(rb3, "Ignore values <", self.v_bs_ignore),
+            "Drop points whose data value is below the threshold before gridding\n"
+            "(useful for removing nodata sentinels such as -99999 or -999999.9)").pack(side="left", padx=(12, 0))
+        entry(rb3, self.v_bs_ignore_val, 8, chk_var=self.v_bs_ignore).pack(side="left", padx=2)
+        rb4 = tk.Frame(bs, bg=BG); rb4.pack(fill="x", padx=4, pady=2)
+        tip(btn(rb4, "Multilevel B-Spline Gridding", self._grid_bspline, w=28),
+            "Grid the points with the multilevel B-spline method (native translation of SAGA's\n"
+            "grid_spline tool). Writes <points>_<field>_bspline.tif beside the points file").pack(side="left")
+
         wr = section(p, "BSD Worms")
         wr.pack(fill="x", padx=8, pady=4)
 
@@ -1028,6 +1533,21 @@ class SGToolApp(tk.Tk):
     # TAB 4 – UTILS
     # ======================================================================
     def _tab_utils(self, p):
+        md = section(p, "SGTool Metadata")
+        md.pack(fill="x", padx=8, pady=4)
+        rm1 = tk.Frame(md, bg=BG); rm1.pack(fill="x", padx=4, pady=2)
+        tip(btn(rm1, "Read metadata of input grid", self._show_metadata, w=26),
+            "Show how the input grid was made: when, from which source file(s) and with\n"
+            "which operation and parameters, back through every earlier SGTool step.\n"
+            "This is stored inside GeoTIFFs saved by SGTool.").pack(side="left")
+        tip(btn(rm1, "Save as XML", self._save_metadata_xml, w=12),
+            "Save the input grid's SGTool metadata as <grid file>.sgt.xml\n"
+            "in the same folder as the grid").pack(side="left", padx=4)
+        tip(btn(rm1, "Apply same steps to another grid…", self._open_replay, w=30),
+            "Repeat the processing steps in the input grid's history on another grid,\n"
+            "each on the result of the one before. Reduction to the pole / equator and\n"
+            "differential RTP get a new inclination and declination from IGRF").pack(side="left", padx=4)
+
         th = section(p, "Threshold to NaN")
         th.pack(fill="x", padx=8, pady=4)
         rt1 = tk.Frame(th, bg=BG); rt1.pack(fill="x", padx=4, pady=2)
@@ -1045,8 +1565,13 @@ class SGToolApp(tk.Tk):
         lbl(rt1, "Below:").pack(side="left")
         tip(entry(rt1, self.v_thresh_below, 10, chk_var=self.v_thresh_en),
             "Lower threshold value").pack(side="left", padx=2)
-        tip(btn(rt1, "Apply Threshold → NaN", self._apply_threshold, w=22),
-            "Apply threshold and set matching values to NaN (no-data)").pack(side="left", padx=8)
+        b_thr = btn(rt1, "Apply Threshold → NaN", self._apply_threshold, w=22)
+        self._apply_btns[3] = b_thr
+        tip(b_thr, "Apply threshold and set matching values to NaN (no-data)").pack(side="left", padx=8)
+        tip(check(rt1, "Preview", self.v_preview),
+            "Show the threshold in a separate preview window that updates as you change\n"
+            "settings (zoom and pan to see detail). Apply Preview then saves it at full resolution").pack(side="left", padx=4)
+        self._update_apply_text()
 
         bp = section(p, "Create Data Boundary Polygon")
         bp.pack(fill="x", padx=8, pady=4)
@@ -1092,6 +1617,70 @@ class SGToolApp(tk.Tk):
         entry(rrg3, self.v_rgb_max, 7).pack(side="left", padx=2)
         btn(rrg3, "Convert Grid", self._convert_rgb, w=14).pack(side="left", padx=12)
 
+    def _selected_metadata(self):
+        """(path, provenance) of the input grid, or None after saying why not."""
+        path = self._resolve_input()
+        if not path or not os.path.exists(path):
+            messagebox.showwarning("No Input", "Select an input raster.")
+            return None
+        root = read_sgt_metadata(path)
+        if root is None:
+            messagebox.showinfo("SGTool metadata",
+                                f"No SGTool metadata found for {os.path.basename(path)}")
+            return None
+        return path, root
+
+    def _show_metadata(self):
+        found = self._selected_metadata()
+        if not found:
+            return
+        path, root = found
+        win = tk.Toplevel(self)
+        win.title(f"SGTool metadata: {os.path.basename(path)}")
+        win.configure(bg=BG)
+        win.geometry("760x600")
+        nb = ttk.Notebook(win)
+        nb.pack(fill="both", expand=True, padx=4, pady=4)
+        for title, text in (("History", format_sgt_metadata_text(root)),
+                            ("XML", sgt_metadata_xml_text(root))):
+            frame = tk.Frame(nb, bg=BG)
+            box = tk.Text(frame, wrap="none", bg=ENTRY_BG, fg=FG, font=FONT_MONO,
+                          relief="sunken", bd=1)
+            sb_y = ttk.Scrollbar(frame, orient="vertical", command=box.yview)
+            sb_x = ttk.Scrollbar(frame, orient="horizontal", command=box.xview)
+            box.configure(yscrollcommand=sb_y.set, xscrollcommand=sb_x.set)
+            sb_y.pack(side="right", fill="y")
+            sb_x.pack(side="bottom", fill="x")
+            box.pack(side="left", fill="both", expand=True)
+            box.insert("1.0", text)
+            box.configure(state="disabled")
+            nb.add(frame, text=title)
+
+    def _save_metadata_xml(self):
+        found = self._selected_metadata()
+        if not found:
+            return
+        path, root = found
+        try:
+            out = save_sgt_metadata_xml(root, path)
+        except OSError as e:
+            messagebox.showerror("SGTool metadata", f"Could not save metadata: {e}")
+            return
+        self._status(f"Saved metadata → {os.path.basename(out)}")
+
+    def _open_replay(self):
+        found = self._selected_metadata()
+        if not found:
+            return
+        path, root = found
+        _origin, steps = history_steps(root)
+        plan = plan_steps(steps)
+        if not any(p["replayable"] for p in plan):
+            messagebox.showinfo("SGTool metadata",
+                                f"The history of {os.path.basename(path)} has no steps that can be repeated.")
+            return
+        ReplayWindow(self, os.path.basename(path), plan)
+
     # ======================================================================
     # TAB 5 – HELP
     # ======================================================================
@@ -1118,7 +1707,7 @@ class SGToolApp(tk.Tk):
             "                   AGC, regional removal, directional Butterworth,\n"
             "                   derivative, THG, tilt angle, analytic signal\n"
             "  Conv + Stats   – mean/median/Gaussian/directional/sun-shading,\n"
-            "                   windowed statistics, DTM curvature,\n"
+            "                   windowed statistics, MRVBF/MRRTF,\n"
             "                   local anisotropy + chain/streamline length, PCA, ICA,\n"
             "                   Euler deconvolution depth estimation\n"
             "\n"
@@ -1180,15 +1769,45 @@ class SGToolApp(tk.Tk):
         var.trace_add("write", _enforce)
 
     def _run_in_thread(self, func, *args):
+        token = threading.Event()          # set to cancel this job
+        self._active_token = token
+        self._cancel_btn.config(state="normal")
+
         def _wrap():
+            self._tls.token = token
             try:
                 func(*args)
+            except OperationCancelled:
+                pass                       # cancelled: the status bar already says so
             except Exception as e:
                 msg = str(e)
                 tb  = traceback.format_exc()
                 self.after(0, lambda m=msg, t=tb: messagebox.showerror("Error", f"{m}\n\n{t}"))
                 self.after(0, lambda m=msg: self._status(f"Error: {m}"))
+            finally:
+                self.after(0, self._job_finished, token)
         threading.Thread(target=_wrap, daemon=True).start()
+
+    def _job_finished(self, token):
+        if self._active_token is token:
+            self._active_token = None
+            self._cancel_btn.config(state="disabled")
+
+    def _cancel_job(self):
+        """End the running job now. The calculation it is part-way through finishes
+        in the background but is thrown away: it stops at its next checkpoint without
+        saving anything."""
+        if self._active_token is not None:
+            self._active_token.set()
+            self._active_token = None
+            self._cancel_btn.config(state="disabled")
+            self._status("Cancelled.")
+
+    def _check_cancel(self):
+        """Called by a job between steps and before saving: stop if it was cancelled."""
+        token = getattr(self._tls, "token", None)
+        if token is not None and token.is_set():
+            raise OperationCancelled()
 
     def _resolve_input(self):
         """Return actual file path for whatever is in the input field."""
@@ -1203,6 +1822,7 @@ class SGToolApp(tk.Tk):
         if not in_r:
             messagebox.showwarning("No Input", "Select an input raster.")
             return
+        self._end_preview_for_apply()
         self._status("Starting processing…")
         self._run_in_thread(self._do_apply_fft, in_r)
 
@@ -1217,14 +1837,27 @@ class SGToolApp(tk.Tk):
             ext = ".tif"
         count = [0]
 
-        def _save(result, suffix):
-            out_r = f"{base}_{suffix}{ext}"
+        def _save(result, suffix, step=None):
+            self._check_cancel()
+            suffix = step_suffix(step) or suffix   # QGIS naming: grid_RTP.tif, grid_d1z.tif ...
+            out_r = f"{base}{suffix}{ext}"
             numpy_to_raster(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
+            # how it was made, inside the GeoTIFF: (operation, parameters)
+            write_provenance(out_r, in_r, *(step or (suffix, {})))
             self._record_pending(out_r)
             count[0] += 1
             self.after(0, self._on_output_written, out_r)
 
+        self._fft_steps(in_r, arr, cx, cy, buf, proc, count, _save)
+
+        self.after(0, lambda: self._status(f"Done — {count[0]} output(s) written."))
+        self.after(0, self._uncheck_fft)
+
+    def _fft_steps(self, in_r, arr, cx, cy, buf, proc, count, _save):
+        """The ticked FFT filters; each result goes to _save(result, suffix, step)
+        (which writes it, or for the preview just keeps it)."""
         if self.v_rtp.get():
+            self._check_cancel()
             rt  = self.v_rtp_type.get()
             inc = float(self.v_inc.get())
             dec = float(self.v_dec.get())
@@ -1245,31 +1878,44 @@ class SGToolApp(tk.Tk):
                         np.flipud(data), nr, nc, inc_c, dec_c,
                         inc_center=inc_ctr, dec_center=dec_ctr,
                     )
-                    _save(np.flipud(varrtp),    "DRTP")
-                    _save(np.flipud(incv_deg),  "DRTP_inc")
-                    _save(np.flipud(decv_deg),  "DRTP_dec")
+                    when = self._year_to_date(year)
+                    _save(np.flipud(varrtp),    "_DRTP",
+                          ("Differential reduction to pole", {"date": when}))
+                    _save(np.flipud(incv_deg),  "_DRTP_inc",
+                          ("Differential RTP: interpolated inclination field", {"date": when}))
+                    _save(np.flipud(decv_deg),  "_DRTP_dec",
+                          ("Differential RTP: interpolated declination field", {"date": when}))
             elif rt == "Pole":
                 self.after(0, lambda: self._status("RTP…"))
-                _save(proc.reduction_to_pole(arr, inc, dec, buffer_size=buf), "rtp")
+                _save(proc.reduction_to_pole(arr, inc, dec, buffer_size=buf), "rtp",
+                      step_record("reduction_to_pole", INCLINATION=inc, DECLINATION=dec))
             else:
                 self.after(0, lambda: self._status("RTE…"))
-                _save(proc.reduction_to_equator(arr, inc, dec, buffer_size=buf), "rte")
+                _save(proc.reduction_to_equator(arr, inc, dec, buffer_size=buf), "rte",
+                      step_record("reduction_to_equator", INCLINATION=inc, DECLINATION=dec))
 
         if self.v_vint.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("Vertical integration…"))
-            _save(proc.vertical_integration(arr, buffer_size=buf), "vi")
+            _save(proc.vertical_integration(arr, buffer_size=buf), "vi",
+                  step_record("vertical_integration"))
 
         if self.v_cont.get():
+            self._check_cancel()
             h = float(self.v_cont_h.get())
             self.after(0, lambda: self._status(f"Continuation {h}…"))
             if self.v_cont_dir.get() == "up":
-                _save(proc.upward_continuation(arr, h, buffer_size=buf), "cont_up")
+                _save(proc.upward_continuation(arr, h, buffer_size=buf), "cont_up",
+                      step_record("continuation", DIRECTION="up", HEIGHT=h))
             else:
-                _save(proc.downward_continuation(arr, h, buffer_size=buf), "cont_dn")
+                _save(proc.downward_continuation(arr, h, buffer_size=buf), "cont_dn",
+                      step_record("continuation", DIRECTION="down", HEIGHT=h))
 
         if self.v_dirclean.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("Directional Butterworth…"))
             scale  = float(self.v_dc_scale.get() or "1.0")
+            wedge  = float(self.v_dc_wedge.get() or "45")
             min_sp = float(self.v_dc_wl.get())
             try:
                 max_sp = float(self.v_dc_wl_max.get())
@@ -1283,61 +1929,82 @@ class SGToolApp(tk.Tk):
                 arr,
                 2 * min_sp, 10 * max_sp,
                 direction_angle=float(self.v_dc_az.get()),
-                direction_width=45,
+                direction_width=wedge,
                 order=4,
                 buffer_size=buf,
                 preserve_dc=False)
-            _save(arr - noise * scale, "dir")
+            _save(arr - noise * scale, "dir",
+                  step_record("directional_line_noise",
+                              AZIMUTH=float(self.v_dc_az.get()),
+                              LINE_SPACING_MIN=min_sp, LINE_SPACING_MAX=max_sp,
+                              SCALE=scale, WEDGE=wedge, OUTPUT_TYPE="Corrected grid"))
 
         if self.v_regrem.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("Remove regional…"))
             mask = ~np.isnan(arr)
             if self.v_regorder.get() == "1st":
-                _save(proc.remove_gradient(arr, mask), "reg1")
+                _save(proc.remove_gradient(arr, mask), "reg1",
+                      step_record("remove_regional", ORDER="1st order"))
             else:
-                _save(proc.remove_2o_gradient(arr, mask), "reg2")
+                _save(proc.remove_2o_gradient(arr, mask), "reg2",
+                      step_record("remove_regional", ORDER="2nd order"))
 
         if self.v_bp.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("Band-pass filter…"))
             w = float(self.v_bp_w.get()) or None
             _save(proc.band_pass_filter(
                 arr, float(self.v_bp_lo.get()), float(self.v_bp_hi.get()),
-                w, w, buffer_size=buf), "bp")
+                w, w, buffer_size=buf), "bp",
+                step_record("band_pass", LOW_CUT=float(self.v_bp_lo.get()),
+                            HIGH_CUT=float(self.v_bp_hi.get()), WIDTH=w or 0.0))
 
         if self.v_hlp.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("High/Low-pass filter…"))
             cut = float(self.v_hlp_cut.get())
             wid = float(self.v_hlp_w.get())
             if self.v_hlp_type.get() == "High":
-                _save(proc.high_pass_filter(arr, cut, wid, buffer_size=buf), "hp")
+                _save(proc.high_pass_filter(arr, cut, wid, buffer_size=buf), "hp",
+                      step_record("high_low_pass", TYPE="High", CUTOFF=cut, WIDTH=wid))
             else:
-                _save(proc.low_pass_filter(arr, cut, wid, buffer_size=buf), "lp")
+                _save(proc.low_pass_filter(arr, cut, wid, buffer_size=buf), "lp",
+                      step_record("high_low_pass", TYPE="Low", CUTOFF=cut, WIDTH=wid))
 
         if self.v_agc.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("AGC…"))
-            _save(proc.automatic_gain_control(arr, self._ensure_odd(self.v_agc_win.get())), "agc")
+            agc_n = self._ensure_odd(self.v_agc_win.get())
+            _save(proc.automatic_gain_control(arr, agc_n), "agc",
+                  step_record("automatic_gain_control", WINDOW=agc_n))
 
         if self.v_deriv.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("Derivative…"))
             d = self.v_deriv_dir.get()
             _save(proc.compute_derivative(
                 arr, direction=d,
-                order=float(self.v_deriv_pow.get()), buffer_size=buf), f"d{d}")
+                order=float(self.v_deriv_pow.get()), buffer_size=buf), f"d{d}",
+                step_record("derivative", DIRECTION=d, POWER=float(self.v_deriv_pow.get())))
 
         if self.v_thg.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("Total Horizontal Gradient…"))
-            _save(proc.total_hz_grad(arr, buffer_size=buf), "thg")
+            _save(proc.total_hz_grad(arr, buffer_size=buf), "thg",
+                  step_record("total_horizontal_gradient"))
 
         if self.v_ta.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("Tilt angle…"))
-            _save(np.degrees(proc.tilt_angle(arr, buffer_size=buf)), "ta")
+            _save(np.degrees(proc.tilt_angle(arr, buffer_size=buf)), "ta",
+                  step_record("tilt_angle"))
 
         if self.v_as_.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("Analytic signal…"))
-            _save(proc.analytic_signal(arr, buffer_size=buf), "as")
-
-        self.after(0, lambda: self._status(f"Done — {count[0]} output(s) written."))
-        self.after(0, self._uncheck_fft)
+            _save(proc.analytic_signal(arr, buffer_size=buf), "as",
+                  step_record("analytic_signal"))
 
     def _uncheck_fft(self):
         for v in (self.v_rtp, self.v_vint, self.v_cont, self.v_dirclean,
@@ -1353,6 +2020,7 @@ class SGToolApp(tk.Tk):
         if not in_r:
             messagebox.showwarning("No Input", "Select an input raster.")
             return
+        self._end_preview_for_apply()
         self._run_in_thread(self._do_apply_conv_stats, in_r)
 
     def _do_apply_conv_stats(self, in_r):
@@ -1364,34 +2032,57 @@ class SGToolApp(tk.Tk):
             ext = ".tif"
         count = [0]
 
-        def _save(result, suffix):
-            out_r = f"{base}_{suffix}{ext}"
+        def _save(result, suffix, step=None):
+            self._check_cancel()
+            suffix = step_suffix(step) or suffix   # QGIS naming: grid_RTP.tif, grid_d1z.tif ...
+            out_r = f"{base}{suffix}{ext}"
             numpy_to_raster(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
+            # how it was made, inside the GeoTIFF: (operation, parameters)
+            write_provenance(out_r, in_r, *(step or (suffix, {})))
             self._record_pending(out_r)
             count[0] += 1
             self.after(0, self._on_output_written, out_r)
 
+        self._conv_steps(in_r, arr, nodata, ll_x, ll_y, cx, cy, sr, base, ext, count, _save)
+
+        self.after(0, lambda: self._status(f"Done — {count[0]} output(s) written."))
+        self.after(0, self._uncheck_conv)
+
+    def _conv_steps(self, in_r, arr, nodata, ll_x, ll_y, cx, cy, sr, base, ext, count, _save):
+        """The ticked Conv + Stats operations; each result goes to _save(result, suffix, step)."""
+        from calcs.ConvolutionFilter import ConvolutionFilter
+        from calcs.SpatialStats      import SpatialStats
         if self.v_mean.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("Mean filter…"))
             n = self._ensure_odd(self.v_mean_n.get())
-            _save(ConvolutionFilter(arr).mean_filter(n), f"mean{n}")
+            _save(ConvolutionFilter(arr).mean_filter(n), f"mean{n}",
+                  step_record("mean_filter", SIZE=n))
 
         if self.v_med.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("Median filter…"))
             n = self._ensure_odd(self.v_med_n.get())
-            _save(ConvolutionFilter(arr).median_filter(n), f"med{n}")
+            _save(ConvolutionFilter(arr).median_filter(n), f"med{n}",
+                  step_record("median_filter", SIZE=n))
 
         if self.v_gauss.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("Gaussian filter…"))
-            _save(ConvolutionFilter(arr).gaussian_filter(float(self.v_gauss_s.get())), "gauss")
+            sigma = float(self.v_gauss_s.get())
+            _save(ConvolutionFilter(arr).gaussian_filter(sigma), "gauss",
+                  step_record("gaussian_filter", SIGMA=sigma))
 
         if self.v_dconv.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("Directional filter…"))
             d = self.v_dconv_dir.get().lower()
             _save(ConvolutionFilter(arr).directional_filter(
-                self.v_dconv_dir.get(), self._ensure_odd(self.v_dconv_n.get())), f"dir{d}")
+                self.v_dconv_dir.get(), self._ensure_odd(self.v_dconv_n.get())), f"dir{d}",
+                step_record("directional_filter", DIRECTION=self.v_dconv_dir.get()))
 
         if self.v_sun.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("Sun shading…"))
             alt = float(self.v_sun_alt.get())
             az  = float(self.v_sun_az.get())
@@ -1399,7 +2090,9 @@ class SGToolApp(tk.Tk):
             result = (cf.sun_shading_filter_grass(arr, cy, cx, altitude=alt, azimuth=az)
                       if self.v_sun_relief.get()
                       else cf.sun_shading_filter(arr, alt, az))
-            _save(result, "shade")
+            _save(result, "shade",
+                  step_record("sun_shading", AZIMUTH=az, ZENITH=alt,
+                              RELIEF=bool(self.v_sun_relief.get())))
 
         win = self._ensure_odd(self.v_ss_win.get() or 5)
         for v_chk, stat, sfx in [
@@ -1411,18 +2104,32 @@ class SGToolApp(tk.Tk):
             (self.v_ss_kurt, "kurtosis", "kurt"),
         ]:
             if v_chk.get():
+                self._check_cancel()
                 self.after(0, lambda s=stat: self._status(f"Spatial {s}…"))
-                _save(SpatialStats(arr).calculate_windowed_stats(win, stat), sfx)
+                _save(SpatialStats(arr).calculate_windowed_stats(win, stat), sfx,
+                      step_record("windowed_statistic", STATISTIC=stat, WINDOW=win))
 
-        if self.v_dtm.get():
-            self.after(0, lambda: self._status("DTM curvature classification…"))
-            _save(SpatialStats(arr).classify_terrain_with_cell_size(
-                cx, cy,
-                float(self.v_dtm_curv.get()), float(self.v_dtm_slope.get()),
-                self._ensure_odd(self.v_ss_win.get() or 3), float(self.v_dtm_sigma.get()),
-            ).astype(np.float64), "dtm")
+        if self.v_mrvbf.get():
+            self._check_cancel()
+            hdr = raster_header_info(in_r)
+            if hdr and hdr["geographic"]:
+                self.after(0, lambda: messagebox.showwarning(
+                    "MRVBF", "MRVBF needs a projected raster with cell sizes in metres.\n"
+                             "Reproject the grid to a projected CRS and try again."))
+            else:
+                self.after(0, lambda: self._status("MRVBF / MRRTF / slope…"))
+                for path in write_mrvbf_outputs(
+                        in_r, base, ext, arr, ll_x, ll_y, cx, cy, sr, nodata,
+                        t_slope=float(self.v_mrvbf_ts.get()), t_pctl_v=float(self.v_mrvbf_pv.get()),
+                        t_pctl_r=float(self.v_mrvbf_pr.get()), p_slope=float(self.v_mrvbf_ps.get()),
+                        p_pctl=float(self.v_mrvbf_pp.get()), max_res=float(self.v_mrvbf_mr.get())):
+                    self._check_cancel()
+                    self._record_pending(path)
+                    self.after(0, self._on_output_written, path)
+                    count[0] += 1
 
         if self.v_ss_aniso.get() or self.v_ss_chain.get() or self.v_ss_stream.get():
+            self._check_cancel()
             from calcs.SpatialStats import SpatialStats as _SS
             win_type  = 'gaussian' if self.v_ss_aniso_win_type.get() == 'Gaussian' else 'box'
             a_thresh  = float(self.v_ss_aniso_thresh.get() or "0.3")
@@ -1434,52 +2141,67 @@ class SGToolApp(tk.Tk):
             aniso_map, orient_map = ss_inst.calculate_local_anisotropy(
                 arr, window_size=win, window_type=win_type)
             if self.v_ss_aniso.get():
-                _save(aniso_map,  "SS_AnisoMag")
-                _save(orient_map, "SS_AnisoOrient")
+                self._check_cancel()
+                aniso_step = ("Local anisotropy", {"window_size": win,
+                                                   "window_type": win_type})
+                _save(aniso_map,  "_SS_AnisoMag", aniso_step)
+                _save(orient_map, "_SS_AnisoOrient", aniso_step)
             if self.v_ss_chain.get():
+                self._check_cancel()
                 self.after(0, lambda: self._status("Chain length…"))
                 _save(ss_inst.calculate_anisotropy_chain_length(
                     aniso_map, orient_map,
                     aniso_threshold=a_thresh,
                     angle_tolerance=ang_tol,
                     search_radius=search_r,
-                ), "SS_ChainLen")
+                ), "_SS_ChainLen",
+                ("Anisotropy chain length", {
+                    "window_size": win, "anisotropy_threshold": a_thresh,
+                    "angle_tolerance": ang_tol, "search_radius": search_r}))
             if self.v_ss_stream.get():
+                self._check_cancel()
                 self.after(0, lambda: self._status("Streamline length…"))
                 _save(ss_inst.calculate_anisotropy_streamline_length(
                     aniso_map, orient_map,
                     aniso_threshold=a_thresh,
                     angle_tolerance=ang_tol,
                     max_steps=max_steps,
-                ), "SS_StreamLen")
+                ), "_SS_StreamLen",
+                ("Anisotropy streamline length", {
+                    "window_size": win, "anisotropy_threshold": a_thresh,
+                    "angle_tolerance": ang_tol, "max_steps": max_steps}))
 
         if self.v_pca.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("PCA…"))
             from calcs.PCAICA import PCAICA
             n = int(self.v_pca_n.get() or 0)
             PCAICA(np.zeros((2, 2))).pca_with_nans(
-                in_r, f"{base}_pca.tif", n_components=n if n > 0 else None)
-            self._record_pending(f"{base}_pca.tif")
-            self.after(0, self._on_output_written, f"{base}_pca.tif")
+                in_r, f"{base}_PCA.tif", n_components=n if n > 0 else None)
+            write_provenance(f"{base}_PCA.tif", in_r, "Principal component analysis",
+                             {"n_components": n})
+            self._record_pending(f"{base}_PCA.tif")
+            self.after(0, self._on_output_written, f"{base}_PCA.tif")
             count[0] += 1
 
         if self.v_ica.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("ICA…"))
             from calcs.PCAICA import PCAICA
             n = int(self.v_ica_n.get() or 0)
             PCAICA(np.zeros((2, 2))).ica_with_nans(
-                in_r, f"{base}_ica.tif", n_components=n if n > 0 else None)
-            self._record_pending(f"{base}_ica.tif")
-            self.after(0, self._on_output_written, f"{base}_ica.tif")
+                in_r, f"{base}_ICA.tif", n_components=n if n > 0 else None)
+            write_provenance(f"{base}_ICA.tif", in_r, "Independent component analysis",
+                             {"n_components": n})
+            self._record_pending(f"{base}_ICA.tif")
+            self.after(0, self._on_output_written, f"{base}_ICA.tif")
             count[0] += 1
 
         if self.v_euler.get():
+            self._check_cancel()
             self.after(0, lambda: self._status("Euler deconvolution…"))
             self._do_euler(arr, nodata, ll_x, ll_y, cx, cy, in_r)
             count[0] += 1
-
-        self.after(0, lambda: self._status(f"Done — {count[0]} output(s) written."))
-        self.after(0, self._uncheck_conv)
 
     def _uncheck_conv(self):
         for v in (self.v_mean, self.v_med, self.v_gauss, self.v_dconv,
@@ -1487,7 +2209,7 @@ class SGToolApp(tk.Tk):
                   self.v_ss_min, self.v_ss_max, self.v_ss_var, self.v_ss_std,
                   self.v_ss_skew, self.v_ss_kurt,
                   self.v_ss_aniso, self.v_ss_chain, self.v_ss_stream,
-                  self.v_dtm, self.v_pca, self.v_ica, self.v_euler):
+                  self.v_mrvbf, self.v_pca, self.v_ica, self.v_euler):
             v.set(False)
 
     def _do_euler(self, arr, nodata, ll_x, ll_y, cx, cy, in_r):
@@ -1514,12 +2236,16 @@ class SGToolApp(tk.Tk):
             self.after(0, lambda: self._status("Euler: no estimates produced."))
             return
 
-        out_csv = os.path.splitext(in_r)[0] + "_euler.csv"
+        # QGIS naming: <grid>_estimates_SI_<n>.txt, n being the structural index
+        out_csv = os.path.splitext(in_r)[0] + f"_estimates_SI_{int(float(self.v_eu_si.get()))}.txt"
         with open(out_csv, "w", newline="") as f:
             wr = csv.writer(f)
             wr.writerow(["X", "Y", "Depth", "B", "StdDfDz"])
             for row in res:
                 wr.writerow([row[0], row[1], row[2], row[3], row[4]])
+        write_provenance(out_csv, in_r, "Euler deconvolution", {
+            "structural_index": self.v_eu_si.get(), "window_size": self.v_eu_win.get(),
+            "fraction_kept": self.v_eu_filt.get()})
         n = len(res)
         self.after(0, lambda: self._status(f"Euler: {n} estimates → {os.path.basename(out_csv)}"))
 
@@ -1585,7 +2311,59 @@ class SGToolApp(tk.Tk):
         self.after(0, lambda: self._status(
             f"Imported {len(rows_data)} points" +
             (f" → {out_shp}" if out_shp else "")))
+        if out_shp and os.path.exists(out_shp):
+            self.after(0, self._set_bspline_points, out_shp)
 
+
+    # ------------------------------------------------------------------
+    # Multilevel B-spline gridding
+    # ------------------------------------------------------------------
+    def _browse_bspline_points(self):
+        path = filedialog.askopenfilename(
+            filetypes=[("Point files", "*.shp *.gpkg *.geojson"), ("All files", "*.*")])
+        if path:
+            self._set_bspline_points(path)
+
+    def _set_bspline_points(self, path):
+        """Use `path` as the points to grid and list its fields."""
+        self.v_bs_file.set(path)
+        fields = list_point_fields(path)
+        self._bs_field_combo["values"] = fields
+        if fields and self.v_bs_field.get() not in fields:
+            self.v_bs_field.set(fields[-1])
+
+    def _grid_bspline(self):
+        points = self.v_bs_file.get()
+        field = self.v_bs_field.get()
+        if not points or not os.path.exists(points) or not field:
+            messagebox.showwarning("Gridding", "Choose a points file and the value field to grid.")
+            return
+        try:
+            cell = float(self.v_bs_cell.get())
+            eps = float(self.v_bs_eps.get())
+            levels = int(float(self.v_bs_levels.get()))
+            ignore = float(self.v_bs_ignore_val.get()) if self.v_bs_ignore.get() else None
+        except ValueError:
+            messagebox.showwarning("Gridding", "Cell size, threshold error and levels must be numbers.")
+            return
+        if cell <= 0:
+            messagebox.showwarning("Gridding", "The cell size must be greater than zero.")
+            return
+        self._status("Multilevel B-spline gridding…")
+        self._run_in_thread(self._do_bspline, points, field, cell, eps, levels, ignore)
+
+    def _do_bspline(self, points, field, cell, eps, levels, ignore):
+        xs, ys, zs, wkt = read_points_ogr(points, field)
+        out_r = os.path.splitext(points)[0] + f"_{field}_bspline.tif"  # as in QGIS
+        self._check_cancel()
+        n = grid_points_to_file(
+            xs, ys, zs, out_r, points, field, cell, epsilon=eps, level_max=levels,
+            ignore_below=ignore, spatial_ref=wkt or None,
+            callback=lambda fraction=None: self._check_cancel())
+        self._record_pending(out_r)
+        self.after(0, self._on_output_written, out_r)
+        self.after(0, lambda: self._status(
+            f"Gridded {n} points → {os.path.basename(out_r)}"))
 
     def _calc_worms(self):
         in_r = self._resolve_input()
@@ -1621,19 +2399,33 @@ class SGToolApp(tk.Tk):
         if not in_r or not self.v_thresh_en.get():
             messagebox.showwarning("Missing", "Enable threshold and select input raster.")
             return
-        out_r = os.path.splitext(in_r)[0] + "_nan.tif"
-        self._run_in_thread(self._do_threshold, in_r, out_r)
+        out_r = os.path.splitext(in_r)[0] + "_Clean.tif"
+        was_previewing = self.v_preview.get()
+        self._end_preview_for_apply()
+        self._run_in_thread(self._do_threshold, in_r, out_r, was_previewing)
 
-    def _do_threshold(self, in_r, out_r):
+    def _do_threshold(self, in_r, out_r, untick=False):
         self.after(0, lambda: self._status("Threshold to NaN…"))
         arr, nodata, ll_x, ll_y, cx, cy, sr = raster_to_numpy(in_r)
+
+        def _save(result, suffix, step=None):
+            numpy_to_raster(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
+            write_provenance(out_r, in_r, *step)
+            self._record_pending(out_r)
+            self.after(0, self._on_output_written, out_r)
+
+        self._threshold_step(arr, _save)
+        if untick:  # an Apply Preview: leave nothing ticked, as the other tabs do
+            self.after(0, lambda: self.v_thresh_en.set(False))
+
+    def _threshold_step(self, arr, _save):
+        """Threshold to NaN with the settings on the Utils tab; the result goes to
+        _save(result, suffix, step) (which writes it, or for the preview keeps it)."""
         from calcs.SG_Util import SG_Util
-        result = SG_Util(arr).Threshold2Nan(
-            arr, self.v_thresh_cond.get(),
-            float(self.v_thresh_above.get()), float(self.v_thresh_below.get()))
-        numpy_to_raster(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
-        self._record_pending(out_r)
-        self.after(0, self._on_output_written, out_r)
+        cond = self.v_thresh_cond.get()
+        above, below = float(self.v_thresh_above.get()), float(self.v_thresh_below.get())
+        _save(SG_Util(arr).Threshold2Nan(arr, cond, above, below), "_Clean",
+              step_record("threshold_to_nan", CONDITION=cond, ABOVE=above, BELOW=below))
 
     def _create_boundary(self):
         in_r = self._resolve_input()
@@ -1918,6 +2710,15 @@ class SGToolApp(tk.Tk):
     # ======================================================================
     # IGRF  +  Power Spectrum
     # ======================================================================
+    @staticmethod
+    def _year_to_date(year):
+        """A decimal year (2024.5) as an ISO date, for the provenance record."""
+        import datetime
+        y = int(year)
+        days = (datetime.date(y + 1, 1, 1) - datetime.date(y, 1, 1)).days
+        return (datetime.date(y, 1, 1)
+                + datetime.timedelta(days=round((year - y) * days))).isoformat()
+
     def _calc_igrf(self):
         try:
             from arcgis_utils import (calc_igrf, raster_center_latlon,
@@ -2080,10 +2881,149 @@ class SGToolApp(tk.Tk):
             self.after(0, _plot)
             self.after(0, lambda: self._status("Power spectrum displayed."))
         except Exception as e:
-            self.after(0, lambda: self._status(f"Power spectrum error: {e}"))
+            self.after(0, lambda msg=str(e): self._status(f"Power spectrum error: {msg}"))
 
 
 # ============================================================================
+class ReplayWindow(tk.Toplevel):
+    """Apply the steps in a grid's history to another grid.
+
+    Each step has an Apply box and a Save box (keep that step's result as a file; an
+    unticked step is deleted once the next has been made from it, and the last result
+    is always kept). Reduction to the pole / equator and differential RTP get their
+    inclination and declination from IGRF for the new grid and the survey date."""
+
+    TICK, UNTICK = "\u2611", "\u2610"
+
+    def __init__(self, app, history_name, plan):
+        super().__init__(app)
+        self.app = app
+        self.plan = plan
+        self.apply = {i: p["replayable"] for i, p in enumerate(plan)}
+        self.save = {i: p["replayable"] for i, p in enumerate(plan)}
+        self.title("Apply the same steps to another grid")
+        self.configure(bg=BG)
+        self.geometry("860x470")
+
+        usable = sum(1 for p in plan if p["replayable"])
+        lbl(self, f"History of {history_name}: {len(plan)} steps, {usable} can be repeated. "
+                  "Steps run oldest first, each on the result of the one before."
+            ).pack(anchor="w", padx=8, pady=(8, 2))
+
+        row = tk.Frame(self, bg=BG); row.pack(fill="x", padx=8, pady=3)
+        lbl(row, "Apply to grid:").pack(side="left")
+        self.v_target = tk.StringVar()
+        ttk.Combobox(row, textvariable=self.v_target, values=list(app._layer_map),
+                     width=58, font=FONT).pack(side="left", padx=4)
+        btn(row, "Browse…", self._browse, w=9).pack(side="left")
+
+        cols = ("apply", "save", "step", "settings", "note")
+        self.tree = ttk.Treeview(self, columns=cols, show="headings", height=11,
+                                 selectmode="none")
+        for col, text, width, anchor in (
+                ("apply", "Apply", 50, "center"), ("save", "Save", 50, "center"),
+                ("step", "Step", 190, "w"), ("settings", "Settings recorded", 290, "w"),
+                ("note", "Note", 240, "w")):
+            self.tree.heading(col, text=text)
+            self.tree.column(col, width=width, anchor=anchor, stretch=col in ("settings", "note"))
+        for i, p in enumerate(plan):
+            self.tree.insert("", "end", iid=str(i), values=(
+                self.TICK if p["replayable"] else "", self.TICK if p["replayable"] else "",
+                p["operation"] or "Unnamed step", p["settings"], p["note"]))
+        self.tree.pack(fill="both", expand=True, padx=8, pady=4)
+        self.tree.bind("<Button-1>", self._on_click)
+
+        self.needs_igrf = any(p["igrf"] for p in plan)
+        recorded = next((p["date"] for p in plan if p["date"] is not None), None)
+        self.v_date = tk.StringVar(value=(recorded or __import__("datetime").date.today()).isoformat())
+        if self.needs_igrf:
+            rd = tk.Frame(self, bg=BG); rd.pack(fill="x", padx=8, pady=2)
+            lbl(rd, "Inclination and declination for the reductions to the pole / equator are "
+                    "recalculated from IGRF for the new grid.   Survey date (yyyy-mm-dd):"
+                ).pack(side="left")
+            entry(rd, self.v_date, 11).pack(side="left", padx=4)
+
+        rb = tk.Frame(self, bg=BG); rb.pack(fill="x", padx=8, pady=(4, 8))
+        tip(btn(rb, "Apply steps", self._apply, w=14),
+            "Run the ticked steps on the chosen grid. Every ticked Save step is kept as\n"
+            "<grid>_<suffix>.tif beside it, with its own history").pack(side="left")
+        btn(rb, "Close", self.destroy, w=10).pack(side="left", padx=6)
+        current = app._resolve_input()
+        names = [n for n, pth in app._layer_map.items() if pth != current]
+        if names:
+            self.v_target.set(names[0])
+
+    def _browse(self):
+        path = filedialog.askopenfilename(
+            filetypes=[("Raster files", "*.tif *.tiff *.img *.ers"), ("All files", "*.*")])
+        if path:
+            self.v_target.set(path)
+
+    def _on_click(self, event):
+        if self.tree.identify_region(event.x, event.y) != "cell":
+            return
+        row = self.tree.identify_row(event.y)
+        col = self.tree.identify_column(event.x)
+        if not row or col not in ("#1", "#2"):
+            return
+        i = int(row)
+        if not self.plan[i]["replayable"]:
+            return
+        state = self.apply if col == "#1" else self.save
+        state[i] = not state[i]
+        self.tree.set(row, "apply" if col == "#1" else "save",
+                      self.TICK if state[i] else self.UNTICK)
+
+    def _apply(self):
+        items = [dict(p, save=self.save[i]) for i, p in enumerate(self.plan)
+                 if p["replayable"] and self.apply[i]]
+        if not items:
+            messagebox.showinfo("Apply steps", "No steps were chosen.", parent=self)
+            return
+        target = self.app._layer_map.get(self.v_target.get(), self.v_target.get())
+        if not target or not os.path.exists(target):
+            messagebox.showwarning("Apply steps", "Choose the grid to apply the steps to.",
+                                   parent=self)
+            return
+        info = raster_header_info(target)
+        if info is None:
+            messagebox.showerror("Apply steps", f"Could not read {target}", parent=self)
+            return
+        try:
+            when = __import__("datetime").date.fromisoformat(self.v_date.get().strip())
+        except ValueError:
+            messagebox.showwarning("Apply steps", "The survey date must be written yyyy-mm-dd.",
+                                   parent=self)
+            return
+        if any(i["igrf"] for i in items) and uniform_field(target) is None:
+            why = check_igrf_possible(info)
+            if why:
+                messagebox.showwarning("Apply steps", why, parent=self)
+                return
+        self.app._status(f"Applying {len(items)} steps to {os.path.basename(target)}…")
+        self.app._run_in_thread(self._work, items, target, info, when)
+        self.destroy()
+
+    def _work(self, items, target, info, when):
+        app = self.app
+
+        class _Task:  # lets run_replay report progress and stop when Cancel is pressed
+            @staticmethod
+            def check(percent=None):
+                app._check_cancel()
+                if percent is not None:
+                    app.after(0, app._status, f"Applying steps… {percent:.0f}%")
+
+        result = run_replay(target, items, info, when=when, task=_Task())
+        for path in result["outputs"]:
+            app._record_pending(path)
+            app.after(0, app._on_output_written, path)
+        kept = len(result["outputs"])
+        app.after(0, app._status,
+                  f"Applied {result['n_steps']} steps → {os.path.basename(result['final'])} "
+                  f"({kept} result{'s' if kept != 1 else ''} saved)")
+
+
 def main():
     app = SGToolApp()
     app.mainloop()

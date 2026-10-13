@@ -22,6 +22,11 @@ repository=https://github.com/swaxi/SGTool
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
 changelog=0.3.8
+      * ArcGIS Pro: add a live Preview (FFT Filters, Conv + Stats and Utils/Threshold tabs) in its own window with zoom and pan, opening on the ArcGIS Pro map's extent, following you between tabs, and Apply Preview to save the result at full resolution; fix an error in the power-spectrum error message
+      * ArcGIS Pro: add Multilevel B-Spline gridding (Grid + Wavelets tab and toolbox tool, no Spatial Analyst licence needed); fix the toolbox tools that could not open in current ArcGIS Pro (their parameters were passed to arcpy in the wrong order)
+      * ArcGIS Pro: add MRVBF / MRRTF / slope (Conv + Stats tab and toolbox tool, with the 3-band RGB composite) and remove the DTM curvature classifier (GUI and toolbox) that it supersedes
+      * ArcGIS Pro outputs now use the QGIS file-naming convention (grid_RTP.tif, grid_DirC.tif, grid_d1z.tif ...); the QGIS tilt angle is now saved in degrees (-90 to 90), as in ArcGIS Pro
+      * ArcGIS Pro: grid information (units, CRS, pixels, pixel size) and version in the top bar, Wedge setting and a Remove Line Noise tool, provenance metadata embedded in every output with Read metadata / Save as XML buttons, Apply same steps to another grid (with IGRF recalculated for RTP, RTE and differential RTP), and a Cancel button
       * Preview: the Keep button is replaced by Apply Preview (the Apply Processing button is renamed Apply Preview while previewing and saves the previewed filter at full resolution); Preview follows you between the FFT Filters, Conv + Stats and Utils tabs, unticking the filters of the tab you leave; the preview layer is always the top layer in the QGIS Layers panel
       * The layer selected in the QGIS Layers panel and the SGTool Select Grid dropdowns now follow each other
       * Units, CRS, pixel counts and pixel size of the selected grid, and the version, are shown at the bottom of the first four tabs (cleared when no grids remain)

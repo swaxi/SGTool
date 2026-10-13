@@ -28,7 +28,7 @@ SGTool works in both **QGIS** and **ArcGIS Pro**: the calculations are shared, a
 - [Changelog](docs/changelog.md) (also in `metadata.txt`)
 
 # Inputs   
-- QGIS version supports data geotiff, grd, ers and Noddy (grv & mag) grid formats plus any grid format already supported by QGIS. ArcGIS Pro version supports any raster format supported by ArcGIS Pro.
+- QGIS version supports data geotiff, grd, ers and Noddy (grv & mag) grid formats plus any grid format already supported by QGIS. ArcGIS Pro version supports grd plus any raster format supported by ArcGIS Pro.
 - Supports csv, dat, xyz plus any point format already supported by QGIS
 - Existing Noddy mag and grav files can be found at the Atlas of Structural Geophysics: https://tectonique.net/asg/
 - New Noddy models can be calculated using the Windows version at https://tectonique.net/noddy/OpenNoddy_installer.exe or a python wrapper at https://github.com/cgre-aachen/pynoddy

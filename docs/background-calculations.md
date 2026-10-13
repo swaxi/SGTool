@@ -1,0 +1,12 @@
+[← Back to the README](../README.md)   
+
+# Background Calculations (QGIS)   
+
+(In ArcGIS Pro the GUI runs calculations in a background thread and has a **Cancel** button that ends a job at once; see [ArcGIS Pro differences](arcgis-pro.md).) Calculations run as QGIS background tasks, so QGIS stays usable while they work, progress shows in the task manager and status bar, and a calculation can be cancelled (the red X in the task manager or the Cancel button ends the task at once; a calculation that is part-way through a single FFT step finishes in the background, its result is thrown away and nothing is saved). This covers everything started by **Apply Processing** (all the filters, statistics, MRVBF, PCA/ICA, boundary outline and Euler deconvolution, including several ticked together), saving a live preview with **Apply Preview**, B-spline gridding, worms, grid normalisation, RGB to grey-scale and Geosoft `.grd` conversion.   
+
+- **Cancel**: each tab has a **Cancel** button (on the Grid + Wavelets tab it is "Cancel running calculation"), and QGIS's own task manager has one too. The buttons are only enabled while a calculation is running, and **Apply Processing** is disabled so a second one cannot be started on top.   
+- **How quickly it stops**: cancelling is cooperative. It takes effect between the steps of a job and inside long loops (Euler deconvolution, worms levels, B-spline levels, normalising a folder of grids), so a very long single filter finishes its current step first. A cancelled job saves nothing, and the filters you ticked stay ticked so you can run it again.   
+- **Safe to keep working**: the settings are snapshotted when you press Apply, so editing the dialog, changing the selected grid or using the preview while a calculation runs does not affect it.   
+- **Messages** raised during a calculation (for example "geographic grids need projected coordinates") are shown when it finishes, and a failure is reported in the message bar with the details in the Python console.   
+- The **live preview** itself stays in the foreground on purpose: it is limited to a small grid so it responds as you type.   
+- Importing XYZ/CSV/DAT points and the GRASS IDW dialog still run in the foreground.   

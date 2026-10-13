@@ -10,6 +10,11 @@
 
 # changelog=0.3.8
       * retain std df/dz for Euler solutions
+      * ArcGIS Pro: add a live Preview (FFT Filters, Conv + Stats and Utils/Threshold tabs) in its own window with zoom and pan, opening on the ArcGIS Pro map's extent, following you between tabs, and Apply Preview to save the result at full resolution; fix an error in the power-spectrum error message   
+      * ArcGIS Pro: add Multilevel B-Spline gridding (Grid + Wavelets tab and toolbox tool, no Spatial Analyst licence needed); fix the toolbox tools that could not open in current ArcGIS Pro (their parameters were passed to arcpy in the wrong order)   
+      * ArcGIS Pro: add MRVBF / MRRTF / slope (Conv + Stats tab and toolbox tool, with the 3-band RGB composite) and remove the DTM curvature classifier (GUI and toolbox) that it supersedes   
+      * ArcGIS Pro outputs now use the QGIS file-naming convention (grid_RTP.tif, grid_DirC.tif, grid_d1z.tif ...); the QGIS tilt angle is now saved in degrees (-90 to 90), as in ArcGIS Pro   
+      * ArcGIS Pro: grid information (units, CRS, pixels, pixel size) and version in the top bar, Wedge setting and a Remove Line Noise tool, provenance metadata embedded in every output with Read metadata / Save as XML buttons, Apply same steps to another grid (with IGRF recalculated for RTP, RTE and differential RTP), and a Cancel button   
       * Preview: the Keep button is replaced by Apply Preview (the Apply Processing button is renamed Apply Preview while previewing and saves the previewed filter at full resolution); Preview follows you between the FFT Filters, Conv + Stats and Utils tabs, unticking the filters of the tab you leave; the preview layer is always the top layer in the QGIS Layers panel   
       * The layer selected in the QGIS Layers panel and the SGTool Select Grid dropdowns now follow each other   
       * Units, CRS, pixel counts and pixel size of the selected grid, and the version, are shown at the bottom of the first four tabs (cleared when no grids remain)   
@@ -93,14 +98,27 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
   - scipy
   - matplotlib
   - scikit-learn
-  - pyproj>=3.7.2
+  - pyproj
   - networkx
   - shapely
   - geopandas
-- c) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **GeophysicalProcessor.pyt** in the **ArcGIS** directory in this repository. 
+- c) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **SGTool.pyt** in the **ArcGIS** directory in this repository. 
 - d) Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run, and select  **Launch** then **run** to launch the SGTool GUI. Alternatively you can access individual tools from the same Toolbox.    
 
    
+### Differences between ArcGIS Pro and QGIS GUI
+
+The two versions share the calculation code and most features: the **Wedge** setting for line-noise removal, MRVBF / MRRTF / slope, multilevel B-spline gridding, tilt angle in degrees, provenance metadata and **Apply same steps to another grid** (a history made in one version can be read and replayed in the other, with IGRF recalculated for RTP, RTE and differential RTP), a line showing the grid's units, CRS, pixel counts and pixel size, and the same output file names (`grid_RTP.tif`, `grid_DirC.tif`, `grid_d1z.tif`, `grid_UC_500.tif`, `grid_Mn.tif`, `grid_SS_StdDev.tif`, `grid_PCA.tif`, `grid_Clean.tif`, Euler solutions as `grid_estimates_SI_<n>.txt`). The **Output (auto)** line at the top of the ArcGIS Pro GUI shows the names that will be written. What differs:
+
+- **Window and layers**: the ArcGIS Pro GUI is a separate window launched from the toolbox, not a dock. Its layer list is refreshed with **Refresh** (it does not follow the Layers panel), and results are queued and added to the map by the toolbox tool that launched it (or by **Load SGTool Outputs**).
+- **Preview** (FFT Filters, Conv + Stats and Utils tabs, the last for Threshold to NaN) is in its own window, as ArcGIS Pro gives a Python window no hooks into its map. Tick **Preview** next to the Apply button, tick one filter, and the window shows the result with the usual grey stretch. It opens on the part of the grid the ArcGIS Pro map is showing, in a window with the same shape as the map canvas (**Match map view** goes back to it after you have moved around). Cells that are not square are drawn true. Zoom with the wheel, pan by dragging, double-click for the whole grid. **View extent** recalculates at full detail for what is in view whenever you zoom, pan or change a setting; **Whole grid (reduced)** block-averages the grid to about 600 cells; **Show original** compares with the input. The preview runs the same code as Apply, and the button reads **Apply Preview**: it saves the ticked filter at full resolution. Preview follows you between the tabs, and unticking it or closing the window ends it. Differential RTP, anisotropy, chain and streamline length, MRVBF, PCA, ICA and Euler cannot be previewed.
+- **Cancel** is a button in the status bar that ends the running job at once (a step part-way through an FFT finishes in the background and is discarded).
+- **Utils tab**: **Read metadata of input grid** (history as text, raw XML on a second tab), **Save as XML** and **Apply same steps to another grid...** (tick which steps to **Apply** and which results to **Save**, set the survey date).
+- **Gridding**: multilevel B-spline (Grid + Wavelets tab) reads a point shapefile or GeoPackage, offered automatically after **Import Data**, and writes `<points>_<field>_bspline.tif`. IDW and Esri's Spline are in the toolbox only and need the Spatial Analyst extension.
+- **Toolbox** (`SGTool.pyt`, 36 tools) stands in for the QGIS Processing algorithms: you name each output, high and low pass are separate tools, and there is no tool for replaying a history. The MRVBF tool writes the other three results beside the one you name.
+- **MRVBF slope** is calculated in numpy (QGIS uses its own slope tool); the DTM curvature classifier is gone from both versions.
+- **Only in QGIS**: the dockable layout, the Layers panel and dropdown syncing, the preview layer, Processing algorithms and task manager integration.
+
 # Inputs   
 - QGIS version supports data geotiff, grd, ers and Noddy (grv & mag) grid formats plus any grid format already supported by QGIS. ArcGIS Pro version supports any raster format supported by ArcGIS Pro.
 - Supports csv, dat, xyz plus any point format already supported by QGIS
@@ -109,7 +127,9 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
    
 # Capabilities   
 
-## Live Preview (QGIS only)   
+## Live Preview (QGIS)   
+
+(ArcGIS Pro has a preview too, in its own window: see the ArcGIS Pro section above.)   
 
 The **FFT Filters**, **Conv + Stats** and **Utils** (Threshold to NaN) tabs have a fixed bar at the top with **Apply Processing** (which reads **Apply Preview** while previewing) on the left and the preview controls to its right, so they stay visible while you scroll the filter list.   
 
@@ -123,7 +143,7 @@ The **FFT Filters**, **Conv + Stats** and **Utils** (Threshold to NaN) tabs have
 
 ## Background Calculations (QGIS)   
 
-Calculations run as QGIS background tasks, so QGIS stays usable while they work, progress shows in the task manager and status bar, and a calculation can be cancelled (the red X in the task manager or the Cancel button ends the task at once; a calculation that is part-way through a single FFT step finishes in the background, its result is thrown away and nothing is saved). This covers everything started by **Apply Processing** (all the filters, statistics, MRVBF, PCA/ICA, boundary outline and Euler deconvolution, including several ticked together), saving a live preview with **Apply Preview**, B-spline gridding, worms, grid normalisation, RGB to grey-scale and Geosoft `.grd` conversion.   
+(In ArcGIS Pro the GUI runs calculations in a background thread and has a **Cancel** button that ends a job at once; see the ArcGIS Pro section above.) Calculations run as QGIS background tasks, so QGIS stays usable while they work, progress shows in the task manager and status bar, and a calculation can be cancelled (the red X in the task manager or the Cancel button ends the task at once; a calculation that is part-way through a single FFT step finishes in the background, its result is thrown away and nothing is saved). This covers everything started by **Apply Processing** (all the filters, statistics, MRVBF, PCA/ICA, boundary outline and Euler deconvolution, including several ticked together), saving a live preview with **Apply Preview**, B-spline gridding, worms, grid normalisation, RGB to grey-scale and Geosoft `.grd` conversion.   
 
 - **Cancel**: each tab has a **Cancel** button (on the Grid + Wavelets tab it is "Cancel running calculation"), and QGIS's own task manager has one too. The buttons are only enabled while a calculation is running, and **Apply Processing** is disabled so a second one cannot be started on top.   
 - **How quickly it stops**: cancelling is cooperative. It takes effect between the steps of a job and inside long loops (Euler deconvolution, worms levels, B-spline levels, normalising a folder of grids), so a very long single filter finishes its current step first. A cancelled job saves nothing, and the filters you ticked stay ticked so you can run it again.   
@@ -134,7 +154,7 @@ Calculations run as QGIS background tasks, so QGIS stays usable while they work,
 
 ## Processing Algorithms (QGIS)   
 
-The filters are also available as QGIS **Processing** algorithms in the **SGTool** group of the Processing Toolbox, so they can be used in the graphical modeler, the batch-processing dialog and Python scripts, for example `processing.run("sgtool:derivative", {"INPUT": "grid.tif", "DIRECTION": 0, "POWER": 1, "OUTPUT": "grid_d1z.tif"})`. They call the same calculation code as the plugin dialog, so for the same settings the results are identical, and each result is a GeoTIFF with its provenance embedded (see below), chained to the provenance of the input.   
+(The ArcGIS Pro version has its own toolbox, `SGTool.pyt`, with the filters as geoprocessing tools; see the ArcGIS Pro section above.) The filters are also available as QGIS **Processing** algorithms in the **SGTool** group of the Processing Toolbox, so they can be used in the graphical modeler, the batch-processing dialog and Python scripts, for example `processing.run("sgtool:derivative", {"INPUT": "grid.tif", "DIRECTION": 0, "POWER": 1, "OUTPUT": "grid_d1z.tif"})`. They call the same calculation code as the plugin dialog, so for the same settings the results are identical, and each result is a GeoTIFF with its provenance embedded (see below), chained to the provenance of the input.   
 
 **Output files**: the output is optional. Choose a file and it is used as given. Leave it empty and the result is saved **next to the input grid, named after it plus the processing step**, exactly as the dialog does (`grid.tif` gives `grid_d1z.tif`, `grid_UC_500.tif`, `grid_BP_50000_5000.tif`, `grid_DirC.tif` and so on), and is added to the project under the same name. Euler solutions go to `<grid>_estimates_SI_<n>.csv` and B-spline gridding to `<points>_<field>_bspline.tif`, both next to their input. In a batch run each input's result is therefore written beside that input. If a result with that name is already open in QGIS the old layer is removed first and the file replaced, as in the dialog. (In the toolbox the empty output may be labelled "Skip output": for these algorithms that means "use the automatic name".)   
 
@@ -142,31 +162,31 @@ Available: remove line noise (directional Cosine/Butterworth, with the option to
 
 Algorithms can be cancelled from the Processing dialog; as in the dialog, a single FFT step cannot be interrupted part-way.   
 
-## Provenance Metadata (QGIS)   
+## Provenance Metadata (QGIS and ArcGIS Pro)   
 
-Every file the plugin saves records how it was made. For **GeoTIFFs** this is stored inside the file itself, in its own GDAL metadata domain (`SGTOOL`, item `provenance_xml`), the same way the Noddy grid import stores its header, so it travels with the file when it is copied or renamed. The operation, creation time and SGTool version are also written as ordinary GeoTIFF metadata items (`SGTOOL_OPERATION`, `SGTOOL_CREATED`, `SGTOOL_VERSION`) so they show in the QGIS layer properties. Files that cannot carry metadata (shapefiles, csv and txt outputs) get a small XML sidecar instead, named after the file with `.sgt.xml` added (for example `pts.csv.shp.sgt.xml`); the same sidecar is the fallback if a GeoTIFF cannot be updated (for example because it is locked). The record contains:   
+Every file SGTool saves, in either version, records how it was made. For **GeoTIFFs** this is stored inside the file itself, in its own GDAL metadata domain (`SGTOOL`, item `provenance_xml`), the same way the Noddy grid import stores its header, so it travels with the file when it is copied or renamed. The operation, creation time and SGTool version are also written as ordinary GeoTIFF metadata items (`SGTOOL_OPERATION`, `SGTOOL_CREATED`, `SGTOOL_VERSION`) so they show in the QGIS layer properties. Files that cannot carry metadata (shapefiles, csv and txt outputs) get a small XML sidecar instead, named after the file with `.sgt.xml` added (for example `pts.csv.shp.sgt.xml`); the same sidecar is the fallback if a GeoTIFF cannot be updated (for example because it is locked). The record contains:   
 
 - **When**: the date and time of creation (with time zone) and the SGTool version.   
 - **Source**: the path of the file or files it was made from, plus any XML metadata those sources carry: their own SGTool record (embedded or sidecar, so each step contains the steps before it and a chain of processing can be followed back to the original data), GDAL `.aux.xml` (the band statistics, without the bulky histogram), and other `.xml` sidecars such as the `.grd.xml` that accompanies Geosoft grids.   
 - **How**: the operation and the parameters that were set to create it (for example azimuth, line spacing and scale for the directional filter, or structural index and window size for Euler deconvolution).   
 
-**Reading it back**: on the **Utils** tab, select a grid and press **Read metadata of selected grid**. A new window shows the history (this step, then each earlier step nested beneath the file it produced, with the parameters used and the source statistics) and the raw XML. If the grid has no SGTool metadata, a message at the top of the map canvas says so. **Save as XML**, to the right of the read button, writes the same record to a file called `<grid file>.sgt.xml` in the grid's folder (for example `grid_DirC.tif.sgt.xml`), replacing any existing file of that name, so it can be kept, shared or opened in other tools. It is a snapshot: the GeoTIFF's own embedded record is left untouched, and the exported file is removed if the plugin later overwrites or deletes that grid.   
+**Reading it back**: on the **Utils** tab, select a grid and press **Read metadata of selected grid** (in ArcGIS Pro, **Read metadata of input grid**). A new window shows the history (this step, then each earlier step nested beneath the file it produced, with the parameters used and the source statistics) and the raw XML. If the grid has no SGTool metadata, a message at the top of the map canvas says so. **Save as XML**, to the right of the read button, writes the same record to a file called `<grid file>.sgt.xml` in the grid's folder (for example `grid_DirC.tif.sgt.xml`), replacing any existing file of that name, so it can be kept, shared or opened in other tools. It is a snapshot: the GeoTIFF's own embedded record is left untouched, and (in QGIS) the exported file is removed if the plugin later overwrites or deletes that grid. A history made in one version can be read, and replayed, in the other.   
 
 Sidecars record the output's size and modified time when written, so a sidecar left beside a file that another program has since overwritten can be recognised (`sidecar_status()` in `calcs/sgt_metadata.py` reports `current`, `stale`, `missing` or `unknown`). When the plugin overwrites or deletes a file it also removes any old-style sidecar for it. Metadata embedded in a GeoTIFF needs no such clean-up as it is part of the file, and files made by earlier SGTool versions with a `.sgt.xml` sidecar are still read.   
 
 This covers filter outputs, gridding, imports and conversions, Euler solutions and window statistics, PCA/ICA, MRVBF, worms, grid normalisation and boundary outlines. Temporary preview layers are not saved to disk so carry no record, but a result saved with **Apply Preview** does. Recording provenance can never stop a calculation: if it fails, a message is printed to the Python console and processing carries on. (Grids made through the GRASS IDW dialog are written by that dialog and do not get a sidecar yet.)   
 
-## Line-Noise Filter Update (QGIS)   
+## Line-Noise Filter Update (QGIS and ArcGIS Pro)   
 
-The **wedge** (half-width, degrees) of the directional line-noise filter is now a setting on the FFT Filters tab (default 45). **Fix**: the filter previously treated only one of the two opposite lobes of the noise spectrum, so about half of the noise was left in; both are now filtered. Because of that, a Scale of 2 or more now over-subtracts, so **Scale** now defaults to 1.   
+The **wedge** (half-width, degrees) of the directional line-noise filter is now a setting on the FFT Filters tab of both versions (default 45), and the ArcGIS Pro toolbox has a **Remove Line Noise** tool with it. **Fix**: the filter previously treated only one of the two opposite lobes of the noise spectrum, so about half of the noise was left in; both are now filtered. Because of that, a Scale of 2 or more now over-subtracts, so **Scale** now defaults to 1.   
 
-## Replaying a Processing History (QGIS)   
+## Replaying a Processing History (QGIS and ArcGIS Pro)   
 
-On the **Utils** tab, select a grid that was made by SGTool and press **Apply the same steps to another grid...**. The steps in its provenance (see below) are listed oldest first with their recorded settings; tick the ones to repeat (**Apply**), tick which intermediate results to keep (**Save**, all ticked by default; an unticked step's file is deleted once the next step has been made from it, and the last result is always kept; its history still lists every step), choose the grid to apply them to and press **Apply steps**. Each step runs on the result of the one before, and every result is saved next to the new grid with the usual names (`grid.tif`, `grid_RTP.tif`, `grid_RTP_d1z.tif`, ...) and its own provenance, so the new grid has a complete history of its own. The last grid is added to the project. It runs as a background task and can be cancelled.   
+On the **Utils** tab, select a grid that was made by SGTool and press **Apply the same steps to another grid...**. The steps in its provenance (see below) are listed oldest first with their recorded settings; tick the ones to repeat (**Apply**), tick which intermediate results to keep (**Save**, all ticked by default; an unticked step's file is deleted once the next step has been made from it, and the last result is always kept; its history still lists every step), choose the grid to apply them to and press **Apply steps**. Each step runs on the result of the one before, and every result is saved next to the new grid with the usual names (`grid.tif`, `grid_RTP.tif`, `grid_RTP_d1z.tif`, ...) and its own provenance, so the new grid has a complete history of its own. In QGIS the results you keep are added to the project; in ArcGIS Pro (button **Apply same steps to another grid...**) they are added to the layer list and loaded into the map with the **Load SGTool Outputs** tool. It runs in the background and can be cancelled.   
 
 - **Magnetic reductions**: reduction to the pole, reduction to the equator and differential RTP depend on the field direction where the survey was flown, so the inclination and declination are recalculated from the IGRF model for the new grid's location (from its centre, or from its four corners for differential RTP) and a survey date you can set. The new grid needs a coordinate system with an EPSG code. Grids that carry their own inclination and declination, such as Noddy models, use those.   
 - Steps that cannot be repeated (gridding, Euler deconvolution, component analysis, anything made from several grids) are shown greyed with the reason, and skipped. Histories written by the dialog and by the Processing algorithms can both be replayed.   
-- The **Apply the steps of a processing history to a grid** Processing algorithm does the same for batch use: give the grid to process and a grid, or a saved `.sgt.xml` file, to take the history from.   
+- In QGIS, the **Apply the steps of a processing history to a grid** Processing algorithm does the same for batch use: give the grid to process and a grid, or a saved `.sgt.xml` file, to take the history from.   
 
 ## Grav/Mag Filters   
    
@@ -327,7 +347,7 @@ Useful for locating edges of potential field sources (e.g., faults or contacts).
        
 **Tilt Angle**    
 $`T = \tan^{-1}\left(\frac{\frac{\partial f}{\partial z}}{\sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\partial f}{\partial y}\right)^2}}\right)`$   
-Enhances the contrast of geological features by highlighting gradients relative to the vertical component.
+Enhances the contrast of geological features by highlighting gradients relative to the vertical component. The result is saved in degrees (-90 to 90).
 Where   
 df/dz : Vertical derivative of the field.
 df/dx , df/dy : Horizontal derivatives of the field.   
@@ -416,7 +436,7 @@ Independent Component Analysis separates a multivariate signal into additive, st
 Imports point data in csv, ASEG-GDF2 dat or xyz formats. For xyz line data, tie lines can optionally be loaded as well.   
 
 **Gridding**   
-Grids point data using either BSpline (Converted from SAGA code) or IDW built-in gridding algoithms   
+Grids point data using either BSpline (Converted from SAGA code, in both QGIS and ArcGIS Pro) or IDW built-in gridding algoithms (QGIS dialog; ArcGIS Pro toolbox)   
    
 ## Wavelets   
 **BSDWorms**   

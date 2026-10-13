@@ -415,6 +415,60 @@ def format_sgt_metadata_html(root):
     return "".join(parts)
 
 
+def _text_step(root, lines, depth):
+    pad = "    " * depth
+    lines.append(f"{pad}{root.findtext('operation') or 'Unnamed step'}")
+    sw = root.find("software")
+    version = f" (SGTool {sw.get('version')})" if sw is not None and sw.get("version") else ""
+    lines.append(f"{pad}  Created: {root.findtext('created') or 'unknown time'}{version}")
+    out = root.findtext("output/path")
+    if out:
+        lines.append(f"{pad}  File: {out}")
+    params = root.findall("parameters/parameter")
+    if params:
+        lines.append(f"{pad}  Parameters:")
+        for p in params:
+            lines.append(f"{pad}    {p.get('name', '')} = {(p.text or '').strip()}")
+    else:
+        lines.append(f"{pad}  No parameters")
+    for src in root.findall("sources/source"):
+        note = "  (file no longer found)" if src.findtext("exists") == "false" else ""
+        lines.append(f"{pad}  Made from: {src.findtext('path') or ''}{note}")
+        stats = _stat_items(src)
+        if stats:
+            lines.append(
+                f"{pad}  Source statistics: "
+                + ", ".join(f"{k} {v}" for k, v in stats.items())
+            )
+        nested, others = [], []
+        meta = src.find("metadata")
+        if meta is not None:
+            for sx in meta.findall("sourceXml"):
+                if sx.get("type") == "sgtool":
+                    nested.extend(list(sx))
+                elif sx.get("type") != "gdal-pam":
+                    others.append(os.path.basename(sx.get("file", "")))
+        if others:
+            lines.append(f"{pad}  Also carries XML metadata: {', '.join(others)}")
+        if nested:
+            for step in nested:
+                lines.append("")
+                _text_step(step, lines, depth + 1)
+        else:
+            lines.append(
+                f"{pad}  No earlier SGTool history (original data or made outside SGTool)"
+            )
+
+
+def format_sgt_metadata_text(root):
+    """The same history as format_sgt_metadata_html, as plain text (newest step
+    first, each earlier step indented beneath the file it produced), for windows
+    that cannot show HTML."""
+    lines = []
+    _text_step(root, lines, 0)
+    return "\n".join(lines)
+
+
 def save_sgt_metadata_xml(root, grid_path):
     """Write a provenance element to <grid_path>.sgt.xml (replacing any existing
     file) and return that path. Raises OSError if it cannot be written."""

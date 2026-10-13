@@ -29,7 +29,9 @@ for _p in (_SGTOOL, os.path.join(_SGTOOL, "calcs"),
 # Import utility helpers from sibling module
 sys.path.insert(0, _HERE)
 from arcgis_utils import (
-    raster_to_numpy, numpy_to_raster, run_raster_tool, make_processor, NODATA
+    raster_to_numpy, numpy_to_raster, run_raster_tool, make_processor, NODATA,
+    write_provenance, step_record, write_mrvbf_outputs, MRVBF_DEFAULTS,
+    grid_points_to_file,
 )
 
 
@@ -55,6 +57,7 @@ class Toolbox:
             AutomaticGainControl,
             RemoveRegional,
             DirectionalButterworthFilter,
+            RemoveLineNoise,
             # ---- Gradient Filters ----
             ComputeDerivative,
             TotalHorizontalGradient,
@@ -67,13 +70,14 @@ class Toolbox:
             DirectionalConvFilter,
             SunShading,
             SpatialStatistics,
-            DTMCurvatureClassifier,
+            MRVBFTool,
             PCAAnalysis,
             ICAAnalysis,
             EulerDeconvolution,
             # ---- Grid + Wavelets ----
             IDWGridding,
             SplineGridding,
+            MultilevelBSplineGridding,
             BSDWorms,
             WTMMAnalysis,
             # ---- Utils ----
@@ -92,6 +96,27 @@ class _RasterTool:
 
     canRunInBackground = False
 
+    def __init_subclass__(cls, **kwargs):
+        """Wrap each tool's execute() so the settings it was run with are known when
+        the output is written, and recorded as its provenance (see _write)."""
+        super().__init_subclass__(**kwargs)
+        original = cls.__dict__.get("execute")
+        if original is None:
+            return
+
+        def execute(self, parameters, messages, _original=original):
+            try:
+                settings = {p.name: p.valueAsText for p in parameters
+                            if p.direction == "Input" and p.valueAsText is not None}
+            except Exception:
+                settings = {}
+            self._prov_source = settings.pop("in_raster", None)
+            self._prov_settings = settings
+            return _original(self, parameters, messages)
+
+        execute.__doc__ = original.__doc__
+        cls.execute = execute
+
     def isLicensed(self):
         return True
 
@@ -107,6 +132,10 @@ class _RasterTool:
 
     def _write(self, arr, output_path, ll_x, ll_y, cx, cy, sr, nodata=NODATA):
         numpy_to_raster(arr, str(output_path), ll_x, ll_y, cx, cy, sr, nodata)
+        # how this output was made (the tool and its settings), inside the GeoTIFF
+        write_provenance(str(output_path), getattr(self, "_prov_source", None),
+                         getattr(self, "label", type(self).__name__),
+                         getattr(self, "_prov_settings", {}))
 
     def _proc(self, cx, cy, buf):
         return make_processor(cx, cy, buf)
@@ -217,10 +246,29 @@ class LaunchGUI:
         # Poll on the GP thread — arcpy.mp works here, no COM issues.
         seen  = set()
         cycle = 0
+        view_file = os.path.join(tempfile.gettempdir(), "sgtool_view.json")
+        last_view = None
 
         while proc.poll() is None:
             time.sleep(2)
             cycle += 1
+
+            # --- The active map view's extent, for the GUI's preview window (kept in its own
+            # file so it does not disturb the layer-list refresh below) ---
+            try:
+                av = arcpy.mp.ArcGISProject("CURRENT").activeView
+                if av is not None and hasattr(av, "camera"):
+                    ext = av.camera.getExtent()
+                    sr = ext.spatialReference or av.map.spatialReference
+                    view = {"extent": [ext.XMin, ext.YMin, ext.XMax, ext.YMax],
+                            "epsg": int(sr.factoryCode or 0) if sr else 0,
+                            "wkt": sr.exportToString() if sr else ""}
+                    if view != last_view:
+                        with open(view_file, "w") as f:
+                            json.dump(view, f)
+                        last_view = view
+            except Exception:
+                pass
 
             # --- Layer refresh (on GUI request or every ~60 s) ---
             do_refresh = os.path.exists(refresh_req) or (cycle % 30 == 0)
@@ -371,8 +419,8 @@ class ReductionToPoleEquator(_RasterTool):
         in_r  = self._param("in_raster",   "Input Raster")
         out_r = self._out  ("out_raster",   "Output Raster")
 
-        rtp   = arcpy.Parameter("rtp_rte", "Transform Type",
-                                "GPString", "Required", "Input")
+        rtp   = arcpy.Parameter(name="rtp_rte", displayName="Transform Type", datatype="GPString",
+                         parameterType="Required", direction="Input")
         rtp.filter.type = "ValueList"
         rtp.filter.list = ["Pole", "Equator"]
         rtp.value = "Pole"
@@ -612,8 +660,8 @@ class RemoveRegional(_RasterTool):
         in_r  = self._param("in_raster",  "Input Raster")
         out_r = self._out  ("out_raster",  "Output Raster")
 
-        order = arcpy.Parameter("order", "Polynomial Order",
-                                "GPString", "Required", "Input")
+        order = arcpy.Parameter(name="order", displayName="Polynomial Order", datatype="GPString",
+                         parameterType="Required", direction="Input")
         order.filter.type = "ValueList"
         order.filter.list = ["1st Order", "2nd Order"]
         order.value = "1st Order"
@@ -637,6 +685,58 @@ class RemoveRegional(_RasterTool):
             result = proc.remove_gradient(arr, mask)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Regional trend removal ({order}) complete → {out_r}")
+
+
+class RemoveLineNoise(_RasterTool):
+    category    = "FFT Filters"
+    label       = "Remove Line Noise (Directional Cosine/Butterworth)"
+    description = ("Removes line-parallel acquisition noise. A zero-centred noise estimate is "
+                   "made from wavelengths between 2 x the smallest and 10 x the largest line "
+                   "spacing, within a wedge about the line azimuth, multiplied by the scale "
+                   "and subtracted from the grid.")
+
+    def getParameterInfo(self):
+        return [
+            self._param("in_raster",        "Input Raster"),
+            self._out ("out_raster",        "Output Raster"),
+            self._param("azimuth",          "Azimuth of the survey lines (° clockwise from North)",
+                        "GPDouble", default=0.0),
+            self._param("line_spacing_min", "Smallest line spacing (map units)",
+                        "GPDouble", default=1000.0),
+            self._param("line_spacing_max", "Largest line spacing (map units, blank = same as smallest)",
+                        "GPDouble", required=False),
+            self._param("scale",            "Scale applied to the noise estimate",
+                        "GPDouble", default=1.0),
+            self._param("wedge",            "Wedge half-width (°)",
+                        "GPDouble", default=45.0),
+            self._param("buffer_size",      "FFT Buffer (pixels)", "GPLong",
+                        required=False, default=10),
+        ]
+
+    def execute(self, parameters, messages):
+        in_r   = parameters[0].valueAsText
+        out_r  = parameters[1].valueAsText
+        az     = float(parameters[2].value)
+        smin   = float(parameters[3].value)
+        smax   = float(parameters[4].value) if parameters[4].value else 0.0
+        scale  = float(parameters[5].value)
+        wedge  = float(parameters[6].value)
+        buf    = int(parameters[7].value) if parameters[7].value else 10
+
+        arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf    = min(buf, *arr.shape)
+        proc   = self._proc(cx, cy, buf)
+        result = proc.line_noise_removal(
+            arr, az, smin, smax or None, scale=scale, buffer_size=buf,
+            direction_width=wedge)
+        self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
+        # record it in the form the "apply the same steps to another grid" replay reads
+        write_provenance(str(out_r), in_r, *step_record(
+            "directional_line_noise", AZIMUTH=az, LINE_SPACING_MIN=smin,
+            LINE_SPACING_MAX=max(smax, smin), SCALE=scale, WEDGE=wedge,
+            OUTPUT_TYPE="Corrected grid"))
+        messages.addMessage(f"Line noise removed (azimuth {az}°, spacing {smin}-{max(smax, smin)}, "
+                            f"wedge {wedge}°) → {out_r}")
 
 
 class DirectionalButterworthFilter(_RasterTool):
@@ -689,8 +789,8 @@ class ComputeDerivative(_RasterTool):
         in_r  = self._param("in_raster",  "Input Raster")
         out_r = self._out  ("out_raster",  "Output Raster")
 
-        dirn = arcpy.Parameter("direction", "Derivative Direction",
-                               "GPString", "Required", "Input")
+        dirn = arcpy.Parameter(name="direction", displayName="Derivative Direction", datatype="GPString",
+                         parameterType="Required", direction="Input")
         dirn.filter.type = "ValueList"
         dirn.filter.list = ["x", "y", "z"]
         dirn.value = "z"
@@ -878,8 +978,8 @@ class DirectionalConvFilter(_RasterTool):
         in_r  = self._param("in_raster",   "Input Raster")
         out_r = self._out  ("out_raster",   "Output Raster")
 
-        dirn = arcpy.Parameter("direction", "Enhancement Direction",
-                               "GPString", "Required", "Input")
+        dirn = arcpy.Parameter(name="direction", displayName="Enhancement Direction", datatype="GPString",
+                         parameterType="Required", direction="Input")
         dirn.filter.type = "ValueList"
         dirn.filter.list = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
         dirn.value = "N"
@@ -910,8 +1010,8 @@ class SunShading(_RasterTool):
         in_r  = self._param("in_raster",  "Input Raster")
         out_r = self._out  ("out_raster",  "Output Raster")
 
-        method = arcpy.Parameter("method", "Method",
-                                 "GPString", "Required", "Input")
+        method = arcpy.Parameter(name="method", displayName="Method", datatype="GPString",
+                         parameterType="Required", direction="Input")
         method.filter.type = "ValueList"
         method.filter.list = ["Simple", "GRASS-style"]
         method.value = "Simple"
@@ -950,8 +1050,8 @@ class SpatialStatistics(_RasterTool):
         in_r  = self._param("in_raster",    "Input Raster")
         out_r = self._out  ("out_raster",    "Output Raster")
 
-        stat = arcpy.Parameter("stat_type", "Statistic Type",
-                               "GPString", "Required", "Input")
+        stat = arcpy.Parameter(name="stat_type", displayName="Statistic Type", datatype="GPString",
+                         parameterType="Required", direction="Input")
         stat.filter.type = "ValueList"
         stat.filter.list = ["variance", "std", "skewness", "kurtosis",
                             "min", "max", "mean", "median"]
@@ -974,36 +1074,50 @@ class SpatialStatistics(_RasterTool):
         messages.addMessage(f"Spatial {stat} (window={win}) complete → {out_r}")
 
 
-class DTMCurvatureClassifier(_RasterTool):
+class MRVBFTool(_RasterTool):
     category    = "Convolution + Statistics"
-    label       = "DTM Curvature Classifier"
-    description = ("Classify terrain into concave (-1), flat (0), convex (1) "
-                   "and cliff (2) categories.")
+    label       = "MRVBF / MRRTF / Slope"
+    description = ("Multiresolution Valley Bottom Flatness (MRVBF) and Ridge Top Flatness (MRRTF) "
+                   "after Gallant & Dowling (2003), from a projected DEM with cell size in metres. "
+                   "Writes the MRVBF grid to the output raster, and beside it <output>_MRRTF, "
+                   "<output>_slope and a 3-band <output>_RGB composite (R=MRRTF, G=MRVBF, B=slope).")
 
     def getParameterInfo(self):
+        d = MRVBF_DEFAULTS
         return [
-            self._param("in_raster",   "Input Raster (DEM)"),
-            self._out ("out_raster",   "Output Classification Raster"),
-            self._param("curv_thresh", "Curvature Threshold",       "GPDouble", default=0.01),
-            self._param("slope_thresh","Slope/Cliff Threshold (°)", "GPDouble", default=45.0),
-            self._param("window_size", "Window Size (pixels, odd)", "GPLong",   default=3),
-            self._param("sigma",       "Smoothing Sigma",           "GPDouble", default=1.0),
+            self._param("in_raster",  "Input DEM"),
+            self._out ("out_raster",  "Output MRVBF Raster"),
+            self._param("t_slope",    "Slope threshold (percent, finest resolution)", "GPDouble", default=d["t_slope"]),
+            self._param("t_pctl_v",   "Percentile lowness threshold",  "GPDouble", default=d["t_pctl_v"]),
+            self._param("t_pctl_r",   "Percentile upness threshold",   "GPDouble", default=d["t_pctl_r"]),
+            self._param("p_slope",    "Slope shape parameter",         "GPDouble", default=d["p_slope"]),
+            self._param("p_pctl",     "Percentile shape parameter",    "GPDouble", default=d["p_pctl"]),
+            self._param("max_res",    "Maximum resolution (% of grid diagonal)", "GPDouble", default=d["max_res"]),
         ]
 
     def execute(self, parameters, messages):
-        in_r   = parameters[0].valueAsText
-        out_r  = parameters[1].valueAsText
-        ct     = float(parameters[2].value)
-        st     = float(parameters[3].value)
-        win    = int(parameters[4].value)
-        sigma  = float(parameters[5].value)
-
+        in_r  = parameters[0].valueAsText
+        out_r = str(parameters[1].valueAsText)
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
-        from calcs.SpatialStats import SpatialStats
-        result = SpatialStats(arr).classify_terrain_with_cell_size(
-            cx, cy, ct, st, win, sigma)
-        self._write(result.astype(np.float32), out_r, ll_x, ll_y, cx, cy, sr, nodata)
-        messages.addMessage(f"DTM classification complete → {out_r}")
+        from arcgis_utils import raster_header_info
+        hdr = raster_header_info(in_r)
+        if hdr and hdr["geographic"]:
+            raise ValueError("MRVBF needs a projected raster with cell sizes in metres. "
+                             "Reproject the grid to a projected CRS and try again.")
+        base, ext = os.path.splitext(out_r)
+        ext = ext or ".tif"
+        # the MRVBF grid goes to the chosen output; the others are named from it
+        base_for_others = base[:-6] if base.endswith("_MRVBF") else base
+        paths = write_mrvbf_outputs(
+            in_r, base_for_others, ext, arr, ll_x, ll_y, cx, cy, sr, nodata,
+            t_slope=float(parameters[2].value), t_pctl_v=float(parameters[3].value),
+            t_pctl_r=float(parameters[4].value), p_slope=float(parameters[5].value),
+            p_pctl=float(parameters[6].value), max_res=float(parameters[7].value))
+        if os.path.abspath(paths[0]) != os.path.abspath(out_r):
+            import shutil
+            shutil.copyfile(paths[0], out_r)
+            os.remove(paths[0])
+        messages.addMessage("MRVBF / MRRTF / slope complete → " + ", ".join([out_r] + paths[1:]))
 
 
 class PCAAnalysis(_RasterTool):
@@ -1015,10 +1129,10 @@ class PCAAnalysis(_RasterTool):
     canRunInBackground = False
 
     def getParameterInfo(self):
-        in_r  = arcpy.Parameter("in_raster",  "Input Multi-band Raster",
-                                "GPRasterLayer", "Required", "Input")
-        out_r = arcpy.Parameter("out_raster",  "Output Multi-band Raster",
-                                "DERasterDataset", "Required", "Output")
+        in_r  = arcpy.Parameter(name="in_raster", displayName="Input Multi-band Raster", datatype="GPRasterLayer",
+                         parameterType="Required", direction="Input")
+        out_r = arcpy.Parameter(name="out_raster", displayName="Output Multi-band Raster", datatype="DERasterDataset",
+                         parameterType="Required", direction="Output")
         n     = self._param("n_components", "Number of Components (0=all)",
                             "GPLong", required=False, default=0)
         return [in_r, out_r, n]
@@ -1044,10 +1158,10 @@ class ICAAnalysis(_RasterTool):
     canRunInBackground = False
 
     def getParameterInfo(self):
-        in_r  = arcpy.Parameter("in_raster",  "Input Multi-band Raster",
-                                "GPRasterLayer", "Required", "Input")
-        out_r = arcpy.Parameter("out_raster",  "Output Multi-band Raster",
-                                "DERasterDataset", "Required", "Output")
+        in_r  = arcpy.Parameter(name="in_raster", displayName="Input Multi-band Raster", datatype="GPRasterLayer",
+                         parameterType="Required", direction="Input")
+        out_r = arcpy.Parameter(name="out_raster", displayName="Output Multi-band Raster", datatype="DERasterDataset",
+                         parameterType="Required", direction="Output")
         n     = self._param("n_components", "Number of Components (0=all)",
                             "GPLong", required=False, default=0)
         return [in_r, out_r, n]
@@ -1072,11 +1186,11 @@ class EulerDeconvolution(_RasterTool):
 
     def getParameterInfo(self):
         in_r  = self._param("in_raster",   "Input Raster")
-        out_csv = arcpy.Parameter("out_csv", "Output CSV",
-                                  "DEFile", "Required", "Output")
+        out_csv = arcpy.Parameter(name="out_csv", displayName="Output CSV", datatype="DEFile",
+                         parameterType="Required", direction="Output")
 
-        si = arcpy.Parameter("si", "Structural Index (SI)",
-                             "GPDouble", "Required", "Input")
+        si = arcpy.Parameter(name="si", displayName="Structural Index (SI)", datatype="GPDouble",
+                         parameterType="Required", direction="Input")
         si.filter.type = "ValueList"
         si.filter.list = [0.0, 1.0, 2.0, 3.0]
         si.value = 1.0
@@ -1135,10 +1249,10 @@ class IDWGridding(_RasterTool):
                    "Inverse Distance Weighting (ArcGIS Spatial Analyst).")
 
     def getParameterInfo(self):
-        pts   = arcpy.Parameter("in_points",  "Input Points Feature Class",
-                                "GPFeatureLayer", "Required", "Input")
-        field = arcpy.Parameter("z_field",    "Z-Value Field",
-                                "Field", "Required", "Input")
+        pts   = arcpy.Parameter(name="in_points", displayName="Input Points Feature Class", datatype="GPFeatureLayer",
+                         parameterType="Required", direction="Input")
+        field = arcpy.Parameter(name="z_field", displayName="Z-Value Field", datatype="Field",
+                         parameterType="Required", direction="Input")
         field.parameterDependencies = ["in_points"]
 
         cell  = self._param("cell_size",  "Output Cell Size (map units)",
@@ -1170,16 +1284,16 @@ class SplineGridding(_RasterTool):
                    "tension spline (ArcGIS Spatial Analyst).")
 
     def getParameterInfo(self):
-        pts   = arcpy.Parameter("in_points",  "Input Points Feature Class",
-                                "GPFeatureLayer", "Required", "Input")
-        field = arcpy.Parameter("z_field",    "Z-Value Field",
-                                "Field", "Required", "Input")
+        pts   = arcpy.Parameter(name="in_points", displayName="Input Points Feature Class", datatype="GPFeatureLayer",
+                         parameterType="Required", direction="Input")
+        field = arcpy.Parameter(name="z_field", displayName="Z-Value Field", datatype="Field",
+                         parameterType="Required", direction="Input")
         field.parameterDependencies = ["in_points"]
 
         cell  = self._param("cell_size",  "Output Cell Size (map units)",
                             "GPDouble", default=100.0)
-        sptype = arcpy.Parameter("spline_type", "Spline Type",
-                                 "GPString", "Optional", "Input")
+        sptype = arcpy.Parameter(name="spline_type", displayName="Spline Type", datatype="GPString",
+                         parameterType="Optional", direction="Input")
         sptype.filter.type = "ValueList"
         sptype.filter.list = ["REGULARIZED", "TENSION"]
         sptype.value = "REGULARIZED"
@@ -1202,6 +1316,57 @@ class SplineGridding(_RasterTool):
         messages.addMessage(f"Spline gridding complete → {out_r}")
 
 
+class MultilevelBSplineGridding(_RasterTool):
+    category    = "Grid + Wavelets"
+    label       = "Multilevel B-Spline Gridding (from points)"
+    description = ("Grid scattered points with the multilevel B-spline method (a native "
+                   "translation of SAGA's grid_spline tool, as in the SGTool QGIS plugin). "
+                   "Does not need the Spatial Analyst extension.")
+
+    def getParameterInfo(self):
+        pts   = arcpy.Parameter(name="in_points", displayName="Input Points Feature Class", datatype="GPFeatureLayer",
+                         parameterType="Required", direction="Input")
+        field = arcpy.Parameter(name="z_field", displayName="Value Field", datatype="Field",
+                         parameterType="Required", direction="Input")
+        field.parameterDependencies = ["in_points"]
+        return [
+            pts, field,
+            self._param("cell_size",    "Output Cell Size (map units)", "GPDouble", default=100.0),
+            self._param("epsilon",      "Threshold Error",              "GPDouble", default=0.0001),
+            self._param("max_levels",   "Maximum Number of Levels",     "GPLong",   default=11),
+            self._param("ignore_below", "Ignore points with a value below (blank = use all)",
+                        "GPDouble", required=False),
+            self._out("out_raster",     "Output Raster"),
+        ]
+
+    def execute(self, parameters, messages):
+        pts    = parameters[0].valueAsText
+        field  = parameters[1].valueAsText
+        cell   = float(parameters[2].value)
+        eps    = float(parameters[3].value)
+        levels = int(parameters[4].value)
+        ignore = float(parameters[5].value) if parameters[5].value not in (None, "") else None
+        out_r  = str(parameters[6].valueAsText)
+
+        desc = arcpy.Describe(pts)
+        xs, ys, zs = [], [], []
+        with arcpy.da.SearchCursor(pts, ["SHAPE@XY", field]) as cursor:
+            for xy, value in cursor:
+                if xy is None or value is None:
+                    continue
+                try:
+                    zs.append(float(value))
+                except (TypeError, ValueError):
+                    continue
+                xs.append(xy[0])
+                ys.append(xy[1])
+        source = getattr(desc, "catalogPath", pts)
+        n = grid_points_to_file(xs, ys, zs, out_r, source, field, cell, epsilon=eps,
+                                level_max=levels, ignore_below=ignore,
+                                spatial_ref=desc.spatialReference)
+        messages.addMessage(f"Multilevel B-spline gridding of {n} points complete → {out_r}")
+
+
 class BSDWorms(_RasterTool):
     category    = "Grid + Wavelets"
     label       = "BSD Worms (Multi-scale Edge Extraction)"
@@ -1211,16 +1376,16 @@ class BSDWorms(_RasterTool):
 
     def getParameterInfo(self):
         in_r  = self._param("in_raster",   "Input Raster")
-        out_d = arcpy.Parameter("out_dir",  "Output Directory",
-                                "DEFolder", "Required", "Output")
+        out_d = arcpy.Parameter(name="out_dir", displayName="Output Directory", datatype="DEFolder",
+                         parameterType="Required", direction="Output")
         levels = self._param("num_levels", "Number of Continuation Levels",
                              "GPLong",   default=10)
         base   = self._param("base_level", "Base Continuation Level (map units)",
                              "GPDouble", default=1000.0)
         delta  = self._param("delta",      "Level Increment (map units)",
                              "GPDouble", default=1000.0)
-        shp    = arcpy.Parameter("save_shp", "Also Save Shapefiles",
-                                 "GPBoolean", "Optional", "Input")
+        shp    = arcpy.Parameter(name="save_shp", displayName="Also Save Shapefiles", datatype="GPBoolean",
+                         parameterType="Optional", direction="Input")
         shp.value = False
         return [in_r, out_d, levels, base, delta, shp]
 
@@ -1298,8 +1463,8 @@ class ThresholdToNaN(_RasterTool):
         in_r  = self._param("in_raster",  "Input Raster")
         out_r = self._out  ("out_raster",  "Output Raster")
 
-        cond = arcpy.Parameter("condition", "Condition",
-                               "GPString", "Required", "Input")
+        cond = arcpy.Parameter(name="condition", displayName="Condition", datatype="GPString",
+                         parameterType="Required", direction="Input")
         cond.filter.type = "ValueList"
         cond.filter.list = ["above", "below", "between"]
         cond.value = "above"
@@ -1330,8 +1495,8 @@ class CreateBoundaryPolygon(_RasterTool):
 
     def getParameterInfo(self):
         in_r  = self._param("in_raster",  "Input Raster")
-        out_shp = arcpy.Parameter("out_shapefile", "Output Shapefile",
-                                  "DEShapefile", "Required", "Output")
+        out_shp = arcpy.Parameter(name="out_shapefile", displayName="Output Shapefile", datatype="DEShapefile",
+                         parameterType="Required", direction="Output")
         return [in_r, out_shp]
 
     def execute(self, parameters, messages):
@@ -1352,13 +1517,13 @@ class NormaliseGrids(_RasterTool):
                    "or 2nd-order polynomial trend and dividing by it.")
 
     def getParameterInfo(self):
-        in_d  = arcpy.Parameter("in_dir",   "Input Directory",
-                                "DEFolder", "Required", "Input")
-        out_d = arcpy.Parameter("out_dir",  "Output Directory",
-                                "DEFolder", "Required", "Output")
+        in_d  = arcpy.Parameter(name="in_dir", displayName="Input Directory", datatype="DEFolder",
+                         parameterType="Required", direction="Input")
+        out_d = arcpy.Parameter(name="out_dir", displayName="Output Directory", datatype="DEFolder",
+                         parameterType="Required", direction="Output")
 
-        order = arcpy.Parameter("order", "Polynomial Order",
-                                "GPString", "Required", "Input")
+        order = arcpy.Parameter(name="order", displayName="Polynomial Order", datatype="GPString",
+                         parameterType="Required", direction="Input")
         order.filter.type = "ValueList"
         order.filter.list = ["1st Order", "2nd Order"]
         order.value = "1st Order"
@@ -1383,12 +1548,11 @@ class ConvertRGBToGrayscale(_RasterTool):
                    "a CSS colour list or user-defined RGB triplets.")
 
     def getParameterInfo(self):
-        in_r   = arcpy.Parameter("in_raster",  "Input RGB Raster",
-                                 "GPRasterLayer", "Required", "Input")
+        in_r   = arcpy.Parameter(name="in_raster", displayName="Input RGB Raster", datatype="GPRasterLayer",
+                         parameterType="Required", direction="Input")
         out_r  = self._out("out_raster", "Output Grayscale Raster")
-        colours = arcpy.Parameter("colour_list",
-                                  "Colour List (CSS names or R,G,B triplets, one per line)",
-                                  "GPString", "Required", "Input")
+        colours = arcpy.Parameter(name="colour_list", displayName="Colour List (CSS names or R,G,B triplets, one per line)", datatype="GPString",
+                         parameterType="Required", direction="Input")
         colours.multiValue = False
         min_v  = self._param("min_value", "Output Minimum Value", "GPDouble", default=0.0)
         max_v  = self._param("max_value", "Output Maximum Value", "GPDouble", default=1000.0)

@@ -10,6 +10,10 @@
 
 # changelog=0.3.8
       * retain std df/dz for Euler solutions
+      * Preview: the Keep button is replaced by Apply Preview (Apply Processing stays enabled while previewing and saves the previewed filter at full resolution); Preview follows you between the FFT Filters, Conv + Stats and Utils tabs, unticking the filters of the tab you leave; the preview layer is always the top layer in the QGIS Layers panel   
+      * The layer selected in the QGIS Layers panel and the SGTool Select Grid dropdowns now follow each other   
+      * Units, CRS, pixel counts and pixel size of the selected grid, and the version, are shown at the bottom of the first four tabs (cleared when no grids remain)   
+      * Cancelling a calculation (task manager X or Cancel) ends the task at once; the dock can be made much narrower and scrolls sideways   
       * Line-noise filter: new Wedge width setting; fix the filter removing too little noise (the opposite spectral lobe was not being filtered); Scale now defaults to 1   
       * Add Apply the same steps to another grid (Utils tab): repeats the processing steps recorded in a grid's history on another grid, recalculating inclination and declination from IGRF for RTP, RTE and differential RTP. Also a Processing algorithm   
       * Improved and debugged Direction Cosine/Butterworth filter: min/max line spacing inputs define the noise band, noise estimate is zero-centred before scaling and subtraction

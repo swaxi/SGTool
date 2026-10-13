@@ -171,6 +171,11 @@ SUFFIXES = {
         "min": "_SS_Min", "max": "_SS_Max", "std": "_SS_StdDev",
         "variance": "_SS_Var", "skewness": "_SS_Skew", "kurtosis": "_SS_Kurt",
     }[p["STATISTIC"]],
+    "local_anisotropy": lambda p: (
+        "_SS_AnisoMag" if p["OUTPUT_TYPE"] == "Magnitude" else "_SS_AnisoOrient"
+    ),
+    "anisotropy_chain_length": lambda p: "_SS_ChainLen",
+    "anisotropy_streamline_length": lambda p: "_SS_StreamLen",
     "threshold_to_nan": lambda p: "_Clean",
     "pca": lambda p: "_PCA",
     "ica": lambda p: "_ICA",
@@ -332,6 +337,35 @@ def _c_nan(g, p):
 def _c_window_stat(g, p):
     return g.spatial.calculate_windowed_stats(
         window_size=int(p["WINDOW"]), stat_type=p["STATISTIC"]
+    )
+
+
+def _c_anisotropy(g, p):
+    magnitude, orientation = g.spatial.calculate_local_anisotropy(
+        g.spatial.grid, window_size=int(p["WINDOW"]), window_type=p["WINDOW_TYPE"]
+    )
+    return magnitude if p["OUTPUT_TYPE"] == "Magnitude" else orientation
+
+
+def _anisotropy_maps(g, p):
+    return g.spatial.calculate_local_anisotropy(
+        g.spatial.grid, window_size=int(p["WINDOW"]), window_type=p["WINDOW_TYPE"]
+    )
+
+
+def _c_chain_length(g, p):
+    magnitude, orientation = _anisotropy_maps(g, p)
+    return g.spatial.calculate_anisotropy_chain_length(
+        magnitude, orientation, aniso_threshold=p["ANISOTROPY_THRESHOLD"],
+        angle_tolerance=p["ANGLE_TOLERANCE"], search_radius=int(p["SEARCH_RADIUS"]),
+    )
+
+
+def _c_streamline_length(g, p):
+    magnitude, orientation = _anisotropy_maps(g, p)
+    return g.spatial.calculate_anisotropy_streamline_length(
+        magnitude, orientation, aniso_threshold=p["ANISOTROPY_THRESHOLD"],
+        angle_tolerance=p["ANGLE_TOLERANCE"], max_steps=int(p["MAX_STEPS"]),
     )
 
 
@@ -506,6 +540,38 @@ FILTER_SPECS = [
         params=[_opt("STATISTIC", "Statistic",
                      ["min", "max", "std", "variance", "skewness", "kurtosis"], default=3),
                 _int("WINDOW", "Window size (pixels)", 5, minimum=3)],
+    ),
+    dict(
+        id="local_anisotropy", name="Local anisotropy",
+        group=GROUP_STATS, fft=False, compute=_c_anisotropy, operation="Local anisotropy",
+        help="How directional the grid is in a moving window: the magnitude (0 = no preferred "
+             "direction, 1 = strongly linear) or the dominant orientation (degrees, -90 to 90).",
+        params=[_int("WINDOW", "Window size (pixels)", 7, minimum=3),
+                _opt("WINDOW_TYPE", "Window", ["gaussian", "box"]),
+                _opt("OUTPUT_TYPE", "Output", ["Magnitude", "Orientation"])],
+    ),
+    dict(
+        id="anisotropy_chain_length", name="Anisotropy chain length",
+        group=GROUP_STATS, fft=False, compute=_c_chain_length, operation="Anisotropy chain length",
+        help="Scores each strongly directional cell by the size of the connected chain of cells "
+             "with similar orientation that it belongs to.",
+        params=[_int("WINDOW", "Window size (pixels)", 7, minimum=3),
+                _opt("WINDOW_TYPE", "Window", ["gaussian", "box"]),
+                _dbl("ANISOTROPY_THRESHOLD", "Anisotropy threshold (0-1)", 0.3, minimum=0.0, maximum=1.0),
+                _dbl("ANGLE_TOLERANCE", "Orientation tolerance (degrees)", 22.5, minimum=0.0),
+                _int("SEARCH_RADIUS", "Search radius (pixels)", 2, minimum=1)],
+    ),
+    dict(
+        id="anisotropy_streamline_length", name="Anisotropy streamline length",
+        group=GROUP_STATS, fft=False, compute=_c_streamline_length,
+        operation="Anisotropy streamline length",
+        help="Traces each strongly directional cell forwards and backwards along the orientation "
+             "field and gives the length of the path (pixels).",
+        params=[_int("WINDOW", "Window size (pixels)", 7, minimum=3),
+                _opt("WINDOW_TYPE", "Window", ["gaussian", "box"]),
+                _dbl("ANISOTROPY_THRESHOLD", "Anisotropy threshold (0-1)", 0.3, minimum=0.0, maximum=1.0),
+                _dbl("ANGLE_TOLERANCE", "Orientation tolerance (degrees)", 22.5, minimum=0.0),
+                _int("MAX_STEPS", "Maximum steps", 200, minimum=1)],
     ),
     dict(
         id="threshold_to_nan", name="Threshold to NaN",

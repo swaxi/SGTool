@@ -1264,6 +1264,8 @@ class SGTool:
                 QgsProject.instance().addMapLayer(new_layer)
                 # the same stretch the dialog gives its results (sun shading: min/max)
                 self._apply_stretch(new_layer, path not in result["min_max"])
+                if path.endswith("_SS_AnisoOrient.tif"):
+                    self._style_aniso_orient(new_layer)
                 new_layer.triggerRepaint()
         n = result["n_steps"]
         text = (
@@ -3714,12 +3716,12 @@ class SGTool:
             return True
 
     def _applyAnisoOrientStyle(self):
-        layer_name = self.base_name + "_SS_AnisoOrient"
-        layers = QgsProject.instance().mapLayersByName(layer_name)
-        if not layers:
-            return
-        layer = layers[0]
+        layers = QgsProject.instance().mapLayersByName(self.base_name + "_SS_AnisoOrient")
+        if layers:
+            self._style_aniso_orient(layers[0])
 
+    def _style_aniso_orient(self, layer):
+        """The colour ramp and transparency the orientation grid is shown with."""
         provider = layer.dataProvider()
         stats = provider.bandStatistics(1)
 

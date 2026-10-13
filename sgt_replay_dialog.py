@@ -25,6 +25,7 @@ def _enum(owner, scope, name):
 
 _CHECKABLE = _enum(Qt, "ItemFlag", "ItemIsUserCheckable")
 _ENABLED = _enum(Qt, "ItemFlag", "ItemIsEnabled")
+_NO_FLAGS = _enum(Qt, "ItemFlag", "NoItemFlags")
 _CHECKED = _enum(Qt, "CheckState", "Checked")
 _UNCHECKED = _enum(Qt, "CheckState", "Unchecked")
 _RESIZE_TO_CONTENTS = _enum(QHeaderView, "ResizeMode", "ResizeToContents")
@@ -68,7 +69,7 @@ class ReplayDialog(QDialog):
                 check.setFlags(_ENABLED | _CHECKABLE)
                 check.setCheckState(_CHECKED)
             else:
-                check.setFlags(_ENABLED & ~_ENABLED)  # no flags: cannot be ticked
+                check.setFlags(_NO_FLAGS)  # no flags: cannot be ticked
                 check.setCheckState(_UNCHECKED)
             self.table.setItem(r, 0, check)
             keep = QTableWidgetItem()
@@ -76,7 +77,7 @@ class ReplayDialog(QDialog):
                 keep.setFlags(_ENABLED | _CHECKABLE)
                 keep.setCheckState(_CHECKED)  # keep every intermediate result by default
             else:
-                keep.setFlags(_ENABLED & ~_ENABLED)
+                keep.setFlags(_NO_FLAGS)
                 keep.setCheckState(_UNCHECKED)
             self.table.setItem(r, 1, keep)
             for c, text in enumerate(

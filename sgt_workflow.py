@@ -72,6 +72,7 @@ _RENAMES = {
     "polynomial_order": "ORDER",
     "relief_shading": "RELIEF",
 }
+_MIN_MAX_SPECS = ("sun_shading", "anisotropy_chain_length", "anisotropy_streamline_length")
 _IGRF_SPECS = ("reduction_to_pole", "reduction_to_equator")
 
 
@@ -153,6 +154,9 @@ def _plan_one(index, step):
         key = _RENAMES.get(name.lower(), name.upper())
         recorded[key] = text
     recorded.update(_FIXED.get(operation, {}))
+    if spec_id == "local_anisotropy" and step.get("output"):
+        # the magnitude and the orientation grids record the same step: the file name says which
+        recorded["OUTPUT_TYPE"] = "Orientation" if "AnisoOrient" in step["output"] else "Magnitude"
 
     values, defaults = {}, []
     for p in spec["params"]:
@@ -338,7 +342,7 @@ def run_replay(
         # the step before is no longer needed once this one has been made from it
         _delete_files(discard)
         discard = []
-        if item.get("spec_id") == "sun_shading":
+        if item.get("spec_id") in _MIN_MAX_SPECS:
             min_max.append(out)  # shown min to max rather than mean +/- 2 std
         last = k == len(items) - 1
         extras = (

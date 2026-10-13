@@ -1559,8 +1559,7 @@ class SGTool:
     def _set_busy(self, busy):
         applies, cancels = self._busy_buttons()
         for tab, button in applies:
-            # while previewing, Apply stays off whatever the job state (Keep is used)
-            button.setEnabled(not busy and self._preview_tab != tab)
+            button.setEnabled(not busy)
         for button in cancels:
             button.setEnabled(busy)
 
@@ -2080,6 +2079,8 @@ class SGTool:
     _preview_only_entry = None
     _preview_tab = None  # class defaults: update_checkbox can fire before init
     _preview_tree_connected = False
+    _preview_sticky = False  # Preview was ticked by the user: it follows them between tabs
+    _preview_handover = False  # True while the plugin itself moves Preview between tabs
     PREVIEW_PATH = "/vsimem/sgtool_preview.tif"
     PREVIEW_SUBSAMPLE_SIDE = 600  # max cells on longest side, subsampled mode
     PREVIEW_EXTENT_SIDE = 2000  # cap on longest side, map-extent mode
@@ -2163,9 +2164,6 @@ class SGTool:
             getattr(d, "radioButton_preview_extent" + sfx).toggled.connect(
                 self.schedulePreview
             )
-            getattr(d, "pushButton_preview_keep" + sfx).clicked.connect(
-                lambda _checked=False, t=tab: self.keepClicked(t)
-            )
             getattr(d, "pushButton_cancel" + sfx).clicked.connect(
                 lambda _checked=False: self.cancel_task()
             )
@@ -2191,8 +2189,16 @@ class SGTool:
             getattr(d, combo),
         )
 
+    def _previewing_here(self):
+        """True while a preview is on and its tab is the one being shown."""
+        return (
+            self._preview_tab is not None
+            and self.dlg is not None
+            and self.dlg.tabWidget.currentIndex() == self._preview_tab
+        )
+
     def schedulePreview(self, *args):
-        if self._preview_tab is not None:
+        if self._previewing_here():
             self._preview_timer.start()  # restarts the debounce
 
     def _on_filter_toggled(self, checked, tab, checkbox_name):
@@ -2213,28 +2219,50 @@ class SGTool:
             box = getattr(d, name)
             box.setChecked(False)
             box.setEnabled(False)
-        sfx, _combo, apply_btn = self.PREVIEW_TABS[tab]
-        getattr(d, apply_btn).setEnabled(False)  # Keep replaces Apply
-        getattr(d, "pushButton_preview_keep" + sfx).setEnabled(True)
+        # while previewing, Apply saves the previewed filter: say so
+        apply_btn = self.PREVIEW_TABS[tab][2]
+        getattr(d, apply_btn).setText(self.tr("Apply Preview"))
 
     def _preview_exit_mode(self, tab):
         d = self.dlg
         for name in self.PREVIEW_DISABLED[tab]:
             getattr(d, name).setEnabled(True)
-        sfx, _combo, apply_btn = self.PREVIEW_TABS[tab]
-        getattr(d, apply_btn).setEnabled(True)
-        getattr(d, "pushButton_preview_keep" + sfx).setEnabled(False)
+        apply_btn = self.PREVIEW_TABS[tab][2]
+        getattr(d, apply_btn).setText(self.tr("Apply Processing"))
 
     def _preview_tab_changed(self, index):
-        # the preview belongs to one tab's filters: drop it when leaving
-        if self._preview_tab is not None and index != self._preview_tab:
-            self.discardPreview()
+        # A preview belongs to one tab's filters. Leaving that tab unticks its
+        # filters and drops the image; Preview itself stays selected: it is ticked
+        # on the tab arrived at (tabs without a preview, such as Grid + Wavelets,
+        # just wait, and Preview comes back on the next tab that has one).
+        tab = self._preview_tab
+        if tab is not None and index != tab:
+            self._preview_timer.stop()
+            for _f, _m, _c, cb in self.PREVIEW_FILTERS[tab]:
+                getattr(self.dlg, cb).setChecked(False)
+            self._preview_handover = True
+            try:
+                self._preview_widgets(tab)[0].setChecked(False)  # preview off here
+            finally:
+                self._preview_handover = False
+        if self._preview_sticky and index in self.PREVIEW_TABS and self._preview_tab != index:
+            self._preview_handover = True
+            try:
+                self._preview_widgets(index)[0].setChecked(True)  # preview on here
+            finally:
+                self._preview_handover = False
 
     def onPreviewToggled(self, checked, tab):
         canvas = self.iface.mapCanvas()
+        if not self._preview_handover:
+            self._preview_sticky = checked  # the user's own choice
         if checked:
             if self._preview_tab is not None and self._preview_tab != tab:
-                self.discardPreview()
+                self._preview_handover = True
+                try:
+                    self.discardPreview()
+                finally:
+                    self._preview_handover = False
             self._preview_tab = tab
             self._preview_enter_mode(tab)
             if not self._preview_canvas_connected:
@@ -2268,7 +2296,8 @@ class SGTool:
             getattr(self.dlg, cb).setChecked(False)
 
     def keepClicked(self, tab):
-        """Keep button: full-resolution result as a permanent layer."""
+        """Apply Processing while previewing: the previewed filter at full
+        resolution as a permanent layer, and preview off."""
         if self._preview_tab != tab:
             return
         entry = self._preview_entry(tab)
@@ -3841,10 +3870,16 @@ class SGTool:
                         print("Renderer is not a QgsSingleBandGrayRenderer.")
 
     def processGeophysics_fft(self):
+        if self._previewing_here():  # previewing: Apply saves the previewed filter
+            self.keepClicked(self._preview_tab)
+            return
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
         self.processGeophysics()
 
     def processGeophysics_conv(self):
+        if self._previewing_here():
+            self.keepClicked(self._preview_tab)
+            return
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid_Conv.currentText()
         self.processGeophysics()
 

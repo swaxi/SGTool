@@ -10,17 +10,17 @@
 
 # changelog=0.3.8
       * retain std df/dz for Euler solutions
-      * Preview: the Keep button is replaced by Apply Preview (Apply Processing stays enabled while previewing and saves the previewed filter at full resolution); Preview follows you between the FFT Filters, Conv + Stats and Utils tabs, unticking the filters of the tab you leave; the preview layer is always the top layer in the QGIS Layers panel   
+      * Preview: the Keep button is replaced by Apply Preview (the Apply Processing button is renamed Apply Preview while previewing and saves the previewed filter at full resolution); Preview follows you between the FFT Filters, Conv + Stats and Utils tabs, unticking the filters of the tab you leave; the preview layer is always the top layer in the QGIS Layers panel   
       * The layer selected in the QGIS Layers panel and the SGTool Select Grid dropdowns now follow each other   
       * Units, CRS, pixel counts and pixel size of the selected grid, and the version, are shown at the bottom of the first four tabs (cleared when no grids remain)   
       * Cancelling a calculation (task manager X or Cancel) ends the task at once; the dock can be made much narrower and scrolls sideways   
       * Line-noise filter: new Wedge width setting; fix the filter removing too little noise (the opposite spectral lobe was not being filtered); Scale now defaults to 1   
       * Add Apply the same steps to another grid (Utils tab): repeats the processing steps recorded in a grid's history on another grid, recalculating inclination and declination from IGRF for RTP, RTE and differential RTP. Also a Processing algorithm   
       * Improved and debugged Direction Cosine/Butterworth filter: min/max line spacing inputs define the noise band, noise estimate is zero-centred before scaling and subtraction
-      * Add live Preview (FFT Filters, Conv + Stats and Utils tabs): one temporary layer that updates as parameters change, for the current map extent or a subsampled grid, with Apply Processing to save the full resolution result
+      * Add live Preview (FFT Filters, Conv + Stats and Utils tabs): one temporary layer that updates as parameters change, for the current map extent or a subsampled grid, with Apply Preview to save the full resolution result
       * Add provenance metadata: how each saved file was made (creation time, source file(s) and their XML, operation and parameters, chained through successive steps) is embedded in saved GeoTIFFs, or in a filename.sgt.xml sidecar for files that cannot carry it
       * Add Read metadata and Save as XML buttons to the Utils tab to show a grid's processing history in a new window or save it as filename.sgt.xml
-      * Calculations now run as cancellable QGIS background tasks (Apply Processing, including saving a preview, B-spline gridding, worms, normalise, RGB to grey, grd conversion), with Cancel buttons on each tab
+      * Calculations now run as cancellable QGIS background tasks (Apply Processing, Apply Preview, B-spline gridding, worms, normalise, RGB to grey, grd conversion), with Cancel buttons on each tab
       * Filters exposed as QGIS Processing algorithms (SGTool group) for the modeler, batch processing and scripting
       * Apply Processing moved to a fixed bar at the top of the tabs, next to the Preview controls
       * Fix repeated entries in menus and duplicated signal connections when the plugin is reopened
@@ -111,19 +111,19 @@ Full changelog <a href="https://raw.githubusercontent.com/swaxi/SGTool/refs/head
 
 ## Live Preview (QGIS only)   
 
-The **FFT Filters**, **Conv + Stats** and **Utils** (Threshold to NaN) tabs have a fixed bar at the top with **Apply Processing** on the left and the preview controls to its right, so they stay visible while you scroll the filter list.   
+The **FFT Filters**, **Conv + Stats** and **Utils** (Threshold to NaN) tabs have a fixed bar at the top with **Apply Processing** (which reads **Apply Preview** while previewing) on the left and the preview controls to its right, so they stay visible while you scroll the filter list.   
 
 - **Preview**: tick it to see the selected filter without writing any files. A single temporary layer called `<grid><suffix>_preview` is added to the project and is replaced in place each time a parameter changes, so layers do not accumulate. Updates wait a fraction of a second after the last edit, so typing a value does not trigger a calculation for every digit.   
 - **One filter at a time**: while previewing, ticking a second filter unticks the first, and editing a filter's parameters selects that filter. Filters that cannot be previewed (Differential RTP, local anisotropy, chain and streamline length, MRVBF, PCA, ICA, Euler deconvolution, and the clipping polygon) are disabled until Preview is switched off.   
 - **Map extent**: calculates at full resolution for the area currently shown in the map canvas, so panning or zooming updates the preview. Filter edge effects appear along the edges of the view, and very large views are block-averaged to at most 2000 cells on the longest side.   
 - **Subsampled grid**: calculates for the whole grid after block-averaging it to at most 600 cells on the longest side. This is quick, but filters set in pixels (convolutions, window statistics, AGC) then act on the coarser cells, and line noise cannot be seen if the preview cell size exceeds the line spacing. Use Map extent for those.   
-- **Apply Processing** stays available while previewing: it calculates the previewed filter at full resolution, adds it as a normal permanent layer (with the usual name and suffix), switches preview off and unticks the filters.   
+- **Apply Preview**: while Preview is ticked the **Apply Processing** button is renamed **Apply Preview** and stays available. Pressing it calculates the previewed filter at full resolution, adds it as a normal permanent layer (with the usual name and suffix), switches preview off and unticks the filters.   
 - **Unticking Preview** (or closing the plugin) discards the temporary layer. Unticking the last ticked filter clears the image but keeps preview mode on, so ticking a filter brings it straight back. **Changing tab** unticks the filters of the tab you leave and removes the image, and Preview is ticked on the next tab that has one (Grid + Wavelets has none, so Preview waits and returns afterwards); turning Preview off yourself ends it for good. While previewing, the Apply button reads **Apply Preview** and saves the previewed filter at full resolution.   
 - The preview layer is shown with bilinear resampling when zoomed in to reduce the blocky look of a coarse preview.   
 
 ## Background Calculations (QGIS)   
 
-Calculations run as QGIS background tasks, so QGIS stays usable while they work, progress shows in the task manager and status bar, and a calculation can be cancelled (the red X in the task manager or the Cancel button ends the task at once; a calculation that is part-way through a single FFT step finishes in the background, its result is thrown away and nothing is saved). This covers everything started by **Apply Processing** (all the filters, statistics, MRVBF, PCA/ICA, boundary outline and Euler deconvolution, including several ticked together), saving a live preview with **Apply Processing**, B-spline gridding, worms, grid normalisation, RGB to grey-scale and Geosoft `.grd` conversion.   
+Calculations run as QGIS background tasks, so QGIS stays usable while they work, progress shows in the task manager and status bar, and a calculation can be cancelled (the red X in the task manager or the Cancel button ends the task at once; a calculation that is part-way through a single FFT step finishes in the background, its result is thrown away and nothing is saved). This covers everything started by **Apply Processing** (all the filters, statistics, MRVBF, PCA/ICA, boundary outline and Euler deconvolution, including several ticked together), saving a live preview with **Apply Preview**, B-spline gridding, worms, grid normalisation, RGB to grey-scale and Geosoft `.grd` conversion.   
 
 - **Cancel**: each tab has a **Cancel** button (on the Grid + Wavelets tab it is "Cancel running calculation"), and QGIS's own task manager has one too. The buttons are only enabled while a calculation is running, and **Apply Processing** is disabled so a second one cannot be started on top.   
 - **How quickly it stops**: cancelling is cooperative. It takes effect between the steps of a job and inside long loops (Euler deconvolution, worms levels, B-spline levels, normalising a folder of grids), so a very long single filter finishes its current step first. A cancelled job saves nothing, and the filters you ticked stay ticked so you can run it again.   
@@ -154,7 +154,7 @@ Every file the plugin saves records how it was made. For **GeoTIFFs** this is st
 
 Sidecars record the output's size and modified time when written, so a sidecar left beside a file that another program has since overwritten can be recognised (`sidecar_status()` in `calcs/sgt_metadata.py` reports `current`, `stale`, `missing` or `unknown`). When the plugin overwrites or deletes a file it also removes any old-style sidecar for it. Metadata embedded in a GeoTIFF needs no such clean-up as it is part of the file, and files made by earlier SGTool versions with a `.sgt.xml` sidecar are still read.   
 
-This covers filter outputs, gridding, imports and conversions, Euler solutions and window statistics, PCA/ICA, MRVBF, worms, grid normalisation and boundary outlines. Temporary preview layers are not saved to disk so carry no record, but a result saved with **Apply Processing** while previewing does. Recording provenance can never stop a calculation: if it fails, a message is printed to the Python console and processing carries on. (Grids made through the GRASS IDW dialog are written by that dialog and do not get a sidecar yet.)   
+This covers filter outputs, gridding, imports and conversions, Euler solutions and window statistics, PCA/ICA, MRVBF, worms, grid normalisation and boundary outlines. Temporary preview layers are not saved to disk so carry no record, but a result saved with **Apply Preview** does. Recording provenance can never stop a calculation: if it fails, a message is printed to the Python console and processing carries on. (Grids made through the GRASS IDW dialog are written by that dialog and do not get a sidecar yet.)   
 
 ## Line-Noise Filter Update (QGIS)   
 

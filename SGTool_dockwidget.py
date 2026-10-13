@@ -94,16 +94,25 @@ class SGToolDockWidget(QDockWidget):
         self.label_31 = QLabel("© 2024 West African Exploration Initiative.")
         self.label_31.setVisible(False)
 
-        self.setWidget(root)
+        # The whole plugin sits in a scroll area, so the dock can be made much
+        # narrower than its contents (a horizontal scroll bar then reaches what
+        # no longer fits), leaving more room for the map canvas on small screens.
+        shell = QScrollArea()
+        shell.setWidgetResizable(True)
+        shell.setFrameShape(QFrame.NoFrame)
+        shell.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        shell.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        shell.setWidget(root)
+        self.setWidget(shell)
 
     # ------------------------------------------------------------------
-    # Helper: wrap a widget list in a QScrollArea (vertical only)
+    # Helper: wrap a widget list in a QScrollArea
     # ------------------------------------------------------------------
     @staticmethod
     def _scroll_wrap(content_widget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setWidget(content_widget)
@@ -121,8 +130,8 @@ class SGToolDockWidget(QDockWidget):
                 "updates as you change parameters.\n"
                 "Only one filter can be ticked while previewing, and filters "
                 "that can't be previewed are disabled.\n"
-                "Unchecking discards the preview; use Keep to save the "
-                "full-resolution result as a permanent layer."
+                "Unchecking discards the preview; press Apply Processing to "
+                "save the full-resolution result as a permanent layer."
             )
         )
         rad_extent = QRadioButton(_tr("Map extent"))
@@ -142,13 +151,6 @@ class SGToolDockWidget(QDockWidget):
         group = QButtonGroup(self)
         group.addButton(rad_extent)
         group.addButton(rad_sub)
-        keep = QPushButton(_tr("Keep"))
-        keep.setToolTip(
-            _tr("Compute the previewed filter at full resolution, add it as a "
-                "permanent layer and switch preview off")
-        )
-        keep.setEnabled(False)  # only while a preview is active
-
         cancel = QPushButton(_tr("Cancel"))
         cancel.setToolTip(
             _tr("Stop the running calculation. It stops at its next checkpoint "
@@ -161,7 +163,6 @@ class SGToolDockWidget(QDockWidget):
         setattr(self, "checkBox_preview" + suffix, chk)
         setattr(self, "radioButton_preview_extent" + suffix, rad_extent)
         setattr(self, "radioButton_preview_sub" + suffix, rad_sub)
-        setattr(self, "pushButton_preview_keep" + suffix, keep)
         setattr(self, "buttonGroup_preview" + suffix, group)
 
         bar = QWidget()
@@ -174,7 +175,6 @@ class SGToolDockWidget(QDockWidget):
         bl.addWidget(chk)
         bl.addWidget(rad_extent)
         bl.addWidget(rad_sub)
-        bl.addWidget(keep)
         bl.addStretch()
         return bar
 

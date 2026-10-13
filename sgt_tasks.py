@@ -10,11 +10,15 @@ Rule: the work function runs off the main thread, so it must only compute
 project, widgets or the message bar happens beforehand (preparing the job) or
 afterwards in the finished callback, both on the main thread.
 
-Cancelling is cooperative: it takes effect the next time the work calls
-task.check() (between steps, and inside long loops such as Euler
-deconvolution). A single FFT or filter call cannot be interrupted part-way.
+Cancelling is cooperative: the work function itself only stops the next time it
+calls task.check() (between steps, and inside long loops such as Euler
+deconvolution); a single FFT or filter call cannot be interrupted part-way.
+The task, however, ends as soon as it is cancelled: the work runs in a helper
+thread that is abandoned, its result ignored, and it stops at its next
+check() without saving anything.
 """
 
+import threading
 import traceback
 
 from qgis.core import QgsTask
@@ -48,14 +52,31 @@ class SGToolTask(QgsTask):
 
     # -- worker thread -------------------------------------------------
     def run(self):
-        try:
-            self.result = self._work(self)
-        except OperationCancelled:
+        outcome = {}
+
+        def target():
+            try:
+                outcome["result"] = self._work(self)
+            except OperationCancelled:
+                outcome["cancelled"] = True
+            except Exception:
+                outcome["error"] = traceback.format_exc()
+
+        worker = threading.Thread(target=target, daemon=True)
+        worker.start()
+        while worker.is_alive():
+            worker.join(0.05)
+            if self.isCanceled():
+                # end the task now; the helper thread dies at its next check()
+                self.cancelled = True
+                return False
+        if outcome.get("cancelled"):
             self.cancelled = True
             return False
-        except Exception:
-            self.error = traceback.format_exc()
+        if "error" in outcome:
+            self.error = outcome["error"]
             return False
+        self.result = outcome.get("result")
         if self.isCanceled():
             self.cancelled = True
             return False

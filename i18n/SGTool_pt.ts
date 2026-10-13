@@ -382,7 +382,6 @@ Devolve duas camadas: _SS_AnisoMag e _SS_AnisoOrient</translation></message>
     <message><source>Cell size too large for the point extent</source><translation>O tamanho da célula é demasiado grande para a extensão dos pontos</translation></message>
     <message><source>Chain Length</source><translation>Comprimento da cadeia</translation></message>
     <message><source>Chain Length: how many pixels ahead to cast the orientation ray when searching for the next connected pixel (1=8-neighbours only, 2–3 recommended for oblique features)</source><translation>Comprimento da cadeia: quantos pixels à frente se projeta o raio de orientação ao procurar o pixel ligado seguinte (1 = apenas 8 vizinhos, 2–3 recomendado para feições oblíquas)</translation></message>
-    <message><source>Compute the previewed filter at full resolution, add it as a permanent layer and switch preview off</source><translation>Calcula o filtro pré-visualizado em resolução total, adiciona-o como camada permanente e desativa a pré-visualização</translation></message>
     <message><source>Date of the survey, for the IGRF model</source><translation>Data do levantamento, para o modelo IGRF</translation></message>
     <message><source>Drop points whose data value is below the threshold before gridding
 (useful for removing nodata sentinels such as -99999 or -999999.9)</source><translation>Descarta os pontos cujo valor está abaixo do limiar antes de gerar a grelha
@@ -394,14 +393,13 @@ Devolve duas camadas: _SS_AnisoMag e _SS_AnisoOrient</translation></message>
     <message><source>Inclination and declination for the reductions to the pole / equator are recalculated from IGRF for the new grid. Survey date:</source><translation>A inclinação e a declinação das reduções ao polo / equador são recalculadas a partir do IGRF para a nova grelha. Data do levantamento:</translation></message>
     <message><source>Initial threshold for slope (percent) at the finest resolution</source><translation>Limiar inicial de declive (percentagem) na resolução mais fina</translation></message>
     <message><source>Inverse Distance Weighting</source><translation>Ponderação pelo Inverso da Distância</translation></message>
-    <message><source>Keep</source><translation>Guardar</translation></message>
     <message><source>Keep this step's result as a file. Untick to delete it once the next step has been made from it (the last result is always kept).</source><translation>Guarda o resultado deste passo como ficheiro. Desmarque para o eliminar depois de o passo seguinte ter sido feito a partir dele (o último resultado é sempre guardado).</translation></message>
     <message><source>Line Spacing min/max (proj units)</source><translation>Espaçamento das linhas mín/máx (unidades proj.)</translation></message>
     <message><source>Live preview of one filter in a single temporary layer that updates as you change parameters.
 Only one filter can be ticked while previewing, and filters that can't be previewed are disabled.
-Unchecking discards the preview; use Keep to save the full-resolution result as a permanent layer.</source><translation>Pré-visualização em direto de um filtro numa única camada temporária que se atualiza ao alterar os parâmetros.
+Unchecking discards the preview; press Apply Processing to save the full-resolution result as a permanent layer.</source><translation>Pré-visualização em direto de um filtro numa única camada temporária que se atualiza ao alterar os parâmetros.
 Só um filtro pode ser marcado durante a pré-visualização, e os filtros que não podem ser pré-visualizados ficam desativados.
-Desmarcar descarta a pré-visualização; use Guardar para gravar o resultado em resolução total como camada permanente.</translation></message>
+Desmarcar descarta a pré-visualização; clique em Aplicar Processamento para gravar o resultado em resolução total como camada permanente.</translation></message>
     <message><source>Local Anisotropy</source><translation>Anisotropia local</translation></message>
     <message><source>MBA maximum number of refinement levels (LEVEL_MAX)</source><translation>MBA: número máximo de níveis de refinamento (LEVEL_MAX)</translation></message>
     <message><source>MBA threshold error (EPSILON): stop refining once every point residual is below this value</source><translation>MBA: erro limiar (EPSILON): para o refinamento quando o resíduo de todos os pontos é inferior a este valor</translation></message>
@@ -503,5 +501,7 @@ Esta proveniência é guardada dentro dos GeoTIFF gravados pelo SGTool.</transla
     <message><source>Too few points remain after the ignore-value filter</source><translation>Restam demasiado poucos pontos após o filtro de valores ignorados</translation></message>
     <message><source>Wedge</source><translation>Cunha</translation></message>
     <message><source>max</source><translation>máx</translation></message>
+    <!-- ── Added in 0.3.8 ── -->
+    <message><source>Apply Preview</source><translation>Aplicar Pré-visualização</translation></message>
 </context>
 </TS>

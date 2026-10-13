@@ -381,7 +381,6 @@ Returns two layers: _SS_AnisoMag and _SS_AnisoOrient</source><translation>计算
     <message><source>Cell size too large for the point extent</source><translation>像元大小相对于点的范围过大</translation></message>
     <message><source>Chain Length</source><translation>链长度</translation></message>
     <message><source>Chain Length: how many pixels ahead to cast the orientation ray when searching for the next connected pixel (1=8-neighbours only, 2–3 recommended for oblique features)</source><translation>链长度：搜索下一个相连像素时沿方向射线向前探查的像素数（1 = 仅 8 邻域，斜向特征建议 2–3）</translation></message>
-    <message><source>Compute the previewed filter at full resolution, add it as a permanent layer and switch preview off</source><translation>以完整分辨率计算预览的滤波器，将其添加为永久图层并关闭预览</translation></message>
     <message><source>Date of the survey, for the IGRF model</source><translation>测量日期，用于 IGRF 模型</translation></message>
     <message><source>Drop points whose data value is below the threshold before gridding
 (useful for removing nodata sentinels such as -99999 or -999999.9)</source><translation>在生成栅格之前丢弃数值低于阈值的点
@@ -393,14 +392,13 @@ Returns two layers: _SS_AnisoMag and _SS_AnisoOrient</source><translation>计算
     <message><source>Inclination and declination for the reductions to the pole / equator are recalculated from IGRF for the new grid. Survey date:</source><translation>化极 / 化赤道的磁倾角和磁偏角将根据 IGRF 为新栅格重新计算。测量日期：</translation></message>
     <message><source>Initial threshold for slope (percent) at the finest resolution</source><translation>最精细分辨率下的初始坡度阈值（百分比）</translation></message>
     <message><source>Inverse Distance Weighting</source><translation>反距离加权</translation></message>
-    <message><source>Keep</source><translation>保留</translation></message>
     <message><source>Keep this step's result as a file. Untick to delete it once the next step has been made from it (the last result is always kept).</source><translation>将此步骤的结果保存为文件。取消勾选则在下一步基于它完成后将其删除（最后一个结果始终保留）。</translation></message>
     <message><source>Line Spacing min/max (proj units)</source><translation>测线间距 最小/最大（投影单位）</translation></message>
     <message><source>Live preview of one filter in a single temporary layer that updates as you change parameters.
 Only one filter can be ticked while previewing, and filters that can't be previewed are disabled.
-Unchecking discards the preview; use Keep to save the full-resolution result as a permanent layer.</source><translation>在单个临时图层中实时预览一个滤波器，修改参数时自动更新。
+Unchecking discards the preview; press Apply Processing to save the full-resolution result as a permanent layer.</source><translation>在单个临时图层中实时预览一个滤波器，修改参数时自动更新。
 预览时只能勾选一个滤波器，无法预览的滤波器会被禁用。
-取消勾选将放弃预览；使用“保留”可将完整分辨率结果保存为永久图层。</translation></message>
+取消勾选将放弃预览；点击“应用处理”可将完整分辨率结果保存为永久图层。</translation></message>
     <message><source>Local Anisotropy</source><translation>局部各向异性</translation></message>
     <message><source>MBA maximum number of refinement levels (LEVEL_MAX)</source><translation>MBA 最大细化层数 (LEVEL_MAX)</translation></message>
     <message><source>MBA threshold error (EPSILON): stop refining once every point residual is below this value</source><translation>MBA 阈值误差 (EPSILON)：当所有点的残差都小于该值时停止细化</translation></message>
@@ -499,5 +497,7 @@ This provenance is stored inside GeoTIFFs saved by SGTool.</source><translation>
     <message><source>Too few points remain after the ignore-value filter</source><translation>忽略值过滤后剩余的点太少</translation></message>
     <message><source>Wedge</source><translation>楔角</translation></message>
     <message><source>max</source><translation>最大</translation></message>
+    <!-- ── Added in 0.3.8 ── -->
+    <message><source>Apply Preview</source><translation>应用预览</translation></message>
 </context>
 </TS>

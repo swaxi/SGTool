@@ -87,10 +87,22 @@ Imports point data in csv, ASEG-GDF2 dat or xyz formats. For xyz line data, tie 
 
 **Gridding**   
 Grids point data using either BSpline (Converted from SAGA code, in both QGIS and ArcGIS Pro) or IDW built-in gridding algoithms (QGIS dialog; ArcGIS Pro toolbox)   
+
+**Choosing the B-spline settings (Auto)**   
+Tick **Auto** next to the B-spline settings (ArcGIS Pro GUI: the **Auto** box beside the cell size; toolbox and Processing algorithm: the *choose automatically* option) to have the cell size and Max Levels worked out from the points. Typing either value yourself switches Auto off.
+
+- **Cell size**: the median distance from a random place inside the survey to the nearest data point is measured. For flight lines it is a quarter of the line spacing, the usual rule of thumb for a gridding cell, so that distance is used; for scattered points it is about half the mean point spacing, so twice it is used. The result is rounded to two significant figures (a suggestion good to 30% does not need more). It works in the units of the layer, including degrees for latitude/longitude data, where east-west distances are shortened by cos(latitude) before measuring and the dialog also shows the cell's size in metres. A cell size you choose yourself is compared with the suggestion, and the dialog says so if it is more than twice it (detail is smoothed away) or less than 0.4 times it (most cells are far from any data).
+- **Max Levels**: level L of the multilevel B-spline has a control lattice of range / 2^(L-1) (range being the longer side of the grid). Auto picks the level at which that lattice is half the output cell, `round(2 + log2(range / cell))`. Levels beyond that cannot add detail the grid can show, and on noisy data they start fitting the noise: in a held-out test on 824,000 aeromagnetic points the error was lowest at that level and slightly higher with more, while the run time kept growing with every level.
+- **Threshold Error** is not chosen automatically. The calculation only stops early when no point is above it, which noisy data never allows, so Max Levels is what controls the run time.
+
    
 ## Wavelets   
 **BSDWorms**   
+Worms are calculated by upward continuing the data to a series of heights (levels), finding the edges at each level with wavelet transforms of the horizontal gradient. The source depth of an edge is approximately **half the upward continuation height** of the level it appears at (Jacobsen, 1987), so edges that persist up to a level of 2000 m come from sources at about 1000 m depth. This is a guide, not a precise depth. Levels are set by the base level and the increment (metres) between levels.   
+
 Use wavelet transforms to build multilevel "worms", saves out a single csv file of points (for use in 3D visualisation), and optionally a shapefile (for use in QGIS). Code from Frank Horowitz's bsdwormer  https://bitbucket.org/fghorow/bsdwormer/   
+
+References: Jacobsen, B.H., 1987. A case for upward continuation as a standard separation filter for potential-field maps. Geophysics 52, 1138-1148. Hornby, P., Boschetti, F., Horowitz, F.G., 1999. Analysis of potential field data in the wavelet domain. Geophys. J. Int. 137, 175-196.   
     
 ## Utilities   
 **Threshold to NaN**   

@@ -126,5 +126,17 @@ cx_ = gg[0] + (np.arange(aa.shape[1]) + 0.5) * gg[1]; cy_ = gg[3] + (np.arange(a
 XX, YY = np.meshgrid(cx_, cy_); inner = (XX > 500300) & (XX < 501700) & (YY > 6890300) & (YY < 6891700)
 check("the toolbox gridding follows the plane too", float(np.nanmax(np.abs((aa - (0.02 * (XX - 500000) + 0.01 * (YY - 6890000)))[inner]))) < 1.0)
 check("it is listed in the toolbox", mod.MultilevelBSplineGridding in tb.tools)
+outa = os.path.join(DATA, "bsp_auto_bspline.tif")
+ma = run(mod.MultilevelBSplineGridding, {"in_points": shp, "z_field": "num", "cell_size": 9999.0, "max_levels": 2,
+                                         "auto": True, "out_raster": outa})
+from calcs.mba_suggest import suggest_mba_parameters as _suggest
+_ds = ogr.Open(shp); _l = _ds.GetLayer(0)
+_pts = np.array([(f.GetGeometryRef().GetX(), f.GetGeometryRef().GetY()) for f in _l]); _ds = None
+_want = _suggest(_pts[:, 0], _pts[:, 1])
+ra = sm.read_sgt_metadata(outa)
+pa = {p_.get("name"): p_.text for p_ in ra.iter("parameter")} if ra is not None else {}
+check("Auto in the B-spline tool ignores the cell size and levels given",
+      os.path.exists(outa) and abs(float(pa.get("cell_size", 0)) - _want["cell_size"]) < 1e-9
+      and pa.get("max_levels") == str(_want["max_levels"]), (pa, _want["cell_size"], _want["max_levels"], ma.lines))
 print(f"\n{sum(1 for _, ok in results if ok)}/{len(results)} PYT checks passed", flush=True)
 os._exit(0 if all(ok for _, ok in results) else 1)

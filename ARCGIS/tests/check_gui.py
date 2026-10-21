@@ -328,6 +328,32 @@ check("points below the ignore value are dropped before gridding", err2 < 1.0, e
 pbs2 = {p_.get("name"): p_.text for p_ in sm.read_sgt_metadata(os.path.join(DATA, "bs_sent_num_bspline.tif")).iter("parameter")}
 check("the ignore value and the points used are recorded",
       pbs2.get("points_used") == "392" and pbs2.get("ignore_values_below") in ("-90000.0", "-90000"), pbs2)
+# ---- Auto cell size and Max levels: flight lines 400 m apart with a point every 10 m
+from osgeo import ogr
+lines_path = os.path.join(DATA, "bs_lines.shp")
+dsl = ogr.GetDriverByName("ESRI Shapefile").CreateDataSource(lines_path)
+srsl = osr.SpatialReference(); srsl.ImportFromEPSG(28350)
+ll = dsl.CreateLayer("pts", srsl, ogr.wkbPoint); ll.CreateField(ogr.FieldDefn("val", ogr.OFTReal))
+for y_ in range(6888000, 6892000, 400):
+    for x_ in range(500000, 504000, 10):
+        f_ = ogr.Feature(ll.GetLayerDefn()); g_ = ogr.Geometry(ogr.wkbPoint); g_.AddPoint(float(x_), float(y_))
+        f_.SetGeometry(g_); f_.SetField("val", 1.0); ll.CreateFeature(f_)
+dsl = None
+app.v_bs_cell.set("300.0"); app.v_bs_levels.set("11"); app.v_bs_auto.set(False)
+app._set_bspline_points(lines_path)
+app.v_bs_auto.set(True)
+app._bs_auto_toggled()
+run_loop(lambda: app.v_bs_levels.get() != "11", 30)
+check("Auto chooses a cell size of a quarter of the line spacing (100 m)",
+      abs(float(app.v_bs_cell.get()) - 100.0) <= 2.0, app.v_bs_cell.get())
+check("Auto chooses Max levels for it (2 + log2(4000 / 100) -> 7)", app.v_bs_levels.get() == "7", app.v_bs_levels.get())
+check("Auto explains itself", "line data" in app.v_bs_auto_info.get(), app.v_bs_auto_info.get())
+check("Auto stays ticked after it sets the values", app.v_bs_auto.get())
+app.v_bs_cell.set("250.0")
+check("typing a cell size switches Auto off and keeps the value",
+      not app.v_bs_auto.get() and app.v_bs_cell.get() == "250.0")
+app.v_bs_cell.set("300.0"); app.v_bs_levels.set("11")
+
 refused = False
 try:
     au.grid_points_to_file([0, 1], [0, 1], [1, 2], os.path.join(DATA, "x.tif"), None, "z", 1.0)
@@ -604,6 +630,33 @@ check("the whole grid is drawn in its true proportions (8000 m by 2000 m = 4:1)"
 check("fits the canvas", shown_w <= cw_ + 1 and shown_h <= ch_ + 1)
 app.v_preview.set(False)
 tempfile.tempdir = _real_tmp
+
+# ---- the Help tab shows the QGIS help text, with working links
+htxt = app._help_text
+shown = htxt.get("1.0", "end")
+check("the help text is the QGIS plugin's (waxi4, Noddy, code repository, Euler credit)",
+      all(w in shown for w in ("WAXI/Agate", "Atlas of Structural Geophysics", "Code Repository", "Reliable Euler method")))
+link_tags = [t for t in htxt.tag_names() if t.startswith("link") and t != "link"]
+check("it has clickable links", len(link_tags) >= 10, len(link_tags))
+opened = []
+_open = G.webbrowser.open
+G.webbrowser.open = lambda url: opened.append(url)
+try:
+    app.nb.select(app.nb.index("end") - 1)  # the Help tab is the last one
+    pump(0.5)
+    first = link_tags[0]
+    box = htxt.bbox(htxt.tag_ranges(first)[0])
+    if box:
+        htxt.event_generate("<Motion>", x=box[0] + 2, y=box[1] + 2)
+        htxt.event_generate("<Button-1>", x=box[0] + 2, y=box[1] + 2)
+        pump(0.3)
+finally:
+    G.webbrowser.open = _open
+check("clicking a link opens its address in the browser", opened[:1] == ["https://waxi4.org"], (box, opened))
+tab_h = htxt.master.winfo_height()
+check("the help text box fills its tab (no separate outer scroll area)",
+      tab_h > 100 and htxt.winfo_height() >= tab_h - 12 and not hasattr(htxt.master, "_canvas"),
+      (htxt.winfo_height(), tab_h))
 
 passed = sum(1 for _, ok in results if ok)
 print(f"\n{passed}/{len(results)} ARC checks passed", flush=True)

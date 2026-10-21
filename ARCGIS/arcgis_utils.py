@@ -554,6 +554,37 @@ def read_points_ogr(path, field):
     return np.array(xs), np.array(ys), np.array(zs), wkt
 
 
+def suggest_bspline_settings(path, cell_size=None):
+    """Cell size and Max Levels suggested for gridding the points in an OGR point file (see
+    calcs/mba_suggest.py): the dict from suggest_mba_parameters plus "description"."""
+    from osgeo import ogr
+    from calcs.mba_suggest import describe, suggest_mba_parameters
+
+    ds = ogr.Open(str(path))
+    if ds is None:
+        raise IOError(f"Cannot open points file: {path}")
+    layer = ds.GetLayer(0)
+    srs = layer.GetSpatialRef()
+    geographic = bool(srs is not None and srs.IsGeographic())
+    xs, ys = [], []
+    for feat in layer:
+        geom = feat.GetGeometryRef()
+        if geom is None or geom.IsEmpty():
+            continue
+        if geom.GetGeometryCount() > 0:  # multipoint
+            points = [geom.GetGeometryRef(i) for i in range(geom.GetGeometryCount())]
+        else:
+            points = [geom]
+        for pt in points:
+            xs.append(pt.GetX())
+            ys.append(pt.GetY())
+    ds = None
+    suggestion = suggest_mba_parameters(np.array(xs), np.array(ys), geographic=geographic,
+                                        cell_size=cell_size)
+    suggestion["description"] = describe(suggestion)
+    return suggestion
+
+
 def grid_points_to_file(xs, ys, zs, out_path, source_path, field, cell_size,
                         epsilon=1e-4, level_max=11, ignore_below=None,
                         spatial_ref=None, callback=None):

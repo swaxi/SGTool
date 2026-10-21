@@ -1334,6 +1334,9 @@ class MultilevelBSplineGridding(_RasterTool):
             self._param("cell_size",    "Output Cell Size (map units)", "GPDouble", default=100.0),
             self._param("epsilon",      "Threshold Error",              "GPDouble", default=0.0001),
             self._param("max_levels",   "Maximum Number of Levels",     "GPLong",   default=11),
+            self._param("auto",         "Choose the cell size and number of levels from the "
+                                        "point spacing (ignores the two settings above)",
+                        "GPBoolean", required=False, default=False),
             self._param("ignore_below", "Ignore points with a value below (blank = use all)",
                         "GPDouble", required=False),
             self._out("out_raster",     "Output Raster"),
@@ -1345,8 +1348,9 @@ class MultilevelBSplineGridding(_RasterTool):
         cell   = float(parameters[2].value)
         eps    = float(parameters[3].value)
         levels = int(parameters[4].value)
-        ignore = float(parameters[5].value) if parameters[5].value not in (None, "") else None
-        out_r  = str(parameters[6].valueAsText)
+        auto   = bool(parameters[5].value)
+        ignore = float(parameters[6].value) if parameters[6].value not in (None, "") else None
+        out_r  = str(parameters[7].valueAsText)
 
         desc = arcpy.Describe(pts)
         xs, ys, zs = [], [], []
@@ -1360,6 +1364,14 @@ class MultilevelBSplineGridding(_RasterTool):
                     continue
                 xs.append(xy[0])
                 ys.append(xy[1])
+        if auto:
+            from calcs.mba_suggest import describe, suggest_mba_parameters
+            suggestion = suggest_mba_parameters(
+                np.array(xs), np.array(ys),
+                geographic=getattr(desc.spatialReference, "type", "") == "Geographic")
+            cell, levels = suggestion["cell_size"], suggestion["max_levels"]
+            messages.addMessage(f"Automatic settings: cell size {cell:g}, {levels} levels. "
+                                + describe(suggestion))
         source = getattr(desc, "catalogPath", pts)
         n = grid_points_to_file(xs, ys, zs, out_r, source, field, cell, epsilon=eps,
                                 level_max=levels, ignore_below=ignore,

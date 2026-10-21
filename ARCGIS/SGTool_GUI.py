@@ -11,7 +11,9 @@ Changes from v1:
 """
 
 import os
+import re
 import sys
+import webbrowser
 import json
 import tempfile
 import threading
@@ -30,7 +32,7 @@ for _p in (_HERE, _SGTOOL,
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from arcgis_utils import (raster_to_numpy, numpy_to_raster, make_processor, NODATA,
+from arcgis_utils import (suggest_bspline_settings, raster_to_numpy, numpy_to_raster, make_processor, NODATA,
                           write_provenance, step_record, raster_header_info,
                           grid_info_text, plugin_version, step_suffix,
                           write_mrvbf_outputs, MRVBF_DEFAULTS,
@@ -61,6 +63,31 @@ FONT_H    = ("Segoe UI", 10, "bold")
 FONT_MONO = ("Consolas",  8)
 
 
+_wheel_installed = set()
+
+
+def _install_wheel_scrolling(frame):
+    """Scroll the scrollable frame under the pointer with the mouse wheel (one handler for the
+    whole window; a Text box, such as the Help tab, scrolls itself and is left alone)."""
+    root = frame.winfo_toplevel()
+    if root in _wheel_installed:
+        return
+    _wheel_installed.add(root)
+
+    def on_wheel(e):
+        w = root.winfo_containing(e.x_root, e.y_root)
+        while w is not None:
+            if isinstance(w, tk.Text):
+                return
+            canvas = getattr(w, "_canvas", None)
+            if canvas is not None:
+                canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+                return
+            w = w.master
+
+    root.bind_all("<MouseWheel>", on_wheel)
+
+
 # ============================================================================
 # Scrollable frame
 # ============================================================================
@@ -81,8 +108,8 @@ class ScrollFrame(tk.Frame):
 
         self.inner.bind("<Configure>", _cfg)
         canvas.bind("<Configure>", _cfg)
-        canvas.bind_all("<MouseWheel>",
-                        lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+        self._canvas = canvas
+        _install_wheel_scrolling(self)
 
 
 # ============================================================================
@@ -172,6 +199,65 @@ def tip(widget, text):
     """Attach a tooltip and return the widget (for chaining)."""
     ToolTip(widget, text)
     return widget
+
+
+# ---- the Help tab: the QGIS plugin's Help text; **bold** and [label](url) are marked up in it
+HELP_TEXT = [
+    "**Simple Potential Field Calcs to assist WAXI/Agate Structural Geophysics Course**",
+    "[https://waxi4.org](https://waxi4.org)   [https://agate-project.org](https://agate-project.org)",
+    "**Example magnetic grid from OMRG Mauritania:**",
+    "[grid](http://tectonique.net/sgtools_data/ogrm_usgs_mag_tmi.tif)",
+    "**Noddy Imports:**",
+    "Existing Noddy mag and grav files can be found at the Atlas of Structural Geophysics: "
+    "[https://tectonique.net/asg/](https://tectonique.net/asg/)",
+    "New Noddy models can be calculated using the Windows version at "
+    "[https://tectonique.net/noddy/OpenNoddy_installer.exe](https://tectonique.net/noddy/OpenNoddy_installer.exe) "
+    "or a python wrapper at [https://github.com/cgre-aachen/pynoddy](https://github.com/cgre-aachen/pynoddy)",
+    "**Code Repository**",
+    "This plugin is available directly within QGIS using the Plugin Manager, however the latest version "
+    "(including this ArcGIS Pro version) will always be at this GitHub site:",
+    "[https://github.com/swaxi/SGTool](https://github.com/swaxi/SGTool)",
+    "**Documentation**",
+    "[Help File](https://tectonique.net/sgtools_data/Structural%20Geophysics%20Tools.pdf)",
+    "Help File reflects latest changes on GitHub. If a feature is not available in the version you are "
+    "using, go to Code Repository for latest version",
+    "**Code development**",
+    "- Calcs Claude, ChatGPT and Mark Jessell",
+    "- Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin "
+    "[https://g-sherman.github.io/Qgis-Plugin-Builder/](https://g-sherman.github.io/Qgis-Plugin-Builder/)",
+    "- IGRF calculation - using pyIGRF [https://github.com/ciaranbe/pyIGRF](https://github.com/ciaranbe/pyIGRF)",
+    "- GRD Loader & Radially averaged power spectrum Fatiando a Terra "
+    "[https://www.fatiando.org/](https://www.fatiando.org/)",
+    "- Example geophysics data above courtesy of Mauritania Govt. "
+    "[https://anarpam.mr/en/](https://anarpam.mr/en/)",
+    "- Worming of grids uses Frank Horowitz's bsdwormer "
+    "[https://bitbucket.org/fghorow/bsdwormer/](https://bitbucket.org/fghorow/bsdwormer/)",
+    "- Multilevel B-Spline (MBA) Gridding — native Python translation of SAGA's grid_spline algorithm "
+    "(no external plugin required)",
+    "- Differential (Variable) RTP — G.R.J. Cooper & D.R. Cowan (2005) Taylor-series method",
+    "- MRVBF/MRRTF (Multiresolution Valley Bottom/Ridge Top Flatness) — J.C. Gallant & T.I. Dowling (2003)",
+    "- Euler Deconvolution uses Felipe F. Melo and Valéria C.F. Barbosa's Reliable Euler method "
+    "[https://github.com/ffigura/Euler-deconvolution-python](https://github.com/ffigura/Euler-deconvolution-python)",
+]
+
+_HELP_MARKUP = re.compile(r"(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))")
+_HELP_LINK = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+
+
+def _help_pieces(paragraph):
+    """(kind, text, url) pieces of a marked-up help paragraph; kind is "text", "bold" or "link"."""
+    pieces = []
+    for part in _HELP_MARKUP.split(paragraph):
+        if not part:
+            continue
+        if part.startswith("**"):
+            pieces.append(("bold", part[2:-2], None))
+        elif part.startswith("["):
+            label, url = _HELP_LINK.match(part).groups()
+            pieces.append(("link", label, url))
+        else:
+            pieces.append(("text", part, None))
+    return pieces
 
 
 # ============================================================================
@@ -968,7 +1054,11 @@ class SGToolApp(tk.Tk):
         self._tab_frames   = {0: sf}
         self._tab_built    = {0}
         for i, (ttl, _) in enumerate(self._tab_specs[1:], start=1):
-            ph = ScrollFrame(self.nb)
+            if ttl == "Help":  # a text box with its own scroll bar that fills the tab
+                ph = tk.Frame(self.nb, bg=BG)
+                ph.inner = ph
+            else:
+                ph = ScrollFrame(self.nb)
             self.nb.add(ph, text=ttl)
             self._tab_frames[i] = ph
 
@@ -1496,6 +1586,16 @@ class SGToolApp(tk.Tk):
         self.v_bs_levels = tk.StringVar(value="11")
         tip(entry(rb3, self.v_bs_levels, 4),
             "MBA maximum number of refinement levels (LEVEL_MAX)").pack(side="left", padx=2)
+        self.v_bs_auto = tk.BooleanVar(value=False)
+        self._bs_auto_busy = False
+        tip(check(rb2, "Auto", self.v_bs_auto, command=self._bs_auto_toggled),
+            "Choose the cell size and Max levels from the spacing of the points.\n"
+            "Typing either value yourself switches Auto off").pack(side="left", padx=(12, 0))
+        self.v_bs_cell.trace_add("write", self._bs_user_edit)
+        self.v_bs_levels.trace_add("write", self._bs_user_edit)
+        self.v_bs_auto_info = tk.StringVar(value="")
+        tk.Label(bs, textvariable=self.v_bs_auto_info, bg=BG, fg="#555555", font=FONT,
+                 wraplength=620, justify="left", anchor="w").pack(fill="x", padx=8)
         self.v_bs_ignore = tk.BooleanVar(value=False)
         self.v_bs_ignore_val = tk.StringVar(value="-99999")
         tip(check(rb3, "Ignore values <", self.v_bs_ignore),
@@ -1685,62 +1785,30 @@ class SGToolApp(tk.Tk):
     # TAB 5 – HELP
     # ======================================================================
     def _tab_help(self, p):
+        """The same text as the QGIS plugin's Help tab; the links open in the web browser."""
         txt = tk.Text(p, bg=BG, fg=FG, font=FONT, wrap="word",
                       relief="flat", padx=12, pady=8)
-        txt.insert("1.0", (
-            "SGTool – Geophysical Processing (ArcGIS Pro)\n"
-            "=============================================\n\n"
-            "INPUT SELECTION\n"
-            "  The dropdown at the top lists all raster layers currently loaded\n"
-            "  in the active ArcGIS Pro map.  Click ⟳ Refresh to update the list\n"
-            "  after adding layers, or Browse File… to use any file directly.\n\n"
-            "OUTPUT NAMING\n"
-            "  Output files are written to the same folder as the input, with a\n"
-            "  suffix describing the operations applied, e.g.:\n"
-            "    mag.tif  →  mag_rtp.tif  or  mag_rtp_agc.tif\n\n"
-            "FFT BUFFER\n"
-            "  The FFT Buffer (px) value is applied as a mirror-padded border\n"
-            "  before every FFT operation to suppress edge effects (vignetting).\n"
-            "  Increase it for noisy or clipped-edge grids.\n\n"
-            "TAB SUMMARY\n"
-            "  FFT Filters    – RTP/RTE/Diff.RTP, continuation, band/high/low pass,\n"
-            "                   AGC, regional removal, directional Butterworth,\n"
-            "                   derivative, THG, tilt angle, analytic signal\n"
-            "  Conv + Stats   – mean/median/Gaussian/directional/sun-shading,\n"
-            "                   windowed statistics, MRVBF/MRRTF,\n"
-            "                   local anisotropy + chain/streamline length, PCA, ICA,\n"
-            "                   Euler deconvolution depth estimation\n"
-            "\n"
-            "DIFF. RTP (Variable RTP)\n"
-            "  Accounts for spatial variation of inclination/declination across the\n"
-            "  survey area (Cooper & Cowan 2005 Taylor-series method).  The IGRF is\n"
-            "  computed at the four grid corners and the centre using the IGRF Year\n"
-            "  field; Inc/Dec need not be entered.  Outputs: _DRTP, _DRTP_inc, _DRTP_dec.\n"
-            "\n"
-            "LOCAL ANISOTROPY\n"
-            "  Structure-tensor analysis of Sobel gradients averaged over the window.\n"
-            "  AnisoMag (0–1): saliency = λ1−λ2 normalised to 99th percentile.\n"
-            "  AnisoOrient (0–180°): dominant strike direction.\n"
-            "\n"
-            "CHAIN LENGTH / STREAMLINE LENGTH\n"
-            "  Both require active pixels (AnisoMag ≥ Aniso threshold).\n"
-            "  Chain Length: disk-search Union-Find connected components — all pixels\n"
-            "    in a connected group receive the same score (component size).\n"
-            "  Streamline Length: sub-pixel bilinear trace along the orientation field;\n"
-            "    total forward + backward path length in pixels.\n"
-            "  Grid + Wavelets– point import (CSV/DAT/XYZ → shapefile),\n"
-            "                   BSD Worms\n"
-            "  Utils          – threshold→NaN, boundary polygon, normalise,\n"
-            "                   RGB→grayscale LUT conversion\n\n"
-            "REFERENCES\n"
-            "  BSDWorms: Holden et al. (2016)\n"
-            "  Euler deconvolution: Melo & Barbosa (2019)\n"
-            "  IGRF: pyIGRF / Beggan (BGS)\n"
-            "  Fatiando a Terra / NumPy / SciPy\n\n"
-            "Author: Mark Jessell  |  GUI: Claude (Anthropic)\n"
-        ))
+        vsb = ttk.Scrollbar(p, orient="vertical", command=txt.yview)
+        txt.configure(yscrollcommand=vsb.set)
+        txt.tag_configure("bold", font=FONT_BOLD)
+        txt.tag_configure("link", foreground="#0563c1", underline=True)
+        n_links = 0
+        for paragraph in HELP_TEXT:
+            for kind, text, url in _help_pieces(paragraph):
+                if kind == "link":
+                    n_links += 1
+                    tag = f"link{n_links}"
+                    txt.insert("end", text, ("link", tag))
+                    txt.tag_bind(tag, "<Button-1>", lambda _e, u=url: webbrowser.open(u))
+                    txt.tag_bind(tag, "<Enter>", lambda _e: txt.configure(cursor="hand2"))
+                    txt.tag_bind(tag, "<Leave>", lambda _e: txt.configure(cursor=""))
+                else:
+                    txt.insert("end", text, ("bold",) if kind == "bold" else ())
+            txt.insert("end", "\n\n")
         txt.configure(state="disabled")
-        txt.pack(fill="both", expand=True, padx=4, pady=4)
+        vsb.pack(side="right", fill="y", pady=4)
+        txt.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+        self._help_text = txt
 
     # ======================================================================
     # PROCESSING HELPERS
@@ -2331,6 +2399,51 @@ class SGToolApp(tk.Tk):
         self._bs_field_combo["values"] = fields
         if fields and self.v_bs_field.get() not in fields:
             self.v_bs_field.set(fields[-1])
+        if self.v_bs_auto.get():
+            self._bs_auto_apply()
+
+    # ---- Auto cell size and Max levels
+    def _bs_auto_toggled(self):
+        if self.v_bs_auto.get():
+            self._bs_auto_apply()
+        else:
+            self.v_bs_auto_info.set("")
+
+    def _bs_user_edit(self, *_args):
+        """Typing a cell size or a number of levels takes over from Auto."""
+        if not self._bs_auto_busy and self.v_bs_auto.get():
+            self.v_bs_auto.set(False)
+            self.v_bs_auto_info.set("")
+
+    def _bs_auto_apply(self):
+        points = self.v_bs_file.get()
+        if not points or not os.path.exists(points):
+            self.v_bs_auto_info.set("Choose the points file first.")
+            return
+        self.v_bs_auto_info.set("Looking at the point spacing…")
+
+        def work():
+            try:
+                result = suggest_bspline_settings(points)
+            except Exception as e:  # unreadable file, too few points ...
+                result = str(e)
+            self.after(0, self._bs_auto_done, points, result)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _bs_auto_done(self, points, result):
+        if points != self.v_bs_file.get() or not self.v_bs_auto.get():
+            return  # the file was changed or Auto switched off while this was running
+        if isinstance(result, str):
+            self.v_bs_auto_info.set("Cannot choose automatically: " + result)
+            return
+        self._bs_auto_busy = True
+        try:
+            self.v_bs_cell.set(f"{result['cell_size']:g}")
+            self.v_bs_levels.set(str(result["max_levels"]))
+        finally:
+            self._bs_auto_busy = False
+        self.v_bs_auto_info.set(result["description"])
 
     def _grid_bspline(self):
         points = self.v_bs_file.get()

@@ -49,7 +49,17 @@ k = sqrt{k<sub>x</sub><sup>2</sup> + k<sub>y</sub><sup>2</sup>} .
    
 
 ## Frequency Filters   
-   
+
+**What the cutoff values mean**   
+The values entered for the High pass, Low pass and Band pass filters are **wavelengths**, in the length units of the grid (metres, or degrees for a geographic grid), not frequencies. A wavelength is the distance over which a feature repeats, so it is the inverse of frequency: *short* wavelength = *high* frequency (small, sharp, usually shallow features) and *long* wavelength = *low* frequency (broad, smooth features). The equations below use the wavenumber $k = 2\pi/\lambda$.   
+
+- **High pass** keeps wavelengths *shorter* than the cutoff and removes longer ones (regionals, deeper sources).   
+- **Low pass** keeps wavelengths *longer* than the cutoff and removes shorter ones (noise, shallow sources).   
+- **Band pass** keeps the wavelengths between two values. **Low cut wavelength** is the *longest* wavelength kept (longer wavelengths, i.e. lower frequencies, are cut) and **High cut wavelength** is the *shortest* wavelength kept (shorter wavelengths, i.e. higher frequencies, are cut), so the Low cut value is the larger number (for example 50000 and 5000).   
+- **Transition width** (same units) is how gradually the filter switches from pass to reject: 0 is a sharp cut, and larger values reduce ringing.   
+
+*Relationship to source depth (approximate).* The signal from a source at depth $z$ falls off with wavelength $\lambda$ as $e^{-2\pi z/\lambda}$, the same factor that governs upward continuation, so a deep source cannot produce short wavelengths. A source at depth $z$ typically has its main response at wavelengths of about 3 to 6 times $z$. As a rough guide, a cutoff of 6000 m separates sources shallower than about 1000 to 2000 m (kept by a high pass) from deeper ones (kept by a low pass), and a band pass between $\lambda_{high}$ and $\lambda_{low}$ favours sources from about $\lambda_{high}/6$ to $\lambda_{low}/3$. This is only a guide: a shallow, broad source also has long wavelengths, and potential-field data are inherently ambiguous, so filtering by wavelength is not a true depth slice.   
+
 **High Pass Filter**
 
 $$H(k) = \begin{cases} 
@@ -156,6 +166,7 @@ P(k) is the radially averaged power spectrum, and N<sub>k</sub> is the number of
 $`\frac{\partial f}{\partial u} = \frac{\partial f}{\partial x} \cos\theta + \frac{\partial f}{\partial y} \sin\theta`$   
 Where   
 theta is the angle defining the direction of the derivative (x,y or z).   
+The vertical derivative is calculated from the horizontal gradients using Laplace's equation, $\frac{\partial^2 f}{\partial x^2} + \frac{\partial^2 f}{\partial y^2} + \frac{\partial^2 f}{\partial z^2} = 0$, which gravity and magnetic fields satisfy outside their sources (they are Green's functions). In the Fourier domain this multiplies the spectrum by $k$, so the vertical derivative amplifies short wavelengths and often amplifies noise as well.   
    
 **Total Horizontal Gradient**   
 $`THG(x, y) = \sqrt{\left(\frac{\partial f}{\partial x}\right)^2 + \left(\frac{\partial f}{\partial y}\right)^2}`$   

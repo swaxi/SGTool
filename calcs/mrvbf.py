@@ -50,7 +50,24 @@ compared against the compiled SAGA tool.
 from __future__ import annotations
 
 import numpy as np
-from scipy.ndimage import convolve
+from scipy.ndimage import convolve, minimum_filter
+
+
+# ---------------------------------------------------------------------------
+# Row bands. The big grids are worked through a band of rows at a time (with a halo of
+# neighbouring rows where a filter needs them), so the temporary arrays stay a fixed size however
+# large the DEM is. Every cell gets exactly the value it would get from one pass over the grid.
+# ---------------------------------------------------------------------------
+BAND_CELLS = 2_000_000
+
+
+def _row_bands(ny: int, nx: int, halo: int = 0):
+    """(r0, r1, a, b): rows r0..r1 are wanted, rows a..b (r0-halo..r1+halo, kept in the grid)
+    are what is needed to get them."""
+    rows = max(16, BAND_CELLS // max(nx, 1))
+    for r0 in range(0, ny, rows):
+        r1 = min(ny, r0 + rows)
+        yield r0, r1, max(0, r0 - halo), min(ny, r1 + halo)
 
 
 # ---------------------------------------------------------------------------
@@ -90,7 +107,17 @@ def _bspline_basis(i: int, d: np.ndarray) -> np.ndarray:
 
 def _transform(x: np.ndarray, t: float, p: float) -> np.ndarray:
     """CMRVBF::Get_Transformation: 1 / (1 + (x/t)^p)."""
-    return 1.0 / (1.0 + np.power(x / t, p))
+    y = x / t
+    if p == 4.0:        # the common exponents by multiplication: np.power is several times slower
+        y *= y
+        y *= y
+    elif p == 3.0:
+        y = y * y * y
+    elif p == 2.0:
+        y *= y
+    else:
+        y = np.power(y, p)
+    return 1.0 / (1.0 + y)
 
 
 # ---------------------------------------------------------------------------
@@ -101,21 +128,25 @@ def _smoothed(dem: np.ndarray, valid: np.ndarray, radius: int = 5):
     d = np.sqrt(ix.astype(np.float64) ** 2 + iy.astype(np.float64) ** 2)
     kernel = 4.3565 * np.exp(-(d / 3.0) ** 2)
 
-    data0 = np.where(valid, dem, 0.0)
-    w = valid.astype(np.float64)
-
-    num = convolve(data0, kernel, mode="constant", cval=0.0)
-    den = convolve(w, kernel, mode="constant", cval=0.0)
-
-    out_valid = den > 0.0
-    out = np.divide(num, den, out=np.zeros_like(num), where=out_valid)
+    ny, nx = dem.shape
+    out = np.zeros(dem.shape, dtype=np.float64)
+    out_valid = np.zeros(dem.shape, dtype=bool)
+    for r0, r1, a, b in _row_bands(ny, nx, radius):
+        v = valid[a:b]
+        data0 = np.where(v, dem[a:b], 0.0)
+        w = v.astype(np.float64)
+        num = convolve(data0, kernel, mode="constant", cval=0.0)[r0 - a:r1 - a]
+        den = convolve(w, kernel, mode="constant", cval=0.0)[r0 - a:r1 - a]
+        ok = den > 0.0
+        out_valid[r0:r1] = ok
+        out[r0:r1] = np.divide(num, den, out=np.zeros_like(num), where=ok)
     return out, out_valid
 
 
 # ---------------------------------------------------------------------------
 # CMRVBF::Get_Slopes (CSG_Grid::Get_Gradient, Zevenbergen & Thorne 1986)
 # ---------------------------------------------------------------------------
-def _slope_percent(dem: np.ndarray, valid: np.ndarray, cellsize: float):
+def _slope_percent_block(dem: np.ndarray, valid: np.ndarray, cellsize: float):
     z = dem
 
     N_val, N_ok = _shift(dem, valid, 1, 0)
@@ -137,10 +168,19 @@ def _slope_percent(dem: np.ndarray, valid: np.ndarray, cellsize: float):
     return slope_pct, valid.copy()
 
 
+def _slope_percent(dem: np.ndarray, valid: np.ndarray, cellsize: float):
+    ny, nx = dem.shape
+    out = np.empty(dem.shape, dtype=np.float64)
+    for r0, r1, a, b in _row_bands(ny, nx, 1):
+        slope, _ok = _slope_percent_block(dem[a:b], valid[a:b], cellsize)
+        out[r0:r1] = slope[r0 - a:r1 - a]
+    return out, valid.copy()
+
+
 # ---------------------------------------------------------------------------
 # CMRVBF::Get_Percentile / Get_Percentiles (CSG_Grid_Radius disk neighbourhood)
 # ---------------------------------------------------------------------------
-def _percentile(dem: np.ndarray, valid: np.ndarray, radius: int):
+def _percentile_block(dem: np.ndarray, valid: np.ndarray, radius: int):
     offsets = [(dx, dy) for dy in range(-radius, radius + 1)
                for dx in range(-radius, radius + 1)
                if dx * dx + dy * dy < radius * radius]
@@ -159,54 +199,30 @@ def _percentile(dem: np.ndarray, valid: np.ndarray, radius: int):
     return pct, good
 
 
+def _percentile(dem: np.ndarray, valid: np.ndarray, radius: int):
+    ny, nx = dem.shape
+    pct = np.zeros(dem.shape, dtype=np.float64)
+    good = np.zeros(dem.shape, dtype=bool)
+    for r0, r1, a, b in _row_bands(ny, nx, radius):
+        p, g = _percentile_block(dem[a:b], valid[a:b], radius)
+        pct[r0:r1] = p[r0 - a:r1 - a]
+        good[r0:r1] = g[r0 - a:r1 - a]
+    return pct, good
+
+
 # ---------------------------------------------------------------------------
 # CSG_Grid::Get_Value(x, y, ..., Bicubic_2)  ("BSpline" resampling), used by
 # Get_Flatness to sample Slopes/Percentiles at the master grid's node
 # positions. Includes the exact NoData behaviour of
 # _Get_ValAtPos_Fill4x4Submatrix.
 # ---------------------------------------------------------------------------
-def _sample_bspline(src: np.ndarray, src_valid: np.ndarray,
-                     cellsize: float, xmin: float, ymin: float,
-                     px: np.ndarray, py: np.ndarray):
+def _filled_windows(src: np.ndarray, src_valid: np.ndarray, ixc: np.ndarray, iyc: np.ndarray):
+    """The 4 x 4 support windows (offsets -1..+2) of the source cells (iyc, ixc), with NoData
+    cells filled as _Get_ValAtPos_Fill4x4Submatrix does. Returns (v, fully_ok): v has shape
+    (4, 4, m); fully_ok says the whole window is valid after filling. A window depends only on
+    its source cell, not on where inside the cell a point falls."""
     ny, nx = src.shape
-    px = np.asarray(px, dtype=np.float64)
-    py = np.asarray(py, dtype=np.float64)
-    m_total = px.size
-
-    out_val = np.zeros(m_total, dtype=np.float64)
-    out_ok = np.zeros(m_total, dtype=bool)
-
-    # m_System.Get_Extent(true).Contains(x, y)  (cell-based extent, +/-0.5 cell)
-    xlo = xmin - 0.5 * cellsize
-    xhi = xmin + (nx - 1) * cellsize + 0.5 * cellsize
-    ylo = ymin - 0.5 * cellsize
-    yhi = ymin + (ny - 1) * cellsize + 0.5 * cellsize
-    in_extent = (px >= xlo) & (px <= xhi) & (py >= ylo) & (py <= yhi)
-
-    fx = (px - xmin) / cellsize
-    fy = (py - ymin) / cellsize
-    ix = np.floor(fx).astype(np.int64)
-    iy = np.floor(fy).astype(np.int64)
-    dx = fx - ix
-    dy = fy - iy
-
-    # is_InGrid(ix + round(dx), iy + round(dy)) gate
-    rx = ix + np.floor(0.5 + dx).astype(np.int64)
-    ry = iy + np.floor(0.5 + dy).astype(np.int64)
-    nb = (rx >= 0) & (rx < nx) & (ry >= 0) & (ry < ny)
-    nearest_ok = np.zeros(m_total, dtype=bool)
-    if np.any(nb):
-        rxc, ryc = rx[nb], ry[nb]
-        nearest_ok[nb] = src_valid[ryc, rxc]
-
-    candidate = in_extent & nearest_ok
-    idx = np.nonzero(candidate)[0]
-    if idx.size == 0:
-        return out_val, out_ok
-
-    ixc, iyc = ix[idx], iy[idx]
-    dxc, dyc = dx[idx], dy[idx]
-    m = idx.size
+    m = ixc.size
 
     # raw 6x6 window: local r (0..5) <-> global offset r-2  (covers one extra
     # ring beyond the 4x4 support window needed by the gap-fill diffusion)
@@ -274,6 +290,53 @@ def _sample_bspline(src: np.ndarray, src_valid: np.ndarray,
         need_fill = (n_missing > 0) & (n_missing < 16)
 
     fully_ok = ok4.all(axis=(0, 1))
+    return v, fully_ok
+
+
+def _sample_bspline_points(src: np.ndarray, src_valid: np.ndarray,
+                     cellsize: float, xmin: float, ymin: float,
+                     px: np.ndarray, py: np.ndarray):
+    ny, nx = src.shape
+    px = np.asarray(px, dtype=np.float64)
+    py = np.asarray(py, dtype=np.float64)
+    m_total = px.size
+
+    out_val = np.zeros(m_total, dtype=np.float64)
+    out_ok = np.zeros(m_total, dtype=bool)
+
+    # m_System.Get_Extent(true).Contains(x, y)  (cell-based extent, +/-0.5 cell)
+    xlo = xmin - 0.5 * cellsize
+    xhi = xmin + (nx - 1) * cellsize + 0.5 * cellsize
+    ylo = ymin - 0.5 * cellsize
+    yhi = ymin + (ny - 1) * cellsize + 0.5 * cellsize
+    in_extent = (px >= xlo) & (px <= xhi) & (py >= ylo) & (py <= yhi)
+
+    fx = (px - xmin) / cellsize
+    fy = (py - ymin) / cellsize
+    ix = np.floor(fx).astype(np.int64)
+    iy = np.floor(fy).astype(np.int64)
+    dx = fx - ix
+    dy = fy - iy
+
+    # is_InGrid(ix + round(dx), iy + round(dy)) gate
+    rx = ix + np.floor(0.5 + dx).astype(np.int64)
+    ry = iy + np.floor(0.5 + dy).astype(np.int64)
+    nb = (rx >= 0) & (rx < nx) & (ry >= 0) & (ry < ny)
+    nearest_ok = np.zeros(m_total, dtype=bool)
+    if np.any(nb):
+        rxc, ryc = rx[nb], ry[nb]
+        nearest_ok[nb] = src_valid[ryc, rxc]
+
+    candidate = in_extent & nearest_ok
+    idx = np.nonzero(candidate)[0]
+    if idx.size == 0:
+        return out_val, out_ok
+
+    ixc, iyc = ix[idx], iy[idx]
+    dxc, dyc = dx[idx], dy[idx]
+    m = idx.size
+
+    v, fully_ok = _filled_windows(src, src_valid, ixc, iyc)
 
     Rx = np.stack([_bspline_basis(i, dxc) for i in range(4)], axis=0)  # (4, m)
     Ry = np.stack([_bspline_basis(i, dyc) for i in range(4)], axis=0)  # (4, m)
@@ -287,6 +350,98 @@ def _sample_bspline(src: np.ndarray, src_valid: np.ndarray,
     out_val[sel] = val[fully_ok]
     out_ok[sel] = True
     return out_val, out_ok
+
+
+def _window_valid(valid: np.ndarray) -> np.ndarray:
+    """True for the source cells whose 4 x 4 support window (offsets -1..+2) lies inside the grid
+    and is entirely valid."""
+    ny, nx = valid.shape
+    allv = np.zeros((ny, nx), dtype=bool)
+    if ny >= 4 and nx >= 4:
+        m = minimum_filter(valid.astype(np.uint8), size=4, mode="constant", cval=0, origin=-1)
+        allv[1:ny - 2, 1:nx - 2] = m[1:ny - 2, 1:nx - 2] > 0
+    return allv
+
+
+def _sample_bspline(src: np.ndarray, src_valid: np.ndarray,
+                    cellsize: float, xmin: float, ymin: float,
+                    xs: np.ndarray, ys: np.ndarray, allv=None):
+    """_sample_bspline_points at every node of the regular lattice xs (columns) by ys (rows),
+    returned flattened row by row.
+
+    Cells whose whole 4 x 4 support window lies inside the source and is valid (nearly all of
+    them) are interpolated separably, along x for each source row and then along y, which needs
+    8 multiply-adds a cell and no per-cell windows. The rest (near the edges and NoData) go
+    through _sample_bspline_points, whose gap filling is reproduced exactly."""
+    ny, nx = src.shape
+    xs = np.asarray(xs, dtype=np.float64)
+    ys = np.asarray(ys, dtype=np.float64)
+    onx, ony = xs.size, ys.size
+
+    def axis(coords, origin, n):
+        f = (coords - origin) / cellsize
+        i = np.floor(f).astype(np.int64)
+        d = f - i
+        r = i + np.floor(0.5 + d).astype(np.int64)
+        lo = origin - 0.5 * cellsize
+        hi = origin + (n - 1) * cellsize + 0.5 * cellsize
+        return i, d, r, (coords >= lo) & (coords <= hi)
+
+    ix, dx, rx, in_x = axis(xs, xmin, nx)
+    iy, dy, ry, in_y = axis(ys, ymin, ny)
+
+    # the nearest source cell must be valid (SAGA's is_InGrid gate)
+    nb_x = (rx >= 0) & (rx < nx)
+    nb_y = (ry >= 0) & (ry < ny)
+    near = src_valid[np.clip(ry, 0, ny - 1)[:, None], np.clip(rx, 0, nx - 1)[None, :]]
+    candidate = near & (nb_y & in_y)[:, None] & (nb_x & in_x)[None, :]
+
+    # source cells whose 4 x 4 window (offsets -1..+2) is inside the grid and entirely valid
+    if allv is None:
+        allv = _window_valid(src_valid)
+    ok_x = (ix >= 1) & (ix <= nx - 3)
+    ok_y = (iy >= 1) & (iy <= ny - 3)
+    fast = candidate & ok_y[:, None] & ok_x[None, :]         & allv[np.clip(iy, 0, ny - 1)[:, None], np.clip(ix, 0, nx - 1)[None, :]]
+
+    out_val = np.zeros((ony, onx), dtype=np.float64)
+    if fast.any():
+        # only the source rows these output rows can touch
+        r_lo = int(np.clip(iy.min() - 1, 0, ny - 1))
+        r_hi = int(np.clip(iy.max() + 2, 0, ny - 1))
+        sub = np.where(src_valid[r_lo:r_hi + 1], src[r_lo:r_hi + 1], 0.0)
+        along_x = np.zeros((sub.shape[0], onx), dtype=np.float64)
+        for b in range(4):
+            along_x += _bspline_basis(b, dx)[None, :] * sub[:, np.clip(ix - 1 + b, 0, nx - 1)]
+        interp = np.zeros((ony, onx), dtype=np.float64)
+        for a in range(4):
+            interp += _bspline_basis(a, dy)[:, None] * along_x[np.clip(iy - 1 + a, 0, ny - 1) - r_lo, :]
+        out_val[fast] = interp[fast]
+
+    out_ok = fast.copy()
+    rest = candidate & ~fast
+    if rest.any():
+        jj, ii = np.nonzero(rest)
+        # one filled window per distinct source cell (at the coarse levels a tiny source grid is
+        # sampled at every full resolution node, so there are far fewer cells than nodes)
+        width = nx + 4  # (ix can be -1 or nx at the edge, so offset the key)
+        key = (iy[jj] + 2) * width + (ix[ii] + 2)
+        cells, inv = np.unique(key, return_inverse=True)
+        v = np.zeros((4, 4, cells.size), dtype=np.float64)
+        good = np.zeros(cells.size, dtype=bool)
+        for k0 in range(0, cells.size, 100000):
+            sl = slice(k0, k0 + 100000)
+            v[:, :, sl], good[sl] = _filled_windows(src, src_valid, cells[sl] % width - 2,
+                                                     cells[sl] // width - 2)
+        wx = [_bspline_basis(b, dx)[ii] for b in range(4)]
+        wy = [_bspline_basis(a, dy)[jj] for a in range(4)]
+        val = np.zeros(jj.size, dtype=np.float64)
+        for a in range(4):
+            for b in range(4):
+                val += v[a, b][inv] * wx[b] * wy[a]
+        ok = good[inv]
+        out_val[jj[ok], ii[ok]] = val[ok]
+        out_ok[jj[ok], ii[ok]] = True
+    return out_val.ravel(), out_ok.ravel()
 
 
 # ---------------------------------------------------------------------------
@@ -330,24 +485,32 @@ def _nearest_resample(src: np.ndarray, src_valid: np.ndarray, src_cs: float,
 # ---------------------------------------------------------------------------
 def _flatness(slopes, slopes_valid, s_cs, s_xmin, s_ymin,
               pctl, pctl_valid, p_cs, p_xmin, p_ymin,
-              CF, XPf, YPf, out_shape, t_slope, p_slope, t_pctl_v, t_pctl_r, p_pctl):
+              CF, xs, ys, out_shape, t_slope, p_slope, t_pctl_v, t_pctl_r, p_pctl, sink):
+    """Get_Flatness for a band of rows at a time. CF is updated in place; each band's (VF, RF, ok)
+    is handed to sink(rows, VF, RF, ok)."""
+    ny, nx = out_shape
+    s_allv = _window_valid(slopes_valid)
+    p_allv = _window_valid(pctl_valid)
+    for r0, r1, _a, _b in _row_bands(ny, nx):
+        yb = ys[r0:r1]
+        sv, sok = _sample_bspline(slopes, slopes_valid, s_cs, s_xmin, s_ymin, xs, yb, s_allv)
+        pv, pok = _sample_bspline(pctl, pctl_valid, p_cs, p_xmin, p_ymin, xs, yb, p_allv)
 
-    sv, sok = _sample_bspline(slopes, slopes_valid, s_cs, s_xmin, s_ymin, XPf, YPf)
-    pv, pok = _sample_bspline(pctl, pctl_valid, p_cs, p_xmin, p_ymin, XPf, YPf)
+        shape = (r1 - r0, nx)
+        ok = (sok & pok).reshape(shape)
+        sv = sv.reshape(shape)
+        pv = pv.reshape(shape)
 
-    ok = (sok & pok).reshape(out_shape)
-    sv = sv.reshape(out_shape)
-    pv = pv.reshape(out_shape)
+        cf = CF[r0:r1]
+        cf_new = np.where(ok, cf * _transform(sv, t_slope, p_slope), cf)
+        CF[r0:r1] = cf_new
 
-    CF_new = np.where(ok, CF * _transform(sv, t_slope, p_slope), CF)
+        vf_raw = cf_new * _transform(pv, t_pctl_v, p_pctl)
+        rf_raw = cf_new * _transform(1.0 - pv, t_pctl_r, p_pctl)
 
-    vf_raw = CF_new * _transform(pv, t_pctl_v, p_pctl)
-    rf_raw = CF_new * _transform(1.0 - pv, t_pctl_r, p_pctl)
-
-    VF = np.where(ok, 1.0 - _transform(vf_raw, 0.3, 4.0), 0.0)
-    RF = np.where(ok, 1.0 - _transform(rf_raw, 0.3, 4.0), 0.0)
-
-    return VF, RF, ok, CF_new
+        VF = np.where(ok, 1.0 - _transform(vf_raw, 0.3, 4.0), 0.0)
+        RF = np.where(ok, 1.0 - _transform(rf_raw, 0.3, 4.0), 0.0)
+        sink(slice(r0, r1), VF, RF, ok)
 
 
 # ---------------------------------------------------------------------------
@@ -438,12 +601,27 @@ def mrvbf(
 
     xs = xmin + np.arange(nx) * cellsize
     ys = ymin + np.arange(ny) * cellsize
-    XP, YP = np.meshgrid(xs, ys)  # (ny, nx)
-    XPf, YPf = XP.ravel(), YP.ravel()
 
     CF = np.ones((ny, nx), dtype=np.float64)
+    MRVBF = np.zeros((ny, nx), dtype=np.float64)
+    MRRTF = np.zeros((ny, nx), dtype=np.float64)
+    out_valid = np.zeros((ny, nx), dtype=bool)
 
-    dem_cur, dem_cur_valid = dem.copy(), valid0.copy()
+    def sink_first(rows, VF, RF, ok):
+        # Get_Flatness wrote directly into pMRVBF/pMRRTF at level 1; the cells valid here are
+        # the only ones ever given a value
+        MRVBF[rows] = VF
+        MRRTF[rows] = RF
+        out_valid[rows] = ok
+
+    def sink_blend(level):
+        def sink(rows, VF, RF, ok):
+            MRVBF[rows], MRRTF[rows] = _blend(level, MRVBF[rows], MRRTF[rows],
+                                              out_valid[rows], VF, RF, ok)
+        return sink
+
+    # the DEM is only read, never changed, so the input arrays are used as they are
+    dem_cur, dem_cur_valid = dem, valid0
     dem_xmin, dem_ymin = xmin, ymin
     dem_cs, dem_w, dem_h = cellsize, nx, ny
 
@@ -458,12 +636,9 @@ def mrvbf(
     Slopes, slopes_valid = _slope_percent(dem_cur, dem_cur_valid, dem_cs)
     Percentiles, pctl_valid = _percentile(dem_cur, dem_cur_valid, 3)
 
-    VF, RF, ok, CF = _flatness(Slopes, slopes_valid, dem_cs, dem_xmin, dem_ymin,
-                                Percentiles, pctl_valid, dem_cs, dem_xmin, dem_ymin,
-                                CF, XPf, YPf, (ny, nx), T_Slope, p_slope, t_pctl_v, t_pctl_r, p_pctl)
-
-    MRVBF, MRRTF = VF, RF          # Get_Flatness wrote directly into pMRVBF/pMRRTF at level 1
-    out_valid = ok.copy()           # fixed for the rest of the run
+    _flatness(Slopes, slopes_valid, dem_cs, dem_xmin, dem_ymin,
+              Percentiles, pctl_valid, dem_cs, dem_xmin, dem_ymin,
+              CF, xs, ys, (ny, nx), T_Slope, p_slope, t_pctl_v, t_pctl_r, p_pctl, sink_first)
 
     # ---- Level 2 --------------------------------------------------------
     T_Slope /= 2.0
@@ -472,13 +647,12 @@ def mrvbf(
     if verbose:
         print(f"step: {level}, resolution: {resolution:.2f}, threshold slope {T_Slope:.2f}")
 
+    Percentiles = pctl_valid = None  # free the level 1 percentiles before making the next
     Percentiles, pctl_valid = _percentile(dem_cur, dem_cur_valid, 6)
 
-    VF, RF, ok, CF = _flatness(Slopes, slopes_valid, dem_cs, dem_xmin, dem_ymin,
-                                Percentiles, pctl_valid, dem_cs, dem_xmin, dem_ymin,
-                                CF, XPf, YPf, (ny, nx), T_Slope, p_slope, t_pctl_v, t_pctl_r, p_pctl)
-
-    MRVBF, MRRTF = _blend(level, MRVBF, MRRTF, out_valid, VF, RF, ok)
+    _flatness(Slopes, slopes_valid, dem_cs, dem_xmin, dem_ymin,
+              Percentiles, pctl_valid, dem_cs, dem_xmin, dem_ymin,
+              CF, xs, ys, (ny, nx), T_Slope, p_slope, t_pctl_v, t_pctl_r, p_pctl, sink_blend(level))
 
     # ---- Level 3+ ---------------------------------------------------------
     while resolution < max_resolution:
@@ -491,6 +665,7 @@ def mrvbf(
 
         prev_cs, prev_xmin, prev_ymin = dem_cs, dem_xmin, dem_ymin
 
+        Slopes = slopes_valid = Percentiles = pctl_valid = None
         Smoothed, smoothed_valid = _smoothed(dem_cur, dem_cur_valid, 5)
         Slopes, slopes_valid = _slope_percent(Smoothed, smoothed_valid, prev_cs)
 
@@ -502,19 +677,20 @@ def mrvbf(
         dem_cur, dem_cur_valid = _nearest_resample(
             Smoothed, smoothed_valid, prev_cs, prev_xmin, prev_ymin,
             new_nx, new_ny, resolution, dem_xmin, dem_ymin)
+        Smoothed = smoothed_valid = None
         dem_cs, dem_w, dem_h = resolution, new_nx, new_ny
 
         Percentiles, pctl_valid = _percentile(dem_cur, dem_cur_valid, 6)
 
-        VF, RF, ok, CF = _flatness(Slopes, slopes_valid, prev_cs, prev_xmin, prev_ymin,
-                                    Percentiles, pctl_valid, dem_cs, dem_xmin, dem_ymin,
-                                    CF, XPf, YPf, (ny, nx), T_Slope, p_slope, t_pctl_v, t_pctl_r, p_pctl)
-
-        MRVBF, MRRTF = _blend(level, MRVBF, MRRTF, out_valid, VF, RF, ok)
+        _flatness(Slopes, slopes_valid, prev_cs, prev_xmin, prev_ymin,
+                  Percentiles, pctl_valid, dem_cs, dem_xmin, dem_ymin,
+                  CF, xs, ys, (ny, nx), T_Slope, p_slope, t_pctl_v, t_pctl_r, p_pctl,
+                  sink_blend(level))
 
     # ---- finalize -----------------------------------------------------
-    MRVBF_out = np.where(out_valid, MRVBF, np.nan)
-    MRRTF_out = np.where(out_valid, MRRTF, np.nan)
+    MRVBF_out, MRRTF_out = MRVBF, MRRTF
+    MRVBF_out[~out_valid] = np.nan
+    MRRTF_out[~out_valid] = np.nan
 
     if classify:
         MRVBF_out = _classify(MRVBF_out)

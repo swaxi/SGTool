@@ -24,6 +24,7 @@
 
 from qgis.PyQt.QtGui import QIcon, QDesktopServices, QValidator
 from qgis.PyQt.QtWidgets import (
+    QApplication,
     QAction, QDockWidget, QFileDialog, QMessageBox,
     QDialog, QVBoxLayout, QTabWidget, QTextBrowser, QPlainTextEdit, QWidget,
 )
@@ -176,6 +177,7 @@ from .sgt_replay_dialog import ReplayDialog
 from .calcs.sgt_cancel import OperationCancelled
 from .calcs.layer_shim import LayerShim
 from .calcs.mrvbf import mrvbf as calc_mrvbf
+from .calcs.mba_suggest import describe as describe_mba_suggestion, suggest_mba_parameters
 from .calcs.saga_mba_gridding import mba_gridding
 
 
@@ -5836,6 +5838,11 @@ class SGTool:
             self.dlg.comboBox_select_grid_data_field.currentTextChanged.connect(
                 self.updateLayertoGrid2
             )
+            self._bspline_auto_busy = False
+            self._bspline_xy_cache = None
+            self.dlg.checkBox_bspline_auto.toggled.connect(self._bspline_auto_toggled)
+            self.dlg.doubleSpinBox_cellsize.valueChanged.connect(self._bspline_auto_edited)
+            self.dlg.spinBox_bspline_levels.valueChanged.connect(self._bspline_auto_edited)
 
             if self.dlg.mMapLayerComboBox_selectGrid_3.currentText() != "":
                 self.updateLayertoGrid()
@@ -6074,6 +6081,74 @@ class SGTool:
                     )
                     self.dlg.nx_label.setText(str(self.nx_label))
                     self.dlg.ny_label.setText(str(self.ny_label))
+
+                if self.dlg.checkBox_bspline_auto.isChecked():
+                    self._bspline_auto_apply()
+
+    # ------------------------------------------------------------------
+    # Auto cell size and Max Levels for the B-spline gridding
+    # ------------------------------------------------------------------
+    def _bspline_points_xy(self, layer):
+        """x and y of every point of a layer (kept for the next call on the same layer)."""
+        key = (layer.id(), layer.featureCount())
+        cache = getattr(self, "_bspline_xy_cache", None)
+        if cache and cache[0] == key:
+            return cache[1], cache[2]
+        request = QgsFeatureRequest()
+        request.setNoAttributes()
+        xs, ys = [], []
+        for feat in layer.getFeatures(request):
+            geom = feat.geometry()
+            if geom is None or geom.isEmpty():
+                continue
+            points = geom.asMultiPoint() if geom.isMultipart() else [geom.asPoint()]
+            for pt in points:
+                xs.append(pt.x())
+                ys.append(pt.y())
+        xs, ys = np.asarray(xs, dtype=float), np.asarray(ys, dtype=float)
+        self._bspline_xy_cache = (key, xs, ys)
+        return xs, ys
+
+    def _bspline_auto_apply(self):
+        """Fill in the cell size and Max Levels from the spacing of the selected points."""
+        dlg = self.dlg
+        layers = QgsProject.instance().mapLayersByName(
+            dlg.mMapLayerComboBox_selectGrid_3.currentText()
+        )
+        if not layers or not layers[0].isValid():
+            return
+        layer = layers[0]
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            xs, ys = self._bspline_points_xy(layer)
+            suggestion = suggest_mba_parameters(xs, ys, geographic=layer.crs().isGeographic())
+        except ValueError as e:
+            dlg.label_bspline_auto_info.setText(self.tr("Cannot choose automatically: %s") % e)
+            dlg.label_bspline_auto_info.setVisible(True)
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+        self._bspline_auto_busy = True
+        try:
+            dlg.doubleSpinBox_cellsize.setValue(suggestion["cell_size"])
+            dlg.spinBox_bspline_levels.setValue(suggestion["max_levels"])
+        finally:
+            self._bspline_auto_busy = False
+        dlg.label_bspline_auto_info.setText(describe_mba_suggestion(suggestion))
+        dlg.label_bspline_auto_info.setVisible(True)
+
+    def _bspline_auto_toggled(self, checked):
+        if checked:
+            self._bspline_auto_apply()
+        else:
+            self.dlg.label_bspline_auto_info.setVisible(False)
+
+    def _bspline_auto_edited(self, _value=None):
+        """Typing a cell size or a number of levels takes over from Auto."""
+        if getattr(self, "_bspline_auto_busy", False):
+            return
+        if self.dlg.checkBox_bspline_auto.isChecked():
+            self.dlg.checkBox_bspline_auto.setChecked(False)
 
     def updateLayertoGrid2(self):
         """

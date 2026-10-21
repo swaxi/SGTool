@@ -66,16 +66,20 @@ import numpy as np
 # ---------------------------------------------------------------------------
 def _basis(i: int, d: np.ndarray) -> np.ndarray:
     """Cubic B-spline basis function i (0..3), d in [0, 1)."""
-    if i == 0:
-        e = 1.0 - d
-        return e * e * e / 6.0
-    if i == 1:
-        return (3.0 * d ** 3 - 6.0 * d ** 2 + 4.0) / 6.0
-    if i == 2:
-        return (-3.0 * d ** 3 + 3.0 * d ** 2 + 3.0 * d + 1.0) / 6.0
-    if i == 3:
-        return d ** 3 / 6.0
-    return np.zeros_like(d)
+    return _basis_all(d)[i] if 0 <= i <= 3 else np.zeros_like(d)
+
+
+def _basis_all(d: np.ndarray):
+    """The four cubic B-spline basis values for d in [0, 1), powers by multiplication."""
+    d2 = d * d
+    d3 = d2 * d
+    e = 1.0 - d
+    return [
+        e * e * e / 6.0,
+        (3.0 * d3 - 6.0 * d2 + 4.0) / 6.0,
+        (-3.0 * d3 + 3.0 * d2 + 3.0 * d + 1.0) / 6.0,
+        d3 / 6.0,
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -103,47 +107,69 @@ def _evaluate_phi(phi: np.ndarray, phi_nx: int, phi_ny: int,
 
     phi64 = phi.astype(np.float64, copy=False)
 
+    bxs = [_basis(i, dx) for i in range(4)]
+    bys = [_basis(i, dy) for i in range(4)]
     acc = np.zeros(xm.shape, dtype=np.float64)
     for iy in range(4):
-        by = _basis(iy, dy)
         for ix in range(4):
-            bx = _basis(ix, dx)
-            acc += by * bx * phi64[ym + iy, xm + ix]
+            acc += bys[iy] * bxs[ix] * phi64[ym + iy, xm + ix]
 
     z[inb] = acc
     return z
 
 
 # ---------------------------------------------------------------------------
+# Where the points fall on a lattice of the given cell size: the cell, and the four basis values
+# in each direction. BA_Set_Phi and _Get_Difference both need exactly this, so it is made once
+# per level.
+# ---------------------------------------------------------------------------
+def _point_geometry(x, y, phi_cellsize, xmin, ymin, phi_nx, phi_ny):
+    p_x = (x - xmin) / phi_cellsize
+    p_y = (y - ymin) / phi_cellsize
+    xi = np.floor(p_x).astype(np.int64)
+    yi = np.floor(p_y).astype(np.int64)
+    inb = (xi >= 0) & (xi < phi_nx - 3) & (yi >= 0) & (yi < phi_ny - 3)
+    sel = np.nonzero(inb)[0]
+    xi = xi[sel]
+    yi = yi[sel]
+    return {
+        "n": x.size, "sel": sel, "xi": xi, "yi": yi,
+        "wx": _basis_all(p_x[sel] - xi), "wy": _basis_all(p_y[sel] - yi),
+    }
+
+
+# ---------------------------------------------------------------------------
+# CGridding_Spline_MBA::BA_Get_Phi at the points
+# ---------------------------------------------------------------------------
+def _evaluate_phi_points(phi, geom):
+    z = np.zeros(geom["n"], dtype=np.float64)
+    sel = geom["sel"]
+    if sel.size == 0:
+        return z
+    phi64 = phi.astype(np.float64, copy=False)
+    xi, yi, wx, wy = geom["xi"], geom["yi"], geom["wx"], geom["wy"]
+    acc = np.zeros(sel.size, dtype=np.float64)
+    for iy in range(4):
+        for ix in range(4):
+            acc += wy[iy] * wx[ix] * phi64[yi + iy, xi + ix]
+    z[sel] = acc
+    return z
+
+
+# ---------------------------------------------------------------------------
 # CGridding_Spline_MBA::BA_Set_Phi (vectorised scatter)
 # ---------------------------------------------------------------------------
-def _ba_set_phi(x: np.ndarray, y: np.ndarray, z: np.ndarray,
-                 phi_cellsize: float,
-                 target_xmin: float, target_ymin: float,
-                 target_xrange: float, target_yrange: float,
-                 phi_dtype):
-
-    phi_nx = 4 + int(target_xrange / phi_cellsize)
-    phi_ny = 4 + int(target_yrange / phi_cellsize)
+def _ba_set_phi(geom: dict, z: np.ndarray,
+                 phi_nx: int, phi_ny: int, phi_dtype):
 
     phi = np.zeros((phi_ny, phi_nx), dtype=phi_dtype)
     delta = np.zeros((phi_ny, phi_nx), dtype=phi_dtype)
 
-    p_x = (x - target_xmin) / phi_cellsize
-    p_y = (y - target_ymin) / phi_cellsize
-    xi = np.floor(p_x).astype(np.int64)
-    yi = np.floor(p_y).astype(np.int64)
-
-    inb = (xi >= 0) & (xi < phi_nx - 3) & (yi >= 0) & (yi < phi_ny - 3)
-    if np.any(inb):
-        xi = xi[inb]
-        yi = yi[inb]
-        dx = p_x[inb] - xi
-        dy = p_y[inb] - yi
-        pz = np.asarray(z, dtype=np.float64)[inb]
-
-        wx = np.stack([_basis(i, dx) for i in range(4)], axis=0)  # (4, N)
-        wy = np.stack([_basis(i, dy) for i in range(4)], axis=0)  # (4, N)
+    sel = geom["sel"]
+    if sel.size:
+        xi, yi = geom["xi"], geom["yi"]
+        wx, wy = geom["wx"], geom["wy"]
+        pz = np.asarray(z, dtype=np.float64)[sel]
 
         sw2 = np.zeros(xi.shape[0], dtype=np.float64)
         for iy in range(4):
@@ -153,19 +179,29 @@ def _ba_set_phi(x: np.ndarray, y: np.ndarray, z: np.ndarray,
 
         ok = sw2 > 0.0
         if np.any(ok):
-            xk = xi[ok]
-            yk = yi[ok]
-            pzk = pz[ok] / sw2[ok]
-            wxk = wx[:, ok]
-            wyk = wy[:, ok]
+            if not np.all(ok):
+                xi, yi, pz, sw2 = xi[ok], yi[ok], pz[ok], sw2[ok]
+                wx = [a[ok] for a in wx]
+                wy = [a[ok] for a in wy]
+            pzk = pz / sw2
 
+            # bincount touches the whole lattice, add.at only the cells with points: pick the cheaper
+            fast = np.dtype(phi_dtype) == np.float64 and phi.size <= 4 * xi.size
             for iy in range(4):
                 for ix in range(4):
-                    w = wyk[iy] * wxk[ix]
-                    ty = yk + iy
-                    tx = xk + ix
-                    np.add.at(delta, (ty, tx), (w ** 3 * pzk).astype(phi_dtype))
-                    np.add.at(phi, (ty, tx), (w * w).astype(phi_dtype))
+                    w = wy[iy] * wx[ix]
+                    ty = yi + iy
+                    tx = xi + ix
+                    if fast:
+                        # same sums, in the same order, as np.add.at but much quicker
+                        flat = ty * phi_nx + tx
+                        delta += np.bincount(flat, weights=w ** 3 * pzk,
+                                             minlength=delta.size).reshape(delta.shape)
+                        phi += np.bincount(flat, weights=w * w,
+                                           minlength=phi.size).reshape(phi.shape)
+                    else:
+                        np.add.at(delta, (ty, tx), (w ** 3 * pzk).astype(phi_dtype))
+                        np.add.at(phi, (ty, tx), (w * w).astype(phi_dtype))
 
     nz = phi != 0
     phi_out = np.zeros((phi_ny, phi_nx), dtype=phi_dtype)
@@ -177,16 +213,11 @@ def _ba_set_phi(x: np.ndarray, y: np.ndarray, z: np.ndarray,
 # ---------------------------------------------------------------------------
 # CGridding_Spline_MBA::_Get_Difference
 # ---------------------------------------------------------------------------
-def _get_difference(x: np.ndarray, y: np.ndarray, z_resid: np.ndarray,
-                     phi: np.ndarray, phi_nx: int, phi_ny: int, phi_cellsize: float,
-                     target_xmin: float, target_ymin: float,
+def _get_difference(geom: dict, z_resid: np.ndarray, phi: np.ndarray,
                      epsilon: float, points_dtype,
                      verbose: bool, level: int) -> bool:
 
-    p_x = (x - target_xmin) / phi_cellsize
-    p_y = (y - target_ymin) / phi_cellsize
-
-    interp = _evaluate_phi(phi, phi_nx, phi_ny, p_x, p_y)
+    interp = _evaluate_phi_points(phi, geom)
     znew = z_resid.astype(np.float64) - interp
     z_resid[:] = znew.astype(points_dtype)
 
@@ -210,13 +241,28 @@ def _ba_set_grid(phi: np.ndarray, phi_nx: int, phi_ny: int, phi_cellsize: float,
 
     d = target_cellsize / phi_cellsize
 
-    xidx = np.arange(target_nx, dtype=np.float64)
-    yidx = np.arange(target_ny, dtype=np.float64)
-    px = d * xidx
-    py = d * yidx
-    px_grid, py_grid = np.meshgrid(px, py, indexing="xy")  # shape (ny, nx)
+    # The target nodes form a regular lattice, so BA_Get_Phi at every node is separable: the
+    # x basis values depend only on the column and the y ones only on the row. Interpolate
+    # along x for every lattice row, then along y, rather than gathering 16 values per cell
+    # (same values as _evaluate_phi at each node, to rounding).
+    px = d * np.arange(target_nx, dtype=np.float64)
+    py = d * np.arange(target_ny, dtype=np.float64)
+    xi = np.floor(px).astype(np.int64)
+    yi = np.floor(py).astype(np.int64)
+    ok_x = (xi >= 0) & (xi < phi_nx - 3)
+    ok_y = (yi >= 0) & (yi < phi_ny - 3)
+    dxs = px - xi
+    dys = py - yi
 
-    vals = _evaluate_phi(phi, phi_nx, phi_ny, px_grid.ravel(), py_grid.ravel()).reshape(target_ny, target_nx)
+    phi64 = phi.astype(np.float64, copy=False)
+    along_x = np.zeros((phi_ny, target_nx), dtype=np.float64)
+    for i in range(4):
+        along_x += _basis(i, dxs)[None, :] * phi64[:, np.clip(xi + i, 0, phi_nx - 1)]
+    vals = np.zeros((target_ny, target_nx), dtype=np.float64)
+    for i in range(4):
+        vals += _basis(i, dys)[:, None] * along_x[np.clip(yi + i, 0, phi_ny - 1), :]
+    vals[~ok_y, :] = 0.0
+    vals[:, ~ok_x] = 0.0
 
     if add:
         out = (out.astype(np.float64) + vals).astype(out_dtype)
@@ -380,11 +426,12 @@ def mba_gridding(
         while b_continue and level < level_max:
             if callback is not None:
                 callback(level / float(level_max))
-            pnx, pny, phi = _ba_set_phi(x, y, m_z, cellsize_lvl, xmin, ymin,
-                                         target_xrange, target_yrange, phi_dtype)
+            pnx = 4 + int(target_xrange / cellsize_lvl)
+            pny = 4 + int(target_yrange / cellsize_lvl)
+            geom = _point_geometry(x, y, cellsize_lvl, xmin, ymin, pnx, pny)
+            pnx, pny, phi = _ba_set_phi(geom, m_z, pnx, pny, phi_dtype)
 
-            b_continue = _get_difference(x, y, m_z, phi, pnx, pny, cellsize_lvl,
-                                          xmin, ymin, epsilon, points_dtype,
+            b_continue = _get_difference(geom, m_z, phi, epsilon, points_dtype,
                                           verbose, level)
 
             output = _ba_set_grid(phi, pnx, pny, cellsize_lvl, nx, ny, cellsize,
@@ -402,11 +449,12 @@ def mba_gridding(
             if callback is not None:
                 callback(level / float(level_max))
             i = level % 2
-            pnx, pny, phi_new = _ba_set_phi(x, y, m_z, cellsize_lvl, xmin, ymin,
-                                             target_xrange, target_yrange, phi_dtype)
+            pnx = 4 + int(target_xrange / cellsize_lvl)
+            pny = 4 + int(target_yrange / cellsize_lvl)
+            geom = _point_geometry(x, y, cellsize_lvl, xmin, ymin, pnx, pny)
+            pnx, pny, phi_new = _ba_set_phi(geom, m_z, pnx, pny, phi_dtype)
 
-            b_continue = _get_difference(x, y, m_z, phi_new, pnx, pny, cellsize_lvl,
-                                          xmin, ymin, epsilon, points_dtype,
+            b_continue = _get_difference(geom, m_z, phi_new, epsilon, points_dtype,
                                           verbose, level)
 
             other = phi_buf[(i + 1) % 2]

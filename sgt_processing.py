@@ -42,6 +42,7 @@ from qgis.core import (
 
 from .calcs.PCAICA import PCAICA
 from .calcs.euler.euler_python import euler_deconv
+from .calcs.mba_suggest import describe as describe_mba_suggestion, suggest_mba_parameters
 from .calcs.saga_mba_gridding import mba_gridding
 from .calcs.sgt_cancel import OperationCancelled
 from .calcs.sgt_metadata import write_sgt_metadata
@@ -510,6 +511,7 @@ class BSplineGriddingAlgorithm(_SGToolAlgorithm):
     CELL_SIZE = "CELL_SIZE"
     EPSILON = "EPSILON"
     LEVELS = "LEVELS"
+    AUTO = "AUTO"
     IGNORE_BELOW = "IGNORE_BELOW"
     OUTPUT = "OUTPUT"
 
@@ -540,6 +542,14 @@ class BSplineGriddingAlgorithm(_SGToolAlgorithm):
         )
         levels.setMinimum(1)
         self.addParameter(levels)
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                self.AUTO,
+                "Choose the cell size and number of levels from the point spacing "
+                "(the two settings above are then ignored)",
+                False,
+            )
+        )
         self.addParameter(
             QgsProcessingParameterNumber(
                 self.IGNORE_BELOW, "Ignore points with a value below (leave empty to use all)",
@@ -617,6 +627,20 @@ class BSplineGriddingAlgorithm(_SGToolAlgorithm):
         if xs.size < 3:
             raise QgsProcessingException("Need at least 3 valid points with a numeric value")
 
+        auto = self.parameterAsBoolean(parameters, self.AUTO, context)
+        if auto:
+            try:
+                suggestion = suggest_mba_parameters(
+                    xs, ys, geographic=source.sourceCrs().isGeographic()
+                )
+            except ValueError as e:
+                raise QgsProcessingException(f"Cannot choose the settings automatically: {e}")
+            cell_size, level_max = suggestion["cell_size"], suggestion["max_levels"]
+            feedback.pushInfo(
+                f"Automatic settings: cell size {cell_size:g}, {level_max} levels. "
+                + describe_mba_suggestion(suggestion)
+            )
+
         # grid geometry as the plugin dialog and SAGA: lower-left node snapped down
         xmin = float(np.floor(xs.min() / cell_size) * cell_size)
         ymin = float(np.floor(ys.min() / cell_size) * cell_size)
@@ -653,6 +677,8 @@ class BSplineGriddingAlgorithm(_SGToolAlgorithm):
             "data_field": field, "cell_size": cell_size, "epsilon": epsilon,
             "max_levels": level_max, "points_used": int(xs.size),
         }
+        if auto:
+            params["settings_chosen_automatically"] = True
         if ignore_below is not None:
             params["ignore_values_below"] = ignore_below
         write_sgt_metadata(

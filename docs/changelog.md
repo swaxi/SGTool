@@ -5,6 +5,8 @@
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
 ## 0.3.8 and earlier
+      * Multilevel B-spline gridding: new Auto option (QGIS dialog, Processing algorithm, ArcGIS Pro GUI and toolbox) that chooses the cell size and Max Levels from the spacing of the points; B-spline gridding and MRVBF / MRRTF are several times faster with identical results, and MRVBF works through the grid in bands so a 46-million-cell DEM needs about 3 GB instead of 9.5 GB   
+      * Apply the same steps to another grid now repeats local anisotropy, anisotropy chain length and streamline length steps (also new Processing algorithms), and styles the orientation grid; fix the replay dialog failing on histories with steps that cannot be repeated   
       * retain std df/dz for Euler solutions
       * ArcGIS Pro: add a live Preview (FFT Filters, Conv + Stats and Utils/Threshold tabs) in its own window with zoom and pan, opening on the ArcGIS Pro map's extent, following you between tabs, and Apply Preview to save the result at full resolution; fix an error in the power-spectrum error message   
       * ArcGIS Pro: add Multilevel B-Spline gridding (Grid + Wavelets tab and toolbox tool, no Spatial Analyst licence needed); fix the toolbox tools that could not open in current ArcGIS Pro (their parameters were passed to arcpy in the wrong order)   

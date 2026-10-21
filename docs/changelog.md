@@ -5,7 +5,7 @@
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
 ## 0.3.8 and earlier
-      * Utils tab: new Clip All Layers tool (QGIS): clips every layer of the project to a chosen polygon layer (or its selected polygons), saving each as <name>_clip with its .qml style in a chosen folder, plus a copy of the project (.qgz) with the same groups, order, visibility and styles that loads the clipped layers   
+      * Utils tab: new Clip All Layers tool (QGIS dialog, and the ArcGIS Pro toolbox tool Clip All Layers to Polygon): clips every layer of the project to a chosen polygon layer (or its selected polygons), saving each as <name>_clip with its .qml style in a chosen folder, plus a copy of the project (.qgz) with the same groups, order, visibility and styles that loads the clipped layers   
       * BSDWorms is now also a Processing algorithm (Wavelets group): same worms as the dialog, with the points CSV, padded grid and optional polyline shapefile written beside the input and their provenance recorded   
       * Multilevel B-spline gridding: new Auto option (QGIS dialog, Processing algorithm, ArcGIS Pro GUI and toolbox) that chooses the cell size and Max Levels from the spacing of the points; B-spline gridding and MRVBF / MRRTF are several times faster with identical results, and MRVBF works through the grid in bands so a 46-million-cell DEM needs about 3 GB instead of 9.5 GB   
       * Apply the same steps to another grid now repeats local anisotropy, anisotropy chain length and streamline length steps (also new Processing algorithms), and styles the orientation grid; fix the replay dialog failing on histories with steps that cannot be repeated   

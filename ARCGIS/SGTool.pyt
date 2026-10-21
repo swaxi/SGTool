@@ -84,6 +84,7 @@ class Toolbox:
             # ---- Utils ----
             ThresholdToNaN,
             CreateBoundaryPolygon,
+            ClipAllLayersToPolygon,
             NormaliseGrids,
             ConvertRGBToGrayscale,
         ]
@@ -1542,6 +1543,41 @@ class CreateBoundaryPolygon(_RasterTool):
         sg     = SG_Util(dummy)
         result = sg.create_data_boundary_lines(in_r, out_shp)
         messages.addMessage(f"Boundary polygon created → {result or out_shp}")
+
+
+class ClipAllLayersToPolygon(_RasterTool):
+    category    = "Utils"
+    label       = "Clip All Layers to Polygon (Current Project)"
+    description = ("Clip every layer of a map in the open project to a polygon layer (or its selected "
+                   "polygons). The clipped vector layers go into one file geodatabase, the clipped grids "
+                   "are GeoTIFFs and each layer's symbology is saved as a .lyrx file, all in the output "
+                   "folder, together with a copy of the project (.aprx) that uses the clipped layers, "
+                   "named <layer>_clip. Run it from inside ArcGIS Pro with the project open.")
+
+    def getParameterInfo(self):
+        poly = arcpy.Parameter(name="in_polygon", displayName="Clip Polygon Layer", datatype="GPFeatureLayer",
+                               parameterType="Required", direction="Input")
+        poly.filter.list = ["Polygon"]
+        folder = arcpy.Parameter(name="out_folder", displayName="Output Folder", datatype="DEFolder",
+                                 parameterType="Required", direction="Input")
+        map_name = arcpy.Parameter(name="map_name", displayName="Map (blank = the active map)",
+                                   datatype="GPString", parameterType="Optional", direction="Input")
+        return [poly, folder, map_name]
+
+    def execute(self, parameters, messages):
+        from arcgis_clip import ClipJob
+        polygon = parameters[0].valueAsText
+        out_folder = parameters[1].valueAsText
+        map_name = parameters[2].valueAsText
+        aprx = arcpy.mp.ArcGISProject("CURRENT")
+        job = ClipJob(aprx, polygon, out_folder, map_name=map_name, messages=messages,
+                      check_cancel=lambda *args: _check_cancel())
+        job.run()
+        for name, why in job.kept + job.skipped:
+            messages.addMessage(f"{name}: {why}")
+        for name, problem in job.errors:
+            messages.addWarningMessage(f"{name}: {problem}")
+        messages.addMessage("Clip all layers: " + job.summary())
 
 
 class NormaliseGrids(_RasterTool):

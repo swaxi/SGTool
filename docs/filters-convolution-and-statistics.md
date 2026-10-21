@@ -110,6 +110,9 @@ Define upper or lower bound (or range) for which values will be set to NaN (i.e.
    
 **Create Clipping Polygon**   
 Create one or more polygons outlining the available data in the grid. Useful, amongst other things, for clipping worms to grid area..     
+
+**Clip All Layers** (QGIS)   
+Pick a polygon layer in the dropdown (if some of its polygons are selected, only those are used) and press **Clip all Layers**, then choose a folder. Every layer in the project's layer tree is clipped to the polygon and saved there as `<name>_clip` (a GeoPackage for vector layers, a GeoTIFF for grids) with a `<name>_clip.qml` holding its style, and a copy of the project, `<project>_clip.qgz`, is saved beside them. It has the same groups, order, visibility and styles as the current project, loads the clipped files under the names `<name>_clip` with relative paths, and opens on the polygon. The clip polygon itself is saved too. The polygon is reprojected to each layer's coordinate system first. Layers that cannot be clipped (web layers such as WMS or XYZ tiles, tables without geometry) are carried over unchanged, a layer that fails is listed in the SGTool messages log and left out, and the temporary preview layer is skipped. Grids with no no-data value get -9999 outside the polygon. Based on a script by Mark Jessell.   
    
 **Normalise Grids**   
 Normalise the means and standard deviations of a series of grids in a directory to minimse mismatches in merged grids. Does not consider overlaps between grids, simply standardises data and removes a first or second order regional.     

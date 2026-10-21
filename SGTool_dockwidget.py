@@ -1243,6 +1243,7 @@ class SGToolDockWidget(QDockWidget):
         sl.addWidget(self._group_metadata())
         sl.addWidget(self._group_nan_threshold())
         sl.addWidget(self._group_clip_polygon())
+        sl.addWidget(self._group_clip_all_layers())
         sl.addWidget(self._group_normalise())
         sl.addWidget(self._group_lut_convert())
         sl.addStretch()
@@ -1346,6 +1347,35 @@ class SGToolDockWidget(QDockWidget):
         g.setSpacing(4)
         self.checkBox_polygons = QCheckBox(_tr("Create polygon based on grid"))
         g.addWidget(self.checkBox_polygons, 0, 0)
+        g.setColumnStretch(1, 1)
+        return gb
+
+    # ------------------------------------------------------------------
+    # Group: Clip All Layers
+    # ------------------------------------------------------------------
+    def _group_clip_all_layers(self):
+        gb = QGroupBox(_tr("Clip All Layers"))
+        g = QGridLayout(gb)
+        g.setSpacing(4)
+        self.label_clip_polygon = QLabel(_tr("Clip polygon"))
+        self.label_clip_polygon.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.mMapLayerComboBox_clip_polygon = QgsMapLayerComboBox()
+        self.mMapLayerComboBox_clip_polygon.setToolTip(
+            _tr("Polygon layer to clip every layer of the project to. If some of its "
+                "polygons are selected, only those are used.")
+        )
+        self.pushButton_clip_all_layers = QPushButton(_tr("Clip all Layers"))
+        self.pushButton_clip_all_layers.setStyleSheet("font-weight: bold;")
+        self.pushButton_clip_all_layers.setToolTip(
+            _tr("Choose a folder, then clip every layer of the project to the polygon.\n"
+                "Each clipped layer is saved there as <name>_clip (GeoPackage or GeoTIFF) "
+                "with a .qml file holding its style, and a copy of the project "
+                "(.qgz) with the same groups and order, using the clipped layers, is saved "
+                "beside them.")
+        )
+        g.addWidget(self.label_clip_polygon, 0, 0)
+        g.addWidget(self.mMapLayerComboBox_clip_polygon, 0, 1)
+        g.addWidget(self.pushButton_clip_all_layers, 1, 1)
         g.setColumnStretch(1, 1)
         return gb
 

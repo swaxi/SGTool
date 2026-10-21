@@ -24,12 +24,13 @@
 
 from qgis.PyQt.QtGui import QIcon, QDesktopServices, QValidator
 from qgis.PyQt.QtWidgets import (
-    QApplication,
+    QApplication, QProgressDialog,
     QAction, QDockWidget, QFileDialog, QMessageBox,
     QDialog, QVBoxLayout, QTabWidget, QTextBrowser, QPlainTextEdit, QWidget,
 )
 from qgis.core import (
     Qgis,
+    QgsMessageLog,
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
     QgsVectorLayer,
@@ -178,6 +179,7 @@ from .calcs.sgt_cancel import OperationCancelled
 from .calcs.layer_shim import LayerShim
 from .calcs.mrvbf import mrvbf as calc_mrvbf
 from .calcs.mba_suggest import describe as describe_mba_suggestion, suggest_mba_parameters
+from .sgt_clip_project import ClipJob
 from .calcs.saga_mba_gridding import mba_gridding
 
 
@@ -3473,6 +3475,66 @@ class SGTool:
         output_raster = None
         return 0
 
+    def procClipAllLayers(self):
+        """Clip every layer of the project to the chosen polygon layer: the clipped layers and
+        their styles are saved in a folder together with a copy of the project that loads them
+        (see sgt_clip_project.py)."""
+        layer = self.dlg.mMapLayerComboBox_clip_polygon.currentLayer()
+        if layer is None:
+            self.iface.messageBar().pushMessage(
+                "SGTool", self.tr("There is no polygon layer to clip to: load one first"),
+                level=Qgis.Warning, duration=10,
+            )
+            return
+        project = QgsProject.instance()
+        start = os.path.dirname(project.fileName()) if project.fileName() else os.path.expanduser("~")
+        folder = QFileDialog.getExistingDirectory(
+            self.dlg, self.tr("Select the folder for the clipped layers"), start
+        )
+        if not folder:
+            return
+
+        progress = QProgressDialog(self.tr("Clipping layers..."), self.tr("Cancel"), 0, 100, self.dlg)
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+
+        def report(done, total, name):
+            progress.setMaximum(max(total, 1))
+            progress.setValue(done)
+            progress.setLabelText(self.tr("Clipping layers...") + ("\n" + name if name else ""))
+            QApplication.processEvents()
+            return not progress.wasCanceled()
+
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            job = ClipJob(project, layer, folder, progress=report)
+            job.run()
+        except Exception as e:
+            progress.close()
+            self.iface.messageBar().pushMessage(
+                "SGTool", self.tr("Clipping failed: %s") % e, level=Qgis.Critical, duration=15,
+            )
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+            progress.close()
+
+        for name, message in job.errors:
+            QgsMessageLog.logMessage(f"{name}: {message}", "SGTool", Qgis.Warning)
+        for name, why in job.kept + job.skipped:
+            QgsMessageLog.logMessage(f"{name}: {why}", "SGTool", Qgis.Info)
+        if job.cancelled:
+            self.iface.messageBar().pushMessage(
+                "SGTool", self.tr("Clipping cancelled; no project was written"),
+                level=Qgis.Warning, duration=10,
+            )
+            return
+        level = Qgis.Success if not job.errors else Qgis.Warning
+        text = job.summary()
+        if job.errors:
+            text += " (see the SGTool messages log for the failures)"
+        self.iface.messageBar().pushMessage("SGTool", text, level=level, duration=20)
+
     def procBSDworms(self):
         if self._busy():
             return False
@@ -5718,6 +5780,11 @@ class SGTool:
             self.dlg.mMapLayerComboBox_selectGrid_3.setFilters(
                 QgsMapLayerProxyModel.PointLayer
             )
+
+            self.dlg.mMapLayerComboBox_clip_polygon.setFilters(
+                QgsMapLayerProxyModel.PolygonLayer
+            )
+            self.dlg.pushButton_clip_all_layers.clicked.connect(self.procClipAllLayers)
 
             for label in self.dlg._version_labels:
                 label.setText(self.show_version())

@@ -485,13 +485,15 @@ def _nearest_resample(src: np.ndarray, src_valid: np.ndarray, src_cs: float,
 # ---------------------------------------------------------------------------
 def _flatness(slopes, slopes_valid, s_cs, s_xmin, s_ymin,
               pctl, pctl_valid, p_cs, p_xmin, p_ymin,
-              CF, xs, ys, out_shape, t_slope, p_slope, t_pctl_v, t_pctl_r, p_pctl, sink):
+              CF, xs, ys, out_shape, t_slope, p_slope, t_pctl_v, t_pctl_r, p_pctl, sink, tick=None):
     """Get_Flatness for a band of rows at a time. CF is updated in place; each band's (VF, RF, ok)
     is handed to sink(rows, VF, RF, ok)."""
     ny, nx = out_shape
     s_allv = _window_valid(slopes_valid)
     p_allv = _window_valid(pctl_valid)
     for r0, r1, _a, _b in _row_bands(ny, nx):
+        if tick is not None:
+            tick()
         yb = ys[r0:r1]
         sv, sok = _sample_bspline(slopes, slopes_valid, s_cs, s_xmin, s_ymin, xs, yb, s_allv)
         pv, pok = _sample_bspline(pctl, pctl_valid, p_cs, p_xmin, p_ymin, xs, yb, p_allv)
@@ -559,6 +561,7 @@ def mrvbf(
     max_res: float = 100.0,
     classify: bool = False,
     verbose: bool = False,
+    callback=None,
 ):
     """
     Multiresolution Index of Valley Bottom Flatness (and its complementary
@@ -579,6 +582,9 @@ def mrvbf(
         P_SLOPE / P_PCTL / MAX_RES / CLASSIFY parameters.
     verbose : bool
         Print per-level diagnostics (level, resolution, threshold slope).
+    callback : callable, optional
+        called as callback(fraction_done) at the start of each level and of each band of rows;
+        it may raise calcs.sgt_cancel.OperationCancelled to stop the calculation.
 
     Returns
     -------
@@ -601,6 +607,14 @@ def mrvbf(
 
     xs = xmin + np.arange(nx) * cellsize
     ys = ymin + np.arange(ny) * cellsize
+
+    # progress: the number of levels is known from the resolution limit (level 1 and 2 at the
+    # DEM's own resolution, then one per factor of three)
+    n_levels = 2 + max(1, int(np.ceil(np.log(max(max_resolution / cellsize, 1.0)) / np.log(3.0))))
+
+    def tick():
+        if callback is not None:
+            callback(min(0.95, (level - 1) / float(n_levels)))
 
     CF = np.ones((ny, nx), dtype=np.float64)
     MRVBF = np.zeros((ny, nx), dtype=np.float64)
@@ -638,7 +652,7 @@ def mrvbf(
 
     _flatness(Slopes, slopes_valid, dem_cs, dem_xmin, dem_ymin,
               Percentiles, pctl_valid, dem_cs, dem_xmin, dem_ymin,
-              CF, xs, ys, (ny, nx), T_Slope, p_slope, t_pctl_v, t_pctl_r, p_pctl, sink_first)
+              CF, xs, ys, (ny, nx), T_Slope, p_slope, t_pctl_v, t_pctl_r, p_pctl, sink_first, tick)
 
     # ---- Level 2 --------------------------------------------------------
     T_Slope /= 2.0
@@ -652,7 +666,7 @@ def mrvbf(
 
     _flatness(Slopes, slopes_valid, dem_cs, dem_xmin, dem_ymin,
               Percentiles, pctl_valid, dem_cs, dem_xmin, dem_ymin,
-              CF, xs, ys, (ny, nx), T_Slope, p_slope, t_pctl_v, t_pctl_r, p_pctl, sink_blend(level))
+              CF, xs, ys, (ny, nx), T_Slope, p_slope, t_pctl_v, t_pctl_r, p_pctl, sink_blend(level), tick)
 
     # ---- Level 3+ ---------------------------------------------------------
     while resolution < max_resolution:
@@ -685,7 +699,7 @@ def mrvbf(
         _flatness(Slopes, slopes_valid, prev_cs, prev_xmin, prev_ymin,
                   Percentiles, pctl_valid, dem_cs, dem_xmin, dem_ymin,
                   CF, xs, ys, (ny, nx), T_Slope, p_slope, t_pctl_v, t_pctl_r, p_pctl,
-                  sink_blend(level))
+                  sink_blend(level), tick)
 
     # ---- finalize -----------------------------------------------------
     MRVBF_out, MRRTF_out = MRVBF, MRRTF

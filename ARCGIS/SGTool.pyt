@@ -28,6 +28,7 @@ for _p in (_SGTOOL, os.path.join(_SGTOOL, "calcs"),
 
 # Import utility helpers from sibling module
 sys.path.insert(0, _HERE)
+from calcs.sgt_cancel import OperationCancelled
 from arcgis_utils import (
     raster_to_numpy, numpy_to_raster, run_raster_tool, make_processor, NODATA,
     write_provenance, step_record, write_mrvbf_outputs, MRVBF_DEFAULTS,
@@ -91,6 +92,18 @@ class Toolbox:
 # ============================================================================
 # Base helper
 # ============================================================================
+def _check_cancel(fraction=None):
+    """Stop the running tool if Cancel was pressed in the Geoprocessing pane (the tools poll
+    this between steps and inside long calculations; it is also the progress callback the
+    shared calculation code calls)."""
+    try:
+        cancelled = bool(arcpy.env.isCancelled)
+    except Exception:
+        cancelled = False
+    if cancelled:
+        raise OperationCancelled()
+
+
 class _RasterTool:
     """Base class providing common raster-in / raster-out execute pattern."""
 
@@ -112,7 +125,12 @@ class _RasterTool:
                 settings = {}
             self._prov_source = settings.pop("in_raster", None)
             self._prov_settings = settings
-            return _original(self, parameters, messages)
+            try:
+                return _original(self, parameters, messages)
+            except OperationCancelled:
+                messages.addWarningMessage("Cancelled: the calculation was stopped and no "
+                                           "output was written.")
+                return None
 
         execute.__doc__ = original.__doc__
         cls.execute = execute
@@ -128,9 +146,11 @@ class _RasterTool:
 
     def _read(self, input_path):
         """Return (arr, nodata, ll_x, ll_y, cx, cy, sr)."""
+        _check_cancel()
         return raster_to_numpy(str(input_path))
 
     def _write(self, arr, output_path, ll_x, ll_y, cx, cy, sr, nodata=NODATA):
+        _check_cancel()  # a result calculated after Cancel is thrown away, not saved
         numpy_to_raster(arr, str(output_path), ll_x, ll_y, cx, cy, sr, nodata)
         # how this output was made (the tool and its settings), inside the GeoTIFF
         write_provenance(str(output_path), getattr(self, "_prov_source", None),
@@ -1112,7 +1132,8 @@ class MRVBFTool(_RasterTool):
             in_r, base_for_others, ext, arr, ll_x, ll_y, cx, cy, sr, nodata,
             t_slope=float(parameters[2].value), t_pctl_v=float(parameters[3].value),
             t_pctl_r=float(parameters[4].value), p_slope=float(parameters[5].value),
-            p_pctl=float(parameters[6].value), max_res=float(parameters[7].value))
+            p_pctl=float(parameters[6].value), max_res=float(parameters[7].value),
+            callback=_check_cancel)
         if os.path.abspath(paths[0]) != os.path.abspath(out_r):
             import shutil
             shutil.copyfile(paths[0], out_r)
@@ -1220,6 +1241,7 @@ class EulerDeconvolution(_RasterTool):
         ZI     = np.zeros_like(arr)
 
         filled = np.where(np.isnan(arr), 0.0, arr)
+        _check_cancel()
         results = euler_deconv_optimized(
             filled, XI, YI, ZI,
             filled.shape, area, SI, win, filt
@@ -1375,7 +1397,7 @@ class MultilevelBSplineGridding(_RasterTool):
         source = getattr(desc, "catalogPath", pts)
         n = grid_points_to_file(xs, ys, zs, out_r, source, field, cell, epsilon=eps,
                                 level_max=levels, ignore_below=ignore,
-                                spatial_ref=desc.spatialReference)
+                                spatial_ref=desc.spatialReference, callback=_check_cancel)
         messages.addMessage(f"Multilevel B-spline gridding of {n} points complete → {out_r}")
 
 
@@ -1421,7 +1443,7 @@ class BSDWorms(_RasterTool):
         os.makedirs(out_d, exist_ok=True)
         layer_name = os.path.splitext(os.path.basename(in_r))[0]
         proc.bsdwormer(arr, layer_name, out_d,
-                       levels, base, delta, shp, crs)
+                       levels, base, delta, shp, crs, callback=_check_cancel)
         messages.addMessage(f"BSD Worms ({levels} levels) complete → {out_d}")
 
 
@@ -1549,7 +1571,7 @@ class NormaliseGrids(_RasterTool):
 
         os.makedirs(out_d, exist_ok=True)
         proc = make_processor(1.0, 1.0, 10)
-        proc.normalise_geotiffs(in_d, out_d, order)
+        proc.normalise_geotiffs(in_d, out_d, order, callback=_check_cancel)
         messages.addMessage(f"Grid normalisation complete → {out_d}")
 
 

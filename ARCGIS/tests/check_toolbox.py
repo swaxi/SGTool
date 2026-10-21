@@ -138,5 +138,75 @@ pa = {p_.get("name"): p_.text for p_ in ra.iter("parameter")} if ra is not None 
 check("Auto in the B-spline tool ignores the cell size and levels given",
       os.path.exists(outa) and abs(float(pa.get("cell_size", 0)) - _want["cell_size"]) < 1e-9
       and pa.get("max_levels") == str(_want["max_levels"]), (pa, _want["cell_size"], _want["max_levels"], ma.lines))
+# ---- the Cancel button of the geoprocessing pane stops the tools (arcpy.env.isCancelled is polled)
+from calcs.sgt_cancel import OperationCancelled
+_real_check = mod._check_cancel
+
+
+def cancel_after(n):
+    state = {"calls": 0}
+
+    def f(fraction=None):
+        state["calls"] += 1
+        if state["calls"] > n:
+            raise OperationCancelled()
+    f.state = state
+    return f
+
+
+try:
+    outc = os.path.join(DATA, "cancel_mean.tif")
+    mod._check_cancel = cancel_after(0)
+    mc = run(mod.MeanFilter, {"in_raster": src, "out_raster": outc})
+    check("a cancelled filter writes nothing and says so",
+          not os.path.exists(outc) and any("Cancelled" in l for l in mc.lines), mc.lines)
+
+    # cancelled after the calculation, just before the result is saved: still nothing is written
+    outc2 = os.path.join(DATA, "cancel_mean2.tif")
+    mod._check_cancel = cancel_after(1)   # let _read through, stop at _write
+    mc = run(mod.MeanFilter, {"in_raster": src, "out_raster": outc2})
+    check("a result finished after Cancel is thrown away, not saved",
+          not os.path.exists(outc2) and any("Cancelled" in l for l in mc.lines), mc.lines)
+
+    outc3 = os.path.join(DATA, "cancel_bs.tif")
+    mod._check_cancel = cancel_after(2)   # stops inside the gridding levels
+    mc = run(mod.MultilevelBSplineGridding, {"in_points": shp, "z_field": "num", "cell_size": 50.0,
+                                              "out_raster": outc3})
+    check("B-spline gridding stops between levels when cancelled",
+          not os.path.exists(outc3) and any("Cancelled" in l for l in mc.lines), mc.lines)
+
+    outc4 = os.path.join(DATA, "cancel_mrvbf.tif")
+    fn = cancel_after(3)
+    mod._check_cancel = fn
+    mc = run(mod.MRVBFTool, {"in_raster": dem, "out_raster": outc4})
+    check("MRVBF stops part-way when cancelled (after %d polls)" % fn.state["calls"],
+          not os.path.exists(outc4) and any("Cancelled" in l for l in mc.lines), mc.lines)
+finally:
+    mod._check_cancel = _real_check
+
+# without a cancel the same tools still run (the poll is quiet outside a cancelled tool)
+outc5 = os.path.join(DATA, "not_cancelled.tif")
+mc = run(mod.MeanFilter, {"in_raster": src, "out_raster": outc5})
+check("an uncancelled tool is not disturbed by the polling", os.path.exists(outc5))
+
+# the calculation code reports progress and can be stopped from its callback
+from calcs.mrvbf import mrvbf as _mrvbf
+_dem = np.random.default_rng(4).normal(0, 1, (80, 90)).cumsum(0).cumsum(1)
+_seen = []
+_mrvbf(_dem, 25.0, callback=_seen.append)
+check("mrvbf reports progress between 0 and 1, rising", len(_seen) >= 4 and all(0 <= f <= 1 for f in _seen)
+      and _seen == sorted(_seen), _seen)
+
+
+def _stop_at_once(fraction=None):
+    raise OperationCancelled()
+
+
+try:
+    _mrvbf(_dem, 25.0, callback=_stop_at_once)
+    check("mrvbf stops when its callback raises", False)
+except OperationCancelled:
+    check("mrvbf stops when its callback raises", True)
+
 print(f"\n{sum(1 for _, ok in results if ok)}/{len(results)} PYT checks passed", flush=True)
 os._exit(0 if all(ok for _, ok in results) else 1)

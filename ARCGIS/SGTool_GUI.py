@@ -2190,7 +2190,8 @@ class SGToolApp(tk.Tk):
                         in_r, base, ext, arr, ll_x, ll_y, cx, cy, sr, nodata,
                         t_slope=float(self.v_mrvbf_ts.get()), t_pctl_v=float(self.v_mrvbf_pv.get()),
                         t_pctl_r=float(self.v_mrvbf_pr.get()), p_slope=float(self.v_mrvbf_ps.get()),
-                        p_pctl=float(self.v_mrvbf_pp.get()), max_res=float(self.v_mrvbf_mr.get())):
+                        p_pctl=float(self.v_mrvbf_pp.get()), max_res=float(self.v_mrvbf_mr.get()),
+                        callback=lambda fraction=None: self._check_cancel()):
                     self._check_cancel()
                     self._record_pending(path)
                     self.after(0, self._on_output_written, path)

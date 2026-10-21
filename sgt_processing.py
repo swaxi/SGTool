@@ -42,6 +42,7 @@ from qgis.core import (
 
 from .calcs.PCAICA import PCAICA
 from .calcs.euler.euler_python import euler_deconv
+from .calcs.layer_shim import LayerShim
 from .calcs.mba_suggest import describe as describe_mba_suggestion, suggest_mba_parameters
 from .calcs.saga_mba_gridding import mba_gridding
 from .calcs.sgt_cancel import OperationCancelled
@@ -689,6 +690,134 @@ class BSplineGriddingAlgorithm(_SGToolAlgorithm):
         return {self.OUTPUT: out_path}
 
 
+class WormsAlgorithm(_SGToolAlgorithm):
+    """BSDWorms: multilevel wavelet edges of a gravity or RTP/RTE + vertical integration grid."""
+
+    INPUT = "INPUT"
+    LEVELS = "LEVELS"
+    BASE = "BASE"
+    INCREMENT = "INCREMENT"
+    SHAPEFILE = "SHAPEFILE"
+    OUTPUT = "OUTPUT"
+
+    def initAlgorithm(self, config=None):
+        self.addParameter(QgsProcessingParameterRasterLayer(self.INPUT, "Input grid"))
+        levels = QgsProcessingParameterNumber(
+            self.LEVELS, "Number of levels", _number_type("Integer"), 10, False
+        )
+        levels.setMinimum(1)
+        self.addParameter(levels)
+        base = QgsProcessingParameterNumber(
+            self.BASE, "Base level: upward continuation height of the first level (map units)",
+            _number_type("Double"), 1000.0, False,
+        )
+        base.setMinimum(0.0)
+        self.addParameter(base)
+        inc = QgsProcessingParameterNumber(
+            self.INCREMENT, "Increment: spacing between levels (map units)",
+            _number_type("Double"), 1000.0, False,
+        )
+        inc.setMinimum(0.0)
+        self.addParameter(inc)
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                self.SHAPEFILE, "Also save the worms as a polyline shapefile (needs scikit-learn)", False
+            )
+        )
+        self.addParameter(
+            QgsProcessingParameterFileDestination(
+                self.OUTPUT, "Worm points (optional: default is standard SGTool file naming convention in same directory as input file)",
+                "CSV files (*.csv)", None, True, False,
+            )
+        )
+
+    def _auto_target(self, parameters, context):
+        return None  # nothing here replaces a grid that could be open in QGIS
+
+    def processAlgorithm(self, parameters, context, feedback):
+        layer = self.parameterAsRasterLayer(parameters, self.INPUT, context)
+        if layer is None:
+            raise QgsProcessingException("Select an input grid")
+        source_path = layer.source().split("|")[0]
+        num_levels = self.parameterAsInt(parameters, self.LEVELS, context)
+        bottom_level = self.parameterAsDouble(parameters, self.BASE, context)
+        delta_z = self.parameterAsDouble(parameters, self.INCREMENT, context)
+        shapefile = self.parameterAsBoolean(parameters, self.SHAPEFILE, context)
+
+        if layer.crs().isGeographic():
+            raise QgsProcessingException(
+                "Worms need a grid in a projected (metre-based) coordinate system, "
+                "not latitude / longitude"
+            )
+        authid = layer.crs().authid()
+        if not authid.upper().startswith("EPSG:"):
+            raise QgsProcessingException(
+                "The grid needs a coordinate system with an EPSG code (the worm shapefile is "
+                "written in it): assign one to the layer first"
+            )
+        if shapefile:
+            try:
+                import sklearn  # noqa: F401
+            except ImportError:
+                raise QgsProcessingException(
+                    "scikit-learn is required for the worm shapefile; install it with "
+                    "'pip3 install scikit-learn' in the QGIS Python environment, or untick "
+                    "the shapefile option"
+                )
+
+        arr, gt, _projection = read_grid(source_path)
+        grid = GridContext(arr, gt, layer, 0)
+        ext = layer.extent()
+        shim = LayerShim((ext.xMinimum(), ext.yMinimum(), ext.xMaximum(), ext.yMaximum()),
+                         authid, False)
+
+        # the worms are written next to the grid under the dialog's names; a CSV chosen
+        # elsewhere is moved there afterwards
+        default_csv = auto_output_path(source_path, "_worms", ".csv")
+        out_csv, _auto = self._resolve_output(
+            parameters, context, default_csv, "", raster=False
+        )
+        base_, ext_ = os.path.splitext(source_path)
+        padded = base_ + "_padded" + ext_
+        shp_path = auto_output_path(source_path, "_worms", ".shp")
+
+        def callback(fraction=None):
+            if feedback.isCanceled():
+                raise OperationCancelled()
+            if fraction is not None:
+                feedback.setProgress(5 + 90 * float(fraction))
+
+        try:
+            grid.processor.bsdwormer(
+                arr, shim, source_path, num_levels, bottom_level, delta_z, shapefile,
+                int(authid.split(":")[1]), callback=callback,
+            )
+        except OperationCancelled:
+            return {}
+
+        params = {
+            "levels": num_levels, "bottom_level": bottom_level,
+            "level_increment": delta_z, "shapefile": shapefile,
+        }
+        if os.path.abspath(out_csv) != os.path.abspath(default_csv) and os.path.exists(default_csv):
+            os.replace(default_csv, out_csv)
+        written = [
+            (out_csv, "Worms (BSDWormer) points"),
+            (padded, "Worms padded and tapered input grid"),
+        ]
+        if shapefile:
+            written.append((shp_path, "Worms (BSDWormer) polylines"))
+        for path, operation in written:
+            if os.path.exists(path):
+                write_sgt_metadata(path, source_path, operation, params, _plugin_version())
+        feedback.pushInfo(
+            f"Worms written to {out_csv}; the padded grid is {padded}"
+            + (f" and the polylines {shp_path}" if shapefile else "")
+        )
+        feedback.setProgress(100)
+        return {self.OUTPUT: out_csv}
+
+
 COMPONENT_SPECS = [
     dict(id="pca", name="Principal component analysis", group=GROUP_MULTI,
          operation="Principal component analysis",
@@ -713,6 +842,20 @@ BSPLINE_SPEC = dict(
 )
 
 
+WORMS_SPEC = dict(
+    id="worms", name="BSDWorms (multilevel wavelet edges)", group=("wavelets", "Wavelets"),
+    help=(
+        "Builds wavelet-transform worms (Horowitz's bsdwormer): the grid is upward continued to "
+        "a series of heights (levels), and the edges at each level are found from the wavelet "
+        "transform of the horizontal gradient. The source depth of an edge is approximately half "
+        "the upward continuation height of its level (Jacobsen, 1987), so edges seen at a 2000 m "
+        "level come from sources at about 1000 m depth; this is a guide, not a precise depth. "
+        "Use a gravity grid, or an RTP/RTE magnetic grid after vertical integration, in a "
+        "metre-based coordinate system. Writes <grid>_worms.csv (and optionally <grid>_worms.shp) "
+        "and a padded copy of the grid <grid>_padded.tif next to the input."
+    ),
+)
+
 class SGToolProvider(QgsProcessingProvider):
     """The SGTool Processing provider."""
 
@@ -735,6 +878,7 @@ class SGToolProvider(QgsProcessingProvider):
         for spec in COMPONENT_SPECS:
             self.addAlgorithm(ComponentAnalysisAlgorithm(spec))
         self.addAlgorithm(BSplineGriddingAlgorithm(BSPLINE_SPEC))
+        self.addAlgorithm(WormsAlgorithm(WORMS_SPEC))
         # imported here: the replay module itself builds on this one
         from .sgt_replay_algorithm import ReplayHistoryAlgorithm, REPLAY_SPEC
 

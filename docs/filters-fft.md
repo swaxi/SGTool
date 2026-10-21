@@ -13,7 +13,7 @@ $`H_{RTP}(k_x, k_y) = \frac{k \cos I \cos D + i k_y \cos I \sin D + k_x \sin I}{
 Converts magnetic data measured at any inclination and declination to what it would be if measured at the magnetic pole.
 Where     
 - k<sub>x</sub> and k<sub>y</sub> : The wavenumber components in the x and y directions.
-- k = The total wavenumber magnitude = sqrt{k<sub>x</sub><sup>2</sup> + k<sub>y</sub><sup>2</sup>}   
+- k = The total wavenumber magnitude = $\sqrt{k_x^2 + k_y^2}$   
 - I : Magnetic inclination (in radians).
 - D : Magnetic declination (in radians).
 - i : Imaginary unit.
@@ -24,7 +24,7 @@ $`H_{RTE}(k_x, k_y) = \frac{k \cos I \cos D + i k_y \cos I \sin D + k_x \sin I}{
 Converts magnetic data measured at any inclination and declination to what it would be if measured at the magnetic equator.
 Where   
 - k<sub>x</sub> and k<sub>y</sub> : The wavenumber components in the x and y directions.
-- k = The total wavenumber magnitude = sqrt{k<sub>x</sub><sup>2</sup> + k<sub>y</sub><sup>2</sup>}
+- k = The total wavenumber magnitude = $\sqrt{k_x^2 + k_y^2}$
 - I : Magnetic inclination (in radians).
 - D : Magnetic declination (in radians).
 - i : Imaginary unit. 
@@ -45,7 +45,7 @@ h < 0  for downward continuation.
 $`H(k_x, k_y) = \frac{1}{k}`$  
 When applied to an RTE or RTP image provides the so called Pseudogravity result    
 Where    
-k = sqrt{k<sub>x</sub><sup>2</sup> + k<sub>y</sub><sup>2</sup>} .   
+k = $\sqrt{k_x^2 + k_y^2}$ .   
    
 
 ## Frequency Filters   
@@ -62,11 +62,13 @@ The values entered for the High pass, Low pass and Band pass filters are **wavel
 
 **High Pass Filter**
 
-$$H(k) = \begin{cases} 
+```math
+H(k) = \begin{cases}
 0 & \text{if } k \leq k_{low} \\
 \frac{1}{2}\left(1 - \cos\left(\pi \frac{k - k_{low}}{k_{high} - k_{low}}\right)\right) & \text{if } k_{low} < k < k_{high} \\
 1 & \text{if } k \geq k_{high}
-\end{cases}$$
+\end{cases}
+```
 
 The high-pass filter removes low-frequency components (long wavelengths) while retaining high-frequency components (short wavelengths) with a smooth transition to reduce ringing artifacts.
 
@@ -79,11 +81,13 @@ Where:
 
 **Low Pass Filter**
 
-$$H(k) = \begin{cases} 
+```math
+H(k) = \begin{cases}
 1 & \text{if } k \leq k_{inner} \\
 \frac{1}{2}\left(1 + \cos\left(\pi \frac{k - k_{inner}}{k_{outer} - k_{inner}}\right)\right) & \text{if } k_{inner} < k < k_{outer} \\
 0 & \text{if } k \geq k_{outer}
-\end{cases}$$
+\end{cases}
+```
 
 The low-pass filter removes high-frequency components (short wavelengths) while retaining low-frequency components (long wavelengths). Optional smooth transition reduces potential ringing artifacts.
 
@@ -96,23 +100,31 @@ Where:
 
 **Band Pass Filter**
 
-$$H(k) = H_{high}(k) \times H_{low}(k)$$
+```math
+H(k) = H_{high}(k) \times H_{low}(k)
+```
 
 Where:
 
 ***High-pass component:***
-$$H_{high}(k) = \begin{cases} 
+
+```math
+H_{high}(k) = \begin{cases}
 0 & \text{if } k \leq k_{h,low} \\
 \frac{1}{2}\left(1 - \cos\left(\pi \frac{k - k_{h,low}}{k_{h,high} - k_{h,low}}\right)\right) & \text{if } k_{h,low} < k < k_{h,high} \\
 1 & \text{if } k \geq k_{h,high}
-\end{cases}$$
+\end{cases}
+```
 
 ***Low-pass component:***
-$$H_{low}(k) = \begin{cases} 
+
+```math
+H_{low}(k) = \begin{cases}
 1 & \text{if } k \leq k_{l,inner} \\
 \frac{1}{2}\left(1 + \cos\left(\pi \frac{k - k_{l,inner}}{k_{l,outer} - k_{l,inner}}\right)\right) & \text{if } k_{l,inner} < k < k_{l,outer} \\
 0 & \text{if } k \geq k_{l,outer}
-\end{cases}$$
+\end{cases}
+```
 
 The band-pass filter isolates features within a specific wavelength range by combining high-pass and low-pass components with smooth transitions.
 
@@ -135,16 +147,16 @@ $`H(k) = \frac{1}{1 + \left(\frac{k_c}{k}\right)^{2n}}`$
 The Butterworth filter attenuates frequencies below the cutoff k<sub>c</sub> while preserving higher frequencies.    
 H(k) : Filter response as a function of wavenumber k.    
 k : Wavenumber (spatial frequency).    
-k<sub>c</sub> : Cutoff wavenumber, related to the cutoff wavelength by k<sub>c</sub> = \frac{1}{\text{cutoff wavelength}}.    
-n : Filter order, determining the sharpness of the transition. Higher \( n \) makes the filter more selective.   
+k<sub>c</sub> : Cutoff wavenumber, related to the cutoff wavelength by $k_c = \frac{1}{\text{cutoff wavelength}}$.    
+n : Filter order, determining the sharpness of the transition. Higher $n$ makes the filter more selective.   
     
 ***Directional Cosine Filter***    
 $`H(k_x, k_y) = \left| \cos(\theta - \theta_c) \right|^p`$   
 The Directional Cosine Filter emphasizes or suppresses frequency components along a specific direction.   
 H(k<sub>x</sub>, k<sub>y</sub>): Filter response as a function of wavenumber components k<sub>x</sub> and k<sub>y</sub>.   
-theta = \arctan\left(\frac{k_y}{k_x}\right) : Angle of the frequency component.   
-theta<sub>c</sub> : Center direction (in radians), representing the direction to emphasize.   
-p : Degree of the cosine function. Higher \( p \) sharpens the directional emphasis.   
+$\theta = \arctan\left(\frac{k_y}{k_x}\right)$ : Angle of the frequency component.   
+$\theta_c$ : Center direction (in radians), representing the direction to emphasize.   
+p : Degree of the cosine function. Higher $p$ sharpens the directional emphasis.   
 
 **Remove Regional**   
 Remove a 1st order (dipping plane) or 2nd order (parabolic plane) regional from data. 
@@ -165,7 +177,7 @@ P(k) is the radially averaged power spectrum, and N<sub>k</sub> is the number of
 **Derivative**    
 $`\frac{\partial f}{\partial u} = \frac{\partial f}{\partial x} \cos\theta + \frac{\partial f}{\partial y} \sin\theta`$   
 Where   
-theta is the angle defining the direction of the derivative (x,y or z).   
+$\theta$ is the angle defining the direction of the derivative (x,y or z).   
 The vertical derivative is calculated from the horizontal gradients using Laplace's equation, $\frac{\partial^2 f}{\partial x^2} + \frac{\partial^2 f}{\partial y^2} + \frac{\partial^2 f}{\partial z^2} = 0$, which gravity and magnetic fields satisfy outside their sources (they are Green's functions). In the Fourier domain this multiplies the spectrum by $k$, so the vertical derivative amplifies short wavelengths and often amplifies noise as well.   
    
 **Total Horizontal Gradient**   

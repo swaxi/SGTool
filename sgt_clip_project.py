@@ -12,6 +12,7 @@ and point-cloud layers) are carried over unchanged. A layer that fails to clip i
 out of the new project.
 """
 
+import logging
 import os
 
 from qgis.core import (
@@ -94,7 +95,7 @@ class ClipJob:
             source = processing.run(
                 "native:saveselectedfeatures", {"INPUT": layer, "OUTPUT": "memory:"},
                 context=self.context, feedback=self.feedback)["OUTPUT"]
-            self.log.append((Qgis.Info, f"Clipping to the {layer.selectedFeatureCount()} selected "
+            self.log.append((Qgis.MessageLevel.Info, f"Clipping to the {layer.selectedFeatureCount()} selected "
                                         f"polygon(s) of '{layer.name()}'"))
         self._base_mask = processing.run(
             "native:fixgeometries", {"INPUT": source, "OUTPUT": "memory:"},
@@ -151,7 +152,7 @@ class ClipJob:
         new.setName(name)
         message, ok = new.loadNamedStyle(qml)
         if not ok:
-            self.log.append((Qgis.Warning, f"Style of '{name}' not applied: {message}"))
+            self.log.append((Qgis.MessageLevel.Warning, f"Style of '{name}' not applied: {message}"))
         return new
 
     def _process_layer(self, layer, used):
@@ -186,7 +187,7 @@ class ClipJob:
 
         message, ok = layer.saveNamedStyle(qml)
         if not ok:
-            self.log.append((Qgis.Warning, f"Style of '{name}' not saved: {message}"))
+            self.log.append((Qgis.MessageLevel.Warning, f"Style of '{name}' not saved: {message}"))
         self.clipped.append((name, path))
         return self._load_clipped(layer, path, qml, name + SUFFIX)
 
@@ -230,7 +231,7 @@ class ClipJob:
             new.setEllipsoid(src.ellipsoid())
             new.setTransformContext(src.transformContext())
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Ignored: ignored", exc_info=True)
 
         def mirror(src_group, dst_group):
             for child in src_group.children():
@@ -241,7 +242,7 @@ class ClipJob:
                     try:
                         group.setIsMutuallyExclusive(child.isMutuallyExclusive())
                     except Exception:
-                        pass
+                        logging.getLogger(__name__).debug("Ignored: ignored", exc_info=True)
                     mirror(child, group)
                 elif QgsLayerTree.isLayer(child):
                     entry = replacement.get(child.layerId())
@@ -262,7 +263,7 @@ class ClipJob:
             new.viewSettings().setDefaultViewExtent(
                 QgsReferencedRectangle(to_project.transformBoundingBox(extent), new.crs()))
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Ignored: ignored", exc_info=True)
 
         stem = os.path.splitext(os.path.basename(src.fileName()))[0] if src.fileName() else ""
         stem = safe_filename(stem) if stem else "clipped_layers"

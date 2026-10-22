@@ -17,6 +17,7 @@ run_replay() only computes and writes files (no QGIS layers, widgets or
 messages), so it can run in a background task or a Processing algorithm.
 """
 
+import logging
 import os
 from datetime import date as _date
 
@@ -246,7 +247,7 @@ def uniform_field(path):
         if all(k in md for k in ("inclination", "declination", "intensity")):
             return float(md["inclination"]), float(md["declination"])
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("Ignored: ignored", exc_info=True)
     return None
 
 

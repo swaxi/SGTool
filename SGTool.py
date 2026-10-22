@@ -22,6 +22,7 @@
  ***************************************************************************/
 """
 
+import logging
 from qgis.PyQt.QtGui import QIcon, QDesktopServices, QValidator
 from qgis.PyQt.QtWidgets import (
     QApplication, QProgressDialog,
@@ -77,39 +78,15 @@ from qgis.PyQt.QtCore import (
 
 
 # Qt5/Qt6 Compatibility Layer
-try:
-    # Try Qt6 style first
-    _test = Qt.DockWidgetArea.RightDockWidgetArea
-    # Qt6 detected
-    QT6 = True
+RightDockWidgetArea = Qt.DockWidgetArea.RightDockWidgetArea
+LeftDockWidgetArea = Qt.DockWidgetArea.LeftDockWidgetArea
+TopDockWidgetArea = Qt.DockWidgetArea.TopDockWidgetArea
+BottomDockWidgetArea = Qt.DockWidgetArea.BottomDockWidgetArea
 
-    # Qt6 style enums are already available
-    RightDockWidgetArea = Qt.DockWidgetArea.RightDockWidgetArea
-    LeftDockWidgetArea = Qt.DockWidgetArea.LeftDockWidgetArea
-    TopDockWidgetArea = Qt.DockWidgetArea.TopDockWidgetArea
-    BottomDockWidgetArea = Qt.DockWidgetArea.BottomDockWidgetArea
-
-    # QMessageBox buttons
-    QMessageBox_Ok = QMessageBox.StandardButton.Ok
-    QMessageBox_Cancel = QMessageBox.StandardButton.Cancel
-    QMessageBox_Yes = QMessageBox.StandardButton.Yes
-    QMessageBox_No = QMessageBox.StandardButton.No
-
-except AttributeError:
-    # Qt5 detected
-    QT6 = False
-
-    # Qt5 style enums
-    RightDockWidgetArea = Qt.RightDockWidgetArea
-    LeftDockWidgetArea = Qt.LeftDockWidgetArea
-    TopDockWidgetArea = Qt.TopDockWidgetArea
-    BottomDockWidgetArea = Qt.BottomDockWidgetArea
-
-    # QMessageBox buttons
-    QMessageBox_Ok = QMessageBox.Ok
-    QMessageBox_Cancel = QMessageBox.Cancel
-    QMessageBox_Yes = QMessageBox.Yes
-    QMessageBox_No = QMessageBox.No
+QMessageBox_Ok = QMessageBox.StandardButton.Ok
+QMessageBox_Cancel = QMessageBox.StandardButton.Cancel
+QMessageBox_Yes = QMessageBox.StandardButton.Yes
+QMessageBox_No = QMessageBox.StandardButton.No
 
 # from PyQt5.QtGui import QValidator
 
@@ -188,10 +165,7 @@ class RGBPickerMapTool(QgsMapToolEmitPoint):
 
     def __init__(self, canvas):
         super().__init__(canvas)
-        try:
-            self.setCursor(Qt.CursorShape.CrossCursor)
-        except AttributeError:
-            self.setCursor(Qt.CrossCursor)
+        self.setCursor(Qt.CursorShape.CrossCursor)
 
     def canvasPressEvent(self, event):
         pass  # consume press; do not propagate
@@ -397,7 +371,7 @@ class SGTool:
             elif getattr(self, "preview_layer_id", None):
                 self.removePreviewLayer()
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Ignored: ignored", exc_info=True)
 
         if self._task is not None:
             self._task.cancel()  # don't leave a calculation running without a plugin
@@ -1126,7 +1100,7 @@ class SGTool:
         if not layers or not isinstance(layers[0], QgsRasterLayer):
             self.iface.messageBar().pushMessage(
                 "SGTool metadata", "Select a grid first",
-                level=Qgis.Info, duration=5,
+                level=Qgis.MessageLevel.Info, duration=5,
             )
             return None
         path = layers[0].source().split("|")[0]
@@ -1135,7 +1109,7 @@ class SGTool:
             self.iface.messageBar().pushMessage(
                 "SGTool metadata",
                 f"No SGTool metadata found for {name}",
-                level=Qgis.Info, duration=6,
+                level=Qgis.MessageLevel.Info, duration=6,
             )
             return None
         return name, path, root
@@ -1160,13 +1134,13 @@ class SGTool:
             self.iface.messageBar().pushMessage(
                 "SGTool metadata",
                 f"Could not save metadata for {name}: {e}",
-                level=Qgis.Warning, duration=8,
+                level=Qgis.MessageLevel.Warning, duration=8,
             )
             return
         self.iface.messageBar().pushMessage(
             "SGTool metadata",
             f"Saved metadata for {name} to {out_path}",
-            level=Qgis.Success, duration=8,
+            level=Qgis.MessageLevel.Success, duration=8,
         )
 
     # ------------------------------------------------------------------
@@ -1198,7 +1172,7 @@ class SGTool:
             self.iface.messageBar().pushMessage(
                 "SGTool",
                 f"The history of {name} has no steps that can be repeated",
-                level=Qgis.Info, duration=8,
+                level=Qgis.MessageLevel.Info, duration=8,
             )
             return
 
@@ -1220,13 +1194,13 @@ class SGTool:
         layer = dialog.target_layer()
         if not items:
             self.iface.messageBar().pushMessage(
-                "SGTool", "No steps were chosen", level=Qgis.Info, duration=5
+                "SGTool", "No steps were chosen", level=Qgis.MessageLevel.Info, duration=5
             )
             return
         if layer is None or not isinstance(layer, QgsRasterLayer):
             self.iface.messageBar().pushMessage(
                 "SGTool", "Choose the grid to apply the steps to",
-                level=Qgis.Warning, duration=6,
+                level=Qgis.MessageLevel.Warning, duration=6,
             )
             return
 
@@ -1238,7 +1212,7 @@ class SGTool:
             why = check_igrf_possible(grid_info)
             if why:
                 self.iface.messageBar().pushMessage(
-                    "SGTool", why, level=Qgis.Warning, duration=10
+                    "SGTool", why, level=Qgis.MessageLevel.Warning, duration=10
                 )
                 return
 
@@ -1280,11 +1254,11 @@ class SGTool:
         if kept > 0:
             text += f" ({kept} earlier step{'s' if kept != 1 else ''} saved beside it)"
         self.iface.messageBar().pushMessage(
-            "SGTool", text, level=Qgis.Success, duration=15
+            "SGTool", text, level=Qgis.MessageLevel.Success, duration=15
         )
         for line in result["log"]:
             self.iface.messageBar().pushMessage(
-                "SGTool", line, level=Qgis.Info, duration=15
+                "SGTool", line, level=Qgis.MessageLevel.Info, duration=15
             )
 
     # ------------------------------------------------------------------
@@ -1316,7 +1290,7 @@ class SGTool:
                 ):
                     self.iface.setActiveLayer(active)
             except Exception:
-                pass
+                logging.getLogger(__name__).debug("Ignored: ignored", exc_info=True)
             self._syncing_layers = was_syncing
 
     def _move_preview_to_top(self, *_args):
@@ -1403,10 +1377,7 @@ class SGTool:
         win = QDialog(main_window if isinstance(main_window, QWidget) else None)
         win.setWindowTitle(f"SGTool metadata: {name}")
         win.resize(760, 640)
-        try:
-            win.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        except AttributeError:
-            win.setAttribute(Qt.WA_DeleteOnClose)
+        win.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
         tabs = QTabWidget()
         summary = QTextBrowser()
@@ -1461,7 +1432,7 @@ class SGTool:
     def _notify(self, message, level=None, duration=10):
         """Show a message. Safe from the worker thread: it is queued and shown
         when the job finishes."""
-        level = Qgis.Info if level is None else level
+        level = Qgis.MessageLevel.Info if level is None else level
         if threading.current_thread() is threading.main_thread():
             self.iface.messageBar().pushMessage(
                 "SGTool", message, level=level, duration=duration
@@ -1576,7 +1547,7 @@ class SGTool:
             self.iface.messageBar().pushMessage(
                 "SGTool",
                 "A calculation is already running. Wait for it to finish, or cancel it.",
-                level=Qgis.Warning,
+                level=Qgis.MessageLevel.Warning,
                 duration=6,
             )
             return False
@@ -1594,20 +1565,20 @@ class SGTool:
                     self.iface.messageBar().pushMessage(
                         "SGTool",
                         f"{description}: could not save the results (see the Python console)",
-                        level=Qgis.Critical,
+                        level=Qgis.MessageLevel.Critical,
                         duration=15,
                     )
             elif task.cancelled:
                 self.iface.messageBar().pushMessage(
                     "SGTool", f"Cancelled: {description}",
-                    level=Qgis.Info, duration=6,
+                    level=Qgis.MessageLevel.Info, duration=6,
                 )
             else:
                 print(task.error)
                 last = (task.error or "").strip().splitlines()[-1:] or ["unknown error"]
                 self.iface.messageBar().pushMessage(
                     "SGTool", f"{description} failed: {last[0]}",
-                    level=Qgis.Critical, duration=15,
+                    level=Qgis.MessageLevel.Critical, duration=15,
                 )
 
         task = SGToolTask(description, work, done)
@@ -1623,7 +1594,7 @@ class SGTool:
         self.iface.messageBar().pushMessage(
             "SGTool",
             "A calculation is already running. Wait for it to finish, or cancel it.",
-            level=Qgis.Warning,
+            level=Qgis.MessageLevel.Warning,
             duration=6,
         )
         return True
@@ -1635,7 +1606,7 @@ class SGTool:
             self.iface.messageBar().pushMessage(
                 "SGTool",
                 "Cancelling... the calculation stops at its next checkpoint",
-                level=Qgis.Info, duration=4,
+                level=Qgis.MessageLevel.Info, duration=4,
             )
 
     def _filter_metadata(self, suffix):
@@ -1892,7 +1863,7 @@ class SGTool:
                 self.iface.messageBar().pushMessage(
                     "B-Spline gridding: ignored %d point(s) with %s < %g"
                     % (dropped, zcolumn, thresh),
-                    level=Qgis.Info,
+                    level=Qgis.MessageLevel.Info,
                     duration=8,
                 )
             if xs.size < 3:
@@ -2310,7 +2281,7 @@ class SGTool:
         if entry is None or self._preview_layer() is None:
             self.iface.messageBar().pushMessage(
                 "Preview", "Nothing to keep yet",
-                level=Qgis.Info, duration=3,
+                level=Qgis.MessageLevel.Info, duration=3,
             )
             return
         self._preview_keep = (entry, self._preview_widgets(tab)[2].currentText())
@@ -2378,7 +2349,7 @@ class SGTool:
         try:
             self.iface.mapCanvas().refresh()
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Ignored: ignored", exc_info=True)
 
     def _unlink_preview_file(self):
         try:
@@ -2507,7 +2478,7 @@ class SGTool:
                 "Preview",
                 "Differential RTP can't be previewed" if diff_rtp
                 else "Tick a filter to preview",
-                level=Qgis.Info, duration=3,
+                level=Qgis.MessageLevel.Info, duration=3,
             )
             return
         try:
@@ -2517,7 +2488,7 @@ class SGTool:
                 if arr is None:
                     self.iface.messageBar().pushMessage(
                         "Preview", "Map extent does not cover enough of the grid",
-                        level=Qgis.Warning, duration=3,
+                        level=Qgis.MessageLevel.Warning, duration=3,
                     )
                     return
                 arr, gt = self._subsample(arr, gt, self.PREVIEW_EXTENT_SIDE)
@@ -2530,13 +2501,13 @@ class SGTool:
                     "Preview",
                     "Preview cell size exceeds the line spacing, so line noise "
                     "is under-sampled. Use Map extent and zoom in.",
-                    level=Qgis.Warning, duration=3,
+                    level=Qgis.MessageLevel.Warning, duration=3,
                 )
             grid, suffix = self._run_filter_on(entry, arr, dx, dy, name)
             if grid is None:
                 self.iface.messageBar().pushMessage(
                     "Preview", "Nothing to preview for these settings",
-                    level=Qgis.Info, duration=3,
+                    level=Qgis.MessageLevel.Info, duration=3,
                 )
                 return
             self._write_preview(
@@ -2544,7 +2515,7 @@ class SGTool:
             )
         except Exception as e:
             self.iface.messageBar().pushMessage(
-                "Preview", str(e), level=Qgis.Warning, duration=5
+                "Preview", str(e), level=Qgis.MessageLevel.Warning, duration=5
             )
 
     def _write_preview(self, grid, gt, src, layer_name, std_clip=True):
@@ -2600,7 +2571,7 @@ class SGTool:
 
     def procRTP_E(self, sgtool_instance=None):
         if self.RTE_P_inc == "0" and self.RTE_P_dec == "0":
-            self._notify("You need to define Inc and Dec first!", Qgis.Warning, 15)
+            self._notify("You need to define Inc and Dec first!", Qgis.MessageLevel.Warning, 15)
         else:
             if self.RTE_P_type == "RTP":
                 self.new_grid = self.processor.reduction_to_pole(
@@ -2631,7 +2602,7 @@ class SGTool:
         if inc_corners is None:
             self._notify(
                 "Var. RTP: could not compute IGRF corners — check layer CRS and date.",
-                Qgis.Warning, 15,
+                Qgis.MessageLevel.Warning, 15,
             )
             return
 
@@ -2701,7 +2672,7 @@ class SGTool:
             height = float(self.cont_height) / ave_dxdy
             self._notify(
                 "Height roughly converted to metres, since this is a geographic projection",
-                Qgis.Success,
+                Qgis.MessageLevel.Success,
                 15,
             )
         else:
@@ -2750,7 +2721,7 @@ class SGTool:
         if self._is_geographic():
             self._notify(
                 "Vertical integration requires a metre-based projection system",
-                Qgis.Warning,
+                Qgis.MessageLevel.Warning,
                 15,
             )
         else:
@@ -2848,7 +2819,7 @@ class SGTool:
         if self._is_geographic():
             self._notify(
                 "This is a geographic projection, you need to convert it to a projected CRS",
-                Qgis.Warning,
+                Qgis.MessageLevel.Warning,
                 15,
             )
             return False
@@ -2994,7 +2965,7 @@ class SGTool:
 
             self._notify(
                 "Euler Solutions saved to same directory as input grid",
-                Qgis.Success,
+                Qgis.MessageLevel.Success,
                 15,
             )
 
@@ -3300,7 +3271,7 @@ class SGTool:
                     "MRVBF needs a projected raster with cell sizes in metres. "
                     "Reproject the grid to a projected CRS and try again."
                 ),
-                Qgis.Warning,
+                Qgis.MessageLevel.Warning,
                 15,
             )
             return
@@ -3439,7 +3410,7 @@ class SGTool:
             except OSError:
                 self.iface.messageBar().pushMessage(
                     "Couldn't overwrite " + raster_path,
-                    level=Qgis.Warning,
+                    level=Qgis.MessageLevel.Warning,
                     duration=15,
                 )
                 return -1
@@ -3483,7 +3454,7 @@ class SGTool:
         if layer is None:
             self.iface.messageBar().pushMessage(
                 "SGTool", self.tr("There is no polygon layer to clip to: load one first"),
-                level=Qgis.Warning, duration=10,
+                level=Qgis.MessageLevel.Warning, duration=10,
             )
             return
         project = QgsProject.instance()
@@ -3512,7 +3483,7 @@ class SGTool:
         except Exception as e:
             progress.close()
             self.iface.messageBar().pushMessage(
-                "SGTool", self.tr("Clipping failed: %s") % e, level=Qgis.Critical, duration=15,
+                "SGTool", self.tr("Clipping failed: %s") % e, level=Qgis.MessageLevel.Critical, duration=15,
             )
             return
         finally:
@@ -3520,16 +3491,16 @@ class SGTool:
             progress.close()
 
         for name, message in job.errors:
-            QgsMessageLog.logMessage(f"{name}: {message}", "SGTool", Qgis.Warning)
+            QgsMessageLog.logMessage(f"{name}: {message}", "SGTool", Qgis.MessageLevel.Warning)
         for name, why in job.kept + job.skipped:
-            QgsMessageLog.logMessage(f"{name}: {why}", "SGTool", Qgis.Info)
+            QgsMessageLog.logMessage(f"{name}: {why}", "SGTool", Qgis.MessageLevel.Info)
         if job.cancelled:
             self.iface.messageBar().pushMessage(
                 "SGTool", self.tr("Clipping cancelled; no project was written"),
-                level=Qgis.Warning, duration=10,
+                level=Qgis.MessageLevel.Warning, duration=10,
             )
             return
-        level = Qgis.Success if not job.errors else Qgis.Warning
+        level = Qgis.MessageLevel.Success if not job.errors else Qgis.MessageLevel.Warning
         text = job.summary()
         if job.errors:
             text += " (see the SGTool messages log for the failures)"
@@ -3546,7 +3517,7 @@ class SGTool:
         if layer.crs().isGeographic():
             self.iface.messageBar().pushMessage(
                 "This is a geographic projection, you need to convert it to a projected CRS",
-                level=Qgis.Warning,
+                level=Qgis.MessageLevel.Warning,
                 duration=15,
             )
             return False
@@ -3646,7 +3617,7 @@ class SGTool:
                 )
         self.iface.messageBar().pushMessage(
             "Worms saved to same directory as original grid",
-            level=Qgis.Success,
+            level=Qgis.MessageLevel.Success,
             duration=15,
         )
 
@@ -3687,7 +3658,7 @@ class SGTool:
         else:
             self.iface.messageBar().pushMessage(
                 "Error: Path Incorrect",
-                level=Qgis.Critical,
+                level=Qgis.MessageLevel.Critical,
                 duration=15,
             )
 
@@ -3718,7 +3689,7 @@ class SGTool:
         else:
             self.iface.messageBar().pushMessage(
                 "Error: Path Incorrect",
-                level=Qgis.Critical,
+                level=Qgis.MessageLevel.Critical,
                 duration=15,
             )
 
@@ -3772,7 +3743,7 @@ class SGTool:
         if self._is_geographic() and length > 100:
             self._notify(
                 "Since this is a geographic projection, you need to specify lengths in degrees",
-                Qgis.Warning,
+                Qgis.MessageLevel.Warning,
                 15,
             )
             return False
@@ -4195,7 +4166,7 @@ class SGTool:
                 self.iface.messageBar().pushMessage(
                     "SGTool",
                     "An output could not be saved (see the Python console)",
-                    level=Qgis.Warning, duration=10,
+                    level=Qgis.MessageLevel.Warning, duration=10,
                 )
         if keep_entry is not None:
             flag = keep_entry[0]
@@ -4347,14 +4318,14 @@ class SGTool:
         rgb_path = self.dlg.lineEdit_2_loadGridPath_2.text()
         if not rgb_path or not os.path.exists(rgb_path):
             self.iface.messageBar().pushMessage(
-                "SGTool", "No RGB grid loaded", level=Qgis.Warning, duration=5
+                "SGTool", "No RGB grid loaded", level=Qgis.MessageLevel.Warning, duration=5
             )
             return
 
         ds = gdal.Open(rgb_path)
         if ds is None or ds.RasterCount < 3:
             self.iface.messageBar().pushMessage(
-                "SGTool", "Grid must have at least 3 bands", level=Qgis.Warning, duration=5
+                "SGTool", "Grid must have at least 3 bands", level=Qgis.MessageLevel.Warning, duration=5
             )
             return
 
@@ -4378,7 +4349,7 @@ class SGTool:
 
         if px < 0 or py < 0 or px >= ds.RasterXSize or py >= ds.RasterYSize:
             self.iface.messageBar().pushMessage(
-                "SGTool", "Click is outside image extent", level=Qgis.Warning, duration=5
+                "SGTool", "Click is outside image extent", level=Qgis.MessageLevel.Warning, duration=5
             )
             return
 
@@ -4425,7 +4396,7 @@ class SGTool:
         if LUT_list == "":
             self.iface.messageBar().pushMessage(
                 "First define a CSS Colour list <a href='https://matplotlib.org/stable/gallery/color/named_colors.html#css-colors'> (See here for list of colours)</a>",
-                level=Qgis.Info,
+                level=Qgis.MessageLevel.Info,
                 duration=15,
             )
             return
@@ -4467,7 +4438,7 @@ class SGTool:
             elif RGBGridPath_gray != -3:
                 self.iface.messageBar().pushMessage(
                     "Conversion failed, check CSS colour names",
-                    level=Qgis.Warning,
+                    level=Qgis.MessageLevel.Warning,
                     duration=15,
                 )
 
@@ -4529,13 +4500,13 @@ class SGTool:
                     epsg = 4326
                     self.iface.messageBar().pushMessage(
                         "No CRS found in XML, default to 4326",
-                        level=Qgis.Warning,
+                        level=Qgis.MessageLevel.Warning,
                         duration=15,
                     )
                 else:
                     self.iface.messageBar().pushMessage(
                         "CRS Read from XML as " + str(epsg),
-                        level=Qgis.Info,
+                        level=Qgis.MessageLevel.Info,
                         duration=15,
                     )
                 # self.dlg.mQgsProjectionSelectionWidget.setCrs(QgsCoordinateReferenceSystem('EPSG:'+str(epsg)))
@@ -4635,7 +4606,7 @@ class SGTool:
             except:
                 self.iface.messageBar().pushMessage(
                     "Couldn't delete layer, may be open in another program? On windows files on non-C: drive may be hard to delete",
-                    level=Qgis.Warning,
+                    level=Qgis.MessageLevel.Warning,
                     duration=15,
                 )
                 return -1
@@ -4747,13 +4718,13 @@ class SGTool:
             return
         if self.diskGridPath == "":
             self.iface.messageBar().pushMessage(
-                "You need to select a file first", level=Qgis.Warning, duration=3
+                "You need to select a file first", level=Qgis.MessageLevel.Warning, duration=3
             )
             return
         if not os.path.exists(self.diskGridPath):
             self.iface.messageBar().pushMessage(
                 "File: " + self.diskGridPath + " not found",
-                level=Qgis.Warning,
+                level=Qgis.MessageLevel.Warning,
                 duration=3,
             )
             return
@@ -4819,7 +4790,7 @@ class SGTool:
             if not converted:
                 self.iface.messageBar().pushMessage(
                     "Sorry, can't read 'SHORT' or 'INT' data types at the moment",
-                    level=Qgis.Warning,
+                    level=Qgis.MessageLevel.Warning,
                     duration=30,
                 )
                 return
@@ -4995,7 +4966,7 @@ class SGTool:
             except Exception:
                 self.iface.messageBar().pushMessage(
                     "Couldn't delete layer, may be open in another program? On windows files on non-C: drive may be hard to delete",
-                    level=Qgis.Warning,
+                    level=Qgis.MessageLevel.Warning,
                     duration=15,
                 )
                 return -1
@@ -5131,7 +5102,7 @@ class SGTool:
         if not valid:
             self.iface.messageBar().pushMessage(
                 "This layer has an unrecognised coordinate reference system (CRS). Please set a valid CRS.",
-                level=Qgis.Warning,
+                level=Qgis.MessageLevel.Warning,
                 duration=30,
             )
         return valid
@@ -5729,7 +5700,7 @@ class SGTool:
 
             # show the dockwidget
             # TODO: fix to allow choice of dock location
-            # QT5 self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dlg)
+            # QT5 self.iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dlg)
             self.iface.addDockWidget(RightDockWidgetArea, self.dlg)
             # Find existing dock widgets in the right area
             right_docks = [
@@ -5761,28 +5732,28 @@ class SGTool:
 
             # Access the QgsMapLayerComboBox by its objectName
             self.dlg.mMapLayerComboBox_selectGrid.setFilters(
-                QgsMapLayerProxyModel.RasterLayer
+                QgsMapLayerProxyModel.Filter.RasterLayer
             )
             self.dlg.mMapLayerComboBox_selectGrid_Conv.setFilters(
-                QgsMapLayerProxyModel.RasterLayer
+                QgsMapLayerProxyModel.Filter.RasterLayer
             )
             self.dlg.mMapLayerComboBox_selectGrid_worms.setFilters(
-                QgsMapLayerProxyModel.RasterLayer
+                QgsMapLayerProxyModel.Filter.RasterLayer
             )
             self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setFilters(
-                QgsMapLayerProxyModel.RasterLayer
+                QgsMapLayerProxyModel.Filter.RasterLayer
             )
 
             self.dlg.mMapLayerComboBox_selectVectors.setFilters(
-                QgsMapLayerProxyModel.PointLayer | QgsMapLayerProxyModel.VectorLayer
+                QgsMapLayerProxyModel.Filter.PointLayer | QgsMapLayerProxyModel.Filter.VectorLayer
             )
 
             self.dlg.mMapLayerComboBox_selectGrid_3.setFilters(
-                QgsMapLayerProxyModel.PointLayer
+                QgsMapLayerProxyModel.Filter.PointLayer
             )
 
             self.dlg.mMapLayerComboBox_clip_polygon.setFilters(
-                QgsMapLayerProxyModel.PolygonLayer
+                QgsMapLayerProxyModel.Filter.PolygonLayer
             )
             self.dlg.pushButton_clip_all_layers.clicked.connect(self.procClipAllLayers)
 
@@ -6451,7 +6422,7 @@ class SGTool:
             )
         )
         # Check if the saving was successful
-        if write_result == QgsVectorFileWriter.NoError:
+        if write_result == QgsVectorFileWriter.WriterError.NoError:
             print(f"Layer successfully saved to {output_path}")
             return True
         else:
@@ -6492,7 +6463,7 @@ class SGTool:
         # Verify we have coordinate fields
         if x_field_name is None or y_field_name is None:
             self.iface.messageBar().pushMessage(
-                "Could not determine coordinate fields", level=Qgis.Warning, duration=3
+                "Could not determine coordinate fields", level=Qgis.MessageLevel.Warning, duration=3
             )
             return None
 
@@ -6536,7 +6507,7 @@ class SGTool:
         writer = QgsVectorFileWriter.create(
             output_file,
             fields,
-            QgsWkbTypes.Point,
+            QgsWkbTypes.Type.Point,
             crs,
             transform_context,
             writer_options,
@@ -6774,11 +6745,11 @@ class SGTool:
         # Open the 3-band TIF using GDAL
         dataset = gdal.Open(RGBGridPath, gdal.GA_ReadOnly)
         if not dataset:
-            self._notify("Unable to open the dataset.", Qgis.Warning, 15)
+            self._notify("Unable to open the dataset.", Qgis.MessageLevel.Warning, 15)
             return False, -3
 
         if dataset.RasterCount < 3:
-            self._notify("Data file must have at least 3 layers", Qgis.Warning, 15)
+            self._notify("Data file must have at least 3 layers", Qgis.MessageLevel.Warning, 15)
             return False, -3
 
         red = dataset.GetRasterBand(1).ReadAsArray().astype(float)
@@ -6854,7 +6825,7 @@ class SGTool:
             )
             self._notify(
                 "Unable to create the output dataset, maybe check projection is set?",
-                Qgis.Warning,
+                Qgis.MessageLevel.Warning,
                 15,
             )
             return False, -3
@@ -7236,7 +7207,7 @@ class SGTool:
 
         if (
             isinstance(line_layer, QgsVectorLayer)
-            and line_layer.geometryType() == QgsWkbTypes.LineGeometry
+            and line_layer.geometryType() == QgsWkbTypes.GeometryType.LineGeometry
             and self.dlg.mMapLayerComboBox_selectGrid_worms.currentText() != ""
         ):
             raster_layer_name = (
@@ -7249,7 +7220,7 @@ class SGTool:
             plot_layer_name = raster_layer_name
         elif (
             isinstance(line_layer, QgsVectorLayer)
-            and line_layer.geometryType() == QgsWkbTypes.PointGeometry
+            and line_layer.geometryType() == QgsWkbTypes.GeometryType.PointGeometry
         ):
             spacing = self.dlg.doubleSpinBox_wtmm_spacing.value()
             if self.dlg.doubleSpinBox_wtmm_spacing.value() == 0:
@@ -7315,7 +7286,7 @@ class SGTool:
         if line_spacing == 0:
             self.iface.messageBar().pushMessage(
                 "Spacing must be non-zero for extraciton from grid, and ideally greater than grid cell size",
-                level=Qgis.Warning,
+                level=Qgis.MessageLevel.Warning,
                 duration=15,
             )
             return
@@ -7329,7 +7300,7 @@ class SGTool:
 
         if (
             isinstance(line_layer, QgsVectorLayer)
-            and line_layer.geometryType() == QgsWkbTypes.LineGeometry
+            and line_layer.geometryType() == QgsWkbTypes.GeometryType.LineGeometry
         ):
 
             # Find the specified raster layer
@@ -7356,7 +7327,7 @@ class SGTool:
                     line_layer.id(),
                     selectedFeaturesOnly=True,
                     featureLimit=-1,
-                    geometryCheck=QgsFeatureRequest.GeometryAbortOnInvalid,
+                    geometryCheck=QgsFeatureRequest.InvalidGeometryCheck.GeometryAbortOnInvalid,
                 ),
                 "DISTANCE": line_spacing,
                 "START_OFFSET": 0,
@@ -7683,7 +7654,7 @@ class SGTool:
 
             self.dlg.mFieldComboBox_data.setEnabled(True)
 
-            if line_layer.geometryType() == QgsWkbTypes.PointGeometry:
+            if line_layer.geometryType() == QgsWkbTypes.GeometryType.PointGeometry:
                 # Check if the layer has the LINE_ID field
                 if "LINE_ID" not in [
                     field.name() for field in line_layer.fields()
@@ -7710,7 +7681,7 @@ class SGTool:
                 # Add to combo box
                 self.dlg.mFieldComboBox_feature.addItems(unique_values)
                 self.dlg.mFieldComboBox_data.setLayer(line_layer)
-            elif line_layer.geometryType() == QgsWkbTypes.LineGeometry:
+            elif line_layer.geometryType() == QgsWkbTypes.GeometryType.LineGeometry:
                 self.dlg.mFieldComboBox_feature.clear()
                 self.dlg.mFieldComboBox_data.setEnabled(False)
                 unique_values = []
@@ -7733,10 +7704,10 @@ class OddPositiveIntegerValidator(QValidator):
         Validates the text input to allow only odd positive integers.
         """
         if not input_text:  # Allow empty input (to clear the field)
-            return QValidator.Intermediate, input_text, pos
+            return QValidator.State.Intermediate, input_text, pos
 
         if not input_text.isdigit():  # Only digits are allowed
-            return QValidator.Invalid, input_text, pos
+            return QValidator.State.Invalid, input_text, pos
 
         value = int(input_text)
         if value > 0 and value % 2 == 1:  # Check for positive odd numbers

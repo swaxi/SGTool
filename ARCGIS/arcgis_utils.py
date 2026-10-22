@@ -5,6 +5,7 @@ Tries arcpy first (inside ArcGIS Pro).  Falls back to osgeo.gdal when
 arcpy is not available so the GUI can also run stand-alone or in QGIS.
 """
 
+import logging
 import os
 import sys
 import numpy as np
@@ -322,7 +323,7 @@ def raster_header_info(path):
             try:
                 srs.AutoIdentifyEPSG()
             except Exception:
-                pass
+                logging.getLogger(__name__).debug("Ignored: ignored", exc_info=True)
             code = srs.GetAuthorityCode(None)
             if code and (srs.GetAuthorityName(None) or "").upper() == "EPSG":
                 authid = f"EPSG:{code}"
@@ -335,7 +336,7 @@ def raster_header_info(path):
                             authid = f"EPSG:{match.GetAuthorityCode(None)}"
                             break
                 except Exception:
-                    pass
+                    logging.getLogger(__name__).debug("Ignored: ignored", exc_info=True)
         return {
             "width": width, "height": height,
             "cell_x": abs(gt[1]), "cell_y": abs(gt[5]),
@@ -653,7 +654,7 @@ def map_view_to_cells(view, raster_path, clip=True):
         try:
             src.MorphFromESRI()
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Ignored: ignored", exc_info=True)
     if (epsg or view.get("wkt")) and wkt and not src.IsSame(dst):
         for ref in (src, dst):
             if hasattr(osr, "OAMS_TRADITIONAL_GIS_ORDER"):  # x = easting / longitude

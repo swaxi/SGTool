@@ -26,7 +26,31 @@ imported (lazily) to embed in / read GeoTIFFs.
 import os
 import html
 import datetime
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # nosec B405 - building trees; parsing goes via _safe_fromstring
+
+try:  # hardened parser if available (not bundled with QGIS)
+    from defusedxml import ElementTree as _SafeET
+except ImportError:
+    _SafeET = None
+
+
+
+def _safe_fromstring(data):
+    """Parse XML text/bytes, refusing DTDs and entity declarations (entity-expansion attacks)."""
+    if _SafeET is not None:
+        return _SafeET.fromstring(data)
+    raw = data.encode("utf-8") if isinstance(data, str) else data
+    low = raw.lower()
+    if b"<!doctype" in low or b"<!entity" in low:
+        raise ET.ParseError("DTD / entity declarations are not allowed")
+    return ET.fromstring(raw)  # nosec B314 - DOCTYPE/ENTITY rejected above
+
+
+def parse_xml_file(path):
+    """Root element of an XML file, parsed safely."""
+    with open(path, "rb") as f:
+        return _safe_fromstring(f.read())
+
 
 SCHEMA_VERSION = "1"
 SIDECAR_SUFFIX = ".sgt.xml"
@@ -76,7 +100,7 @@ def sidecar_status(output_path, tolerance_seconds=2.0):
     if not os.path.exists(path) or not os.path.exists(output_path):
         return "missing"
     try:
-        out = ET.parse(path).getroot().find("output")
+        out = parse_xml_file(path).find("output")
         size = out.findtext("sizeBytes") if out is not None else None
         modified = out.findtext("modified") if out is not None else None
         if size is None or modified is None:
@@ -130,7 +154,7 @@ def _read_embedded(path):
         ds = gdal.Open(str(path))
         text = ds.GetMetadataItem(GDAL_ITEM, GDAL_DOMAIN) if ds is not None else None
         ds = None
-        return ET.fromstring(text) if text else None
+        return _safe_fromstring(text) if text else None
     except Exception:
         return None
 
@@ -139,7 +163,7 @@ def _read_sidecar(path):
     try:
         sc = sidecar_path(path)
         if os.path.isfile(sc) and os.path.getsize(sc) <= MAX_EMBED_BYTES:
-            return ET.parse(sc).getroot()
+            return parse_xml_file(sc)
     except (OSError, ET.ParseError):
         pass
     return None
@@ -183,7 +207,7 @@ def _embed_xml_file(parent, kind, file_path):
             return
         node = ET.SubElement(parent, "sourceXml", {"type": kind, "file": file_path})
         try:
-            embedded = ET.parse(file_path).getroot()
+            embedded = parse_xml_file(file_path)
             if kind == "gdal-pam":
                 _drop_histograms(embedded)
             node.append(embedded)

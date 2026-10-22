@@ -43,11 +43,13 @@ REPLAY_SPEC = dict(
 def _read_history(path):
     """Provenance of a grid, or of an exported .sgt.xml file."""
     if path.lower().endswith(".xml"):
-        import xml.etree.ElementTree as ET
+        from xml.etree.ElementTree import ParseError  # nosec B405 - exception type only
+
+        from .calcs.sgt_metadata import parse_xml_file
 
         try:
-            return ET.parse(path).getroot()
-        except (OSError, ET.ParseError) as e:
+            return parse_xml_file(path)
+        except (OSError, ParseError) as e:
             raise QgsProcessingException(f"Could not read {path}: {e}")
     return read_sgt_metadata(path)
 

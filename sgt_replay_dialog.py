@@ -55,7 +55,7 @@ class ReplayDialog(QDialog):
         row = QHBoxLayout()
         row.addWidget(QLabel(tr("Apply to grid:")))
         self.target = QgsMapLayerComboBox()
-        self.target.setFilters(QgsMapLayerProxyModel.RasterLayer)
+        self.target.setFilters(QgsMapLayerProxyModel.Filter.RasterLayer)
         row.addWidget(self.target, 1)
         layout.addLayout(row)
 

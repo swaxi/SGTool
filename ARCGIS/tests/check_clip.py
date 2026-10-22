@@ -9,6 +9,7 @@ It builds a small project in a temporary folder (from Esri's own empty project t
 it, reopens the saved copy, and prints PASS / FAIL per check. It needs arcpy and an ArcGIS Pro
 licence (Basic is enough), but not a running copy of ArcGIS Pro.
 """
+import logging
 import os, sys, shutil, tempfile, importlib.machinery, importlib.util
 import numpy as np
 
@@ -48,7 +49,7 @@ for lyr in list(the_map.listLayers()):
     try:
         the_map.removeLayer(lyr)
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("Ignored: ignored", exc_info=True)
 
 # ---- the data: points, lines, two polygons in a geodatabase, and a grid
 src_gdb = os.path.join(DATA, "source.gdb")

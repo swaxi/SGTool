@@ -69,10 +69,7 @@ class SGToolDockWidget(QDockWidget):
         root_layout.setSpacing(0)
 
         self.tabWidget = QTabWidget()
-        try:
-            self.tabWidget.setTabShape(QTabWidget.TabShape.Triangular)
-        except AttributeError:
-            self.tabWidget.setTabShape(QTabWidget.Triangular)
+        self.tabWidget.setTabShape(QTabWidget.TabShape.Triangular)
         self.tabWidget.setStyleSheet(TAB_STYLE)
         self.tabWidget.setUsesScrollButtons(False)
 
@@ -99,9 +96,9 @@ class SGToolDockWidget(QDockWidget):
         # no longer fits), leaving more room for the map canvas on small screens.
         shell = QScrollArea()
         shell.setWidgetResizable(True)
-        shell.setFrameShape(QFrame.NoFrame)
-        shell.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        shell.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        shell.setFrameShape(QFrame.Shape.NoFrame)
+        shell.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        shell.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         shell.setWidget(root)
         self.setWidget(shell)
 
@@ -112,9 +109,9 @@ class SGToolDockWidget(QDockWidget):
     def _scroll_wrap(content_widget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setWidget(content_widget)
         return scroll
 
@@ -197,11 +194,11 @@ class SGToolDockWidget(QDockWidget):
         tg.setSpacing(4)
 
         self.label_11 = QLabel(_tr("Select Grid"))
-        self.label_11.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_11.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.mMapLayerComboBox_selectGrid = QgsMapLayerComboBox()
 
         self.label_38 = QLabel(_tr("Load Grid"))
-        self.label_38.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_38.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_2_loadGridPath = QLineEdit()
         self.pushButton_2_selectGrid = QPushButton("...")
         self.pushButton_2_selectGrid.setFixedWidth(30)
@@ -242,14 +239,14 @@ class SGToolDockWidget(QDockWidget):
         bl.setSpacing(6)
 
         self.label_37 = QLabel(_tr("Max FFT Buffer (pixels)"))
-        self.label_37.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_37.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_13_max_buffer = QLineEdit("5000")
         self.lineEdit_13_max_buffer.setFixedWidth(55)
 
         self.label_27 = QLabel(_tr("Version"))
-        self.label_27.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
+        self.label_27.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
         self.version_label = QLabel("0.1")
-        self.version_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        self.version_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
 
         self.label_41_units = QLabel(_tr("Units"))
 
@@ -274,9 +271,9 @@ class SGToolDockWidget(QDockWidget):
         bl.setContentsMargins(0, 2, 0, 0)
         bl.setSpacing(6)
         version_text = QLabel(_tr("Version"))
-        version_text.setAlignment(Qt.AlignVCenter | Qt.AlignRight)
+        version_text.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
         version = QLabel(self._version_labels[0].text())
-        version.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        version.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
         info = QLabel(self._info_labels[0].text())
         bl.addWidget(version_text)
         bl.addWidget(version)
@@ -318,17 +315,17 @@ class SGToolDockWidget(QDockWidget):
 
         # Row 1: Inc / Dec / Int / date
         self.label_15 = QLabel(_tr("Inc"))
-        self.label_15.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_15.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_6_inc = QLineEdit("0")
         self.lineEdit_6_inc.setFixedWidth(45)
 
         self.label_14 = QLabel(_tr("Dec"))
-        self.label_14.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_14.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_5_dec = QLineEdit("0")
         self.lineEdit_5_dec.setFixedWidth(45)
 
         self.label_33 = QLabel(_tr("Int"))
-        self.label_33.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_33.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_6_int = QLineEdit("50000")
         self.lineEdit_6_int.setFixedWidth(60)
 
@@ -350,23 +347,23 @@ class SGToolDockWidget(QDockWidget):
 
         # Row 2: ● PGrav
         self.label_26 = QLabel("●")
-        self.label_26.setAlignment(Qt.AlignCenter)
+        self.label_26.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.checkBox_4_PGrav = QCheckBox(
             _tr("Vertical Integration (apply to RTE/P result to get Pseudo Gravity)"))
         g.addLayout(self._bullet_check(self.label_26, self.checkBox_4_PGrav), 2, 0, 1, 5)
 
         # Row 3: ● Continuation / Direction / Height
         self.label_28 = QLabel("●")
-        self.label_28.setAlignment(Qt.AlignCenter)
+        self.label_28.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.checkBox_9_continuation = QCheckBox(_tr("Continuation"))
 
         self.label_20 = QLabel(_tr("Direction"))
-        self.label_20.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_20.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.comboBox_2_continuationDirection = QComboBox()
         self.comboBox_2_continuationDirection.setFixedWidth(70)
 
         self.label_21 = QLabel(_tr("Height (m)"))
-        self.label_21.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_21.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_10_continuationHeight = QLineEdit("500")
         self.lineEdit_10_continuationHeight.setFixedWidth(70)
 
@@ -400,24 +397,24 @@ class SGToolDockWidget(QDockWidget):
         # Row 1: Direction filter
         self.checkBox_3_DirClean = QCheckBox(_tr("Direction Cos/Butterw."))
         self.label_12 = QLabel(_tr("Azimuth"))
-        self.label_12.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_12.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_3_azimuth = QLineEdit("0")
         self.lineEdit_3_azimuth.setFixedWidth(35)
         self.label_13 = QLabel(_tr("Line Spacing min/max (proj units)"))
-        self.label_13.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_13.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_3_DC_wavelength = QLineEdit("1000")
         self.lineEdit_3_DC_wavelength.setFixedWidth(55)
         self.lineEdit_3_DC_maxspacing = QLineEdit("")
         self.lineEdit_3_DC_maxspacing.setPlaceholderText(_tr("max"))
         self.lineEdit_3_DC_maxspacing.setFixedWidth(55)
         self.label_16 = QLabel(_tr("Scale"))
-        self.label_16.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_16.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         # (1 is about right since the filter keeps both halves of the spectrum;
         # it used to be 3 to make up for losing half the amplitude)
         self.lineEdit_3_DC_scale = QLineEdit("1")
         self.lineEdit_3_DC_scale.setFixedWidth(35)
         self.label_wedge = QLabel(_tr("Wedge"))
-        self.label_wedge.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_wedge.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_3_DC_width = QLineEdit("45")
         self.lineEdit_3_DC_width.setFixedWidth(35)
         self.lineEdit_3_DC_width.setToolTip(
@@ -460,18 +457,18 @@ class SGToolDockWidget(QDockWidget):
 
         # Row 3: Band Pass
         self.label_29 = QLabel("●")
-        self.label_29.setAlignment(Qt.AlignCenter)
+        self.label_29.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.checkBox_10_bandPass = QCheckBox(_tr("Band Pass"))
         self.label_22 = QLabel(_tr("Low"))
-        self.label_22.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_22.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_12_bandPassLow = QLineEdit("50000")
         self.lineEdit_12_bandPassLow.setFixedWidth(60)
         self.label_23 = QLabel(_tr("High (proj units)"))
-        self.label_23.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_23.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_11_bandPassHigh = QLineEdit("5000")
         self.lineEdit_11_bandPassHigh.setFixedWidth(55)
         self.label_39 = QLabel(_tr("Width"))
-        self.label_39.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_39.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_3_BP_width = QLineEdit("5000")
         self.lineEdit_3_BP_width.setFixedWidth(55)
 
@@ -485,18 +482,18 @@ class SGToolDockWidget(QDockWidget):
 
         # Row 4: High/Low Pass
         self.label_32 = QLabel("●")
-        self.label_32.setAlignment(Qt.AlignCenter)
+        self.label_32.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.checkBox_10_freqCut = QCheckBox(_tr("High/Low Pass"))
         self.label_35 = QLabel(_tr("Accept"))
-        self.label_35.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_35.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.comboBox_2_FreqCutType = QComboBox()
         self.comboBox_2_FreqCutType.setFixedWidth(80)
         self.label_34 = QLabel(_tr("Cutoff (proj units)"))
-        self.label_34.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_34.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_12_FreqPass = QLineEdit("5000")
         self.lineEdit_12_FreqPass.setFixedWidth(55)
         self.label_69 = QLabel(_tr("Width"))
-        self.label_69.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_69.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_3_HLP_width = QLineEdit("5000")
         self.lineEdit_3_HLP_width.setFixedWidth(55)
 
@@ -510,10 +507,10 @@ class SGToolDockWidget(QDockWidget):
 
         # Row 5: AGC
         self.label_30 = QLabel("●")
-        self.label_30.setAlignment(Qt.AlignCenter)
+        self.label_30.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.checkBox_11_1vd_agc = QCheckBox(_tr("Automatic Gain Control"))
         self.label_24 = QLabel(_tr("Window (pixels)"))
-        self.label_24.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_24.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_13_agc_window = QLineEdit("10")
         self.lineEdit_13_agc_window.setFixedWidth(45)
 
@@ -534,14 +531,14 @@ class SGToolDockWidget(QDockWidget):
 
         # Row 0: Derivative
         self.label_25 = QLabel("●")
-        self.label_25.setAlignment(Qt.AlignCenter)
+        self.label_25.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.checkBox_6_derivative = QCheckBox(_tr("Derivative"))
         self.label_18 = QLabel(_tr("Direction"))
-        self.label_18.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_18.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.comboBox_derivDirection = QComboBox()
         self.comboBox_derivDirection.setFixedWidth(60)
         self.label_19 = QLabel(_tr("Power"))
-        self.label_19.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_19.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_9_derivePower = QLineEdit("1")
         self.lineEdit_9_derivePower.setFixedWidth(55)
 
@@ -554,14 +551,14 @@ class SGToolDockWidget(QDockWidget):
 
         # Row 1: Total Horizontal Gradient
         self.label_40 = QLabel("●")
-        self.label_40.setAlignment(Qt.AlignCenter)
+        self.label_40.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.checkBox_11_tot_hz_grad = QCheckBox(_tr("Total Horizontal Gradient"))
         g.addWidget(self.label_40,               1, 0)
         g.addWidget(self.checkBox_11_tot_hz_grad, 1, 1, 1, 3)
 
         # Row 2: Tilt Angle
         self.label_41 = QLabel("●")
-        self.label_41.setAlignment(Qt.AlignCenter)
+        self.label_41.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.checkBox_7_tiltDerivative = QCheckBox(_tr("Tilt Angle"))
         g.addWidget(self.label_41,               2, 0)
         g.addWidget(self.checkBox_7_tiltDerivative, 2, 1, 1, 3)
@@ -590,7 +587,7 @@ class SGToolDockWidget(QDockWidget):
         tl = QHBoxLayout(top)
         tl.setContentsMargins(0, 0, 0, 0)
         self.label_47 = QLabel(_tr("Select Grid"))
-        self.label_47.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_47.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.mMapLayerComboBox_selectGrid_Conv = QgsMapLayerComboBox()
         tl.addWidget(self.label_47)
         tl.addWidget(self.mMapLayerComboBox_selectGrid_Conv, 1)
@@ -629,7 +626,7 @@ class SGToolDockWidget(QDockWidget):
         g.setSpacing(4)
 
         hdr_lbl = QLabel(_tr("Filter size (odd numbers)"))
-        hdr_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        hdr_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         # Mean
         self.checkBox_Mean = QCheckBox(_tr("Mean"))
@@ -642,7 +639,7 @@ class SGToolDockWidget(QDockWidget):
         # Median
         self.checkBox_Median = QCheckBox(_tr("Median"))
         lbl_med = QLabel(_tr("Filter size (odd numbers)"))
-        lbl_med.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        lbl_med.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_Median_size = QLineEdit("3")
         self.lineEdit_Median_size.setFixedWidth(50)
         g.addWidget(self.checkBox_Median,     1, 0)
@@ -652,7 +649,7 @@ class SGToolDockWidget(QDockWidget):
         # Gaussian
         self.checkBox_Gaussian = QCheckBox(_tr("Gaussian"))
         self.label_65 = QLabel(_tr("Sigma"))
-        self.label_65.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_65.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_Gaussian_Sigma = QLineEdit("1")
         self.lineEdit_Gaussian_Sigma.setFixedWidth(50)
         g.addWidget(self.checkBox_Gaussian,   2, 0)
@@ -662,7 +659,7 @@ class SGToolDockWidget(QDockWidget):
         # Directional
         self.checkBox_Directional = QCheckBox(_tr("Directional"))
         self.label_36 = QLabel(_tr("Direction"))
-        self.label_36.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_36.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.comboBox_Dir_dir = QComboBox()
         self.comboBox_Dir_dir.setFixedWidth(70)
         g.addWidget(self.checkBox_Directional, 3, 0)
@@ -672,11 +669,11 @@ class SGToolDockWidget(QDockWidget):
         # Sun Shading
         self.checkBox_SunShading = QCheckBox(_tr("Sun Shading"))
         self.label_64 = QLabel(_tr("Azimuth"))
-        self.label_64.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_64.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_SunSh_Az = QLineEdit("-45")
         self.lineEdit_SunSh_Az.setFixedWidth(50)
         self.label_68 = QLabel(_tr("Zenith"))
-        self.label_68.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_68.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_SunSh_Zn = QLineEdit("45")
         self.lineEdit_SunSh_Zn.setFixedWidth(50)
         self.checkBox_relief = QCheckBox(_tr("relief"))
@@ -702,7 +699,7 @@ class SGToolDockWidget(QDockWidget):
 
         # Window size row
         lbl_ws = QLabel(_tr("Window size for all filters (odd numbers)"))
-        lbl_ws.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        lbl_ws.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.label_78 = lbl_ws
         self.lineEdit_SS_Window = QLineEdit("3")
         self.lineEdit_SS_Window.setFixedWidth(50)
@@ -735,7 +732,7 @@ class SGToolDockWidget(QDockWidget):
         self.checkBox_SS_Streamline   = QCheckBox(_tr("Streamline Length"))
 
         lbl_aniso_thr = QLabel(_tr("Aniso thresh:"))
-        lbl_aniso_thr.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        lbl_aniso_thr.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.doubleSpinBox_SS_AnisoThresh = QDoubleSpinBox()
         self.doubleSpinBox_SS_AnisoThresh.setRange(0.0, 1.0)
         self.doubleSpinBox_SS_AnisoThresh.setSingleStep(0.05)
@@ -743,7 +740,7 @@ class SGToolDockWidget(QDockWidget):
         self.doubleSpinBox_SS_AnisoThresh.setFixedWidth(55)
 
         lbl_ang_tol = QLabel(_tr("Angle tol°:"))
-        lbl_ang_tol.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        lbl_ang_tol.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.doubleSpinBox_SS_AngleTol = QDoubleSpinBox()
         self.doubleSpinBox_SS_AngleTol.setRange(1.0, 90.0)
         self.doubleSpinBox_SS_AngleTol.setSingleStep(5.0)
@@ -751,7 +748,7 @@ class SGToolDockWidget(QDockWidget):
         self.doubleSpinBox_SS_AngleTol.setFixedWidth(55)
 
         lbl_steps = QLabel(_tr("Max steps:"))
-        lbl_steps.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        lbl_steps.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.spinBox_SS_MaxSteps = QSpinBox()
         self.spinBox_SS_MaxSteps.setRange(10, 2000)
         self.spinBox_SS_MaxSteps.setSingleStep(50)
@@ -759,7 +756,7 @@ class SGToolDockWidget(QDockWidget):
         self.spinBox_SS_MaxSteps.setFixedWidth(55)
 
         lbl_search_r = QLabel(_tr("Search r:"))
-        lbl_search_r.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        lbl_search_r.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.spinBox_SS_SearchRadius = QSpinBox()
         self.spinBox_SS_SearchRadius.setRange(1, 10)
         self.spinBox_SS_SearchRadius.setSingleStep(1)
@@ -781,32 +778,32 @@ class SGToolDockWidget(QDockWidget):
         self.checkBox_MRVBF = QCheckBox(_tr("MRVBF / MRRTF / Slope"))
 
         self.label_mrvbf_tslope = QLabel(_tr("Slope Threshold"))
-        self.label_mrvbf_tslope.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_mrvbf_tslope.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_MRVBF_tslope = QLineEdit("16")
         self.lineEdit_MRVBF_tslope.setFixedWidth(55)
 
         self.label_mrvbf_tpctlv = QLabel(_tr("Pctl Lowness"))
-        self.label_mrvbf_tpctlv.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_mrvbf_tpctlv.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_MRVBF_tpctlv = QLineEdit("0.40")
         self.lineEdit_MRVBF_tpctlv.setFixedWidth(55)
 
         self.label_mrvbf_tpctlr = QLabel(_tr("Pctl Upness"))
-        self.label_mrvbf_tpctlr.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_mrvbf_tpctlr.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_MRVBF_tpctlr = QLineEdit("0.35")
         self.lineEdit_MRVBF_tpctlr.setFixedWidth(55)
 
         self.label_mrvbf_pslope = QLabel(_tr("Slope Shape"))
-        self.label_mrvbf_pslope.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_mrvbf_pslope.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_MRVBF_pslope = QLineEdit("4")
         self.lineEdit_MRVBF_pslope.setFixedWidth(55)
 
         self.label_mrvbf_ppctl = QLabel(_tr("Pctl Shape"))
-        self.label_mrvbf_ppctl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_mrvbf_ppctl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_MRVBF_ppctl = QLineEdit("3")
         self.lineEdit_MRVBF_ppctl.setFixedWidth(55)
 
         self.label_mrvbf_maxres = QLabel(_tr("Max Res %"))
-        self.label_mrvbf_maxres.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_mrvbf_maxres.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_MRVBF_maxres = QLineEdit("100")
         self.lineEdit_MRVBF_maxres.setFixedWidth(55)
 
@@ -836,9 +833,9 @@ class SGToolDockWidget(QDockWidget):
         g.setSpacing(4)
 
         lbl_comp = QLabel(_tr("Number of Components (0=all)"))
-        lbl_comp.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        lbl_comp.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         lbl_comp2 = QLabel(_tr("Number of Components (0=all)"))
-        lbl_comp2.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        lbl_comp2.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         self.checkBox_PCA = QCheckBox(_tr("Principal Component Analysis"))
         self.mQgsSpinBox_PCA = QgsSpinBox()
@@ -869,7 +866,7 @@ class SGToolDockWidget(QDockWidget):
         self.checkBox_ED = QCheckBox(_tr("Euler Deconvolution"))
         self.checkBox_ED_Stats = QCheckBox(_tr("Stats"))
         self.label_79 = QLabel(_tr("Threshold"))
-        self.label_79.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_79.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.doubleSpinBox_ED_Threshold = QDoubleSpinBox()
         self.doubleSpinBox_ED_Threshold.setDecimals(5)
         self.doubleSpinBox_ED_Threshold.setMinimum(0.00001)
@@ -877,7 +874,7 @@ class SGToolDockWidget(QDockWidget):
         self.doubleSpinBox_ED_Threshold.setSingleStep(0.1)
         self.doubleSpinBox_ED_Threshold.setValue(0.1)
         self.label_80 = QLabel(_tr("Window (odd)"))
-        self.label_80.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_80.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_ED_Window = QLineEdit("5")
         self.lineEdit_ED_Window.setFixedWidth(45)
 
@@ -947,7 +944,7 @@ class SGToolDockWidget(QDockWidget):
 
         # Row 0: point/line data file
         self.label_53 = QLabel(_tr("Point/Line data"))
-        self.label_53.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_53.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_loadPointsPath = QLineEdit()
         self.pushButton_selectPoints = QPushButton("...")
         self.pushButton_selectPoints.setFixedWidth(30)
@@ -963,7 +960,7 @@ class SGToolDockWidget(QDockWidget):
 
         # Row 2: X column
         self.label_44 = QLabel("long_x")
-        self.label_44.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_44.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.comboBox_grid_x = QComboBox()
         self.comboBox_grid_x.setEnabled(False)
         g.addWidget(self.label_44,       2, 0)
@@ -971,7 +968,7 @@ class SGToolDockWidget(QDockWidget):
 
         # Row 3: Y column
         self.label_45 = QLabel("lat_y")
-        self.label_45.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_45.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.comboBox_grid_y = QComboBox()
         self.comboBox_grid_y.setEnabled(False)
 
@@ -999,10 +996,10 @@ class SGToolDockWidget(QDockWidget):
 
         # Select points layer + data field
         self.label_54 = QLabel(_tr("Select points layer"))
-        self.label_54.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_54.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.mMapLayerComboBox_selectGrid_3 = QgsMapLayerComboBox()
         self.label_55 = QLabel(_tr("Select Data Field"))
-        self.label_55.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_55.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.comboBox_select_grid_data_field = QComboBox()
 
         g.addWidget(self.label_54,                       0, 0)
@@ -1012,7 +1009,7 @@ class SGToolDockWidget(QDockWidget):
 
         # Cell size + # cells
         self.label_77 = QLabel(_tr("Cell Size\n(proj Units)"))
-        self.label_77.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_77.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.doubleSpinBox_cellsize = QDoubleSpinBox()
         self.doubleSpinBox_cellsize.setDecimals(6)
         self.doubleSpinBox_cellsize.setMinimum(0.000001)
@@ -1023,10 +1020,10 @@ class SGToolDockWidget(QDockWidget):
         self.label_51 = QLabel(_tr("# Cells"))
         self.label_51.setStyleSheet("font-weight: bold;")
         self.label_49 = QLabel("X")
-        self.label_49.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_49.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.nx_label = QLabel("0")
         self.label_48 = QLabel("Y")
-        self.label_48.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_48.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.ny_label = QLabel("0")
 
         g.addWidget(self.label_77,            2, 0)
@@ -1051,12 +1048,12 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.label_bspline_hdr, 6, 0, 1, 4)
 
         self.label_bspline_eps = QLabel(_tr("Threshold Error"))
-        self.label_bspline_eps.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_bspline_eps.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_bspline_epsilon = QLineEdit("0.0001")
         self.lineEdit_bspline_epsilon.setFixedWidth(70)
 
         self.label_bspline_lvl = QLabel(_tr("Max Levels"))
-        self.label_bspline_lvl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_bspline_lvl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.spinBox_bspline_levels = QSpinBox()
         self.spinBox_bspline_levels.setMinimum(1)
         self.spinBox_bspline_levels.setMaximum(20)
@@ -1101,7 +1098,7 @@ class SGToolDockWidget(QDockWidget):
         h = QHBoxLayout(w)
         h.setContentsMargins(4, 0, 4, 0)
         self.label_52 = QLabel(_tr("Select Grid"))
-        self.label_52.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_52.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.mMapLayerComboBox_selectGrid_worms = QgsMapLayerComboBox()
         h.addWidget(self.label_52)
         h.addWidget(self.mMapLayerComboBox_selectGrid_worms, 1)
@@ -1117,14 +1114,14 @@ class SGToolDockWidget(QDockWidget):
         g.setSpacing(4)
 
         self.label_58 = QLabel(_tr("# Levels"))
-        self.label_58.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_58.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.spinBox_levels = QSpinBox()
         self.spinBox_levels.setMinimum(1)
         self.spinBox_levels.setValue(10)
         self.checkBox_worms_shp = QCheckBox(_tr("Also save to shapefile"))
 
         self.label_60 = QLabel(_tr("Base Level"))
-        self.label_60.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_60.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.doubleSpinBox_base = QDoubleSpinBox()
         self.doubleSpinBox_base.setDecimals(0)
         self.doubleSpinBox_base.setMinimum(0)
@@ -1133,7 +1130,7 @@ class SGToolDockWidget(QDockWidget):
         self.doubleSpinBox_base.setValue(1000)
 
         self.label_62 = QLabel(_tr("Increment"))
-        self.label_62.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_62.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.doubleSpinBox_inc = QDoubleSpinBox()
         self.doubleSpinBox_inc.setDecimals(0)
         self.doubleSpinBox_inc.setMinimum(0)
@@ -1166,19 +1163,19 @@ class SGToolDockWidget(QDockWidget):
 
         # Select points/line layer
         self.label_57 = QLabel(_tr("Select points/line"))
-        self.label_57.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_57.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.mMapLayerComboBox_selectVectors = QgsMapLayerComboBox()
 
         self.label_59 = QLabel(_tr("Select feature"))
-        self.label_59.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_59.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.mFieldComboBox_feature = QComboBox()
 
         self.label_76 = QLabel(_tr("Select data field"))
-        self.label_76.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_76.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.mFieldComboBox_data = QgsFieldComboBox()
 
         self.label_61 = QLabel(_tr("Spacing\n(Proj Units)"))
-        self.label_61.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_61.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.doubleSpinBox_wtmm_spacing = QDoubleSpinBox()
         self.doubleSpinBox_wtmm_spacing.setDecimals(8)
         self.doubleSpinBox_wtmm_spacing.setMinimum(0)
@@ -1219,7 +1216,7 @@ class SGToolDockWidget(QDockWidget):
         tl = QHBoxLayout(top_row)
         tl.setContentsMargins(0, 0, 0, 0)
         self.label_56 = QLabel(_tr("Select Grid"))
-        self.label_56.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_56.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.mMapLayerComboBox_selectGrid_Conv_2 = QgsMapLayerComboBox()
         tl.addWidget(self.label_56)
         tl.addWidget(self.mMapLayerComboBox_selectGrid_Conv_2, 1)
@@ -1311,7 +1308,7 @@ class SGToolDockWidget(QDockWidget):
         self.radioButton_NaN_Both = QRadioButton(_tr("Between"))
 
         self.label_70 = QLabel(_tr("Above"))
-        self.label_70.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_70.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.doubleSpinBox_NaN_Above = QDoubleSpinBox()
         self.doubleSpinBox_NaN_Above.setDecimals(8)
         self.doubleSpinBox_NaN_Above.setMinimum(-1e30)
@@ -1319,7 +1316,7 @@ class SGToolDockWidget(QDockWidget):
         self.doubleSpinBox_NaN_Above.setValue(1.0)
 
         self.label_71 = QLabel(_tr("Below"))
-        self.label_71.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_71.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.doubleSpinBox_NaN_Below = QDoubleSpinBox()
         self.doubleSpinBox_NaN_Below.setDecimals(8)
         self.doubleSpinBox_NaN_Below.setMinimum(-1e30)
@@ -1358,7 +1355,7 @@ class SGToolDockWidget(QDockWidget):
         g = QGridLayout(gb)
         g.setSpacing(4)
         self.label_clip_polygon = QLabel(_tr("Clip polygon"))
-        self.label_clip_polygon.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_clip_polygon.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.mMapLayerComboBox_clip_polygon = QgsMapLayerComboBox()
         self.mMapLayerComboBox_clip_polygon.setToolTip(
             _tr("Polygon layer to clip every layer of the project to. If some of its "
@@ -1389,7 +1386,7 @@ class SGToolDockWidget(QDockWidget):
         g.setSpacing(4)
 
         self.label_66 = QLabel(_tr("Input Directory"))
-        self.label_66.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_66.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_loadPointsPath_normalise_in = QLineEdit()
         self.pushButton_select_normalise_in = QPushButton("...")
         self.pushButton_select_normalise_in.setFixedWidth(30)
@@ -1397,7 +1394,7 @@ class SGToolDockWidget(QDockWidget):
         self.radioButton_normalise_1st.setChecked(True)
 
         self.label_72 = QLabel(_tr("Output Directory"))
-        self.label_72.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_72.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_loadPointsPath_normalise_out = QLineEdit()
         self.pushButton_select_normalise_out = QPushButton("...")
         self.pushButton_select_normalise_out.setFixedWidth(30)
@@ -1433,7 +1430,7 @@ class SGToolDockWidget(QDockWidget):
 
         # RGB grid selector
         self.label_42 = QLabel(_tr("Select RGB Grid"))
-        self.label_42.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_42.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_2_loadGridPath_2 = QLineEdit()
         self.pushButton_2_selectGrid_RGB = QPushButton("...")
         self.pushButton_2_selectGrid_RGB.setFixedWidth(30)
@@ -1444,7 +1441,7 @@ class SGToolDockWidget(QDockWidget):
 
         # CSS colour list
         self.label_43 = QLabel(_tr("CSS Colour List\nor\nRGB triplets"))
-        self.label_43.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_43.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.textEdit_2_colour_list = QTextEdit()
         self.textEdit_2_colour_list.setPlaceholderText(
             _tr("comma separated list of CSS colour names or comma separated RGB triplets"))
@@ -1470,14 +1467,14 @@ class SGToolDockWidget(QDockWidget):
 
         # Min / Max
         self.label_46 = QLabel(_tr("Min"))
-        self.label_46.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_46.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.mQgsDoubleSpinBox_LUT_min = QgsDoubleSpinBox()
         self.mQgsDoubleSpinBox_LUT_min.setMinimum(-1e20)
         self.mQgsDoubleSpinBox_LUT_min.setMaximum(1e20)
         self.mQgsDoubleSpinBox_LUT_min.setSingleStep(100)
 
         self.label_50 = QLabel(_tr("Max"))
-        self.label_50.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label_50.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.mQgsDoubleSpinBox_LUT_max = QgsDoubleSpinBox()
         self.mQgsDoubleSpinBox_LUT_max.setMinimum(-1e20)
         self.mQgsDoubleSpinBox_LUT_max.setMaximum(1e20)

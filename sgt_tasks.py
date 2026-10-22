@@ -27,10 +27,7 @@ from .calcs.sgt_cancel import OperationCancelled
 
 
 def _can_cancel_flag():
-    try:
-        return QgsTask.Flag.CanCancel  # QGIS 4 / Qt6 style
-    except AttributeError:
-        return QgsTask.CanCancel
+    return QgsTask.Flag.CanCancel
 
 
 class SGToolTask(QgsTask):

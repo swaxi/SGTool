@@ -10,6 +10,7 @@ Changes from v1:
   • FFT buffer is now passed to every FFT method call (fixes vignetting)
 """
 
+import logging
 import os
 import re
 import sys
@@ -1000,7 +1001,7 @@ class SGToolApp(tk.Tk):
             if val("v_euler"):
                 out.append(f"_estimates_SI_{int(num('v_eu_si', 1.0))}")
         except Exception:
-            pass  # a half-typed entry: show what could be worked out
+            logging.getLogger(__name__).debug("Ignored: a half-typed entry: show what could be worked out", exc_info=True)
         return [p for p in out if p]
 
     def _compute_output_path(self):

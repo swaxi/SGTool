@@ -1680,6 +1680,14 @@ class SGToolApp(tk.Tk):
         tip(btn(rb1, "Create Polygon", self._create_boundary, w=14),
             "Create grid outline polygon(s) layer\nResult is loaded into the active ArcGIS Pro map").pack(side="left")
 
+        cw = section(p, "Clip to Window")
+        cw.pack(fill="x", padx=8, pady=4)
+        rc1 = tk.Frame(cw, bg=BG); rc1.pack(fill="x", padx=4, pady=2)
+        tip(btn(rc1, "Clip to Window", self._clip_to_window, w=16),
+            "Clip the input grid to the area the ArcGIS Pro map is showing.\n"
+            "Saved beside the original as <name>_clip.tif (or _clip_01, _clip_02 ...\n"
+            "if that name is already used) and added to the layer list").pack(side="left")
+
         ng = section(p, "Normalise Grids (Batch)")
         ng.pack(fill="x", padx=8, pady=4)
         rn1 = tk.Frame(ng, bg=BG); rn1.pack(fill="x", padx=4, pady=2)
@@ -2541,6 +2549,47 @@ class SGToolApp(tk.Tk):
         above, below = float(self.v_thresh_above.get()), float(self.v_thresh_below.get())
         _save(SG_Util(arr).Threshold2Nan(arr, cond, above, below), "_Clean",
               step_record("threshold_to_nan", CONDITION=cond, ABOVE=above, BELOW=below))
+
+    def _clip_to_window(self):
+        in_r = self._resolve_input()
+        if not in_r:
+            messagebox.showwarning("Missing", "Select an input raster.")
+            return
+        try:
+            with open(os.path.join(tempfile.gettempdir(), "sgtool_view.json")) as f:
+                view = json.load(f)
+            cells = map_view_to_cells(view, in_r)
+        except Exception:
+            cells = None
+        if cells is None:
+            messagebox.showwarning(
+                "Clip to Window",
+                "The ArcGIS Pro map is not showing this grid (or the map view is not "
+                "available: launch SGTool from the toolbox and keep the map open).")
+            return
+        x0, y0 = int(np.floor(cells[0])), int(np.floor(cells[1]))
+        x1, y1 = int(np.ceil(cells[2])), int(np.ceil(cells[3]))
+        # never overwrite an earlier clip: _clip, then _clip_01, _clip_02 ...
+        base, n = os.path.splitext(in_r)[0], 0
+        while True:
+            out_r = base + ("_clip" if n == 0 else f"_clip_{n:02d}") + ".tif"
+            if not os.path.exists(out_r):
+                break
+            n += 1
+        self._run_in_thread(self._do_clip_to_window, in_r, out_r, x0, y0, x1, y1)
+
+    def _do_clip_to_window(self, in_r, out_r, x0, y0, x1, y1):
+        from osgeo import gdal
+        self.after(0, lambda: self._status("Clipping to window…"))
+        ds = gdal.Open(in_r)
+        out = gdal.Translate(out_r, ds, srcWin=[x0, y0, x1 - x0, y1 - y0], format="GTiff")
+        if out is None:
+            raise RuntimeError("GDAL could not write the clipped grid")
+        out = ds = None
+        write_provenance(out_r, in_r, "Clip to map window",
+                         {"window": f"cols {x0}-{x1}, rows {y0}-{y1}"})
+        self._record_pending(out_r)
+        self.after(0, self._on_output_written, out_r)
 
     def _create_boundary(self):
         in_r = self._resolve_input()

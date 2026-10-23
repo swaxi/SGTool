@@ -2122,7 +2122,7 @@ class SGTool:
     def _init_preview(self):
         self.preview_layer_id = None
         self._preview_tab = None  # tab index while a preview is active
-        self._preview_src = None  # (path, mtime, array, geotransform) cache
+        self._preview_src = None  # (key, array, geotransform) cache
         self._preview_canvas_connected = False
         self._preview_only_entry = None
         self._preview_keep = None  # (entry, grid name) while Keep is running
@@ -2343,7 +2343,7 @@ class SGTool:
             self._preview_tree_connected = False
         gc.collect()
         self._unlink_preview_file()
-        self._preview_src = None  # free the cached full-grid array
+        self._preview_src = None  # free the cached preview array
         # redraw now: otherwise the old preview stays on the map until the
         # canvas is next panned or zoomed
         try:
@@ -2357,65 +2357,65 @@ class SGTool:
         except RuntimeError:
             pass  # nothing there yet
 
-    def _read_layer_array(self, layer):
-        """Read band 1 as a north-up float array plus its geotransform."""
+    def _read_preview_array(self, layer, use_extent, max_side):
+        """Read band 1 for the preview as a north-up float array plus geotransform.
+
+        Only the needed window (the map canvas, or the whole grid) is read, and
+        GDAL decimates it to at most max_side cells on its longest side, so a
+        huge raster is never loaded in full. Returns (None, None) if the
+        canvas covers fewer than 16 cells of the grid.
+        """
         path = layer.dataProvider().dataSourceUri()
         try:
             mtime = os.path.getmtime(path)
         except OSError:
             mtime = None
-        if (
-            self._preview_src is not None
-            and self._preview_src[0] == path
-            and self._preview_src[1] == mtime
-        ):
-            return self._preview_src[2], self._preview_src[3]
         ds = gdal.Open(path)
+        gt = ds.GetGeoTransform()
+        cols, rows = ds.RasterXSize, ds.RasterYSize
+        x0, dx, _, y0, _, dys = gt  # dys < 0 for north-up, > 0 for south-up
+        c0, c1, r0, r1 = 0, cols, 0, rows
+        if use_extent:
+            canvas = self.iface.mapCanvas()
+            ext = canvas.extent()
+            canvas_crs = canvas.mapSettings().destinationCrs()
+            if canvas_crs != layer.crs():
+                ext = QgsCoordinateTransform(
+                    canvas_crs, layer.crs(), QgsProject.instance()
+                ).transformBoundingBox(ext)
+            ra = (ext.yMaximum() - y0) / dys
+            rb = (ext.yMinimum() - y0) / dys
+            c0 = max(0, int(np.floor((ext.xMinimum() - x0) / dx)))
+            c1 = min(cols, int(np.ceil((ext.xMaximum() - x0) / dx)))
+            r0 = max(0, int(np.floor(min(ra, rb))))
+            r1 = min(rows, int(np.ceil(max(ra, rb))))
+            if c1 - c0 < 16 or r1 - r0 < 16:
+                return None, None
+        w, h = c1 - c0, r1 - r0
+        key = (path, mtime, c0, r0, w, h, max_side)
+        if self._preview_src is not None and self._preview_src[0] == key:
+            return self._preview_src[1], self._preview_src[2]
+
+        s = max(1.0, max(w, h) / float(max_side))
+        out_w, out_h = max(1, int(round(w / s))), max(1, int(round(h / s)))
         band = ds.GetRasterBand(1)
         no_data = band.GetNoDataValue()
-        arr = band.ReadAsArray().astype(float)
+        arr = band.ReadAsArray(
+            c0, r0, w, h, buf_xsize=out_w, buf_ysize=out_h,
+            buf_type=gdal.GDT_Float32, resample_alg=gdal.GRIORA_Average,
+        ).astype(float)
+        ds = None
         if no_data is not None:
             arr[arr == no_data] = np.nan
-        gt = ds.GetGeoTransform()
-        ds = None
-        if gt[5] > 0:  # south-up: flip to north-up
+        sx, sy = dx * w / out_w, dys * h / out_h
+        oy = y0 + r0 * dys
+        if dys > 0:  # south-up: flip to north-up
             arr = np.flipud(arr)
-            gt = (gt[0], gt[1], 0.0, gt[3] + arr.shape[0] * gt[5], 0.0, -gt[5])
-        self._preview_src = (path, mtime, arr, gt)
-        return arr, gt
-
-    def _crop_to_canvas(self, arr, gt, layer):
-        canvas = self.iface.mapCanvas()
-        ext = canvas.extent()
-        canvas_crs = canvas.mapSettings().destinationCrs()
-        if canvas_crs != layer.crs():
-            ext = QgsCoordinateTransform(
-                canvas_crs, layer.crs(), QgsProject.instance()
-            ).transformBoundingBox(ext)
-        rows, cols = arr.shape
-        x0, dx, _, y0, _, dyn = gt
-        dy = -dyn
-        c0 = max(0, int(np.floor((ext.xMinimum() - x0) / dx)))
-        c1 = min(cols, int(np.ceil((ext.xMaximum() - x0) / dx)))
-        r0 = max(0, int(np.floor((y0 - ext.yMaximum()) / dy)))
-        r1 = min(rows, int(np.ceil((y0 - ext.yMinimum()) / dy)))
-        if c1 - c0 < 16 or r1 - r0 < 16:
-            return None, None
-        return arr[r0:r1, c0:c1], (x0 + c0 * dx, dx, 0.0, y0 - r0 * dy, 0.0, -dy)
-
-    @staticmethod
-    def _subsample(arr, gt, max_side):
-        """Block-average arr so its longest side is <= max_side cells."""
-        s = int(np.ceil(max(arr.shape) / float(max_side)))
-        if s <= 1:
-            return arr, gt
-        r = (arr.shape[0] // s) * s
-        c = (arr.shape[1] // s) * s
-        blocks = arr[:r, :c].reshape(r // s, s, c // s, s)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)
-            sub = np.nanmean(blocks, axis=(1, 3))
-        return sub, (gt[0], gt[1] * s, 0.0, gt[3], 0.0, gt[5] * s)
+            out_gt = (x0 + c0 * dx, sx, 0.0, oy + out_h * sy, 0.0, -sy)
+        else:
+            out_gt = (x0 + c0 * dx, sx, 0.0, oy, 0.0, sy)
+        self._preview_src = (key, arr, out_gt)
+        return arr, out_gt
 
     def _run_filter_on(self, entry, arr, dx, dy, grid_name):
         """Run one filter's proc method on arr without disturbing the main state.
@@ -2482,18 +2482,18 @@ class SGTool:
             )
             return
         try:
-            arr, gt = self._read_layer_array(src)
             if rad_extent.isChecked():
-                arr, gt = self._crop_to_canvas(arr, gt, src)
+                arr, gt = self._read_preview_array(src, True, self.PREVIEW_EXTENT_SIDE)
                 if arr is None:
                     self.iface.messageBar().pushMessage(
                         "Preview", "Map extent does not cover enough of the grid",
                         level=Qgis.MessageLevel.Warning, duration=3,
                     )
                     return
-                arr, gt = self._subsample(arr, gt, self.PREVIEW_EXTENT_SIDE)
             else:
-                arr, gt = self._subsample(arr, gt, self.PREVIEW_SUBSAMPLE_SIDE)
+                arr, gt = self._read_preview_array(
+                    src, False, self.PREVIEW_SUBSAMPLE_SIDE
+                )
 
             dx, dy = gt[1], -gt[5]
             if entry[0] == "DirClean" and dx > float(self.DC_lineSpacing):
@@ -5162,8 +5162,8 @@ class SGTool:
                     self.dlg.lineEdit_6_int.setText(str(int(self.RTE_P_int)))
 
                 else:
-                    self.loadGrid()
-
+                    # only the extent and CRS are needed here, so don't read the
+                    # whole grid into memory (self.layer is already set above)
                     self.base_name = self.localGridName
 
                     # retrieve parameters

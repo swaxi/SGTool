@@ -57,7 +57,7 @@ class GeophysicalProcessor:
         Replace NaN values using 2D interpolation WITHOUT directional bias.
         Uses griddata for true 2D interpolation instead of sequential 1D passes.
         """
-        from scipy.interpolate import griddata
+        from scipy.ndimage import distance_transform_edt
 
         # Create a copy of the data
         filled_data = np.copy(data)
@@ -67,39 +67,14 @@ class GeophysicalProcessor:
         if not np.any(nan_mask) or np.all(nan_mask):
             return filled_data, nan_mask
 
-        # Get coordinates of valid and invalid points
-        rows, cols = data.shape
-        y, x = np.mgrid[0:rows, 0:cols]
-
-        # Valid (non-NaN) points
-        valid_mask = ~nan_mask
-        valid_points = np.column_stack((y[valid_mask].ravel(), x[valid_mask].ravel()))
-        valid_values = data[valid_mask].ravel()
-
-        # Invalid (NaN) points to interpolate
-        invalid_points = np.column_stack((y[nan_mask].ravel(), x[nan_mask].ravel()))
-
-        # Use 2D interpolation (nearest, linear, or cubic)
-        # 'nearest' is fast and doesn't extrapolate wildly
-        # 'linear' is smoother but slower
-        try:
-            interpolated_values = griddata(
-                valid_points,
-                valid_values,
-                invalid_points,
-                method="nearest",  # Try 'nearest' if linear is too slow or unstable
-                fill_value=np.nanmean(data),  # Fallback for points outside convex hull
-            )
-            filled_data[nan_mask] = interpolated_values
-        except Exception as e:
-            print(
-                f"Warning: griddata interpolation failed ({e}), falling back to nearest neighbor"
-            )
-            # Fallback to nearest neighbor
-            interpolated_values = griddata(
-                valid_points, valid_values, invalid_points, method="nearest"
-            )
-            filled_data[nan_mask] = interpolated_values
+        # Nearest-valid-cell fill. The distance transform returns, for every
+        # cell, the index of the nearest non-NaN cell, in linear time and
+        # without building point lists or a KD-tree (much faster and lighter
+        # than griddata on large grids).
+        idx = distance_transform_edt(
+            nan_mask, return_distances=False, return_indices=True
+        )
+        filled_data[nan_mask] = data[idx[0][nan_mask], idx[1][nan_mask]]
 
         return filled_data, nan_mask
 
@@ -1179,7 +1154,7 @@ class GeophysicalProcessor:
             preserve_dc: If True, add median back after filtering (for RTP, continuation, etc.)
                         If False, return zero-centered result (for derivatives)
         """
-        from scipy.fftpack import fft2, ifft2
+        from scipy.fft import fft2, ifft2
 
         median = np.nanmedian(data)
 
@@ -1195,7 +1170,7 @@ class GeophysicalProcessor:
         )
 
         # Fourier transform
-        data_fft = fft2(buffered_data)
+        data_fft = fft2(buffered_data, workers=-1)
 
         # Compute filter
         ny, nx = buffered_data.shape
@@ -1206,7 +1181,7 @@ class GeophysicalProcessor:
         filtered_fft = data_fft * filter_array
 
         # Inverse transform
-        filtered_data = np.real(ifft2(filtered_fft))
+        filtered_data = np.real(ifft2(filtered_fft, workers=-1))
 
         # Remove buffer
         unbuffered_data = self.remove_buffer(filtered_data, buffer_size, padding_info)

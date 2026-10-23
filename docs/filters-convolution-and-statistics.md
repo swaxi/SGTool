@@ -78,8 +78,6 @@ Independent Component Analysis separates a multivariate signal into additive, st
 **Euler Deconvolution**   
 Reliable Euler Deconvolution provides estimates of depth to gravity or magnetic sources based on analysis of gradients. Code derived from Reliable Euler Deconvolution by Felipe F. Melo and Valéria C.F. Barbosa https://github.com/ffigura/Euler-deconvolution-python.   
    
-**Independent Component Analysis**   
-Independent Component Analysis separates a multivariate signal into additive, statistically independent components by maximizing non-Gaussianity, often used to recover source signals from mixed observations.     
    
 ## Gridding   
 **Import points**   
@@ -110,6 +108,10 @@ Define upper or lower bound (or range) for which values will be set to NaN (i.e.
    
 **Create Clipping Polygon**   
 Create one or more polygons outlining the available data in the grid. Useful, amongst other things, for clipping worms to grid area..     
+
+**Clip to Window**   
+Clips the grid selected in the Utils tab to the area currently shown in the map window. The **Clip to Window** button sits to the left of Clip All Layers. The clip is saved beside the original as `<name>_clip.tif` and loaded into the project with the same styling as the original, and its provenance records the source grid and the cell window that was cut out. All bands of a multiband grid are kept, and the cell size and values are unchanged (the window is cut on cell boundaries, so it can be up to a cell larger than the view). An earlier clip is never overwritten: if `<name>_clip.tif` already exists, or a layer of that name is loaded, the new clip is called `<name>_clip_01`, then `<name>_clip_02` and so on. The window is reprojected to the grid's coordinate system if the map uses a different one, and a window that does not overlap the grid gives a warning.   
+**ArcGIS Pro**: the **Clip to Window** button on the GUI's Utils tab does the same for the input grid and the part of the ArcGIS Pro map you are looking at (it uses the map view the toolbox tool writes, so launch the GUI from the toolbox and keep the map open). The result is `<name>_clip.tif` (then `_clip_01`, ...), added to the layer list and loaded into the map with **Load SGTool Outputs**.   
 
 **Clip All Layers**   
 Pick a polygon layer in the dropdown (if some of its polygons are selected, only those are used) and press **Clip all Layers**, then choose a folder. Every layer in the project's layer tree is clipped to the polygon and saved there as `<name>_clip` (a GeoPackage for vector layers, a GeoTIFF for grids) with a `<name>_clip.qml` holding its style, and a copy of the project, `<project>_clip.qgz`, is saved beside them. It has the same groups, order, visibility and styles as the current project, loads the clipped files under the names `<name>_clip` with relative paths, and opens on the polygon. The clip polygon itself is saved too. The polygon is reprojected to each layer's coordinate system first. Layers that cannot be clipped (web layers such as WMS or XYZ tiles, tables without geometry) are carried over unchanged, a layer that fails is listed in the SGTool messages log and left out, and the temporary preview layer is skipped. Grids with no no-data value get -9999 outside the polygon. Based on a script by Mark Jessell.   

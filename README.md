@@ -24,7 +24,7 @@ SGTool works in both **QGIS** and **ArcGIS Pro**: the calculations are shared, a
 - [Live Preview](docs/live-preview.md) (QGIS), [Background Calculations](docs/background-calculations.md) (QGIS) and [Processing Algorithms](docs/processing-algorithms.md) (QGIS)
 - [Provenance metadata and replaying a processing history](docs/provenance-and-replay.md): every output records how it was made, and the steps can be repeated on another grid
 - [FFT filters](docs/filters-fft.md): reduction to the pole and equator, continuation, vertical integration, band / high / low pass, line-noise removal, derivatives, tilt angle, analytic signal
-- [Convolution filters, spatial statistics, gridding and utilities](docs/filters-convolution-and-statistics.md): convolution and windowed statistics, anisotropy and MRVBF, PCA / ICA, Euler deconvolution, B-spline gridding (with automatic cell size and levels from the point spacing), worms, and utilities including clipping every layer of a project to a polygon
+- [Convolution filters, spatial statistics, gridding and utilities](docs/filters-convolution-and-statistics.md): convolution and windowed statistics, anisotropy and MRVBF, PCA / ICA, Euler deconvolution, B-spline gridding (with automatic cell size and levels from the point spacing), worms, and utilities including clipping a grid to the map window and clipping every layer of a project to a polygon
 - [Changelog](docs/changelog.md) (also in `metadata.txt`)
 
 # Inputs   

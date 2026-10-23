@@ -22,6 +22,7 @@ repository=https://github.com/swaxi/SGTool
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
 changelog=0.3.9
+      * Utils tab: new Clip to Window button clips the selected grid to the current map window, saving it beside the original as <name>_clip.tif (then _clip_01, _clip_02 ... rather than overwriting an earlier clip); Clip All Layers is now half width, beside it. Also in the ArcGIS Pro GUI (Utils tab), using the ArcGIS Pro map view
       * Crop to area prior to preview to speed up on large grids
       * IGRF button no longer loads the whole grid just to find its centre
       * Faster NaN filling and multithreaded FFT for Fourier-based filters (RTP etc.) on large grids

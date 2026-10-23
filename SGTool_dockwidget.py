@@ -384,17 +384,33 @@ class SGToolDockWidget(QDockWidget):
     # Group: Frequency Filters
     # ------------------------------------------------------------------
     def _group_freq_filters(self):
+        """One filter per block, its settings on indented rows beneath it, so the
+        group stays narrow (the tab has plenty of vertical room)."""
         gb = QGroupBox(_tr("Frequency Filters"))
-        g = QGridLayout(gb)
-        g.setSpacing(4)
+        v = QVBoxLayout(gb)
+        v.setSpacing(4)
+
+        def row(*items, indent=True):
+            """A row of widgets (or layouts) in a line, indented under its filter."""
+            box = QHBoxLayout()
+            box.setContentsMargins(0, 0, 0, 0)
+            box.setSpacing(4)
+            if indent:
+                box.addSpacing(22)
+            for item in items:
+                if isinstance(item, int):
+                    box.addSpacing(item)
+                elif hasattr(item, "addWidget"):
+                    box.addLayout(item)
+                else:
+                    box.addWidget(item)
+            box.addStretch()
+            v.addLayout(box)
 
         self.pushButton_rad_power_spectrum = QPushButton(_tr("Radial Power Spectrum"))
-        row0 = QHBoxLayout()
-        row0.addStretch()
-        row0.addWidget(self.pushButton_rad_power_spectrum)
-        g.addLayout(row0, 0, 0, 1, 9)
+        row(self.pushButton_rad_power_spectrum, indent=False)
 
-        # Row 1: Direction filter
+        # Direction filter
         self.checkBox_3_DirClean = QCheckBox(_tr("Direction Cos/Butterw."))
         self.label_12 = QLabel(_tr("Azimuth"))
         self.label_12.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -424,38 +440,20 @@ class SGToolDockWidget(QDockWidget):
                 "noise (and more of the geology).")
         )
 
-        g.addWidget(self.checkBox_3_DirClean,   1, 0, 1, 2)
-        g.addWidget(self.label_12,              1, 2)
-        g.addWidget(self.lineEdit_3_azimuth,    1, 3)
-        g.addWidget(self.label_13,              1, 4)
-        # min/max spacing share one cell so Scale lines up with the Band Pass
-        # Width widgets in columns 6/7
-        spacing_box = QHBoxLayout()
-        spacing_box.setContentsMargins(0, 0, 0, 0)
-        spacing_box.setSpacing(4)
-        spacing_box.addWidget(self.lineEdit_3_DC_wavelength)
-        spacing_box.addWidget(self.lineEdit_3_DC_maxspacing)
-        g.addLayout(spacing_box,                1, 5)
-        g.addWidget(self.label_16,              1, 6)
-        g.addWidget(self.lineEdit_3_DC_scale,   1, 7)
-        wedge_box = QHBoxLayout()
-        wedge_box.setContentsMargins(0, 0, 0, 0)
-        wedge_box.setSpacing(4)
-        wedge_box.addWidget(self.label_wedge)
-        wedge_box.addWidget(self.lineEdit_3_DC_width)
-        wedge_box.addStretch()
-        g.addLayout(wedge_box,                  1, 8)
+        row(self.checkBox_3_DirClean, indent=False)
+        row(self.label_12, self.lineEdit_3_azimuth, 6, self.label_16, self.lineEdit_3_DC_scale,
+            6, self.label_wedge, self.lineEdit_3_DC_width)
+        row(self.label_13, self.lineEdit_3_DC_wavelength, self.lineEdit_3_DC_maxspacing)
 
-        # Row 2: Remove Regional
+        # Remove Regional
         self.checkBox_5_regional = QCheckBox(_tr("Remove Regional"))
         self.radioButton_RR_1st = QRadioButton(_tr("1st order fit"))
         self.radioButton_RR_1st.setChecked(True)
         self.radioButton_RR_2nd = QRadioButton(_tr("2nd order fit"))
-        g.addWidget(self.checkBox_5_regional,  2, 0, 1, 2)
-        g.addWidget(self.radioButton_RR_1st,   2, 3, 1, 2)
-        g.addWidget(self.radioButton_RR_2nd,   2, 5, 1, 2)
+        row(self.checkBox_5_regional, 8, self.radioButton_RR_1st, self.radioButton_RR_2nd,
+            indent=False)
 
-        # Row 3: Band Pass
+        # Band Pass
         self.label_29 = QLabel("●")
         self.label_29.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.checkBox_10_bandPass = QCheckBox(_tr("Band Pass"))
@@ -472,15 +470,11 @@ class SGToolDockWidget(QDockWidget):
         self.lineEdit_3_BP_width = QLineEdit("5000")
         self.lineEdit_3_BP_width.setFixedWidth(55)
 
-        g.addLayout(self._bullet_check(self.label_29, self.checkBox_10_bandPass), 3, 0, 1, 2)
-        g.addWidget(self.label_22,              3, 2)
-        g.addWidget(self.lineEdit_12_bandPassLow, 3, 3)
-        g.addWidget(self.label_23,              3, 4)
-        g.addWidget(self.lineEdit_11_bandPassHigh, 3, 5)
-        g.addWidget(self.label_39,              3, 6)
-        g.addWidget(self.lineEdit_3_BP_width,   3, 7)
+        v.addLayout(self._bullet_check(self.label_29, self.checkBox_10_bandPass))
+        row(self.label_22, self.lineEdit_12_bandPassLow, 6, self.label_23, self.lineEdit_11_bandPassHigh)
+        row(self.label_39, self.lineEdit_3_BP_width)
 
-        # Row 4: High/Low Pass
+        # High/Low Pass
         self.label_32 = QLabel("●")
         self.label_32.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.checkBox_10_freqCut = QCheckBox(_tr("High/Low Pass"))
@@ -497,15 +491,11 @@ class SGToolDockWidget(QDockWidget):
         self.lineEdit_3_HLP_width = QLineEdit("5000")
         self.lineEdit_3_HLP_width.setFixedWidth(55)
 
-        g.addLayout(self._bullet_check(self.label_32, self.checkBox_10_freqCut), 4, 0, 1, 2)
-        g.addWidget(self.label_35,              4, 2)
-        g.addWidget(self.comboBox_2_FreqCutType, 4, 3)
-        g.addWidget(self.label_34,              4, 4)
-        g.addWidget(self.lineEdit_12_FreqPass,  4, 5)
-        g.addWidget(self.label_69,              4, 6)
-        g.addWidget(self.lineEdit_3_HLP_width,  4, 7)
+        v.addLayout(self._bullet_check(self.label_32, self.checkBox_10_freqCut))
+        row(self.label_35, self.comboBox_2_FreqCutType, 6, self.label_34, self.lineEdit_12_FreqPass)
+        row(self.label_69, self.lineEdit_3_HLP_width)
 
-        # Row 5: AGC
+        # AGC
         self.label_30 = QLabel("●")
         self.label_30.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.checkBox_11_1vd_agc = QCheckBox(_tr("Automatic Gain Control"))
@@ -514,11 +504,9 @@ class SGToolDockWidget(QDockWidget):
         self.lineEdit_13_agc_window = QLineEdit("10")
         self.lineEdit_13_agc_window.setFixedWidth(45)
 
-        g.addLayout(self._bullet_check(self.label_30, self.checkBox_11_1vd_agc), 5, 0, 1, 3)
-        g.addWidget(self.label_24,              5, 4)
-        g.addWidget(self.lineEdit_13_agc_window, 5, 5)
+        v.addLayout(self._bullet_check(self.label_30, self.checkBox_11_1vd_agc))
+        row(self.label_24, self.lineEdit_13_agc_window)
 
-        g.setColumnStretch(8, 1)
         return gb
 
     # ------------------------------------------------------------------
@@ -1240,7 +1228,11 @@ class SGToolDockWidget(QDockWidget):
         sl.addWidget(self._group_metadata())
         sl.addWidget(self._group_nan_threshold())
         sl.addWidget(self._group_clip_polygon())
-        sl.addWidget(self._group_clip_all_layers())
+        clip_row = QHBoxLayout()
+        clip_row.setSpacing(6)
+        clip_row.addWidget(self._group_clip_to_window(), 1)
+        clip_row.addWidget(self._group_clip_all_layers(), 1)
+        sl.addLayout(clip_row)
         sl.addWidget(self._group_normalise())
         sl.addWidget(self._group_lut_convert())
         sl.addStretch()
@@ -1345,6 +1337,24 @@ class SGToolDockWidget(QDockWidget):
         self.checkBox_polygons = QCheckBox(_tr("Create polygon based on grid"))
         g.addWidget(self.checkBox_polygons, 0, 0)
         g.setColumnStretch(1, 1)
+        return gb
+
+    # ------------------------------------------------------------------
+    # Group: Clip to Window
+    # ------------------------------------------------------------------
+    def _group_clip_to_window(self):
+        gb = QGroupBox(_tr("Clip to Window"))
+        g = QGridLayout(gb)
+        g.setSpacing(4)
+        self.pushButton_clip_to_window = QPushButton(_tr("Clip to Window"))
+        self.pushButton_clip_to_window.setStyleSheet("font-weight: bold;")
+        self.pushButton_clip_to_window.setToolTip(
+            _tr("Clip the selected grid to the area currently shown in the map window.\n"
+                "The result is saved beside the original as <name>_clip.tif (or _clip_01, "
+                "_clip_02 ... if that name is already used) and loaded into the project.")
+        )
+        g.addWidget(self.pushButton_clip_to_window, 0, 0)
+        g.setRowStretch(1, 1)
         return gb
 
     # ------------------------------------------------------------------

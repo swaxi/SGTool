@@ -107,7 +107,7 @@ import tempfile
 from datetime import datetime
 from pyproj import Transformer
 import processing
-from osgeo import gdal, osr
+from osgeo import gdal, gdal_array, osr
 import platform
 import importlib
 import subprocess
@@ -4006,32 +4006,16 @@ class SGTool:
                     for j in range(cols):
                         self.raster_array[i, j] = raster_block.value(i, j)
                 """
-                # Read raster data via GDAL (consistent row ordering across platforms)
-                ds = gdal.Open(self.diskGridPath)
-                band = ds.GetRasterBand(1)
-                no_data_value = band.GetNoDataValue()  # call this BEFORE ReadAsArray
-                band_data = ds.GetRasterBand(1).ReadAsArray()  # Always row0=north
-                if no_data_value is not None:
-                    band_data = band_data.astype(float)
-                    band_data[band_data == no_data_value] = np.nan
-                self.raster_array = band_data
-                gt = ds.GetGeoTransform()
-                if gt[5] > 0:  # positive pixel height means south-up, flip to north-up
-                    self.raster_array = np.flipud(self.raster_array)
-                ds = None
-                rows, cols = self.raster_array.shape
+                # the grid itself is read in the background task (_load_working_grid)
+                # so a big grid doesn't freeze QGIS and Cancel works while it loads
+                rows, cols = self.layer.height(), self.layer.width()
+                self.raster_array = None
                 process = True
 
         if process:
             self.buffer = min(rows, cols)
             if self.buffer > self.to_int(self.dlg.lineEdit_13_max_buffer.text()):
                 self.buffer = self.to_int(self.dlg.lineEdit_13_max_buffer.text())
-            self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
-
-            self.convolution = ConvolutionFilter(self.raster_array)
-            self.SG_Util = SG_Util(self.raster_array)
-            self.SpatialStats = SpatialStats(self.raster_array)
-            self.PCAICA = PCAICA(self.raster_array)
 
             self.suffix = ""
             self._grid_info = self._make_grid_info(self.layer)
@@ -4142,9 +4126,43 @@ class SGTool:
             messages=runner._pending_messages,
         )
 
+    def _load_working_grid(self, task):
+        """Worker thread: read band 1 (north-up, NoData as NaN) in strips,
+        checking for Cancel between strips, and set up the processing helpers."""
+        ds = gdal.Open(self.diskGridPath)
+        band = ds.GetRasterBand(1)
+        no_data_value = band.GetNoDataValue()
+        rows, cols = ds.RasterYSize, ds.RasterXSize
+        native = gdal_array.GDALTypeCodeToNumericTypeCode(band.DataType)
+        arr = np.empty((rows, cols), dtype=float if no_data_value is not None else native)
+        strip = max(1, int(2_000_000 // max(cols, 1)))  # ~2M cells per read
+        for r in range(0, rows, strip):
+            n = min(strip, rows - r)
+            block = band.ReadAsArray(0, r, cols, n)
+            if no_data_value is not None:
+                block = block.astype(float)
+                block[block == no_data_value] = np.nan
+            arr[r:r + n] = block
+            task.check(8.0 * (r + n) / rows)
+        if ds.GetGeoTransform()[5] > 0:  # south-up: flip to north-up
+            arr = np.flipud(arr)
+        ds = None
+        self.raster_array = arr
+
+        self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
+        self.convolution = ConvolutionFilter(arr)
+        task.check()
+        self.SG_Util = SG_Util(arr)
+        task.check()
+        self.SpatialStats = SpatialStats(arr)
+        task.check()
+        self.PCAICA = PCAICA(arr)
+        task.check()
+
     def _run_pipeline(self, jobs, task):
         """Worker thread: run each calculation, queueing its outputs."""
         self._task_ref = task
+        self._load_working_grid(task)
         n = len(jobs)
         for i, (flag, method, std_clip, auto) in enumerate(jobs):
             task.check(100.0 * i / n)

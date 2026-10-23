@@ -7,7 +7,7 @@ name=SGTool
 qgisMinimumVersion=3.24
 qgisMaximumVersion=4.99
 description=Simple Potential Field Processing
-version=0.3.8
+version=0.3.9
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
@@ -21,7 +21,9 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.3.8
+changelog=0.3.9
+      * Crop to area prior to preview to speed up on large grids
+      0.3.8
       * Utils tab: new Clip All Layers tool (QGIS dialog, and the ArcGIS Pro toolbox tool Clip All Layers to Polygon): clips every layer of the project to a chosen polygon layer (or its selected polygons), saving each as <name>_clip with its .qml style in a chosen folder, plus a copy of the project (.qgz) with the same groups, order, visibility and styles that loads the clipped layers   
       * BSDWorms is now also a Processing algorithm (Wavelets group): same worms as the dialog, with the points CSV, padded grid and optional polyline shapefile written beside the input and their provenance recorded   
       * Multilevel B-spline gridding: new Auto option (QGIS dialog, Processing algorithm, ArcGIS Pro GUI and toolbox) that chooses the cell size and Max Levels from the spacing of the points; B-spline gridding and MRVBF / MRRTF are several times faster with identical results, and MRVBF works through the grid in bands so a 46-million-cell DEM needs about 3 GB instead of 9.5 GB   

@@ -3446,6 +3446,88 @@ class SGTool:
         output_raster = None
         return 0
 
+    def procClipToWindow(self):
+        """Clip the grid selected in the Utils tab to the current map window and
+        load the result as <name>_clip (saved beside the source grid)."""
+        name = self.dlg.mMapLayerComboBox_selectGrid_Conv_2.currentText()
+        layers = QgsProject.instance().mapLayersByName(name) if name else []
+        if not layers or not isinstance(layers[0], QgsRasterLayer) or not layers[0].isValid():
+            self._notify("Select a raster layer to clip first", Qgis.MessageLevel.Warning, 8)
+            return
+        layer = layers[0]
+        src_path = layer.source().split("|")[0]
+        if not os.path.isfile(src_path):
+            self._notify(f"{name} is not a file on disk, so it can't be clipped", Qgis.MessageLevel.Warning, 8)
+            return
+
+        canvas = self.iface.mapCanvas()
+        ext = canvas.extent()
+        canvas_crs = canvas.mapSettings().destinationCrs()
+        if canvas_crs != layer.crs():
+            ext = QgsCoordinateTransform(
+                canvas_crs, layer.crs(), QgsProject.instance()
+            ).transformBoundingBox(ext)
+
+        ds = gdal.Open(src_path)
+        if ds is None:
+            self._notify(f"Could not open {name}", Qgis.MessageLevel.Warning, 8)
+            return
+        x0, dx, _, y0, _, dys = ds.GetGeoTransform()
+        cols, rows = ds.RasterXSize, ds.RasterYSize
+        ra = (ext.yMaximum() - y0) / dys
+        rb = (ext.yMinimum() - y0) / dys
+        c0 = max(0, int(np.floor((ext.xMinimum() - x0) / dx)))
+        c1 = min(cols, int(np.ceil((ext.xMaximum() - x0) / dx)))
+        r0 = max(0, int(np.floor(min(ra, rb))))
+        r1 = min(rows, int(np.ceil(max(ra, rb))))
+        if c1 - c0 < 1 or r1 - r0 < 1:
+            ds = None
+            self._notify("The map window does not overlap this grid", Qgis.MessageLevel.Warning, 8)
+            return
+
+        # never overwrite an earlier clip: _clip, then _clip_01, _clip_02 ...
+        n = 0
+        while True:
+            tag = "_clip" if n == 0 else f"_clip_{n:02d}"
+            out_name = name + tag
+            out_path = os.path.splitext(
+                self.insert_text_before_extension(src_path, tag)
+            )[0] + ".tif"
+            if not os.path.exists(out_path) and not QgsProject.instance().mapLayersByName(out_name):
+                break
+            n += 1
+
+        try:
+            out = gdal.Translate(
+                out_path, ds, srcWin=[c0, r0, c1 - c0, r1 - r0], format="GTiff"
+            )
+            if out is None:
+                raise RuntimeError("GDAL could not write the clipped grid")
+            out = None
+        except Exception as e:
+            self._notify(f"Clip failed: {e}", Qgis.MessageLevel.Critical, 12)
+            return
+        finally:
+            ds = None
+
+        self.write_metadata(
+            out_path,
+            "Clip to map window",
+            {"window": f"cols {c0}-{c1}, rows {r0}-{r1}"},
+            source=src_path,
+        )
+        new_layer = QgsRasterLayer(out_path, out_name)
+        if not new_layer.isValid():
+            self._notify("The clipped grid could not be loaded", Qgis.MessageLevel.Warning, 8)
+            return
+        QgsProject.instance().addMapLayer(new_layer)
+        try:  # keep the source layer's look
+            new_layer.setRenderer(layer.renderer().clone())
+            new_layer.triggerRepaint()
+        except Exception:
+            logging.getLogger(__name__).debug("Ignored: renderer copy", exc_info=True)
+        self._notify(f"Clipped {name} to the map window: {out_path}", Qgis.MessageLevel.Success, 10)
+
     def procClipAllLayers(self):
         """Clip every layer of the project to the chosen polygon layer: the clipped layers and
         their styles are saved in a folder together with a copy of the project that loads them
@@ -5774,6 +5856,7 @@ class SGTool:
                 QgsMapLayerProxyModel.Filter.PolygonLayer
             )
             self.dlg.pushButton_clip_all_layers.clicked.connect(self.procClipAllLayers)
+            self.dlg.pushButton_clip_to_window.clicked.connect(self.procClipToWindow)
 
             for label in self.dlg._version_labels:
                 label.setText(self.show_version())

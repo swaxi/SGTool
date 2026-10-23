@@ -5,6 +5,7 @@
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
 ## 0.3.9
+      * Utils tab: new Clip to Window button clips the selected grid to the current map window, saving it beside the original as <name>_clip.tif (then _clip_01, _clip_02 ... rather than overwriting an earlier clip); Clip All Layers is now half width, beside it
       * Crop to area prior to preview to speed up on large grids
       * IGRF button no longer loads the whole grid just to find its centre
       * Faster NaN filling and multithreaded FFT for Fourier-based filters (RTP etc.) on large grids

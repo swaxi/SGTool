@@ -1240,7 +1240,11 @@ class SGToolDockWidget(QDockWidget):
         sl.addWidget(self._group_metadata())
         sl.addWidget(self._group_nan_threshold())
         sl.addWidget(self._group_clip_polygon())
-        sl.addWidget(self._group_clip_all_layers())
+        clip_row = QHBoxLayout()
+        clip_row.setSpacing(6)
+        clip_row.addWidget(self._group_clip_to_window(), 1)
+        clip_row.addWidget(self._group_clip_all_layers(), 1)
+        sl.addLayout(clip_row)
         sl.addWidget(self._group_normalise())
         sl.addWidget(self._group_lut_convert())
         sl.addStretch()
@@ -1345,6 +1349,24 @@ class SGToolDockWidget(QDockWidget):
         self.checkBox_polygons = QCheckBox(_tr("Create polygon based on grid"))
         g.addWidget(self.checkBox_polygons, 0, 0)
         g.setColumnStretch(1, 1)
+        return gb
+
+    # ------------------------------------------------------------------
+    # Group: Clip to Window
+    # ------------------------------------------------------------------
+    def _group_clip_to_window(self):
+        gb = QGroupBox(_tr("Clip to Window"))
+        g = QGridLayout(gb)
+        g.setSpacing(4)
+        self.pushButton_clip_to_window = QPushButton(_tr("Clip to Window"))
+        self.pushButton_clip_to_window.setStyleSheet("font-weight: bold;")
+        self.pushButton_clip_to_window.setToolTip(
+            _tr("Clip the selected grid to the area currently shown in the map window.\n"
+                "The result is saved beside the original as <name>_clip.tif (or _clip_01, "
+                "_clip_02 ... if that name is already used) and loaded into the project.")
+        )
+        g.addWidget(self.pushButton_clip_to_window, 0, 0)
+        g.setRowStretch(1, 1)
         return gb
 
     # ------------------------------------------------------------------

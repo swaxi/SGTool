@@ -4,6 +4,13 @@
 
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
+## 0.3.9
+      * Crop to area prior to preview to speed up on large grids
+      * IGRF button no longer loads the whole grid just to find its centre
+      * Faster NaN filling and multithreaded FFT for Fourier-based filters (RTP etc.) on large grids
+      * Apply now reads the grid inside the background task, so QGIS stays responsive and Cancel works while a large grid loads
+      * Security and Qt6 compatibility fixes for the plugin repository checks (no silent try/except, safer XML parsing, fully scoped Qt/QGIS enums)
+
 ## 0.3.8 and earlier
       * Utils tab: new Clip All Layers tool (QGIS dialog, and the ArcGIS Pro toolbox tool Clip All Layers to Polygon): clips every layer of the project to a chosen polygon layer (or its selected polygons), saving each as <name>_clip with its .qml style in a chosen folder, plus a copy of the project (.qgz) with the same groups, order, visibility and styles that loads the clipped layers   
       * BSDWorms is now also a Processing algorithm (Wavelets group): same worms as the dialog, with the points CSV, padded grid and optional polyline shapefile written beside the input and their provenance recorded   

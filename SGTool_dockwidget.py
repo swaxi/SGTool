@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
+import sys
+
 from qgis.PyQt import QtWidgets
-from qgis.PyQt.QtCore import pyqtSignal, Qt, QDate, QCoreApplication
+from qgis.PyQt.QtCore import pyqtSignal, Qt, QDate, QCoreApplication, QSettings
 from qgis.PyQt.QtWidgets import (
     QDockWidget, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QScrollArea, QTabWidget, QPushButton, QLabel, QLineEdit,
     QCheckBox, QRadioButton, QComboBox, QGroupBox, QDateEdit,
     QTextEdit, QTextBrowser, QSpinBox, QDoubleSpinBox, QFrame,
-    QButtonGroup,
+    QButtonGroup, QStyleFactory, QApplication,
 )
 from qgis.gui import (
     QgsMapLayerComboBox, QgsProjectionSelectionWidget,
@@ -25,6 +27,22 @@ if not hasattr(QFrame, 'NoFrame'):
     for _n in ('NoFrame', 'Box', 'Panel', 'StyledPanel', 'HLine', 'VLine', 'WinPanel'):
         setattr(QFrame, _n, getattr(QFrame.Shape, _n))
 
+# The native macOS style pads buttons/combos heavily and the default font is
+# larger than on Windows, so the same layout comes out ~30% bigger. On macOS
+# the dock uses a smaller font and the compact Fusion style instead.
+# Set QSettings "SGTool/compactMacUI" to false to keep the native look.
+IS_MACOS = sys.platform == "darwin"
+MACOS_FONT_SCALE = 0.85
+
+
+def _compact_mac_ui():
+    if not IS_MACOS:
+        return False
+    return str(QSettings().value("SGTool/compactMacUI", True)).lower() not in ("false", "0")
+
+
+COMPACT_MAC = _compact_mac_ui()
+
 TAB_STYLE = """
 QTabWidget::tab-bar { alignment: left; }
 QTabBar::tab {
@@ -32,11 +50,11 @@ QTabBar::tab {
     background-color: rgb(220,220,220);
     border-radius: 2px;
     border: 1px solid #000000;
-    font-family: Arial; font-size: 13px;
+    font-family: Arial; font-size: %dpx;
 }
 QTabBar::tab:selected { background-color: rgb(190,190,190); }
 QTabBar::tab:hover    { background-color: rgb(229,241,251); }
-"""
+""" % (11 if COMPACT_MAC else 13)
 
 TAB_BG = "background-color: rgb(240,240,240);"
 
@@ -101,6 +119,30 @@ class SGToolDockWidget(QDockWidget):
         shell.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         shell.setWidget(root)
         self.setWidget(shell)
+
+        if COMPACT_MAC:
+            self._apply_compact_mac_style(shell)
+
+    def _apply_compact_mac_style(self, top):
+        # QGIS sets the font size through an application stylesheet, which
+        # overrides setFont(), so the smaller size has to be a stylesheet too.
+        try:
+            base = float(QSettings().value("qgis/stylesheet/fontPointSize", 0))
+        except (TypeError, ValueError):
+            base = 0
+        if base <= 0:
+            base = QApplication.font().pointSizeF()
+        if base > 0:
+            top.setStyleSheet(
+                "QWidget { font-size: %.1fpt; }" % (base * MACOS_FONT_SCALE)
+            )
+        # Keep a reference: QWidget.setStyle does not take ownership.
+        self._compact_style = QStyleFactory.create("Fusion")
+        if self._compact_style is None:
+            return
+        top.setStyle(self._compact_style)
+        for w in top.findChildren(QWidget):
+            w.setStyle(self._compact_style)
 
     # ------------------------------------------------------------------
     # Helper: wrap a widget list in a QScrollArea

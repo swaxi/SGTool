@@ -11,7 +11,7 @@ version=0.3.9
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
-about=Simple Potential Field Processing using FFT grid filters, e.g. RTP, 1VD, Band Pass, Analytic Signal, Upward Continuation, worms etc.
+about=Simple Potential Field Processing using FFT grid filters, e.g. RTP, 1VD, Band Pass, Analytic Signal, Upward Continuation, worms etc., plus apparent susceptibility and density grids, and Henkel plots and histograms of apparent and measured petrophysics.
 
 tracker=https://github.com/swaxi/SGTool/issues
 repository=https://github.com/swaxi/SGTool
@@ -21,7 +21,14 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.3.9
+changelog=Unreleased (Petrophysics branch)
+      * New Petrophys tab (between Grid + Wavelets and Utils), described in docs/petrophysics.md
+      * Apparent susceptibility (SI) from an RTP/RTE magnetic anomaly grid, with the field strength from the IGRF at the grid centre, and apparent density (g/cc) from a Bouguer grid in mGal or um/s2, by dividing out the response of a layer of vertical prisms in the Fourier domain; the grids' arbitrary level is not used, so each result is a variation about a background value; one calculation at a time, with live preview and provenance metadata
+      * Henkel plots (density against log susceptibility) of two apparent grids as a heat map, for the whole area or per category of a polygon layer (e.g. geology units)
+      * Measured Petrophysics: any two fields of a point layer plotted against each other, each with a multiplier and log option, as points with up to 64 category symbols or as a heat map
+      * With only one grid or field chosen, histograms instead, per category if one is chosen, with the median, mean and standard deviation
+      * Plots drawn by their own buttons, optionally saved as PNG and/or PDF; new script scripts/pivot_petrophysics.py to make one point per sample from one row per measurement
+      0.3.9
       * Utils tab: new Clip to Window button clips the selected grid to the current map window, saving it beside the original as <name>_clip.tif (then _clip_01, _clip_02 ... rather than overwriting an earlier clip); Clip All Layers is now half width, beside it. Also in the ArcGIS Pro GUI (Utils tab), using the ArcGIS Pro map view
       * Crop to area prior to preview to speed up on large grids
       * IGRF button no longer loads the whole grid just to find its centre

@@ -914,7 +914,7 @@ class SGTool:
         self.VI = self.dlg.checkBox_4_PGrav.isChecked()
         self.THG = self.dlg.checkBox_11_tot_hz_grad.isChecked()
 
-        self.AppSus = self.dlg.checkBox_AppSus.isChecked()
+        self.AppSus = self.dlg.radioButton_AppSus.isChecked()
         self.AppSus_field = self.to_float(self.dlg.lineEdit_AppSus_field.text())
         self.AppSus_depth = self.to_float(self.dlg.lineEdit_AppSus_depth.text())
         self.AppSus_thickness = (
@@ -923,7 +923,7 @@ class SGTool:
         )
         self.AppSus_cut = self._optional_float(self.dlg.lineEdit_AppSus_cut.text())
         self.AppSus_background = self.to_float(self.dlg.lineEdit_AppSus_background.text())
-        self.AppDens = self.dlg.checkBox_AppDens.isChecked()
+        self.AppDens = self.dlg.radioButton_AppDens.isChecked()
         self.AppDens_depth = self.to_float(self.dlg.lineEdit_AppDens_depth.text())
         self.AppDens_thickness = self.to_float(self.dlg.lineEdit_AppDens_thickness.text())
         self.AppDens_background = self.to_float(self.dlg.lineEdit_AppDens_background.text())
@@ -2133,8 +2133,8 @@ class SGTool:
             ("SS_Kurtosis", "procSS_Kurtosis", True, "checkBox_SS_Kurtosis"),
         ],
         3: [  # Petrophys tab
-            ("AppSus", "procAppSus", True, "checkBox_AppSus"),
-            ("AppDens", "procAppDens", True, "checkBox_AppDens"),
+            ("AppSus", "procAppSus", True, "radioButton_AppSus"),
+            ("AppDens", "procAppDens", True, "radioButton_AppDens"),
         ],
         4: [  # Utils tab
             ("NaN", "procNaN", True, "checkBox_NaN"),
@@ -4114,7 +4114,11 @@ class SGTool:
             return
         d = self.dlg
         self.localGridName = d.mMapLayerComboBox_selectGrid_Petro.currentText()
-        self.processGeophysics()
+        self._petro_apply = True  # run only the selected apparent calculation
+        try:
+            self.processGeophysics()
+        finally:
+            self._petro_apply = False
 
     def plotPetrophysics(self, make):
         """Draw one Henkel plot when its button is pressed (on the main thread:
@@ -4365,18 +4369,18 @@ class SGTool:
         # editing a setting ticks its calculation (and updates a live preview);
         # textEdited, not textChanged, so the IGRF filling in the field doesn't
         for widget, signal, box in (
-            (d.lineEdit_AppSus_field, "textEdited", d.checkBox_AppSus),
-            (d.dateEdit_AppSus, "dateChanged", d.checkBox_AppSus),
-            (d.lineEdit_AppSus_depth, "textEdited", d.checkBox_AppSus),
-            (d.checkBox_AppSus_thickness, "toggled", d.checkBox_AppSus),
-            (d.lineEdit_AppSus_thickness, "textEdited", d.checkBox_AppSus),
-            (d.lineEdit_AppSus_cut, "textEdited", d.checkBox_AppSus),
-            (d.lineEdit_AppSus_background, "textEdited", d.checkBox_AppSus),
-            (d.lineEdit_AppDens_depth, "textEdited", d.checkBox_AppDens),
-            (d.lineEdit_AppDens_thickness, "textEdited", d.checkBox_AppDens),
-            (d.lineEdit_AppDens_background, "textEdited", d.checkBox_AppDens),
-            (d.lineEdit_AppDens_cut, "textEdited", d.checkBox_AppDens),
-            (d.comboBox_AppDens_units, "activated", d.checkBox_AppDens),
+            (d.lineEdit_AppSus_field, "textEdited", d.radioButton_AppSus),
+            (d.dateEdit_AppSus, "dateChanged", d.radioButton_AppSus),
+            (d.lineEdit_AppSus_depth, "textEdited", d.radioButton_AppSus),
+            (d.checkBox_AppSus_thickness, "toggled", d.radioButton_AppSus),
+            (d.lineEdit_AppSus_thickness, "textEdited", d.radioButton_AppSus),
+            (d.lineEdit_AppSus_cut, "textEdited", d.radioButton_AppSus),
+            (d.lineEdit_AppSus_background, "textEdited", d.radioButton_AppSus),
+            (d.lineEdit_AppDens_depth, "textEdited", d.radioButton_AppDens),
+            (d.lineEdit_AppDens_thickness, "textEdited", d.radioButton_AppDens),
+            (d.lineEdit_AppDens_background, "textEdited", d.radioButton_AppDens),
+            (d.lineEdit_AppDens_cut, "textEdited", d.radioButton_AppDens),
+            (d.comboBox_AppDens_units, "activated", d.radioButton_AppDens),
         ):
             getattr(widget, signal).connect(lambda *_a, b=box: self.update_checkbox(b))
 
@@ -4538,11 +4542,18 @@ class SGTool:
         ("ED", "procEulerDeconvolution", True, False),
     )
 
+    # Petrophys tab calculations: one is always selected (radio buttons), so
+    # they run only from that tab's Apply, and then on their own
+    PETRO_FLAGS = ("AppSus", "AppDens")
+    _petro_apply = False
+
     def _pipeline_jobs(self):
         """The calculations ticked in the dialog, in running order."""
         jobs = []
         for flag, method, std_clip, auto in self.PIPELINE_JOBS:
             if not getattr(self, flag):
+                continue
+            if (flag in self.PETRO_FLAGS) != self._petro_apply:
                 continue
             if flag == "RTE_P":
                 method = "procVRTP" if self.RTE_P_type == "Diff. RTP" else "procRTP_E"
@@ -4699,8 +4710,6 @@ class SGTool:
 
         self.dlg.checkBox_6_derivative.setChecked(False)
         self.dlg.checkBox_11_tot_hz_grad.setChecked(False)
-        self.dlg.checkBox_AppSus.setChecked(False)
-        self.dlg.checkBox_AppDens.setChecked(False)
 
         self.dlg.checkBox_Mean.setChecked(False)
         self.dlg.checkBox_Median.setChecked(False)

@@ -1289,8 +1289,9 @@ class SGToolDockWidget(QDockWidget):
         )
 
         # Apparent susceptibility
-        self.checkBox_AppSus = QCheckBox(_tr("Apparent Susceptibility"))
-        self.checkBox_AppSus.setToolTip(
+        self.radioButton_AppSus = QRadioButton(_tr("Apparent Susceptibility"))
+        self.radioButton_AppSus.setChecked(True)
+        self.radioButton_AppSus.setToolTip(
             _tr("Apparent susceptibility (SI) from a magnetic grid (nT) that has already been\n"
                 "reduced to the pole (RTP), or to the equator (RTE: the result is then only\n"
                 "approximate).\n"
@@ -1300,7 +1301,7 @@ class SGToolDockWidget(QDockWidget):
                 "recovered, so values are relative to the background susceptibility set.\n"
                 "Output: <grid>_AppSus.")
         )
-        row(self.checkBox_AppSus, indent=False)
+        row(self.radioButton_AppSus, indent=False)
 
         self.lineEdit_AppSus_field = self._short_edit(
             "50000", 60,
@@ -1357,8 +1358,8 @@ class SGToolDockWidget(QDockWidget):
             _tr("High-cut (m)"), self.lineEdit_AppSus_cut)
 
         # Apparent density
-        self.checkBox_AppDens = QCheckBox(_tr("Apparent Density"))
-        self.checkBox_AppDens.setToolTip(
+        self.radioButton_AppDens = QRadioButton(_tr("Apparent Density"))
+        self.radioButton_AppDens.setToolTip(
             _tr("Apparent density (g/cc) from a Bouguer gravity grid.\n"
                 "The ground is modelled as a layer of vertical prisms of finite thickness,\n"
                 "and the layer's response is divided out in the Fourier domain. A Bouguer\n"
@@ -1371,7 +1372,7 @@ class SGToolDockWidget(QDockWidget):
         self.comboBox_AppDens_units.setToolTip(
             _tr("Units of the gravity grid (1 mGal = 10 µm/s² = 10 gu)")
         )
-        row(self.checkBox_AppDens, _tr("Grid units"), self.comboBox_AppDens_units,
+        row(self.radioButton_AppDens, _tr("Grid units"), self.comboBox_AppDens_units,
             indent=False)
 
         self.lineEdit_AppDens_depth = self._short_edit(
@@ -1394,6 +1395,12 @@ class SGToolDockWidget(QDockWidget):
         self.lineEdit_AppDens_cut.setPlaceholderText(_tr("4 x cell"))
         row(_tr("Background (g/cc)"), self.lineEdit_AppDens_background,
             _tr("High-cut (m)"), self.lineEdit_AppDens_cut)
+
+        # one calculation at a time; Apply Processing on this tab runs it
+        group = QButtonGroup(self)
+        group.addButton(self.radioButton_AppSus)
+        group.addButton(self.radioButton_AppDens)
+        self.buttonGroup_AppPetro = group
         return gb
 
     # ------------------------------------------------------------------

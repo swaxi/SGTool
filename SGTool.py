@@ -4261,6 +4261,7 @@ class SGTool:
                 density.ravel(), susceptibility.ravel(), cats, names,
                 f"Apparent Henkel plots by {field} ({polygons.name()})",
                 self.APPARENT_DENSITY[0], self.APPARENT_SUS[0],
+                position_colours=d.checkBox_Henkel_position.isChecked(),
             )
             return fig, f"{dens.name()}_{sus.name()}_henkel_by_{field}", self._layer_folder(dens)
         values, label, log, layer = self._single_grid(density, susceptibility, dens, sus)

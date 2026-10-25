@@ -131,7 +131,11 @@ plot title says how many. Heat maps count points per bin on a log colour scale
   geology map. Categories with cells where both grids have data get a heat map
   each, in a grid of ceil(sqrt(N)) columns. All panels share their axes and colour
   scale, which shows the fraction of each category's cells per bin, so small and
-  large units compare fairly.
+  large units compare fairly. With **Colour by position** ticked, each bin is
+  coloured by where it is on the plot instead (red to green along the density
+  axis, red to blue up the susceptibility axis: low density and susceptibility
+  red, dense green, magnetic blue, both cyan), and the fraction per bin is shown
+  by opacity, solid where most crowded and faint where sparse.
 
 ### Measured Petrophysics
 

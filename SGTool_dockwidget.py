@@ -1476,7 +1476,20 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.mMapLayerComboBox_Petro_polygons, 4, 1)
         g.addWidget(lbl_cat,                               5, 0)
         g.addWidget(self.mFieldComboBox_Petro_polyCat,     5, 1)
-        g.addWidget(self.pushButton_Henkel_categories,     6, 0, 1, 2, Qt.AlignmentFlag.AlignLeft)
+        self.checkBox_Henkel_position = QCheckBox(_tr("Colour by position"))
+        self.checkBox_Henkel_position.setToolTip(
+            _tr("For Henkel plots per category: colour each bin by where it is on the plot,\n"
+                "red to green along the density axis and red to blue up the susceptibility\n"
+                "axis (low/low red, dense green, magnetic blue, both cyan), with the\n"
+                "fraction of the category's cells per bin shown by opacity instead of a\n"
+                "colour scale.")
+        )
+        category_row = QHBoxLayout()
+        category_row.setSpacing(10)
+        category_row.addWidget(self.pushButton_Henkel_categories)
+        category_row.addWidget(self.checkBox_Henkel_position)
+        category_row.addStretch()
+        g.addLayout(category_row,                          6, 0, 1, 2)
         g.setColumnStretch(1, 1)
         return gb
 

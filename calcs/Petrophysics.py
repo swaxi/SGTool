@@ -250,12 +250,40 @@ def heatmap(x, y, title, x_label, y_label, x_log=False, y_log=True,
     return fig
 
 
+def _position_colours(edges, x_log, y_log):
+    """RGB of each bin from where it is on the plot: red to green along x, red
+    to blue up y (low/low red, high x green, high y blue, high/high cyan)."""
+    def fraction(e, log):
+        c = np.log10(e) if log else e
+        mid = (c[:-1] + c[1:]) / 2
+        return (mid - c[0]) / (c[-1] - c[0])
+
+    u, v = np.meshgrid(fraction(edges[0], x_log), fraction(edges[1], y_log))
+    return np.stack([(1 - u) * (1 - v), u, v], axis=-1)  # (y bins, x bins, 3)
+
+
+def _position_heat(ax, x, y, edges, norm, rgb, weights):
+    """A heat map coloured by bin position, with the number of points per bin
+    shown by opacity (log scale; empty bins transparent)."""
+    counts = np.histogram2d(x, y, bins=edges, weights=weights)[0].T
+    filled = counts > 0
+    level = np.clip(np.asarray(norm(np.where(filled, counts, norm.vmin))), 0, 1)
+    alpha = np.where(filled, 0.15 + 0.85 * level, 0.0)
+    mesh = ax.pcolormesh(edges[0], edges[1], np.zeros_like(counts), shading="flat")
+    mesh.set_array(None)  # colours set directly, not from a colour map
+    mesh.set_facecolor(np.dstack([rgb, alpha]).reshape(-1, 4))
+    return mesh
+
+
 def heatmap_by_category(x, y, cats, names, title, x_label, y_label, x_log=False,
-                        y_log=True, robust=True, bins=100, what="cells"):
+                        y_log=True, robust=True, bins=100, what="cells",
+                        position_colours=False):
     """Heat maps of each category that has data, in a grid of panels sharing
     their axes and colour scale. Each shows the fraction of its category's
     points per bin, so panels compare whatever their size.
-    cats: index into names of each point (-1 for none)."""
+    cats: index into names of each point (-1 for none).
+    position_colours: colour each bin by its position (x red to green, y red to
+    blue) and show the fraction per bin by opacity instead of a colour scale."""
     from matplotlib.colors import LogNorm
 
     inside = cats >= 0
@@ -276,11 +304,16 @@ def heatmap_by_category(x, y, cats, names, title, x_label, y_label, x_log=False,
     vmin = min(float(f[f > 0].min()) for f in fractions if (f > 0).any())
     norm = LogNorm(vmin=vmin, vmax=max(vmax, vmin * 1.01))
 
+    rgb = _position_colours(edges, x_log, y_log) if position_colours else None
     fig, axes = _grid_of_panels(len(names), 3.2, 3.0)
     for i, name in enumerate(names):
         ax = axes.flat[i]
         sel = cats == i
-        mesh = _heat(ax, x[sel], y[sel], edges, norm, weights=np.full(counts[i], 1.0 / counts[i]))
+        weights = np.full(counts[i], 1.0 / counts[i])
+        if position_colours:
+            mesh = _position_heat(ax, x[sel], y[sel], edges, norm, rgb, weights)
+        else:
+            mesh = _heat(ax, x[sel], y[sel], edges, norm, weights=weights)
         _style_axes(ax, "", "", x_log, y_log)
         ax.set_title(f"{name}  (n={counts[i]:,})", fontsize=9)
     axes.flat[0].set_xlim(xlim)
@@ -290,6 +323,18 @@ def heatmap_by_category(x, y, cats, names, title, x_label, y_label, x_log=False,
     if dropped:
         title += f"\n{dropped:,} {what} with values <= 0 on a log axis left out"
     fig.suptitle(title, fontsize=11)
+    if position_colours:
+        # room at the bottom for the note, below the x axis label
+        fig.tight_layout(rect=(0, 0.08, 1, 1))
+        fig.supxlabel(x_label, color=TEXT_SECONDARY, y=0.055, va="bottom")
+        fig.text(
+            0.5, 0.01,
+            "Colour shows position: red to green along the x axis, red to blue up the "
+            f"y axis.\nOpacity shows the fraction of the category's {what} per bin "
+            "(log scale): solid where most crowded, faint where sparse.",
+            ha="center", va="bottom", fontsize=8, color=TEXT_SECONDARY,
+        )
+        return fig
     fig.tight_layout(rect=(0, 0, 0.9, 1))
     cax = fig.add_axes((0.92, 0.15, 0.015, 0.7))
     cbar = fig.colorbar(mesh, cax=cax)

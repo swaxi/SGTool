@@ -393,7 +393,7 @@ def histogram(values, title, label, log=False, robust=True, what="points"):
     edges = _edges(lims, log, int(np.clip(math.sqrt(values.size), 10, 100)))
     fig, ax = plt.subplots(figsize=(7.5, 5))
     counts, _, _ = ax.hist(values, bins=edges, color=CATEGORY_COLOURS[0],
-                           edgecolor="white", linewidth=0.5)
+                           histtype="stepfilled", linewidth=0)
     _add_stats(ax, values, fontsize=9)
     _style_axes(ax, label, "Count", x_log=log, grid="y")
     ax.set_xlim(edges[0], edges[-1])
@@ -430,7 +430,7 @@ def histogram_by_category(values, cats, names, title, label, log=False,
         ax = axes.flat[i]
         v = values[cats == i]
         counts, _, _ = ax.hist(v, bins=edges, weights=np.full(v.size, 1.0 / v.size),
-                               color=CATEGORY_COLOURS[0], edgecolor="white", linewidth=0.5)
+                               color=CATEGORY_COLOURS[0], histtype="stepfilled", linewidth=0)
         top = max(top, float(counts.max()))
         _add_stats(ax, v, fontsize=7)
         _style_axes(ax, "", "", x_log=log, grid="y")

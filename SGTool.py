@@ -55,6 +55,7 @@ from qgis.core import (
     QgsFields,
     QgsPointXY,
     QgsMapLayerProxyModel,
+    QgsFieldProxyModel,
     QgsApplication,
     QgsVectorFileWriter,
     QgsVectorLayer,
@@ -122,6 +123,7 @@ from .calcs.GeophysicalProcessor import GeophysicalProcessor
 from .calcs.Cooper_Cowan_rtpvariable import rtpvariable as cooper_rtpvariable
 from .calcs.geosoft_grid_parser import *
 from .calcs.PSplot import PowerSpectrumDock
+from .calcs import Petrophysics
 from .calcs.ConvolutionFilter import ConvolutionFilter
 
 # from .calcs.ConvolutionFilter import OddPositiveIntegerValidator
@@ -836,6 +838,8 @@ class SGTool:
         self.FreqCut_cut = 1000
         self.VI = False
         self.THG = False
+        self.AppSus = False
+        self.AppDens = False
 
         self.Mean = False
         self.mean_size = 3
@@ -909,6 +913,21 @@ class SGTool:
 
         self.VI = self.dlg.checkBox_4_PGrav.isChecked()
         self.THG = self.dlg.checkBox_11_tot_hz_grad.isChecked()
+
+        self.AppSus = self.dlg.checkBox_AppSus.isChecked()
+        self.AppSus_field = self.to_float(self.dlg.lineEdit_AppSus_field.text())
+        self.AppSus_depth = self.to_float(self.dlg.lineEdit_AppSus_depth.text())
+        self.AppSus_thickness = (
+            self.to_float(self.dlg.lineEdit_AppSus_thickness.text())
+            if self.dlg.checkBox_AppSus_thickness.isChecked() else None
+        )
+        self.AppSus_cut = self._optional_float(self.dlg.lineEdit_AppSus_cut.text())
+        self.AppSus_background = self.to_float(self.dlg.lineEdit_AppSus_background.text())
+        self.AppDens = self.dlg.checkBox_AppDens.isChecked()
+        self.AppDens_depth = self.to_float(self.dlg.lineEdit_AppDens_depth.text())
+        self.AppDens_thickness = self.to_float(self.dlg.lineEdit_AppDens_thickness.text())
+        self.AppDens_background = self.to_float(self.dlg.lineEdit_AppDens_background.text())
+        self.AppDens_cut = self._optional_float(self.dlg.lineEdit_AppDens_cut.text())
 
         self.Mean = self.dlg.checkBox_Mean.isChecked()
         self.mean_conv_size = self.to_int(self.dlg.lineEdit_Mean_size.text())
@@ -1329,6 +1348,7 @@ class SGTool:
                 "mMapLayerComboBox_selectGrid",
                 "mMapLayerComboBox_selectGrid_Conv",
                 "mMapLayerComboBox_selectGrid_Conv_2",
+                "mMapLayerComboBox_selectGrid_Petro",
                 "mMapLayerComboBox_selectGrid_3",
                 "mMapLayerComboBox_selectGrid_worms",
                 "mMapLayerComboBox_selectVectors",
@@ -1660,6 +1680,21 @@ class SGTool:
             return "Total horizontal gradient", {}
         if s == "_VI":
             return "Vertical integration", {}
+        if s == "_AppSus":
+            return "Apparent susceptibility", {
+                "field_nT": self.AppSus_field,
+                "depth_to_top": self.AppSus_depth,
+                "thickness": self.AppSus_thickness or "infinite",
+                "background_susceptibility": self.AppSus_background,
+                "high_cut_wavelength": self._petro_cut(self.AppSus_cut),
+            }
+        if s == "_AppDens":
+            return "Apparent density", {
+                "depth_to_top": self.AppDens_depth,
+                "thickness": self.AppDens_thickness,
+                "background_density": self.AppDens_background,
+                "high_cut_wavelength": self._petro_cut(self.AppDens_cut),
+            }
         if s.startswith("_UC_") or s.startswith("_DC_"):
             return (
                 "Upward continuation" if s.startswith("_UC_")
@@ -2093,7 +2128,11 @@ class SGTool:
             ("SS_Skewness", "procSS_Skewness", True, "checkBox_SS_Skewness"),
             ("SS_Kurtosis", "procSS_Kurtosis", True, "checkBox_SS_Kurtosis"),
         ],
-        3: [  # Utils tab
+        3: [  # Petrophys tab
+            ("AppSus", "procAppSus", True, "checkBox_AppSus"),
+            ("AppDens", "procAppDens", True, "checkBox_AppDens"),
+        ],
+        4: [  # Utils tab
             ("NaN", "procNaN", True, "checkBox_NaN"),
         ],
     }
@@ -2107,7 +2146,8 @@ class SGTool:
             "checkBox_SS_Streamline", "checkBox_MRVBF", "checkBox_PCA",
             "checkBox_ICA", "checkBox_ED", "checkBox_ED_Stats",
         ],
-        3: ["checkBox_polygons"],
+        3: [],
+        4: ["checkBox_polygons"],
     }
 
     # per-tab widget name suffix, grid combo and Apply button
@@ -2115,7 +2155,9 @@ class SGTool:
         0: ("", "mMapLayerComboBox_selectGrid", "pushButton_3_applyProcessing"),
         1: ("_conv", "mMapLayerComboBox_selectGrid_Conv",
             "pushButton_3_applyProcessing_Conv"),
-        3: ("_utils", "mMapLayerComboBox_selectGrid_Conv_2",
+        3: ("_petro", "mMapLayerComboBox_selectGrid_Petro",
+            "pushButton_3_applyProcessing_Petro"),
+        4: ("_utils", "mMapLayerComboBox_selectGrid_Conv_2",
             "pushButton_3_applyProcessing_Conv_3"),
     }
 
@@ -2733,6 +2775,62 @@ class SGTool:
                 buffer_method="mirror",
             )
             self.suffix = "_VI"
+
+    @staticmethod
+    def _optional_float(text):
+        """A number from a line edit, or None if it is blank."""
+        text = str(text).replace(",", ".").strip()
+        return float(text) if text else None
+
+    def _petro_cut(self, cut):
+        """High-cut wavelength for the apparent petrophysics filters: blank
+        means 4 x the cell size."""
+        return 4 * max(self.dx, self.dy) if cut is None else cut
+
+    def procAppSus(self):
+        if self._is_geographic():
+            self._notify(
+                "Apparent susceptibility requires a metre-based projection system",
+                Qgis.MessageLevel.Warning, 15,
+            )
+        elif self.AppSus_field <= 0:
+            self._notify(
+                "Set the field strength (nT) for apparent susceptibility first",
+                Qgis.MessageLevel.Warning, 15,
+            )
+        else:
+            self.new_grid = self.processor.apparent_susceptibility(
+                self.raster_array,
+                self.AppSus_field,
+                depth=self.AppSus_depth,
+                thickness=self.AppSus_thickness,
+                background=self.AppSus_background,
+                cutoff_wavelength=self._petro_cut(self.AppSus_cut),
+                buffer_size=self.buffer,
+            )
+            self.suffix = "_AppSus"
+
+    def procAppDens(self):
+        if self._is_geographic():
+            self._notify(
+                "Apparent density requires a metre-based projection system",
+                Qgis.MessageLevel.Warning, 15,
+            )
+        elif self.AppDens_thickness <= 0:
+            self._notify(
+                "The apparent density layer thickness must be greater than 0",
+                Qgis.MessageLevel.Warning, 15,
+            )
+        else:
+            self.new_grid = self.processor.apparent_density(
+                self.raster_array,
+                depth=self.AppDens_depth,
+                thickness=self.AppDens_thickness,
+                background=self.AppDens_background,
+                cutoff_wavelength=self._petro_cut(self.AppDens_cut),
+                buffer_size=self.buffer,
+            )
+            self.suffix = "_AppDens"
 
     def procFreqCut(self):
         cutoff_wavelength = float(self.FreqCut_cut)
@@ -4003,6 +4101,285 @@ class SGTool:
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid_Conv.currentText()
         self.processGeophysics()
 
+    # ------------------------------------------------------------------
+    # Petrophys tab: apparent susceptibility / density grids and Henkel plots
+    # ------------------------------------------------------------------
+    def processGeophysics_petro(self):
+        if self._previewing_here():
+            self.keepClicked(self._preview_tab)
+            return
+        d = self.dlg
+        self.localGridName = d.mMapLayerComboBox_selectGrid_Petro.currentText()
+        self.processGeophysics()
+
+    def plotPetrophysics(self, make):
+        """Draw one Henkel plot when its button is pressed (on the main thread:
+        matplotlib windows). make() returns (figure, file name, default folder)."""
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            QMessageBox.information(
+                None, "",
+                "Missing Packages for SGTool: The following Python packages are "
+                "required for Henkel plots, but not installed: matplotlib\n\n"
+                "Please open the QGIS Python Console and run the following command:\n\n"
+                "!pip3 install matplotlib",
+                QMessageBox_Ok,
+            )
+            return
+        try:
+            fig, name, folder = make()
+        except ValueError as e:
+            self._notify(str(e), Qgis.MessageLevel.Warning, 10)
+            return
+        except Exception:
+            print(traceback.format_exc())
+            self._notify(
+                "The plot could not be drawn (see the Python console)",
+                Qgis.MessageLevel.Critical, 15,
+            )
+            return
+        self._save_plot(fig, name, folder)
+        plt.show()
+
+    @staticmethod
+    def _layer_folder(layer):
+        """Folder of a layer's file, or None if it isn't a file on disk."""
+        path = layer.source().split("|")[0]
+        folder = os.path.dirname(path)
+        return folder if os.path.isdir(folder) else None
+
+    def _save_plot(self, fig, name, default_folder):
+        d = self.dlg
+        formats = [
+            fmt for fmt, box in (("png", d.checkBox_plot_png), ("pdf", d.checkBox_plot_pdf))
+            if box.isChecked()
+        ]
+        if not formats:
+            return
+        folder = d.lineEdit_plot_folder.text().strip() or default_folder
+        if not folder or not os.path.isdir(folder):
+            self._notify(
+                "Choose a folder to save plots in (the input layer is not a file on disk)",
+                Qgis.MessageLevel.Warning, 10,
+            )
+            return
+        base = os.path.join(folder, re.sub(r"[^\w\-]+", "_", name))
+        try:
+            paths = Petrophysics.save_figure(fig, base, formats)
+        except Exception as e:
+            self._notify(f"Could not save the plot: {e}", Qgis.MessageLevel.Warning, 10)
+            return
+        self._notify("Saved " + ", ".join(paths), Qgis.MessageLevel.Info, 8)
+
+    def _henkel_grids(self):
+        """(density layer, susceptibility layer, paired_grids result)."""
+        d = self.dlg
+        dens = d.mMapLayerComboBox_Henkel_dens.currentLayer()
+        sus = d.mMapLayerComboBox_Henkel_sus.currentLayer()
+        if dens is None or sus is None:
+            raise ValueError("Select the apparent susceptibility and density grids")
+        if dens.id() == sus.id():
+            raise ValueError("The apparent susceptibility and density grids are the same layer")
+        paired = Petrophysics.paired_grids(
+            dens.dataProvider().dataSourceUri(), sus.dataProvider().dataSourceUri()
+        )
+        return dens, sus, paired
+
+    def _henkel_apparent(self):
+        dens, sus, (density, susceptibility, _gt, _wkt) = self._henkel_grids()
+        fig = Petrophysics.henkel_heatmap(
+            density.ravel(), susceptibility.ravel(),
+            f"Apparent Henkel plot: {dens.name()} vs {sus.name()}",
+        )
+        return fig, f"{dens.name()}_{sus.name()}_henkel", self._layer_folder(dens)
+
+    def _henkel_categories(self):
+        d = self.dlg
+        polygons = d.mMapLayerComboBox_Petro_polygons.currentLayer()
+        field = d.mFieldComboBox_Petro_polyCat.currentField()
+        if polygons is None or not field:
+            raise ValueError("Select a polygon layer and its category field")
+        dens, sus, (density, susceptibility, gt, wkt) = self._henkel_grids()
+
+        xform = QgsCoordinateTransform(
+            polygons.crs(), QgsCoordinateReferenceSystem.fromWkt(wkt), QgsProject.instance()
+        )
+        features = (
+            polygons.getSelectedFeatures() if polygons.selectedFeatureCount()
+            else polygons.getFeatures()
+        )
+        shapes = []
+        for feature in features:
+            value = feature[field]
+            geom = QgsGeometry(feature.geometry())
+            if value is None or str(value) == "NULL" or geom.isEmpty():
+                continue
+            geom.transform(xform)
+            shapes.append((str(value), geom.asWkt()))
+        if not shapes:
+            raise ValueError("The polygon layer has no polygons with a category")
+        names = sorted({name for name, _ in shapes}, key=Petrophysics._natural_key)
+        index = {name: i for i, name in enumerate(names)}
+        cats = Petrophysics.rasterize_categories(
+            [(geom, index[name]) for name, geom in shapes], wkt, gt, density.shape
+        )
+        fig = Petrophysics.henkel_category_grid(
+            density.ravel(), susceptibility.ravel(), cats.ravel(), names,
+            f"Apparent Henkel plots by {field} ({polygons.name()})",
+        )
+        return fig, f"{dens.name()}_{sus.name()}_henkel_by_{field}", self._layer_folder(dens)
+
+    def _henkel_samples(self):
+        d = self.dlg
+        layer = d.mMapLayerComboBox_Petro_points.currentLayer()
+        dens_field = d.mFieldComboBox_Petro_dens.currentField()
+        sus_field = d.mFieldComboBox_Petro_sus.currentField()
+        cat_field = d.mFieldComboBox_Petro_cat.currentField()
+        if layer is None or not dens_field or not sus_field:
+            raise ValueError("Select a point layer and its density and susceptibility fields")
+        try:
+            dens_scale = self.to_float(d.lineEdit_Petro_dens_scale.text())
+            sus_scale = self.to_float(d.lineEdit_Petro_sus_scale.text())
+        except ValueError:
+            raise ValueError("The density and susceptibility multipliers must be numbers")
+
+        def number(value):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return np.nan  # NULL or text
+
+        features = (
+            layer.getSelectedFeatures() if layer.selectedFeatureCount()
+            else layer.getFeatures()
+        )
+        density, sus, cats = [], [], []
+        for feature in features:
+            density.append(number(feature[dens_field]))
+            sus.append(number(feature[sus_field]))
+            if cat_field:
+                value = feature[cat_field]
+                cats.append(Petrophysics.NO_CATEGORY if value is None or str(value) == "NULL" else str(value))
+        density = np.array(density) * dens_scale
+        sus = np.array(sus) * sus_scale
+        title = f"Henkel plot: {layer.name()}"
+        if d.radioButton_Petro_heat.isChecked():
+            n = int(np.count_nonzero(np.isfinite(density) & np.isfinite(sus)))
+            fig = Petrophysics.henkel_heatmap(
+                density, sus, title, sus_name="Susceptibility", density_name="Density",
+                robust=False, bins=Petrophysics.heat_bins(n),
+            )
+        else:
+            fig = Petrophysics.henkel_points(
+                density, sus, title, categories=cats if cat_field else None
+            )
+        return fig, f"{layer.name()}_henkel", self._layer_folder(layer)
+
+    def update_petro_field(self, quiet=False):
+        """Field strength for apparent susceptibility: from the grid's metadata
+        if it records it, otherwise the IGRF at the grid centre on the date set."""
+        layer = self.dlg.mMapLayerComboBox_selectGrid_Petro.currentLayer()
+        if layer is None or not isinstance(layer, QgsRasterLayer) or not layer.isValid():
+            return
+        try:
+            _inc, _dec, intensity = self.getMagParamGeotiff(
+                layer.dataProvider().dataSourceUri()
+            )
+        except Exception:
+            intensity = None
+        if intensity is None:
+            if not layer.crs().isValid() or (not quiet and not self.validCRS(layer)):
+                return
+            try:
+                midx, midy = self.get_grid_centroid(layer)
+                centre = QgsCoordinateTransform(
+                    layer.crs(), QgsCoordinateReferenceSystem("EPSG:4326"),
+                    QgsProject.instance(),
+                ).transform(QgsPointXY(midx, midy))
+                day = self.dlg.dateEdit_AppSus.date()
+                year = self.day_month_to_decimal_year(day.year(), day.month(), day.day())
+                _inc, _dec, intensity = self.calcIGRF(year, 0.0, centre.y(), centre.x())
+            except Exception:
+                if not quiet:
+                    print(traceback.format_exc())
+                    self._notify("Could not work out the IGRF field strength",
+                                 Qgis.MessageLevel.Warning, 8)
+                return
+        self.dlg.lineEdit_AppSus_field.setText(str(int(round(intensity))))
+
+    def _init_petro_tab(self):
+        """Layer filters and signals of the Petrophys tab (run once per dialog)."""
+        d = self.dlg
+        raster = QgsMapLayerProxyModel.Filter.RasterLayer
+        for combo in (
+            d.mMapLayerComboBox_selectGrid_Petro,
+            d.mMapLayerComboBox_Henkel_sus,
+            d.mMapLayerComboBox_Henkel_dens,
+        ):
+            combo.setFilters(raster)
+        d.mMapLayerComboBox_Petro_polygons.setFilters(
+            QgsMapLayerProxyModel.Filter.PolygonLayer
+        )
+        d.mMapLayerComboBox_Petro_points.setFilters(QgsMapLayerProxyModel.Filter.PointLayer)
+        d.mFieldComboBox_Petro_dens.setFilters(QgsFieldProxyModel.Filter.Numeric)
+        d.mFieldComboBox_Petro_sus.setFilters(QgsFieldProxyModel.Filter.Numeric)
+        d.mFieldComboBox_Petro_cat.setAllowEmptyFieldName(True)
+
+        # each field list follows its layer
+        d.mFieldComboBox_Petro_polyCat.setLayer(d.mMapLayerComboBox_Petro_polygons.currentLayer())
+        d.mMapLayerComboBox_Petro_polygons.layerChanged.connect(
+            d.mFieldComboBox_Petro_polyCat.setLayer
+        )
+        for field_combo in (
+            d.mFieldComboBox_Petro_dens, d.mFieldComboBox_Petro_sus, d.mFieldComboBox_Petro_cat
+        ):
+            field_combo.setLayer(d.mMapLayerComboBox_Petro_points.currentLayer())
+            d.mMapLayerComboBox_Petro_points.layerChanged.connect(field_combo.setLayer)
+        d.mFieldComboBox_Petro_cat.setField("")
+
+        d.pushButton_3_applyProcessing_Petro.clicked.connect(self.processGeophysics_petro)
+        for button, make in (
+            (d.pushButton_Henkel, self._henkel_apparent),
+            (d.pushButton_Henkel_categories, self._henkel_categories),
+            (d.pushButton_Henkel_points, self._henkel_samples),
+        ):
+            button.clicked.connect(lambda _checked=False, m=make: self.plotPetrophysics(m))
+        d.pushButton_AppSus_IGRF.clicked.connect(lambda _checked=False: self.update_petro_field())
+        d.pushButton_plot_folder.clicked.connect(self.select_plot_folder)
+        d.mMapLayerComboBox_selectGrid_Petro.layerChanged.connect(
+            lambda _layer: self.update_petro_field(quiet=True)
+        )
+        d.mMapLayerComboBox_selectGrid_Petro.layerChanged.connect(
+            lambda layer: layer is not None and self._show_grid_info(layer)
+        )
+        d.dateEdit_AppSus.dateChanged.connect(lambda _date: self.update_petro_field(quiet=True))
+        self.update_petro_field(quiet=True)
+
+        # editing a setting ticks its calculation (and updates a live preview);
+        # textEdited, not textChanged, so the IGRF filling in the field doesn't
+        for widget, signal, box in (
+            (d.lineEdit_AppSus_field, "textEdited", d.checkBox_AppSus),
+            (d.dateEdit_AppSus, "dateChanged", d.checkBox_AppSus),
+            (d.lineEdit_AppSus_depth, "textEdited", d.checkBox_AppSus),
+            (d.checkBox_AppSus_thickness, "toggled", d.checkBox_AppSus),
+            (d.lineEdit_AppSus_thickness, "textEdited", d.checkBox_AppSus),
+            (d.lineEdit_AppSus_cut, "textEdited", d.checkBox_AppSus),
+            (d.lineEdit_AppSus_background, "textEdited", d.checkBox_AppSus),
+            (d.lineEdit_AppDens_depth, "textEdited", d.checkBox_AppDens),
+            (d.lineEdit_AppDens_thickness, "textEdited", d.checkBox_AppDens),
+            (d.lineEdit_AppDens_background, "textEdited", d.checkBox_AppDens),
+            (d.lineEdit_AppDens_cut, "textEdited", d.checkBox_AppDens),
+        ):
+            getattr(widget, signal).connect(lambda *_a, b=box: self.update_checkbox(b))
+
+    def select_plot_folder(self):
+        folder = QFileDialog.getExistingDirectory(
+            None, "Folder for saved plots", self.dlg.lineEdit_plot_folder.text()
+        )
+        if folder:
+            self.dlg.lineEdit_plot_folder.setText(folder)
+
     def processGeophysics(self):
         """
         Processes geophysical data based on the selected raster layer and user-defined parameters.
@@ -4130,6 +4507,8 @@ class SGTool:
         ("AGC", "procAGC", True, True),
         ("VI", "procvInt", True, True),
         ("THG", "procTHG", True, True),
+        ("AppSus", "procAppSus", True, True),
+        ("AppDens", "procAppDens", True, True),
         ("Mean", "procMean", True, True),
         ("Median", "procMedian", True, True),
         ("Gaussian", "procGaussian", True, True),
@@ -4186,6 +4565,7 @@ class SGTool:
         "Derivative": "Derivative", "TA": "Tilt angle", "AS": "Analytic signal",
         "Continuation": "Continuation", "BandPass": "Band pass", "FreqCut": "High/Low pass",
         "AGC": "AGC", "VI": "Vertical integration", "THG": "Total horizontal gradient",
+        "AppSus": "Apparent susceptibility", "AppDens": "Apparent density",
         "Mean": "Mean", "Median": "Median", "Gaussian": "Gaussian", "Direction": "Directional",
         "SunShade": "Sun shading", "NaN": "Threshold to NaN", "SS_Min": "Min", "SS_Max": "Max",
         "SS_Kurtosis": "Kurtosis", "SS_StdDev": "Std dev", "SS_Variance": "Variance",
@@ -4312,6 +4692,8 @@ class SGTool:
 
         self.dlg.checkBox_6_derivative.setChecked(False)
         self.dlg.checkBox_11_tot_hz_grad.setChecked(False)
+        self.dlg.checkBox_AppSus.setChecked(False)
+        self.dlg.checkBox_AppDens.setChecked(False)
 
         self.dlg.checkBox_Mean.setChecked(False)
         self.dlg.checkBox_Median.setChecked(False)
@@ -4350,6 +4732,8 @@ class SGTool:
         self.FreqCut = False
         self.VI = False
         self.THG = False
+        self.AppSus = False
+        self.AppDens = False
         self.Mean = False
         self.Median = False
         self.Gaussian = False
@@ -5910,6 +6294,7 @@ class SGTool:
             self.dlg.pushButton_3_applyProcessing_Conv_2.clicked.connect(
                 self.processRGB
             )
+            self._init_petro_tab()
 
             self.dlg.pushButton_selectPoints.clicked.connect(self.select_point_file)
 

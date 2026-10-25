@@ -4,6 +4,9 @@
 
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
+## Unreleased
+      * New Petrophys tab (before Utils): apparent susceptibility (from RTP/RTE magnetics, with the IGRF field strength) and apparent density (from Bouguer gravity) grids, with live preview; Henkel plots (density against log susceptibility) of apparent grids as a heat map, per category of a polygon layer, and of measured samples in a point layer as points coloured by category or a heat map, optionally saved as PNG/PDF
+
 ## 0.3.9
       * Utils tab: new Clip to Window button clips the selected grid to the current map window, saving it beside the original as <name>_clip.tif (then _clip_01, _clip_02 ... rather than overwriting an earlier clip); Clip All Layers is now half width, beside it. Also in the ArcGIS Pro GUI (Utils tab), using the ArcGIS Pro map view
       * Crop to area prior to preview to speed up on large grids

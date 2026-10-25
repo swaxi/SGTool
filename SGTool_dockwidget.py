@@ -76,6 +76,7 @@ class SGToolDockWidget(QDockWidget):
         self.tabWidget.addTab(self._tab_fft_filters(),   _tr("FFT Filters"))
         self.tabWidget.addTab(self._tab_conv_stats(),    _tr("Conv + Stats"))
         self.tabWidget.addTab(self._tab_grid_wavelets(), _tr("Grid + Wavelets"))
+        self.tabWidget.addTab(self._tab_petrophysics(),  _tr("Petrophys"))
         self.tabWidget.addTab(self._tab_utils(),         _tr("Utils"))
         self.tabWidget.addTab(self._tab_help(),          _tr("Help"))
 
@@ -1188,7 +1189,395 @@ class SGToolDockWidget(QDockWidget):
         return gb
 
     # ------------------------------------------------------------------
-    # TAB 4 – Utils
+    # TAB 4 – Petrophysics
+    # ------------------------------------------------------------------
+    def _tab_petrophysics(self):
+        tab = QWidget()
+        tab.setObjectName("Petrophysics")
+        tab.setStyleSheet("#Petrophysics { " + TAB_BG + " }")
+
+        outer = QVBoxLayout(tab)
+        outer.setContentsMargins(6, 6, 6, 6)
+        outer.setSpacing(4)
+
+        # ── Fixed top: Select Grid ───────────────────────────────────
+        top = QWidget()
+        tl = QHBoxLayout(top)
+        tl.setContentsMargins(0, 0, 0, 0)
+        lbl = QLabel(_tr("Select Grid"))
+        lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.mMapLayerComboBox_selectGrid_Petro = QgsMapLayerComboBox()
+        self.mMapLayerComboBox_selectGrid_Petro.setToolTip(
+            _tr("Grid the Apparent Petrophysics calculations are applied to")
+        )
+        tl.addWidget(lbl)
+        tl.addWidget(self.mMapLayerComboBox_selectGrid_Petro, 1)
+        outer.addWidget(top)
+
+        # ── Fixed: Apply Processing + live preview controls ─────────
+        self.pushButton_3_applyProcessing_Petro = QPushButton(_tr("Apply Processing"))
+        self.pushButton_3_applyProcessing_Petro.setStyleSheet("font-weight: bold;")
+        self.pushButton_3_applyProcessing_Petro.setToolTip(
+            _tr("Run the ticked Apparent Petrophysics calculations")
+        )
+        outer.addWidget(
+            self._apply_preview_bar(
+                self.pushButton_3_applyProcessing_Petro, suffix="_petro"
+            )
+        )
+
+        # ── Scrollable middle ────────────────────────────────────────
+        sc = QWidget()
+        sl = QVBoxLayout(sc)
+        sl.setContentsMargins(2, 2, 2, 2)
+        sl.setSpacing(6)
+        sl.addWidget(self._group_apparent_petro())
+        sl.addWidget(self._group_apparent_henkel())
+        sl.addWidget(self._group_spatial_analysis())
+        sl.addWidget(self._group_true_petro())
+        sl.addWidget(self._group_save_plots())
+        sl.addStretch()
+        outer.addWidget(self._scroll_wrap(sc), 1)
+        outer.addWidget(self._grid_info_bar())
+        return tab
+
+    @staticmethod
+    def _petro_row(layout, *items, indent=True):
+        """A row of widgets in a line, indented under its checkbox."""
+        box = QHBoxLayout()
+        box.setContentsMargins(0, 0, 0, 0)
+        box.setSpacing(4)
+        if indent:
+            box.addSpacing(22)
+        for item in items:
+            if isinstance(item, str):
+                label = QLabel(item)
+                label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                box.addWidget(label)
+            else:
+                box.addWidget(item)
+        box.addStretch()
+        layout.addLayout(box)
+
+    @staticmethod
+    def _plot_button(text):
+        """A button that draws a plot as soon as it is pressed."""
+        button = QPushButton(text)
+        button.setStyleSheet("font-weight: bold;")
+        return button
+
+    @staticmethod
+    def _short_edit(text, width=60, tip=None):
+        edit = QLineEdit(text)
+        edit.setFixedWidth(width)
+        if tip:
+            edit.setToolTip(tip)
+        return edit
+
+    # ------------------------------------------------------------------
+    # Group: Apparent Petrophysics
+    # ------------------------------------------------------------------
+    def _group_apparent_petro(self):
+        gb = QGroupBox(_tr("Apparent Petrophysics"))
+        v = QVBoxLayout(gb)
+        v.setSpacing(4)
+        row = lambda *items, indent=True: self._petro_row(v, *items, indent=indent)
+        cut_tip = _tr(
+            "High-cut wavelength (m). Dividing out the layer response amplifies short\n"
+            "wavelengths, so they are removed with a cosine roll-off: wavelengths longer\n"
+            "than twice this value are kept, those at this value or shorter removed.\n"
+            "Leave blank for 4 x the cell size; 0 for no high-cut."
+        )
+
+        # Apparent susceptibility
+        self.checkBox_AppSus = QCheckBox(_tr("Apparent Susceptibility"))
+        self.checkBox_AppSus.setToolTip(
+            _tr("Apparent susceptibility (SI) from a magnetic grid (nT) that has already been\n"
+                "reduced to the pole (RTP), or to the equator (RTE: the result is then only\n"
+                "approximate).\n"
+                "The ground is modelled as a layer of vertical prisms magnetised by induction\n"
+                "in the ambient field, and the layer's response is divided out in the\n"
+                "Fourier domain. With a finite thickness the mean level cannot be\n"
+                "recovered, so values are relative to the background susceptibility set.\n"
+                "Output: <grid>_AppSus.")
+        )
+        row(self.checkBox_AppSus, indent=False)
+
+        self.lineEdit_AppSus_field = self._short_edit(
+            "50000", 60,
+            _tr("Ambient field strength (nT).\n"
+                "Filled in from the IGRF at the centre of the selected grid on the date\n"
+                "shown whenever a grid is selected or IGRF is pressed (or from the grid's\n"
+                "own metadata if it holds the field intensity). You can also type a value.")
+        )
+        self.pushButton_AppSus_IGRF = QPushButton("IGRF")
+        self.pushButton_AppSus_IGRF.setToolTip(
+            _tr("Set the field strength from the IGRF model at the centre of the selected\n"
+                "grid on the survey date")
+        )
+        self.dateEdit_AppSus = QDateEdit(QDate.currentDate())
+        self.dateEdit_AppSus.setMinimumDate(QDate(1900, 1, 1))
+        self.dateEdit_AppSus.setMaximumDate(QDate(2030, 12, 31))
+        self.dateEdit_AppSus.setCalendarPopup(True)
+        self.dateEdit_AppSus.setToolTip(_tr("Survey date used for the IGRF field strength"))
+        row(_tr("Field (nT)"), self.lineEdit_AppSus_field,
+            self.pushButton_AppSus_IGRF, self.dateEdit_AppSus)
+
+        self.lineEdit_AppSus_depth = self._short_edit(
+            "0", 60,
+            _tr("Depth from the sensor to the top of the magnetic layer (m).\n"
+                "0 puts the top of the sources at the sensor. For airborne data set it to\n"
+                "the terrain clearance (plus any cover) so the sources sit at the ground.")
+        )
+        self.checkBox_AppSus_thickness = QCheckBox(_tr("Thickness (m)"))
+        self.checkBox_AppSus_thickness.setToolTip(
+            _tr("Untick for a layer of infinite thickness (the usual choice); tick to give\n"
+                "the layer a finite thickness")
+        )
+        self.lineEdit_AppSus_thickness = self._short_edit(
+            "1000", 60, _tr("Layer thickness (m), used when Thickness is ticked")
+        )
+        self.lineEdit_AppSus_thickness.setEnabled(False)
+        self.checkBox_AppSus_thickness.toggled.connect(
+            self.lineEdit_AppSus_thickness.setEnabled
+        )
+        row(_tr("Depth to top (m)"), self.lineEdit_AppSus_depth,
+            self.checkBox_AppSus_thickness, self.lineEdit_AppSus_thickness)
+
+        self.lineEdit_AppSus_background = self._short_edit(
+            "0.001", 50,
+            _tr("Background susceptibility (SI) added to the result.\n"
+                "A magnetic anomaly grid (IGRF removed) has no absolute level, so the\n"
+                "calculated susceptibility is relative to an unknown background and is\n"
+                "partly negative. A typical background (e.g. 0.001 SI) keeps most values\n"
+                "positive, so Henkel plots need little or no shift for their log axis.")
+        )
+        self.lineEdit_AppSus_cut = self._short_edit("", 70, cut_tip)
+        self.lineEdit_AppSus_cut.setPlaceholderText(_tr("4 x cell"))
+        row(_tr("Background (SI)"), self.lineEdit_AppSus_background,
+            _tr("High-cut (m)"), self.lineEdit_AppSus_cut)
+
+        # Apparent density
+        self.checkBox_AppDens = QCheckBox(_tr("Apparent Density"))
+        self.checkBox_AppDens.setToolTip(
+            _tr("Apparent density (g/cc) from a Bouguer gravity grid (mGal).\n"
+                "The ground is modelled as a layer of vertical prisms of finite thickness,\n"
+                "and the layer's response is divided out in the Fourier domain. The mean\n"
+                "level comes from the Bouguer slab formula, so it is only as meaningful as\n"
+                "the gravity datum. Output: <grid>_AppDens.")
+        )
+        row(self.checkBox_AppDens, indent=False)
+
+        self.lineEdit_AppDens_depth = self._short_edit(
+            "0", 60,
+            _tr("Depth from the sensor to the top of the layer (m).\n"
+                "0 for ground gravity; the terrain clearance for airborne gravity.")
+        )
+        self.lineEdit_AppDens_thickness = self._short_edit(
+            "1000", 60, _tr("Layer thickness (m); must be greater than 0")
+        )
+        row(_tr("Depth to top (m)"), self.lineEdit_AppDens_depth,
+            _tr("Thickness (m)"), self.lineEdit_AppDens_thickness)
+
+        self.lineEdit_AppDens_background = self._short_edit(
+            "2.67", 50, _tr("Background density (g/cc) added to the density contrast")
+        )
+        self.lineEdit_AppDens_cut = self._short_edit("", 70, cut_tip)
+        self.lineEdit_AppDens_cut.setPlaceholderText(_tr("4 x cell"))
+        row(_tr("Background (g/cc)"), self.lineEdit_AppDens_background,
+            _tr("High-cut (m)"), self.lineEdit_AppDens_cut)
+        return gb
+
+    # ------------------------------------------------------------------
+    # Group: Apparent Henkel Plot
+    # ------------------------------------------------------------------
+    def _group_apparent_henkel(self):
+        gb = QGroupBox(_tr("Apparent Henkel Plot"))
+        g = QGridLayout(gb)
+        g.setSpacing(4)
+
+        lbl_sus = QLabel(_tr("App. Susceptibility"))
+        lbl_sus.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.mMapLayerComboBox_Henkel_sus = QgsMapLayerComboBox()
+        self.mMapLayerComboBox_Henkel_sus.setToolTip(_tr("Apparent susceptibility grid (SI)"))
+        lbl_dens = QLabel(_tr("App. Density"))
+        lbl_dens.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.mMapLayerComboBox_Henkel_dens = QgsMapLayerComboBox()
+        self.mMapLayerComboBox_Henkel_dens.setToolTip(_tr("Apparent density grid (g/cc)"))
+
+        self.pushButton_Henkel = self._plot_button(_tr("Plot Apparent Henkel"))
+        self.pushButton_Henkel.setToolTip(
+            _tr("Heat map of apparent density (linear x axis) against apparent susceptibility\n"
+                "(log y axis), counting grid cells per bin on a log colour scale.\n"
+                "Each cell of the coarser grid (usually gravity) is paired with the nearest\n"
+                "cell of the finer grid, reprojecting if the CRSs differ; cells where either\n"
+                "grid has no data are left out. If any susceptibility is <= 0, all are\n"
+                "shifted by -min + 1% of the range so the log axis works (the shift is shown\n"
+                "on the axis). Axes span the 0.1-99.9 percentiles, to keep FFT edge effects\n"
+                "from squashing the plot.")
+        )
+        g.addWidget(lbl_sus,                            0, 0)
+        g.addWidget(self.mMapLayerComboBox_Henkel_sus,  0, 1)
+        g.addWidget(lbl_dens,                           1, 0)
+        g.addWidget(self.mMapLayerComboBox_Henkel_dens, 1, 1)
+        g.addWidget(self.pushButton_Henkel,             2, 0, 1, 2, Qt.AlignmentFlag.AlignLeft)
+        g.setColumnStretch(1, 1)
+        return gb
+
+    # ------------------------------------------------------------------
+    # Group: Spatial Analysis
+    # ------------------------------------------------------------------
+    def _group_spatial_analysis(self):
+        gb = QGroupBox(_tr("Spatial Analysis"))
+        g = QGridLayout(gb)
+        g.setSpacing(4)
+
+        lbl_poly = QLabel(_tr("Polygons"))
+        lbl_poly.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.mMapLayerComboBox_Petro_polygons = QgsMapLayerComboBox()
+        self.mMapLayerComboBox_Petro_polygons.setToolTip(
+            _tr("Polygon layer, e.g. a geology map. If some polygons are selected, only\n"
+                "those are used.")
+        )
+        lbl_cat = QLabel(_tr("Category field"))
+        lbl_cat.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.mFieldComboBox_Petro_polyCat = QgsFieldComboBox()
+        self.mFieldComboBox_Petro_polyCat.setToolTip(
+            _tr("Field holding the category (e.g. lithology) of each polygon")
+        )
+        self.pushButton_Henkel_categories = self._plot_button(_tr("Plot per Category"))
+        self.pushButton_Henkel_categories.setToolTip(
+            _tr("A grid of Henkel heat maps, one per category, using the grids chosen under\n"
+                "Apparent Henkel Plot clipped to the polygons of that category. Categories\n"
+                "with no cells where both grids have data are left out. All panels\n"
+                "share their axes and colour scale; each shows the fraction of its own\n"
+                "category's cells per bin, so small and large categories compare fairly.")
+        )
+        g.addWidget(lbl_poly,                              0, 0)
+        g.addWidget(self.mMapLayerComboBox_Petro_polygons, 0, 1)
+        g.addWidget(lbl_cat,                               1, 0)
+        g.addWidget(self.mFieldComboBox_Petro_polyCat,     1, 1)
+        g.addWidget(self.pushButton_Henkel_categories,     2, 0, 1, 2, Qt.AlignmentFlag.AlignLeft)
+        g.setColumnStretch(1, 1)
+        return gb
+
+    # ------------------------------------------------------------------
+    # Group: True Petrophysics
+    # ------------------------------------------------------------------
+    def _group_true_petro(self):
+        gb = QGroupBox(_tr("True Petrophysics"))
+        g = QGridLayout(gb)
+        g.setSpacing(4)
+        scale_tip = _tr(
+            "Multiplier converting the field to {units}, e.g.\n{examples}"
+        )
+
+        def label(text):
+            lbl = QLabel(text)
+            lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            return lbl
+
+        self.mMapLayerComboBox_Petro_points = QgsMapLayerComboBox()
+        self.mMapLayerComboBox_Petro_points.setToolTip(
+            _tr("Point layer of samples with measured density and susceptibility.\n"
+                "If some points are selected, only those are used.")
+        )
+        self.mFieldComboBox_Petro_dens = QgsFieldComboBox()
+        self.mFieldComboBox_Petro_dens.setToolTip(_tr("Field holding the density"))
+        self.lineEdit_Petro_dens_scale = self._short_edit(
+            "1", 55,
+            scale_tip.format(units="g/cc", examples="0.001 for kg/m3")
+        )
+        self.mFieldComboBox_Petro_sus = QgsFieldComboBox()
+        self.mFieldComboBox_Petro_sus.setToolTip(_tr("Field holding the magnetic susceptibility"))
+        self.lineEdit_Petro_sus_scale = self._short_edit(
+            "1", 55,
+            scale_tip.format(units="SI",
+                             examples="0.00001 for x10^-5 SI, 0.001 for x10^-3 SI,\n"
+                                      "12.566 (4 pi) for cgs")
+        )
+        self.mFieldComboBox_Petro_cat = QgsFieldComboBox()
+        self.mFieldComboBox_Petro_cat.setToolTip(
+            _tr("Optional: field holding a category (e.g. lithology). With Points, each\n"
+                "category gets its own colour and marker and a legend.")
+        )
+
+        self.pushButton_Henkel_points = self._plot_button(_tr("Plot Samples"))
+        self.pushButton_Henkel_points.setToolTip(
+            _tr("Density (linear x axis) against susceptibility (log y axis) of the samples.\n"
+                "If any susceptibility is <= 0, all are shifted by -min + 1% of the range so\n"
+                "the log axis works (the shift is shown on the axis).")
+        )
+        self.radioButton_Petro_points = QRadioButton(_tr("Points"))
+        self.radioButton_Petro_points.setChecked(True)
+        self.radioButton_Petro_points.setToolTip(
+            _tr("Plot every sample, coloured by category if one is chosen.\n"
+                "Up to 8 categories get their own colour; with more, the 7 largest do\n"
+                "and the rest are grouped as Other.")
+        )
+        self.radioButton_Petro_heat = QRadioButton(_tr("Heat map"))
+        self.radioButton_Petro_heat.setToolTip(
+            _tr("Samples per bin on a log colour scale, for large datasets (ignores category)")
+        )
+        group = QButtonGroup(self)
+        group.addButton(self.radioButton_Petro_points)
+        group.addButton(self.radioButton_Petro_heat)
+        self.buttonGroup_Petro_style = group
+
+        g.addWidget(label(_tr("Points")),                0, 0)
+        g.addWidget(self.mMapLayerComboBox_Petro_points, 0, 1, 1, 3)
+        g.addWidget(label(_tr("Density field")),         1, 0)
+        g.addWidget(self.mFieldComboBox_Petro_dens,      1, 1)
+        g.addWidget(label(_tr("x")),                     1, 2)
+        g.addWidget(self.lineEdit_Petro_dens_scale,      1, 3)
+        g.addWidget(label(_tr("Susceptibility field")),  2, 0)
+        g.addWidget(self.mFieldComboBox_Petro_sus,       2, 1)
+        g.addWidget(label(_tr("x")),                     2, 2)
+        g.addWidget(self.lineEdit_Petro_sus_scale,       2, 3)
+        g.addWidget(label(_tr("Category field")),        3, 0)
+        g.addWidget(self.mFieldComboBox_Petro_cat,       3, 1)
+
+        style_row = QHBoxLayout()
+        style_row.setSpacing(6)
+        style_row.addWidget(self.pushButton_Henkel_points)
+        style_row.addSpacing(10)
+        style_row.addWidget(self.radioButton_Petro_points)
+        style_row.addWidget(self.radioButton_Petro_heat)
+        style_row.addStretch()
+        g.addLayout(style_row, 4, 0, 1, 4)
+        g.setColumnStretch(1, 1)
+        return gb
+
+    # ------------------------------------------------------------------
+    # Group: Save Plots
+    # ------------------------------------------------------------------
+    def _group_save_plots(self):
+        gb = QGroupBox(_tr("Save Plots"))
+        h = QHBoxLayout(gb)
+        h.setSpacing(4)
+        self.checkBox_plot_png = QCheckBox("PNG")
+        self.checkBox_plot_pdf = QCheckBox("PDF")
+        for box in (self.checkBox_plot_png, self.checkBox_plot_pdf):
+            box.setToolTip(_tr("Also save each plot in this format"))
+        lbl = QLabel(_tr("Folder"))
+        lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.lineEdit_plot_folder = QLineEdit()
+        self.lineEdit_plot_folder.setPlaceholderText(_tr("beside the input layer"))
+        self.lineEdit_plot_folder.setToolTip(
+            _tr("Folder for saved plots. Leave blank to save them beside the input layer.\n"
+                "Plots can also be saved from the plot window's toolbar.")
+        )
+        self.pushButton_plot_folder = QPushButton("...")
+        self.pushButton_plot_folder.setFixedWidth(30)
+        h.addWidget(self.checkBox_plot_png)
+        h.addWidget(self.checkBox_plot_pdf)
+        h.addWidget(lbl)
+        h.addWidget(self.lineEdit_plot_folder, 1)
+        h.addWidget(self.pushButton_plot_folder)
+        return gb
+
+    # ------------------------------------------------------------------
+    # TAB 5 – Utils
     # ------------------------------------------------------------------
     def _tab_utils(self):
         tab = QWidget()
@@ -1505,7 +1894,7 @@ class SGToolDockWidget(QDockWidget):
         return gb
 
     # ------------------------------------------------------------------
-    # TAB 5 – Help
+    # TAB 6 – Help
     # ------------------------------------------------------------------
     def _tab_help(self):
         tab = QWidget()

@@ -1,6 +1,7 @@
 """
-Henkel plots (density against log susceptibility) for apparent petrophysics
-grids and for measured point data, with no QGIS dependency.
+Henkel plots (density against log susceptibility) and other scatter plots, heat
+maps and histograms for apparent petrophysics grids and measured point data,
+with no QGIS dependency.
 """
 
 import math
@@ -8,10 +9,11 @@ import math
 import numpy as np
 from osgeo import gdal, ogr, osr
 
-# Sequential ramp (light -> dark blue) for the heat maps, and the fixed
-# categorical order for category colours, each paired with a marker shape so
-# identity never rests on colour alone. Categories past the eighth share "Other".
-HEAT_RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
+# Colour map for the heat maps (viridis: its changing hue shows the variation
+# in the densest part more clearly than a one-hue ramp), and the fixed
+# categorical order for category colours, combined with marker shapes so
+# identity never rests on colour alone (8 x 8 = 64 symbols).
+HEAT_CMAP = "viridis"
 CATEGORY_COLOURS = [
     "#2a78d6", "#eb6834", "#1baf7a", "#eda100",
     "#e87ba4", "#008300", "#6250d6", "#e34948",
@@ -20,29 +22,6 @@ CATEGORY_MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
 OTHER_COLOUR = "#8a8a85"
 TEXT_SECONDARY = "#5f5e5a"
 GRID_COLOUR = "#e4e3df"
-
-
-def positive_pairs(density, sus, *others):
-    """Keep the points with both values defined and a susceptibility > 0 (a log
-    axis can't show the rest). Returns the kept arrays (density, sus, *others)
-    and how many points with a susceptibility <= 0 were left out."""
-    ok = np.isfinite(density) & np.isfinite(sus)
-    positive = ok & (sus > 0)
-    dropped = int(np.count_nonzero(ok & ~positive))
-    kept = [density[positive], sus[positive]] + [o[positive] for o in others]
-    if kept[0].size == 0:
-        raise ValueError(
-            "No locations have both a density and a susceptibility above 0. "
-            "Raise the background susceptibility, or check the grids and fields."
-        )
-    return kept, dropped
-
-
-def _count_text(n, dropped, what="points"):
-    text = f"{n:,} {what}"
-    if dropped:
-        text += f" ({dropped:,} with susceptibility <= 0 left out)"
-    return text
 
 
 def _read_warped(path, wkt, bounds, width, height):
@@ -73,17 +52,23 @@ def paired_grids(density_path, sus_path):
     coarser of the two, each of its cells taking the nearest cell of the finer
     grid (reprojected if the CRSs differ).
 
+    Either path may be None, when the other grid is read on its own grid (and
+    None is returned in its place).
+
     Returns (density, susceptibility, geotransform, wkt); cells where either
     grid has no data are NaN.
     """
-    d_ds = gdal.Open(density_path)
-    s_ds = gdal.Open(sus_path)
-    if d_ds is None or s_ds is None:
+    d_ds = gdal.Open(density_path) if density_path else None
+    s_ds = gdal.Open(sus_path) if sus_path else None
+    if (density_path and d_ds is None) or (sus_path and s_ds is None):
         raise ValueError("Could not open the apparent density or susceptibility grid")
-    d_gt = d_ds.GetGeoTransform()
-    d_area = abs(d_gt[1] * d_gt[5])
-    s_area = _cell_area_in(sus_path, d_ds.GetProjection())
-    target = s_ds if s_area > d_area else d_ds
+    if d_ds is None or s_ds is None:
+        target = d_ds or s_ds
+    else:
+        d_gt = d_ds.GetGeoTransform()
+        d_area = abs(d_gt[1] * d_gt[5])
+        s_area = _cell_area_in(sus_path, d_ds.GetProjection())
+        target = s_ds if s_area > d_area else d_ds
     gt = target.GetGeoTransform()
     wkt = target.GetProjection()
     w, h = target.RasterXSize, target.RasterYSize
@@ -91,8 +76,8 @@ def paired_grids(density_path, sus_path):
     ys = (gt[3], gt[3] + h * gt[5])
     bounds = (min(xs), min(ys), max(xs), max(ys))
     d_ds = s_ds = target = None
-    density = _read_warped(density_path, wkt, bounds, w, h)
-    sus = _read_warped(sus_path, wkt, bounds, w, h)
+    density = _read_warped(density_path, wkt, bounds, w, h) if density_path else None
+    sus = _read_warped(sus_path, wkt, bounds, w, h) if sus_path else None
     out_gt = (bounds[0], abs(gt[1]), 0.0, bounds[3], 0.0, -abs(gt[5]))
     return density, sus, out_gt, wkt
 
@@ -128,49 +113,89 @@ def rasterize_categories(polygons, wkt, gt, shape):
 
 
 # ---------------------------------------------------------------- plotting
-def _style_axes(ax, x_label, y_label):
-    ax.set_yscale("log")
+# Two-variable plots (heat maps and scatter plots) and one-variable histograms.
+# Each axis is linear or log; on a log axis values <= 0 can't be shown and are
+# left out (their number is given in the title). Henkel plots are the case
+# x = density (linear), y = susceptibility (log).
+def valid_points(x, y, x_log, y_log, *others):
+    """The points with both values defined (and > 0 on a log axis). Returns
+    the kept arrays (x, y, *others) and how many were left out for being <= 0."""
+    ok = np.isfinite(x) & np.isfinite(y)
+    keep = ok.copy()
+    if x_log:
+        keep &= x > 0
+    if y_log:
+        keep &= y > 0
+    dropped = int(np.count_nonzero(ok & ~keep))
+    kept = [x[keep], y[keep]] + [o[keep] for o in others]
+    if kept[0].size == 0:
+        raise ValueError(
+            "No points have both values" + (" above 0 on the log axes" if x_log or y_log else "")
+        )
+    return kept, dropped
+
+
+def valid_values(values, log, *others):
+    """The defined values (and > 0 for a log axis), with *others, and how many
+    were left out for being <= 0."""
+    ok = np.isfinite(values)
+    keep = ok & (values > 0) if log else ok
+    dropped = int(np.count_nonzero(ok & ~keep))
+    kept = [values[keep]] + [o[keep] for o in others]
+    if kept[0].size == 0:
+        raise ValueError("No values" + (" above 0" if log else "") + " to plot")
+    return kept, dropped
+
+
+def _count_text(n, dropped, what="points"):
+    text = f"{n:,} {what}"
+    if dropped:
+        text += f" ({dropped:,} with values <= 0 on a log axis left out)"
+    return text
+
+
+def _style_axes(ax, x_label, y_label, x_log=False, y_log=False, grid="both"):
+    if x_log:
+        ax.set_xscale("log")
+    if y_log:
+        ax.set_yscale("log")
     ax.set_xlabel(x_label, color=TEXT_SECONDARY)
     ax.set_ylabel(y_label, color=TEXT_SECONDARY)
     ax.tick_params(colors=TEXT_SECONDARY, labelsize=8)
-    ax.grid(True, which="major", color=GRID_COLOUR, linewidth=0.6)
+    ax.grid(True, axis=grid, which="major", color=GRID_COLOUR, linewidth=0.6)
     ax.set_axisbelow(True)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
 
 
-def _sus_label(name):
-    return f"{name} (SI)"
+def _axis_range(values, log, robust):
+    """Axis range: the 0.1-99.9 percentiles for grids (FFT edge effects), the
+    full range for measured samples."""
+    lo, hi = np.percentile(values, [0.1, 99.9] if robust else [0, 100])
+    if hi <= lo:
+        lo, hi = (lo / 2, hi * 2) if log else (lo - 0.01, hi + 0.01)
+    return lo, hi
 
 
-def _limits(density, sus, robust):
-    """Shared axis limits: the 0.1-99.9 percentile range for grids (FFT edge
-    effects), the full range for measured points."""
-    lo, hi = (0.1, 99.9) if robust else (0, 100)
-    x0, x1 = np.percentile(density, [lo, hi])
-    y0, y1 = np.percentile(sus, [lo, hi])
-    if x1 <= x0:
-        x0, x1 = x0 - 0.01, x1 + 0.01
-    if y1 <= y0:
-        y0, y1 = y0 / 2, y1 * 2
-    return (x0, x1), (y0, y1)
+def _edges(lims, log, bins):
+    if log:
+        return np.logspace(math.log10(lims[0]), math.log10(lims[1]), bins + 1)
+    return np.linspace(lims[0], lims[1], bins + 1)
 
 
-def _bin_edges(xlim, ylim, bins):
-    return (
-        np.linspace(xlim[0], xlim[1], bins + 1),
-        np.logspace(math.log10(ylim[0]), math.log10(ylim[1]), bins + 1),
-    )
+def _padded(lims, log):
+    """Axis limits with a margin so points at the edges aren't clipped."""
+    if log:
+        return lims[0] / 1.3, lims[1] * 1.3
+    pad = 0.03 * (lims[1] - lims[0])
+    return lims[0] - pad, lims[1] + pad
 
 
-def _heat(ax, density, sus, edges, norm, weights=None):
-    from matplotlib.colors import LinearSegmentedColormap
-
-    counts, _, _ = np.histogram2d(density, sus, bins=edges, weights=weights)
-    cmap = LinearSegmentedColormap.from_list("sgt_heat", HEAT_RAMP)
+def _heat(ax, x, y, edges, norm, weights=None):
+    counts, _, _ = np.histogram2d(x, y, bins=edges, weights=weights)
     return ax.pcolormesh(
         edges[0], edges[1], np.ma.masked_less_equal(counts.T, 0),
-        cmap=cmap, norm=norm, shading="flat",
+        cmap=HEAT_CMAP, norm=norm, shading="flat",
     )
 
 
@@ -179,138 +204,244 @@ def heat_bins(n):
     return int(np.clip(math.sqrt(n) / 2, 20, 200))
 
 
-def henkel_heatmap(density, sus, title, sus_name="Apparent susceptibility",
-                   density_name="Apparent density", robust=True, bins=200):
-    """One Henkel heat map (count of points per bin, log colour scale)."""
+def _grid_of_panels(n, width, height):
+    """ceil(sqrt(n)) columns and only as many rows as needed, with shared axes."""
+    import matplotlib.pyplot as plt
+
+    side = math.ceil(math.sqrt(n))
+    rows = math.ceil(n / side)
+    fig, axes = plt.subplots(
+        rows, side, figsize=(width * side + 1.2, height * rows + 1.0),
+        sharex=True, sharey=True, squeeze=False,
+    )
+    for i in range(n, rows * side):
+        axes.flat[i].set_visible(False)
+        # the panel above is the last in its column: give it the x labels
+        axes.flat[i - side].xaxis.set_tick_params(labelbottom=True)
+    return fig, axes
+
+
+def _by_category(cats, names):
+    """Renumber categories 0..N-1, keeping only those with values."""
+    present = np.unique(cats)
+    return [names[c] for c in present], np.searchsorted(present, cats)
+
+
+def heatmap(x, y, title, x_label, y_label, x_log=False, y_log=True,
+            robust=True, bins=200, what="points"):
+    """One heat map of y against x (points per bin, log colour scale)."""
     import matplotlib.pyplot as plt
     from matplotlib.colors import LogNorm
 
-    (density, sus), dropped = positive_pairs(density, sus)
-    xlim, ylim = _limits(density, sus, robust)
-    edges = _bin_edges(xlim, ylim, bins)
+    (x, y), dropped = valid_points(x, y, x_log, y_log)
+    xlim, ylim = _axis_range(x, x_log, robust), _axis_range(y, y_log, robust)
+    edges = (_edges(xlim, x_log, bins), _edges(ylim, y_log, bins))
 
     fig, ax = plt.subplots(figsize=(7.5, 6))
-    mesh = _heat(ax, density, sus, edges, LogNorm())
-    _style_axes(ax, f"{density_name} (g/cc)", _sus_label(sus_name))
+    mesh = _heat(ax, x, y, edges, LogNorm())
+    _style_axes(ax, x_label, y_label, x_log, y_log)
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
-    ax.set_title(f"{title}\n{_count_text(density.size, dropped)}", fontsize=11)
+    ax.set_title(f"{title}\n{_count_text(x.size, dropped, what)}", fontsize=11)
     cbar = fig.colorbar(mesh, ax=ax)
-    cbar.set_label("Points per bin", color=TEXT_SECONDARY)
+    cbar.set_label(f"{what.capitalize()} per bin", color=TEXT_SECONDARY)
     cbar.ax.tick_params(colors=TEXT_SECONDARY, labelsize=8)
     fig.tight_layout()
     return fig
 
 
-def henkel_category_grid(density, sus, cats, names, title, bins=100):
-    """Henkel heat maps of each category that has data, in a grid of
-    ceil(sqrt(N)) columns with shared axes. Each panel shows the fraction of its
-    category's points per bin, on one colour scale, so panels can be compared
-    whatever their size."""
-    import matplotlib.pyplot as plt
+def heatmap_by_category(x, y, cats, names, title, x_label, y_label, x_log=False,
+                        y_log=True, robust=True, bins=100, what="cells"):
+    """Heat maps of each category that has data, in a grid of panels sharing
+    their axes and colour scale. Each shows the fraction of its category's
+    points per bin, so panels compare whatever their size.
+    cats: index into names of each point (-1 for none)."""
     from matplotlib.colors import LogNorm
 
     inside = cats >= 0
     if not inside.any():
         raise ValueError("No polygon covers the grids")
-    (density, sus, cats), dropped = positive_pairs(
-        density[inside], sus[inside], cats[inside]
-    )
-    # only categories with data get a panel: renumber them 0..N-1
-    present = np.unique(cats)
-    names = [names[c] for c in present]
-    cats = np.searchsorted(present, cats)
-    xlim, ylim = _limits(density, sus, True)
-    edges = _bin_edges(xlim, ylim, bins)
+    (x, y, cats), dropped = valid_points(x[inside], y[inside], x_log, y_log, cats[inside])
+    names, cats = _by_category(cats, names)
+    xlim, ylim = _axis_range(x, x_log, robust), _axis_range(y, y_log, robust)
+    edges = (_edges(xlim, x_log, bins), _edges(ylim, y_log, bins))
 
     # one colour scale for all panels, from the smallest to the largest fraction
-    counts = [int(np.count_nonzero(cats == cid)) for cid in range(len(names))]
+    counts = [int(np.count_nonzero(cats == i)) for i in range(len(names))]
     fractions = [
-        np.histogram2d(density[cats == cid], sus[cats == cid], bins=edges)[0] / n
-        for cid, n in enumerate(counts) if n
+        np.histogram2d(x[cats == i], y[cats == i], bins=edges)[0] / n
+        for i, n in enumerate(counts)
     ]
     vmax = max(float(f.max()) for f in fractions)
     vmin = min(float(f[f > 0].min()) for f in fractions if (f > 0).any())
     norm = LogNorm(vmin=vmin, vmax=max(vmax, vmin * 1.01))
 
-    # ceil(sqrt(N)) columns, and only as many rows as are needed
-    side = math.ceil(math.sqrt(len(names)))
-    rows = math.ceil(len(names) / side)
-    fig, axes = plt.subplots(
-        rows, side, figsize=(3.2 * side + 1.2, 3.0 * rows + 1.0),
-        sharex=True, sharey=True, squeeze=False,
-    )
-    mesh = None
-    for i, ax in enumerate(axes.flat):
-        if i >= len(names):
-            ax.set_visible(False)
-            # the panel above is the last in its column: give it the x labels
-            axes.flat[i - side].xaxis.set_tick_params(labelbottom=True)
-            continue
+    fig, axes = _grid_of_panels(len(names), 3.2, 3.0)
+    for i, name in enumerate(names):
+        ax = axes.flat[i]
         sel = cats == i
-        n = counts[i]
-        mesh = _heat(ax, density[sel], sus[sel], edges, norm,
-                     weights=np.full(n, 1.0 / n))
-        _style_axes(ax, "", "")
-        ax.set_title(f"{names[i]}  (n={n:,})", fontsize=9)
+        mesh = _heat(ax, x[sel], y[sel], edges, norm, weights=np.full(counts[i], 1.0 / counts[i]))
+        _style_axes(ax, "", "", x_log, y_log)
+        ax.set_title(f"{name}  (n={counts[i]:,})", fontsize=9)
     axes.flat[0].set_xlim(xlim)
     axes.flat[0].set_ylim(ylim)
-    fig.supxlabel("Apparent density (g/cc)", color=TEXT_SECONDARY)
-    fig.supylabel(_sus_label("Apparent susceptibility"), color=TEXT_SECONDARY)
+    fig.supxlabel(x_label, color=TEXT_SECONDARY)
+    fig.supylabel(y_label, color=TEXT_SECONDARY)
     if dropped:
-        title += f"\n{dropped:,} cells with susceptibility <= 0 left out"
+        title += f"\n{dropped:,} {what} with values <= 0 on a log axis left out"
     fig.suptitle(title, fontsize=11)
     fig.tight_layout(rect=(0, 0, 0.9, 1))
-    if mesh is not None:
-        cax = fig.add_axes((0.92, 0.15, 0.015, 0.7))
-        cbar = fig.colorbar(mesh, cax=cax)
-        cbar.set_label("Fraction of category's pixels per bin", color=TEXT_SECONDARY)
-        cbar.ax.tick_params(colors=TEXT_SECONDARY, labelsize=8)
+    cax = fig.add_axes((0.92, 0.15, 0.015, 0.7))
+    cbar = fig.colorbar(mesh, cax=cax)
+    cbar.set_label(f"Fraction of category's {what} per bin", color=TEXT_SECONDARY)
+    cbar.ax.tick_params(colors=TEXT_SECONDARY, labelsize=8)
     return fig
 
 
-def henkel_points(density, sus, title, categories=None):
-    """Henkel plot of measured samples, coloured by category if given."""
+def scatter(x, y, title, x_label, y_label, x_log=False, y_log=True,
+            categories=None, legend_title=None, what="samples"):
+    """Every point of y against x, with a symbol per category if given."""
     import matplotlib.pyplot as plt
 
     if categories is None:
-        (density, sus), dropped = positive_pairs(density, sus)
+        (x, y), dropped = valid_points(x, y, x_log, y_log)
     else:
-        (density, sus, categories), dropped = positive_pairs(
-            density, sus, np.asarray(categories, dtype=object)
+        (x, y, categories), dropped = valid_points(
+            x, y, x_log, y_log, np.asarray(categories, dtype=object)
         )
-    xlim, ylim = _limits(density, sus, False)
-    pad = 0.03 * (xlim[1] - xlim[0])
+    xlim, ylim = _axis_range(x, x_log, False), _axis_range(y, y_log, False)
 
-    fig, ax = plt.subplots(figsize=(8.5 if categories is not None else 7, 6))
     style = dict(s=24, linewidths=0.4, edgecolors="white", alpha=0.85)
     if categories is None:
-        ax.scatter(density, sus, color=CATEGORY_COLOURS[0], marker="o", **style)
+        fig, ax = plt.subplots(figsize=(7, 6))
+        ax.scatter(x, y, color=CATEGORY_COLOURS[0], marker="o", **style)
     else:
-        names = sorted({str(c) for c in categories}, key=_natural_key)
+        # Each category gets a colour + marker pair: 8 x 8 = 64 symbols. They go
+        # to the categories with the most samples, in rank order (the 8 largest
+        # are circles in the 8 colours, the next 8 squares, ...); any further
+        # categories are grouped as Other.
         labels = np.array([str(c) for c in categories], dtype=object)
-        shown = names[:len(CATEGORY_COLOURS)]
-        if len(names) > len(CATEGORY_COLOURS):
-            # more categories than distinguishable colours: the largest keep one
-            counts = {n: int(np.count_nonzero(labels == n)) for n in names}
-            shown = sorted(
-                sorted(names, key=lambda n: -counts[n])[:len(CATEGORY_COLOURS) - 1],
-                key=_natural_key,
-            )
-        for i, name in enumerate(shown):
+        names, counts = np.unique(labels, return_counts=True)
+        ranked = [str(n) for n in names[np.lexsort((names, -counts))]]
+        n_symbols = len(CATEGORY_COLOURS) * len(CATEGORY_MARKERS)
+        if len(ranked) > n_symbols:
+            ranked = ranked[:n_symbols - 1]  # the last symbol is Other
+        symbol = {
+            name: (CATEGORY_COLOURS[i % len(CATEGORY_COLOURS)],
+                   CATEGORY_MARKERS[i // len(CATEGORY_COLOURS)])
+            for i, name in enumerate(ranked)
+        }
+        entries = len(symbol) + (len(names) > len(symbol))
+        columns = math.ceil(entries / 24)
+        fig, ax = plt.subplots(figsize=(7 + 1.7 * columns, 6))
+        for name in sorted(symbol, key=_natural_key):  # legend in name order
             sel = labels == name
-            ax.scatter(density[sel], sus[sel], color=CATEGORY_COLOURS[i],
-                       marker=CATEGORY_MARKERS[i], label=f"{name} ({sel.sum()})", **style)
-        rest = ~np.isin(labels, shown)
+            colour, marker = symbol[name]
+            ax.scatter(x[sel], y[sel], color=colour, marker=marker,
+                       label=f"{name} ({sel.sum()})", **style)
+        rest = ~np.isin(labels, list(symbol))
         if rest.any():
-            ax.scatter(density[rest], sus[rest], color=OTHER_COLOUR, marker=".",
+            ax.scatter(x[rest], y[rest], color=OTHER_COLOUR, marker=".",
                        label=f"Other ({rest.sum()})", **style)
-        ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1), frameon=False,
-                  fontsize=8, labelcolor=TEXT_SECONDARY)
-    _style_axes(ax, "Density (g/cc)", _sus_label("Susceptibility"))
-    ax.set_xlim(xlim[0] - pad, xlim[1] + pad)
-    ax.set_ylim(ylim[0] / 1.3, ylim[1] * 1.3)
-    ax.set_title(f"{title}\n{_count_text(density.size, dropped, 'samples')}", fontsize=11)
+        legend = ax.legend(
+            loc="upper left", bbox_to_anchor=(1.01, 1), frameon=False,
+            fontsize=7 if entries > 24 else 8, labelcolor=TEXT_SECONDARY,
+            ncol=columns, columnspacing=1.0, handletextpad=0.3,
+            title=legend_title, title_fontsize=8,
+        )
+        legend.get_title().set_color(TEXT_SECONDARY)
+    _style_axes(ax, x_label, y_label, x_log, y_log)
+    ax.set_xlim(_padded(xlim, x_log))
+    ax.set_ylim(_padded(ylim, y_log))
+    ax.set_title(f"{title}\n{_count_text(x.size, dropped, what)}", fontsize=11)
+    fig.tight_layout()
+    return fig
+
+
+MEDIAN_COLOUR = "#d62728"
+
+
+def _round_up(value):
+    """Round up to the next half step of the value's leading digit:
+    47 -> 50, 0.137 -> 0.15, 0.083 -> 0.085, 120 -> 150."""
+    if value <= 0:
+        return 1.0
+    step = 10 ** math.floor(math.log10(value)) / 2
+    return math.ceil(value / step - 1e-9) * step
+
+
+def _add_stats(ax, values, fontsize=8):
+    """Median as a red vertical line, and median, mean and standard deviation
+    as text in the top right corner."""
+    median = float(np.median(values))
+    ax.axvline(median, color=MEDIAN_COLOUR, linewidth=1.5)
+    ax.text(
+        0.98, 0.97,
+        f"Median {median:.4g}\nMean {float(np.mean(values)):.4g}\nSD {float(np.std(values)):.4g}",
+        transform=ax.transAxes, ha="right", va="top", fontsize=fontsize,
+        color=TEXT_SECONDARY, linespacing=1.3,
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor=GRID_COLOUR, alpha=0.85),
+    )
+
+
+def histogram(values, title, label, log=False, robust=True, what="points"):
+    """Histogram of one variable, with linear or log bins."""
+    import matplotlib.pyplot as plt
+
+    (values,), dropped = valid_values(values, log)
+    lims = _axis_range(values, log, robust)
+    edges = _edges(lims, log, int(np.clip(math.sqrt(values.size), 10, 100)))
+    fig, ax = plt.subplots(figsize=(7.5, 5))
+    counts, _, _ = ax.hist(values, bins=edges, color=CATEGORY_COLOURS[0],
+                           edgecolor="white", linewidth=0.5)
+    _add_stats(ax, values, fontsize=9)
+    _style_axes(ax, label, "Count", x_log=log, grid="y")
+    ax.set_xlim(edges[0], edges[-1])
+    ax.set_ylim(0, _round_up(counts.max()))
+    ax.set_title(f"{title}\n{_count_text(values.size, dropped, what)}", fontsize=11)
+    fig.tight_layout()
+    return fig
+
+
+def index_categories(labels):
+    """Category labels -> (index of each label, sorted category names)."""
+    names = sorted({str(label) for label in labels}, key=_natural_key)
+    index = {name: i for i, name in enumerate(names)}
+    return np.array([index[str(label)] for label in labels], dtype=int), names
+
+
+def histogram_by_category(values, cats, names, title, label, log=False,
+                          robust=True, what="cells"):
+    """Histograms of one variable for each category that has values, in a grid
+    of panels sharing their bins and axes. Each shows the fraction of its
+    category's values per bin, so categories compare whatever their size.
+    cats: index into names of each value (-1 for none)."""
+    inside = cats >= 0
+    if not inside.any():
+        raise ValueError("No polygon covers the grid")
+    (values, cats), dropped = valid_values(values[inside], log, cats[inside])
+    names, cats = _by_category(cats, names)
+    lims = _axis_range(values, log, robust)
+    edges = _edges(lims, log, int(np.clip(math.sqrt(values.size), 10, 100)))
+
+    fig, axes = _grid_of_panels(len(names), 3.2, 2.6)
+    top = 0.0
+    for i, name in enumerate(names):
+        ax = axes.flat[i]
+        v = values[cats == i]
+        counts, _, _ = ax.hist(v, bins=edges, weights=np.full(v.size, 1.0 / v.size),
+                               color=CATEGORY_COLOURS[0], edgecolor="white", linewidth=0.5)
+        top = max(top, float(counts.max()))
+        _add_stats(ax, v, fontsize=7)
+        _style_axes(ax, "", "", x_log=log, grid="y")
+        ax.set_title(f"{name}  (n={v.size:,})", fontsize=9)
+    axes.flat[0].set_xlim(edges[0], edges[-1])
+    axes.flat[0].set_ylim(0, _round_up(top))  # shared by all panels
+    fig.supxlabel(label, color=TEXT_SECONDARY)
+    fig.supylabel(f"Fraction of category's {what}", color=TEXT_SECONDARY)
+    if dropped:
+        title += f"\n{dropped:,} {what} with values <= 0 on a log axis left out"
+    fig.suptitle(title, fontsize=11)
     fig.tight_layout()
     return fig
 

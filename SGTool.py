@@ -4129,7 +4129,7 @@ class SGTool:
             QMessageBox.information(
                 None, "",
                 "Missing Packages for SGTool: The following Python packages are "
-                "required for Henkel plots, but not installed: matplotlib\n\n"
+                "required for Petrophys plots, but not installed: matplotlib\n\n"
                 "Please open the QGIS Python Console and run the following command:\n\n"
                 "!pip3 install matplotlib",
                 QMessageBox_Ok,
@@ -4182,27 +4182,48 @@ class SGTool:
             return
         self._notify("Saved " + ", ".join(paths), Qgis.MessageLevel.Info, 8)
 
+    # axis labels of the apparent grids: density linear, susceptibility log
+    APPARENT_DENSITY = ("Apparent density (g/cc)", False)
+    APPARENT_SUS = ("Apparent susceptibility (SI)", True)
+
     def _henkel_grids(self):
-        """(density layer, susceptibility layer, paired_grids result)."""
+        """(density layer, susceptibility layer, paired_grids result). Either
+        grid may be left blank (its layer and array are then None)."""
         d = self.dlg
         dens = d.mMapLayerComboBox_Henkel_dens.currentLayer()
         sus = d.mMapLayerComboBox_Henkel_sus.currentLayer()
-        if dens is None or sus is None:
-            raise ValueError("Select the apparent susceptibility and density grids")
-        if dens.id() == sus.id():
+        if dens is None and sus is None:
+            raise ValueError("Select an apparent susceptibility and/or density grid")
+        if dens is not None and sus is not None and dens.id() == sus.id():
             raise ValueError("The apparent susceptibility and density grids are the same layer")
         paired = Petrophysics.paired_grids(
-            dens.dataProvider().dataSourceUri(), sus.dataProvider().dataSourceUri()
+            dens.dataProvider().dataSourceUri() if dens else None,
+            sus.dataProvider().dataSourceUri() if sus else None,
         )
         return dens, sus, paired
 
+    def _single_grid(self, density, sus, dens_layer, sus_layer):
+        """For a histogram of whichever grid was chosen:
+        (values, axis label, log, layer)."""
+        if density is not None:
+            return (density,) + self.APPARENT_DENSITY + (dens_layer,)
+        return (sus,) + self.APPARENT_SUS + (sus_layer,)
+
     def _henkel_apparent(self):
         dens, sus, (density, susceptibility, _gt, _wkt) = self._henkel_grids()
-        fig = Petrophysics.henkel_heatmap(
-            density.ravel(), susceptibility.ravel(),
-            f"Apparent Henkel plot: {dens.name()} vs {sus.name()}",
+        if dens is not None and sus is not None:
+            fig = Petrophysics.heatmap(
+                density.ravel(), susceptibility.ravel(),
+                f"Apparent Henkel plot: {dens.name()} vs {sus.name()}",
+                self.APPARENT_DENSITY[0], self.APPARENT_SUS[0], what="cells",
+            )
+            return fig, f"{dens.name()}_{sus.name()}_henkel", self._layer_folder(dens)
+        values, label, log, layer = self._single_grid(density, susceptibility, dens, sus)
+        fig = Petrophysics.histogram(
+            values.ravel(), f"{label.split(' (')[0]}: {layer.name()}", label,
+            log=log, what="cells",
         )
-        return fig, f"{dens.name()}_{sus.name()}_henkel", self._layer_folder(dens)
+        return fig, f"{layer.name()}_hist", self._layer_folder(layer)
 
     def _henkel_categories(self):
         d = self.dlg
@@ -4211,6 +4232,7 @@ class SGTool:
         if polygons is None or not field:
             raise ValueError("Select a polygon layer and its category field")
         dens, sus, (density, susceptibility, gt, wkt) = self._henkel_grids()
+        shape = (density if density is not None else susceptibility).shape
 
         xform = QgsCoordinateTransform(
             polygons.crs(), QgsCoordinateReferenceSystem.fromWkt(wkt), QgsProject.instance()
@@ -4232,59 +4254,97 @@ class SGTool:
         names = sorted({name for name, _ in shapes}, key=Petrophysics._natural_key)
         index = {name: i for i, name in enumerate(names)}
         cats = Petrophysics.rasterize_categories(
-            [(geom, index[name]) for name, geom in shapes], wkt, gt, density.shape
+            [(geom, index[name]) for name, geom in shapes], wkt, gt, shape
+        ).ravel()
+        if dens is not None and sus is not None:
+            fig = Petrophysics.heatmap_by_category(
+                density.ravel(), susceptibility.ravel(), cats, names,
+                f"Apparent Henkel plots by {field} ({polygons.name()})",
+                self.APPARENT_DENSITY[0], self.APPARENT_SUS[0],
+            )
+            return fig, f"{dens.name()}_{sus.name()}_henkel_by_{field}", self._layer_folder(dens)
+        values, label, log, layer = self._single_grid(density, susceptibility, dens, sus)
+        fig = Petrophysics.histogram_by_category(
+            values.ravel(), cats, names,
+            f"{label.split(' (')[0]} by {field} ({polygons.name()})", label, log=log,
         )
-        fig = Petrophysics.henkel_category_grid(
-            density.ravel(), susceptibility.ravel(), cats.ravel(), names,
-            f"Apparent Henkel plots by {field} ({polygons.name()})",
-        )
-        return fig, f"{dens.name()}_{sus.name()}_henkel_by_{field}", self._layer_folder(dens)
+        return fig, f"{layer.name()}_hist_by_{field}", self._layer_folder(layer)
 
     def _henkel_samples(self):
         d = self.dlg
         layer = d.mMapLayerComboBox_Petro_points.currentLayer()
-        dens_field = d.mFieldComboBox_Petro_dens.currentField()
-        sus_field = d.mFieldComboBox_Petro_sus.currentField()
+        x_field = d.mFieldComboBox_Petro_x.currentField()
+        y_field = d.mFieldComboBox_Petro_y.currentField()
         cat_field = d.mFieldComboBox_Petro_cat.currentField()
-        if layer is None or not dens_field or not sus_field:
-            raise ValueError("Select a point layer and its density and susceptibility fields")
+        x_log = d.checkBox_Petro_x_log.isChecked()
+        y_log = d.checkBox_Petro_y_log.isChecked()
+        if layer is None or not (x_field or y_field):
+            raise ValueError("Select a point layer and its X and/or Y field")
         try:
-            dens_scale = self.to_float(d.lineEdit_Petro_dens_scale.text())
-            sus_scale = self.to_float(d.lineEdit_Petro_sus_scale.text())
+            x_scale = self.to_float(d.lineEdit_Petro_x_scale.text())
+            y_scale = self.to_float(d.lineEdit_Petro_y_scale.text())
         except ValueError:
-            raise ValueError("The density and susceptibility multipliers must be numbers")
+            raise ValueError("The X and Y multipliers must be numbers")
 
         def number(value):
+            """A numeric or text attribute as a number (text such as ' 2.67' or
+            '2,67' too); NaN for NULL or text that isn't a number."""
+            if value is None or str(value) == "NULL":
+                return np.nan
             try:
                 return float(value)
             except (TypeError, ValueError):
-                return np.nan  # NULL or text
+                try:
+                    return float(str(value).strip().replace(",", "."))
+                except ValueError:
+                    return np.nan
 
         features = (
             layer.getSelectedFeatures() if layer.selectedFeatureCount()
             else layer.getFeatures()
         )
-        density, sus, cats = [], [], []
+        xs, ys, cats = [], [], []
         for feature in features:
-            density.append(number(feature[dens_field]))
-            sus.append(number(feature[sus_field]))
+            if x_field:
+                xs.append(number(feature[x_field]))
+            if y_field:
+                ys.append(number(feature[y_field]))
             if cat_field:
                 value = feature[cat_field]
                 cats.append(Petrophysics.NO_CATEGORY if value is None or str(value) == "NULL" else str(value))
-        density = np.array(density) * dens_scale
-        sus = np.array(sus) * sus_scale
-        title = f"Henkel plot: {layer.name()}"
+        xs = np.array(xs) * x_scale
+        ys = np.array(ys) * y_scale
+
+        if not (x_field and y_field):
+            # one field: a histogram, one per category if a category is chosen
+            values, field, log = (xs, x_field, x_log) if x_field else (ys, y_field, y_log)
+            if cat_field:
+                index, names = Petrophysics.index_categories(cats)
+                fig = Petrophysics.histogram_by_category(
+                    values, index, names, f"{field} by {cat_field}: {layer.name()}",
+                    field, log=log, robust=False, what="samples",
+                )
+                return fig, f"{layer.name()}_{field}_hist_by_{cat_field}", self._layer_folder(layer)
+            fig = Petrophysics.histogram(
+                values, f"{field}: {layer.name()}", field,
+                log=log, robust=False, what="samples",
+            )
+            return fig, f"{layer.name()}_{field}_hist", self._layer_folder(layer)
+
+        title = f"{y_field} vs {x_field}: {layer.name()}"
         if d.radioButton_Petro_heat.isChecked():
-            n = int(np.count_nonzero(np.isfinite(density) & np.isfinite(sus)))
-            fig = Petrophysics.henkel_heatmap(
-                density, sus, title, sus_name="Susceptibility", density_name="Density",
-                robust=False, bins=Petrophysics.heat_bins(n),
+            n = int(np.count_nonzero(np.isfinite(xs) & np.isfinite(ys)))
+            fig = Petrophysics.heatmap(
+                xs, ys, title, x_field, y_field, x_log=x_log, y_log=y_log,
+                robust=False, bins=Petrophysics.heat_bins(n), what="samples",
             )
         else:
-            fig = Petrophysics.henkel_points(
-                density, sus, title, categories=cats if cat_field else None
+            fig = Petrophysics.scatter(
+                xs, ys, title, x_field, y_field, x_log=x_log, y_log=y_log,
+                categories=cats if cat_field else None,
+                legend_title=cat_field or None,
             )
-        return fig, f"{layer.name()}_henkel", self._layer_folder(layer)
+        return fig, f"{layer.name()}_{y_field}_vs_{x_field}", self._layer_folder(layer)
 
     def update_petro_field(self, quiet=False):
         """Field strength for apparent susceptibility: from the grid's metadata
@@ -4332,9 +4392,17 @@ class SGTool:
             QgsMapLayerProxyModel.Filter.PolygonLayer
         )
         d.mMapLayerComboBox_Petro_points.setFilters(QgsMapLayerProxyModel.Filter.PointLayer)
-        d.mFieldComboBox_Petro_dens.setFilters(QgsFieldProxyModel.Filter.Numeric)
-        d.mFieldComboBox_Petro_sus.setFilters(QgsFieldProxyModel.Filter.Numeric)
-        d.mFieldComboBox_Petro_cat.setAllowEmptyFieldName(True)
+        # numeric or text fields: text values that are valid numbers are used
+        text_or_number = QgsFieldProxyModel.Filter.Numeric | QgsFieldProxyModel.Filter.String
+        d.mFieldComboBox_Petro_x.setFilters(text_or_number)
+        d.mFieldComboBox_Petro_y.setFilters(text_or_number)
+        # one grid or field alone gives a histogram, so each may be blank
+        d.mMapLayerComboBox_Henkel_sus.setAllowEmptyLayer(True)
+        d.mMapLayerComboBox_Henkel_dens.setAllowEmptyLayer(True)
+        for field_combo in (
+            d.mFieldComboBox_Petro_x, d.mFieldComboBox_Petro_y, d.mFieldComboBox_Petro_cat
+        ):
+            field_combo.setAllowEmptyFieldName(True)
 
         # each field list follows its layer
         d.mFieldComboBox_Petro_polyCat.setLayer(d.mMapLayerComboBox_Petro_polygons.currentLayer())
@@ -4342,7 +4410,7 @@ class SGTool:
             d.mFieldComboBox_Petro_polyCat.setLayer
         )
         for field_combo in (
-            d.mFieldComboBox_Petro_dens, d.mFieldComboBox_Petro_sus, d.mFieldComboBox_Petro_cat
+            d.mFieldComboBox_Petro_x, d.mFieldComboBox_Petro_y, d.mFieldComboBox_Petro_cat
         ):
             field_combo.setLayer(d.mMapLayerComboBox_Petro_points.currentLayer())
             d.mMapLayerComboBox_Petro_points.layerChanged.connect(field_combo.setLayer)

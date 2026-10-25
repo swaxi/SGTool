@@ -1233,7 +1233,7 @@ class SGToolDockWidget(QDockWidget):
         sl.setSpacing(6)
         sl.addWidget(self._group_apparent_petro())
         sl.addWidget(self._group_apparent_henkel())
-        sl.addWidget(self._group_true_petro())
+        sl.addWidget(self._group_measured_petro())
         sl.addWidget(self._group_save_plots())
         sl.addStretch()
         outer.addWidget(self._scroll_wrap(sc), 1)
@@ -1350,7 +1350,7 @@ class SGToolDockWidget(QDockWidget):
                 "A magnetic anomaly grid (IGRF removed) has no absolute level, so the\n"
                 "calculated susceptibility is relative to an unknown background and is\n"
                 "partly negative. A typical background (e.g. 0.001 SI) keeps most values\n"
-                "positive; Henkel plots leave out values <= 0, which a log axis can't show.")
+                "positive; Henkel plots and histograms leave out values <= 0, which a log axis can't show.")
         )
         self.lineEdit_AppSus_cut = self._short_edit("", 70, cut_tip)
         self.lineEdit_AppSus_cut.setPlaceholderText(_tr("4 x cell"))
@@ -1404,23 +1404,29 @@ class SGToolDockWidget(QDockWidget):
         return gb
 
     # ------------------------------------------------------------------
-    # Group: Apparent Henkel Plot
+    # Group: Apparent Plots (Henkel plot, or histogram of one grid)
     # ------------------------------------------------------------------
     def _group_apparent_henkel(self):
-        gb = QGroupBox(_tr("Apparent Henkel Plot"))
+        gb = QGroupBox(_tr("Apparent Henkel Plot / Histogram"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
         lbl_sus = QLabel(_tr("App. Susceptibility"))
         lbl_sus.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.mMapLayerComboBox_Henkel_sus = QgsMapLayerComboBox()
-        self.mMapLayerComboBox_Henkel_sus.setToolTip(_tr("Apparent susceptibility grid (SI)"))
+        self.mMapLayerComboBox_Henkel_sus.setToolTip(
+            _tr("Apparent susceptibility grid (SI). Leave blank, with a density grid\n"
+                "chosen, for density histograms.")
+        )
         lbl_dens = QLabel(_tr("App. Density"))
         lbl_dens.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.mMapLayerComboBox_Henkel_dens = QgsMapLayerComboBox()
-        self.mMapLayerComboBox_Henkel_dens.setToolTip(_tr("Apparent density grid (g/cc)"))
+        self.mMapLayerComboBox_Henkel_dens.setToolTip(
+            _tr("Apparent density grid (g/cc). Leave blank, with a susceptibility grid\n"
+                "chosen, for susceptibility histograms.")
+        )
 
-        self.pushButton_Henkel = self._plot_button(_tr("Plot Apparent Henkel"))
+        self.pushButton_Henkel = self._plot_button(_tr("Plot Apparent"))
         self.pushButton_Henkel.setToolTip(
             _tr("Heat map of apparent density (linear x axis) against apparent susceptibility\n"
                 "(log y axis), counting grid cells per bin on a log colour scale.\n"
@@ -1428,7 +1434,9 @@ class SGToolDockWidget(QDockWidget):
                 "cell of the finer grid, reprojecting if the CRSs differ; cells where either\n"
                 "grid has no data are left out, as are susceptibilities <= 0, which a log\n"
                 "axis can't show (their number is given in the title). Axes span the\n"
-                "0.1-99.9 percentiles, to keep FFT edge effects from squashing the plot.")
+                "0.1-99.9 percentiles, to keep FFT edge effects from squashing the plot.\n"
+                "With only one grid chosen: a histogram of it instead (linear bins for\n"
+                "density, log bins for susceptibility).")
         )
         # Per-category plots of the same two grids, clipped to polygons
         lbl_poly = QLabel(_tr("Polygons"))
@@ -1446,11 +1454,13 @@ class SGToolDockWidget(QDockWidget):
         )
         self.pushButton_Henkel_categories = self._plot_button(_tr("Plot per Category"))
         self.pushButton_Henkel_categories.setToolTip(
-            _tr("A grid of Henkel heat maps, one per category, using the two grids above\n"
+            _tr("A grid of Henkel heat maps (or histograms, with only one grid chosen),\n"
+                "one per category, using the grids above\n"
                 "clipped to the polygons of that category. Categories\n"
                 "with no cells where both grids have data are left out. All panels\n"
                 "share their axes and colour scale; each shows the fraction of its own\n"
-                "category's cells per bin, so small and large categories compare fairly.")
+                "category's cells per bin, so small and large categories compare fairly.\n"
+                "With only one grid chosen: a histogram of it per category instead.")
         )
         divider = QFrame()
         divider.setFrameShape(QFrame.Shape.HLine)
@@ -1471,14 +1481,25 @@ class SGToolDockWidget(QDockWidget):
         return gb
 
     # ------------------------------------------------------------------
-    # Group: True Petrophysics
+    # Group: Measured Petrophysics
     # ------------------------------------------------------------------
-    def _group_true_petro(self):
-        gb = QGroupBox(_tr("True Petrophysics"))
+    def _group_measured_petro(self):
+        gb = QGroupBox(_tr("Measured Petrophysics"))
         g = QGridLayout(gb)
         g.setSpacing(4)
+        field_tip = _tr(
+            "Field plotted on the {axis} axis, and named on it: numeric, or text holding\n"
+            "numbers (values that aren't numbers are skipped). Leave blank, with the\n"
+            "{other} field chosen, for histograms of that field."
+        )
         scale_tip = _tr(
-            "Multiplier converting the field to {units}, e.g.\n{examples}"
+            "Multiplier applied to the field's values, e.g. 0.001 for density in kg/m3\n"
+            "to g/cc, or 0.00001 for susceptibility in x10^-5 SI to SI"
+        )
+        log_tip = _tr(
+            "Log scale for the {axis} axis (and log bins in histograms). Values <= 0\n"
+            "can't be shown on a log axis, so they are left out (their number is given\n"
+            "in the title)."
         )
 
         def label(text):
@@ -1488,41 +1509,42 @@ class SGToolDockWidget(QDockWidget):
 
         self.mMapLayerComboBox_Petro_points = QgsMapLayerComboBox()
         self.mMapLayerComboBox_Petro_points.setToolTip(
-            _tr("Point layer of samples with measured density and susceptibility.\n"
-                "If some points are selected, only those are used.")
+            _tr("Point layer of samples with measured properties, e.g. density and\n"
+                "susceptibility. If some points are selected, only those are used.")
         )
-        self.mFieldComboBox_Petro_dens = QgsFieldComboBox()
-        self.mFieldComboBox_Petro_dens.setToolTip(_tr("Field holding the density"))
-        self.lineEdit_Petro_dens_scale = self._short_edit(
-            "1", 55,
-            scale_tip.format(units="g/cc", examples="0.001 for kg/m3")
-        )
-        self.mFieldComboBox_Petro_sus = QgsFieldComboBox()
-        self.mFieldComboBox_Petro_sus.setToolTip(_tr("Field holding the magnetic susceptibility"))
-        self.lineEdit_Petro_sus_scale = self._short_edit(
-            "1", 55,
-            scale_tip.format(units="SI",
-                             examples="0.00001 for x10^-5 SI, 0.001 for x10^-3 SI,\n"
-                                      "12.566 (4 pi) for cgs")
-        )
+        self.mFieldComboBox_Petro_x = QgsFieldComboBox()
+        self.mFieldComboBox_Petro_x.setToolTip(field_tip.format(axis="x", other="Y"))
+        self.lineEdit_Petro_x_scale = self._short_edit("1", 55, scale_tip)
+        self.checkBox_Petro_x_log = QCheckBox(_tr("Log"))
+        self.checkBox_Petro_x_log.setToolTip(log_tip.format(axis="x"))
+        self.mFieldComboBox_Petro_y = QgsFieldComboBox()
+        self.mFieldComboBox_Petro_y.setToolTip(field_tip.format(axis="y", other="X"))
+        self.lineEdit_Petro_y_scale = self._short_edit("1", 55, scale_tip)
+        self.checkBox_Petro_y_log = QCheckBox(_tr("Log"))
+        self.checkBox_Petro_y_log.setChecked(True)  # Henkel plot: log susceptibility
+        self.checkBox_Petro_y_log.setToolTip(log_tip.format(axis="y"))
         self.mFieldComboBox_Petro_cat = QgsFieldComboBox()
         self.mFieldComboBox_Petro_cat.setToolTip(
             _tr("Optional: field holding a category (e.g. lithology). With Points, each\n"
-                "category gets its own colour and marker and a legend.")
+                "category gets its own symbol and a legend; with only one of the X and Y\n"
+                "fields, a histogram per category.")
         )
 
         self.pushButton_Henkel_points = self._plot_button(_tr("Plot Samples"))
         self.pushButton_Henkel_points.setToolTip(
-            _tr("Density (linear x axis) against susceptibility (log y axis) of the samples.\n"
-                "Susceptibilities <= 0 are left out, as a log axis can't show them (their\n"
-                "number is given in the title).")
+            _tr("The Y field against the X field for every sample (a Henkel plot with\n"
+                "density as X and susceptibility as Y, log). The axes are named after\n"
+                "the fields.\n"
+                "With only one field chosen: a histogram of it instead, one per category\n"
+                "if a category field is chosen.")
         )
         self.radioButton_Petro_points = QRadioButton(_tr("Points"))
         self.radioButton_Petro_points.setChecked(True)
         self.radioButton_Petro_points.setToolTip(
-            _tr("Plot every sample, coloured by category if one is chosen.\n"
-                "Up to 8 categories get their own colour; with more, the 7 largest do\n"
-                "and the rest are grouped as Other.")
+            _tr("Plot every sample, with a colour and marker per category if one is\n"
+                "chosen: 8 colours x 8 markers give up to 64 categories, assigned to the\n"
+                "categories with the most samples (beyond 64, the rest are grouped as\n"
+                "Other).")
         )
         self.radioButton_Petro_heat = QRadioButton(_tr("Heat map"))
         self.radioButton_Petro_heat.setToolTip(
@@ -1534,15 +1556,17 @@ class SGToolDockWidget(QDockWidget):
         self.buttonGroup_Petro_style = group
 
         g.addWidget(label(_tr("Points")),                0, 0)
-        g.addWidget(self.mMapLayerComboBox_Petro_points, 0, 1, 1, 3)
-        g.addWidget(label(_tr("Density field")),         1, 0)
-        g.addWidget(self.mFieldComboBox_Petro_dens,      1, 1)
+        g.addWidget(self.mMapLayerComboBox_Petro_points, 0, 1, 1, 4)
+        g.addWidget(label(_tr("X field")),               1, 0)
+        g.addWidget(self.mFieldComboBox_Petro_x,         1, 1)
         g.addWidget(label(_tr("x")),                     1, 2)
-        g.addWidget(self.lineEdit_Petro_dens_scale,      1, 3)
-        g.addWidget(label(_tr("Susceptibility field")),  2, 0)
-        g.addWidget(self.mFieldComboBox_Petro_sus,       2, 1)
+        g.addWidget(self.lineEdit_Petro_x_scale,         1, 3)
+        g.addWidget(self.checkBox_Petro_x_log,           1, 4)
+        g.addWidget(label(_tr("Y field")),               2, 0)
+        g.addWidget(self.mFieldComboBox_Petro_y,         2, 1)
         g.addWidget(label(_tr("x")),                     2, 2)
-        g.addWidget(self.lineEdit_Petro_sus_scale,       2, 3)
+        g.addWidget(self.lineEdit_Petro_y_scale,         2, 3)
+        g.addWidget(self.checkBox_Petro_y_log,           2, 4)
         g.addWidget(label(_tr("Category field")),        3, 0)
         g.addWidget(self.mFieldComboBox_Petro_cat,       3, 1)
 
@@ -1553,7 +1577,7 @@ class SGToolDockWidget(QDockWidget):
         style_row.addWidget(self.radioButton_Petro_points)
         style_row.addWidget(self.radioButton_Petro_heat)
         style_row.addStretch()
-        g.addLayout(style_row, 4, 0, 1, 4)
+        g.addLayout(style_row, 4, 0, 1, 5)
         g.setColumnStretch(1, 1)
         return gb
 

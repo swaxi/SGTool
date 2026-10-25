@@ -4120,7 +4120,7 @@ class SGTool:
         """Draw one Henkel plot when its button is pressed (on the main thread:
         matplotlib windows). make() returns (figure, file name, default folder)."""
         try:
-            import matplotlib.pyplot as plt
+            import matplotlib  # noqa: F401
         except ImportError:
             QMessageBox.information(
                 None, "",
@@ -4144,7 +4144,9 @@ class SGTool:
             )
             return
         self._save_plot(fig, name, folder)
-        plt.show()
+        # only this figure: plt.show() would also bring back every earlier
+        # plot window that is still open
+        fig.show()
 
     @staticmethod
     def _layer_folder(layer):

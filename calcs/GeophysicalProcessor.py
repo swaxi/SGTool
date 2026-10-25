@@ -326,17 +326,17 @@ class GeophysicalProcessor:
 
     def _apply_layer_inverse(self, data, inverse, buffer_size, buffer_method):
         """Run a layer-inversion filter. inverse(k) gives the filter for radial
-        wavenumber k; the median removed by _apply_fourier_filter is passed
-        through the k=0 term rather than added back unchanged."""
-        median = np.nanmedian(data)
+        wavenumber k. The k=0 term is dropped: the absolute level of a gravity
+        or magnetic anomaly grid (datum, regional, IGRF removal) is arbitrary, so
+        the result has a zero mean and the caller adds a background value."""
 
         def filter_function(kx, ky):
-            return inverse(np.sqrt(kx**2 + ky**2))
+            k = np.sqrt(kx**2 + ky**2)
+            return np.where(k > 0, inverse(k), 0.0)
 
-        result = self._apply_fourier_filter(
+        return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method, preserve_dc=False
         )
-        return result + median * float(inverse(np.zeros(1))[0])
 
     def apparent_susceptibility(
         self,
@@ -366,8 +366,8 @@ class GeophysicalProcessor:
             cutoff_wavelength (float or None): High-cut wavelength (m).
 
         Returns:
-            numpy.ndarray: Apparent susceptibility (SI). With a finite thickness
-            the mean level is unknown, so the result's mean is the background.
+            numpy.ndarray: Apparent susceptibility (SI), with the background
+            as its mean.
         """
 
         def inverse(k):
@@ -399,7 +399,8 @@ class GeophysicalProcessor:
 
         The response of a layer with top at `depth` below the sensor and
         thickness t is  g(k) = 2 pi G drho(k) exp(-k depth) (1 - exp(-k t)) / k,
-        which is divided out here; at k = 0 it is the Bouguer slab 2 pi G drho t.
+        which is divided out here. The mean level is not used (a Bouguer grid's
+        level depends on its datum and the regional field).
 
         Parameters:
             depth (float): Depth from the sensor to the top of the layer (m).
@@ -408,7 +409,7 @@ class GeophysicalProcessor:
             cutoff_wavelength (float or None): High-cut wavelength (m).
 
         Returns:
-            numpy.ndarray: Apparent density (g/cc).
+            numpy.ndarray: Apparent density (g/cc), with the background as its mean.
         """
         G = 6.674e-11
         # mGal -> m/s^2, and kg/m^3 -> g/cc

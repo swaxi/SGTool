@@ -22,14 +22,27 @@ TEXT_SECONDARY = "#5f5e5a"
 GRID_COLOUR = "#e4e3df"
 
 
-def log_shift(values):
-    """The amount added to susceptibilities so all are > 0 for a log axis:
-    -min + 1% of the range when the minimum is <= 0, otherwise 0."""
-    vmin = float(np.nanmin(values))
-    if vmin > 0:
-        return 0.0
-    span = float(np.nanmax(values)) - vmin
-    return -vmin + (0.01 * span if span > 0 else 1e-6)
+def positive_pairs(density, sus, *others):
+    """Keep the points with both values defined and a susceptibility > 0 (a log
+    axis can't show the rest). Returns the kept arrays (density, sus, *others)
+    and how many points with a susceptibility <= 0 were left out."""
+    ok = np.isfinite(density) & np.isfinite(sus)
+    positive = ok & (sus > 0)
+    dropped = int(np.count_nonzero(ok & ~positive))
+    kept = [density[positive], sus[positive]] + [o[positive] for o in others]
+    if kept[0].size == 0:
+        raise ValueError(
+            "No locations have both a density and a susceptibility above 0. "
+            "Raise the background susceptibility, or check the grids and fields."
+        )
+    return kept, dropped
+
+
+def _count_text(n, dropped, what="points"):
+    text = f"{n:,} {what}"
+    if dropped:
+        text += f" ({dropped:,} with susceptibility <= 0 left out)"
+    return text
 
 
 def _read_warped(path, wkt, bounds, width, height):
@@ -126,8 +139,8 @@ def _style_axes(ax, x_label, y_label):
         ax.spines[side].set_visible(False)
 
 
-def _sus_label(name, shift):
-    return f"{name} (SI)" if shift == 0 else f"{name} (SI) + {shift:.3g}"
+def _sus_label(name):
+    return f"{name} (SI)"
 
 
 def _limits(density, sus, robust):
@@ -172,21 +185,16 @@ def henkel_heatmap(density, sus, title, sus_name="Apparent susceptibility",
     import matplotlib.pyplot as plt
     from matplotlib.colors import LogNorm
 
-    ok = np.isfinite(density) & np.isfinite(sus)
-    density, sus = density[ok], sus[ok]
-    if density.size == 0:
-        raise ValueError("No locations have both a density and a susceptibility value")
-    shift = log_shift(sus)
-    sus = sus + shift
+    (density, sus), dropped = positive_pairs(density, sus)
     xlim, ylim = _limits(density, sus, robust)
     edges = _bin_edges(xlim, ylim, bins)
 
     fig, ax = plt.subplots(figsize=(7.5, 6))
     mesh = _heat(ax, density, sus, edges, LogNorm())
-    _style_axes(ax, f"{density_name} (g/cc)", _sus_label(sus_name, shift))
+    _style_axes(ax, f"{density_name} (g/cc)", _sus_label(sus_name))
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
-    ax.set_title(f"{title}\n{density.size:,} points", fontsize=11)
+    ax.set_title(f"{title}\n{_count_text(density.size, dropped)}", fontsize=11)
     cbar = fig.colorbar(mesh, ax=ax)
     cbar.set_label("Points per bin", color=TEXT_SECONDARY)
     cbar.ax.tick_params(colors=TEXT_SECONDARY, labelsize=8)
@@ -202,16 +210,16 @@ def henkel_category_grid(density, sus, cats, names, title, bins=100):
     import matplotlib.pyplot as plt
     from matplotlib.colors import LogNorm
 
-    ok = np.isfinite(density) & np.isfinite(sus) & (cats >= 0)
-    density, sus, cats = density[ok], sus[ok], cats[ok]
-    if density.size == 0:
-        raise ValueError("No polygon covers locations with both grids defined")
+    inside = cats >= 0
+    if not inside.any():
+        raise ValueError("No polygon covers the grids")
+    (density, sus, cats), dropped = positive_pairs(
+        density[inside], sus[inside], cats[inside]
+    )
     # only categories with data get a panel: renumber them 0..N-1
     present = np.unique(cats)
     names = [names[c] for c in present]
     cats = np.searchsorted(present, cats)
-    shift = log_shift(sus)
-    sus = sus + shift
     xlim, ylim = _limits(density, sus, True)
     edges = _bin_edges(xlim, ylim, bins)
 
@@ -248,7 +256,9 @@ def henkel_category_grid(density, sus, cats, names, title, bins=100):
     axes.flat[0].set_xlim(xlim)
     axes.flat[0].set_ylim(ylim)
     fig.supxlabel("Apparent density (g/cc)", color=TEXT_SECONDARY)
-    fig.supylabel(_sus_label("Apparent susceptibility", shift), color=TEXT_SECONDARY)
+    fig.supylabel(_sus_label("Apparent susceptibility"), color=TEXT_SECONDARY)
+    if dropped:
+        title += f"\n{dropped:,} cells with susceptibility <= 0 left out"
     fig.suptitle(title, fontsize=11)
     fig.tight_layout(rect=(0, 0, 0.9, 1))
     if mesh is not None:
@@ -263,14 +273,12 @@ def henkel_points(density, sus, title, categories=None):
     """Henkel plot of measured samples, coloured by category if given."""
     import matplotlib.pyplot as plt
 
-    ok = np.isfinite(density) & np.isfinite(sus)
-    density, sus = density[ok], sus[ok]
-    if categories is not None:
-        categories = np.asarray(categories, dtype=object)[ok]
-    if density.size == 0:
-        raise ValueError("No samples have both a density and a susceptibility value")
-    shift = log_shift(sus)
-    sus = sus + shift
+    if categories is None:
+        (density, sus), dropped = positive_pairs(density, sus)
+    else:
+        (density, sus, categories), dropped = positive_pairs(
+            density, sus, np.asarray(categories, dtype=object)
+        )
     xlim, ylim = _limits(density, sus, False)
     pad = 0.03 * (xlim[1] - xlim[0])
 
@@ -299,10 +307,10 @@ def henkel_points(density, sus, title, categories=None):
                        label=f"Other ({rest.sum()})", **style)
         ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1), frameon=False,
                   fontsize=8, labelcolor=TEXT_SECONDARY)
-    _style_axes(ax, "Density (g/cc)", _sus_label("Susceptibility", shift))
+    _style_axes(ax, "Density (g/cc)", _sus_label("Susceptibility"))
     ax.set_xlim(xlim[0] - pad, xlim[1] + pad)
     ax.set_ylim(ylim[0] / 1.3, ylim[1] * 1.3)
-    ax.set_title(f"{title}\n{density.size:,} samples", fontsize=11)
+    ax.set_title(f"{title}\n{_count_text(density.size, dropped, 'samples')}", fontsize=11)
     fig.tight_layout()
     return fig
 

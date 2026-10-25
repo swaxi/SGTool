@@ -1233,7 +1233,6 @@ class SGToolDockWidget(QDockWidget):
         sl.setSpacing(6)
         sl.addWidget(self._group_apparent_petro())
         sl.addWidget(self._group_apparent_henkel())
-        sl.addWidget(self._group_spatial_analysis())
         sl.addWidget(self._group_true_petro())
         sl.addWidget(self._group_save_plots())
         sl.addStretch()
@@ -1350,7 +1349,7 @@ class SGToolDockWidget(QDockWidget):
                 "A magnetic anomaly grid (IGRF removed) has no absolute level, so the\n"
                 "calculated susceptibility is relative to an unknown background and is\n"
                 "partly negative. A typical background (e.g. 0.001 SI) keeps most values\n"
-                "positive, so Henkel plots need little or no shift for their log axis.")
+                "positive; Henkel plots leave out values <= 0, which a log axis can't show.")
         )
         self.lineEdit_AppSus_cut = self._short_edit("", 70, cut_tip)
         self.lineEdit_AppSus_cut.setPlaceholderText(_tr("4 x cell"))
@@ -1360,13 +1359,20 @@ class SGToolDockWidget(QDockWidget):
         # Apparent density
         self.checkBox_AppDens = QCheckBox(_tr("Apparent Density"))
         self.checkBox_AppDens.setToolTip(
-            _tr("Apparent density (g/cc) from a Bouguer gravity grid (mGal).\n"
+            _tr("Apparent density (g/cc) from a Bouguer gravity grid.\n"
                 "The ground is modelled as a layer of vertical prisms of finite thickness,\n"
-                "and the layer's response is divided out in the Fourier domain. The mean\n"
-                "level comes from the Bouguer slab formula, so it is only as meaningful as\n"
-                "the gravity datum. Output: <grid>_AppDens.")
+                "and the layer's response is divided out in the Fourier domain. A Bouguer\n"
+                "grid's absolute level depends on its datum and the regional field, so it\n"
+                "is not used: the result's mean is the background density.\n"
+                "Output: <grid>_AppDens.")
         )
-        row(self.checkBox_AppDens, indent=False)
+        self.comboBox_AppDens_units = QComboBox()
+        self.comboBox_AppDens_units.addItems(["mGal", "µm/s² (gu)"])
+        self.comboBox_AppDens_units.setToolTip(
+            _tr("Units of the gravity grid (1 mGal = 10 µm/s² = 10 gu)")
+        )
+        row(self.checkBox_AppDens, _tr("Grid units"), self.comboBox_AppDens_units,
+            indent=False)
 
         self.lineEdit_AppDens_depth = self._short_edit(
             "0", 60,
@@ -1374,7 +1380,9 @@ class SGToolDockWidget(QDockWidget):
                 "0 for ground gravity; the terrain clearance for airborne gravity.")
         )
         self.lineEdit_AppDens_thickness = self._short_edit(
-            "1000", 60, _tr("Layer thickness (m); must be greater than 0")
+            "5000", 60,
+            _tr("Layer thickness (m); must be greater than 0. Thin layers exaggerate the\n"
+                "density contrasts needed to explain long-wavelength anomalies.")
         )
         row(_tr("Depth to top (m)"), self.lineEdit_AppDens_depth,
             _tr("Thickness (m)"), self.lineEdit_AppDens_thickness)
@@ -1411,27 +1419,11 @@ class SGToolDockWidget(QDockWidget):
                 "(log y axis), counting grid cells per bin on a log colour scale.\n"
                 "Each cell of the coarser grid (usually gravity) is paired with the nearest\n"
                 "cell of the finer grid, reprojecting if the CRSs differ; cells where either\n"
-                "grid has no data are left out. If any susceptibility is <= 0, all are\n"
-                "shifted by -min + 1% of the range so the log axis works (the shift is shown\n"
-                "on the axis). Axes span the 0.1-99.9 percentiles, to keep FFT edge effects\n"
-                "from squashing the plot.")
+                "grid has no data are left out, as are susceptibilities <= 0, which a log\n"
+                "axis can't show (their number is given in the title). Axes span the\n"
+                "0.1-99.9 percentiles, to keep FFT edge effects from squashing the plot.")
         )
-        g.addWidget(lbl_sus,                            0, 0)
-        g.addWidget(self.mMapLayerComboBox_Henkel_sus,  0, 1)
-        g.addWidget(lbl_dens,                           1, 0)
-        g.addWidget(self.mMapLayerComboBox_Henkel_dens, 1, 1)
-        g.addWidget(self.pushButton_Henkel,             2, 0, 1, 2, Qt.AlignmentFlag.AlignLeft)
-        g.setColumnStretch(1, 1)
-        return gb
-
-    # ------------------------------------------------------------------
-    # Group: Spatial Analysis
-    # ------------------------------------------------------------------
-    def _group_spatial_analysis(self):
-        gb = QGroupBox(_tr("Spatial Analysis"))
-        g = QGridLayout(gb)
-        g.setSpacing(4)
-
+        # Per-category plots of the same two grids, clipped to polygons
         lbl_poly = QLabel(_tr("Polygons"))
         lbl_poly.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.mMapLayerComboBox_Petro_polygons = QgsMapLayerComboBox()
@@ -1447,17 +1439,27 @@ class SGToolDockWidget(QDockWidget):
         )
         self.pushButton_Henkel_categories = self._plot_button(_tr("Plot per Category"))
         self.pushButton_Henkel_categories.setToolTip(
-            _tr("A grid of Henkel heat maps, one per category, using the grids chosen under\n"
-                "Apparent Henkel Plot clipped to the polygons of that category. Categories\n"
+            _tr("A grid of Henkel heat maps, one per category, using the two grids above\n"
+                "clipped to the polygons of that category. Categories\n"
                 "with no cells where both grids have data are left out. All panels\n"
                 "share their axes and colour scale; each shows the fraction of its own\n"
                 "category's cells per bin, so small and large categories compare fairly.")
         )
-        g.addWidget(lbl_poly,                              0, 0)
-        g.addWidget(self.mMapLayerComboBox_Petro_polygons, 0, 1)
-        g.addWidget(lbl_cat,                               1, 0)
-        g.addWidget(self.mFieldComboBox_Petro_polyCat,     1, 1)
-        g.addWidget(self.pushButton_Henkel_categories,     2, 0, 1, 2, Qt.AlignmentFlag.AlignLeft)
+        divider = QFrame()
+        divider.setFrameShape(QFrame.Shape.HLine)
+        divider.setFrameShadow(QFrame.Shadow.Sunken)
+
+        g.addWidget(lbl_sus,                               0, 0)
+        g.addWidget(self.mMapLayerComboBox_Henkel_sus,     0, 1)
+        g.addWidget(lbl_dens,                              1, 0)
+        g.addWidget(self.mMapLayerComboBox_Henkel_dens,    1, 1)
+        g.addWidget(self.pushButton_Henkel,                2, 0, 1, 2, Qt.AlignmentFlag.AlignLeft)
+        g.addWidget(divider,                               3, 0, 1, 2)
+        g.addWidget(lbl_poly,                              4, 0)
+        g.addWidget(self.mMapLayerComboBox_Petro_polygons, 4, 1)
+        g.addWidget(lbl_cat,                               5, 0)
+        g.addWidget(self.mFieldComboBox_Petro_polyCat,     5, 1)
+        g.addWidget(self.pushButton_Henkel_categories,     6, 0, 1, 2, Qt.AlignmentFlag.AlignLeft)
         g.setColumnStretch(1, 1)
         return gb
 
@@ -1505,8 +1507,8 @@ class SGToolDockWidget(QDockWidget):
         self.pushButton_Henkel_points = self._plot_button(_tr("Plot Samples"))
         self.pushButton_Henkel_points.setToolTip(
             _tr("Density (linear x axis) against susceptibility (log y axis) of the samples.\n"
-                "If any susceptibility is <= 0, all are shifted by -min + 1% of the range so\n"
-                "the log axis works (the shift is shown on the axis).")
+                "Susceptibilities <= 0 are left out, as a log axis can't show them (their\n"
+                "number is given in the title).")
         )
         self.radioButton_Petro_points = QRadioButton(_tr("Points"))
         self.radioButton_Petro_points.setChecked(True)

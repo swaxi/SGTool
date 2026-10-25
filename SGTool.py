@@ -927,6 +927,9 @@ class SGTool:
         self.AppDens_depth = self.to_float(self.dlg.lineEdit_AppDens_depth.text())
         self.AppDens_thickness = self.to_float(self.dlg.lineEdit_AppDens_thickness.text())
         self.AppDens_background = self.to_float(self.dlg.lineEdit_AppDens_background.text())
+        # gravity grid units -> mGal (1 mGal = 10 um/s^2)
+        self.AppDens_units = self.dlg.comboBox_AppDens_units.currentText()
+        self.AppDens_to_mGal = 1.0 if self.dlg.comboBox_AppDens_units.currentIndex() == 0 else 0.1
         self.AppDens_cut = self._optional_float(self.dlg.lineEdit_AppDens_cut.text())
 
         self.Mean = self.dlg.checkBox_Mean.isChecked()
@@ -1690,6 +1693,7 @@ class SGTool:
             }
         if s == "_AppDens":
             return "Apparent density", {
+                "grid_units": self.AppDens_units,
                 "depth_to_top": self.AppDens_depth,
                 "thickness": self.AppDens_thickness,
                 "background_density": self.AppDens_background,
@@ -2823,7 +2827,7 @@ class SGTool:
             )
         else:
             self.new_grid = self.processor.apparent_density(
-                self.raster_array,
+                self.raster_array * self.AppDens_to_mGal,
                 depth=self.AppDens_depth,
                 thickness=self.AppDens_thickness,
                 background=self.AppDens_background,
@@ -4370,6 +4374,7 @@ class SGTool:
             (d.lineEdit_AppDens_thickness, "textEdited", d.checkBox_AppDens),
             (d.lineEdit_AppDens_background, "textEdited", d.checkBox_AppDens),
             (d.lineEdit_AppDens_cut, "textEdited", d.checkBox_AppDens),
+            (d.comboBox_AppDens_units, "activated", d.checkBox_AppDens),
         ):
             getattr(widget, signal).connect(lambda *_a, b=box: self.update_checkbox(b))
 

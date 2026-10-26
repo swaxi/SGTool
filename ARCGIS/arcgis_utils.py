@@ -555,6 +555,56 @@ def read_points_ogr(path, field):
     return np.array(xs), np.array(ys), np.array(zs), wkt
 
 
+def read_attributes_ogr(path, fields):
+    """The raw values of `fields` (None for a blank name) for every feature of an OGR
+    file, as {field: list of values}, in feature order."""
+    from osgeo import ogr
+
+    ds = ogr.Open(str(path))
+    if ds is None:
+        raise IOError(f"Cannot open file: {path}")
+    layer = ds.GetLayer(0)
+    names = [f for f in fields if f]
+    values = {f: [] for f in names}
+    for feat in layer:
+        for f in names:
+            values[f].append(feat.GetField(f) if feat.IsFieldSet(f) else None)
+    ds = None
+    return values
+
+
+def read_polygon_categories(path, field, target_wkt):
+    """(category text, geometry WKT in the CRS of target_wkt) for every polygon of an OGR
+    file with a value in `field`, reprojected if the CRSs differ."""
+    from osgeo import ogr, osr
+
+    ds = ogr.Open(str(path))
+    if ds is None:
+        raise IOError(f"Cannot open polygon file: {path}")
+    layer = ds.GetLayer(0)
+    src = layer.GetSpatialRef()
+    transform = None
+    if src is not None and target_wkt:
+        dst = osr.SpatialReference()
+        dst.ImportFromWkt(target_wkt)
+        src.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        dst.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+        if not src.IsSame(dst):
+            transform = osr.CoordinateTransformation(src, dst)
+    shapes = []
+    for feat in layer:
+        value = feat.GetField(field) if feat.IsFieldSet(field) else None
+        geom = feat.GetGeometryRef()
+        if value is None or not str(value).strip() or geom is None or geom.IsEmpty():
+            continue
+        geom = geom.Clone()
+        if transform is not None:
+            geom.Transform(transform)
+        shapes.append((str(value), geom.ExportToWkt()))
+    ds = None
+    return shapes
+
+
 def suggest_bspline_settings(path, cell_size=None):
     """Cell size and Max Levels suggested for gridding the points in an OGR point file (see
     calcs/mba_suggest.py): the dict from suggest_mba_parameters plus "description"."""

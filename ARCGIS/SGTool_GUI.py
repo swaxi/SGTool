@@ -38,14 +38,18 @@ from arcgis_utils import (suggest_bspline_settings, raster_to_numpy, numpy_to_ra
                           grid_info_text, plugin_version, step_suffix,
                           write_mrvbf_outputs, MRVBF_DEFAULTS,
                           list_point_fields, read_points_ogr, grid_points_to_file,
-                          map_view_to_cells)
+                          map_view_to_cells, read_attributes_ogr, read_polygon_categories)
 from calcs.sgt_cancel import OperationCancelled
 from sgt_preview_window import PreviewWindow, block_mean
 from calcs.sgt_metadata import (read_sgt_metadata, format_sgt_metadata_text,
                                 sgt_metadata_xml_text, save_sgt_metadata_xml)
 from calcs.workflow import history_steps
 from sgt_workflow import plan_steps, run_replay, uniform_field, check_igrf_possible
+from calcs import Petrophysics
 import numpy as np
+
+# Petrophys plots are built in a worker thread and shown in this GUI's own Tk windows
+Petrophysics.USE_PYPLOT = False
 
 # ---------------------------------------------------------------------------
 # Light grey palette
@@ -418,6 +422,7 @@ class SGToolApp(tk.Tk):
     def _apply_layer_list(self, layer_map, names):
         self._layer_map = layer_map
         self._layer_combo["values"] = names
+        self._petro_refresh_rasters()
         if names and not self.v_input.get():
             self._layer_combo.set(names[0])
             self.v_input.set(self._layer_map[names[0]])
@@ -575,6 +580,7 @@ class SGToolApp(tk.Tk):
         if name not in vals:
             vals.insert(0, name)
             self._layer_combo["values"] = vals
+            self._petro_refresh_rasters()
 
     # ------------------------------------------------------------------
     # Auto output-path derivation
@@ -595,16 +601,25 @@ class SGToolApp(tk.Tk):
         1: ("v_mean", "v_med", "v_gauss", "v_dconv", "v_sun", "v_ss_min", "v_ss_max", "v_ss_var",
             "v_ss_std", "v_ss_skew", "v_ss_kurt", "v_ss_aniso", "v_ss_chain", "v_ss_stream",
             "v_mrvbf", "v_pca", "v_ica", "v_euler"),
-        3: ("v_thresh_en",),  # Utils tab: Threshold to NaN
+        3: ("v_app_kind",),   # Petrophys tab: apparent susceptibility or density
+        4: ("v_thresh_en",),  # Utils tab: Threshold to NaN
     }
     PREVIEW_NOT_POSSIBLE = ("v_ss_aniso", "v_ss_chain", "v_ss_stream", "v_mrvbf",
                             "v_pca", "v_ica", "v_euler")
     PREVIEW_VIEW_SIDE = 1000    # most cells (longest side) calculated for the view
     PREVIEW_WHOLE_SIDE = 600    # the whole grid is reduced to about this
-    APPLY_TEXT = {0: "Apply FFT Processing", 1: "Apply Conv + Stats", 3: "Apply Threshold \u2192 NaN"}
+    APPLY_TEXT = {0: "Apply FFT Processing", 1: "Apply Conv + Stats", 3: "Apply Petrophysics",
+                  4: "Apply Threshold \u2192 NaN"}
 
     def _filter_var(self, name):
         return getattr(self, name, None)
+
+    @staticmethod
+    def _untick(var):
+        """Untick a filter. The Petrophys calculations are a pair of radio buttons (a
+        StringVar, one always chosen), so there is nothing to untick there."""
+        if isinstance(var, tk.BooleanVar):
+            var.set(False)
 
     def _ticked(self, tab):
         return [n for n in self.PREVIEW_FILTERS[tab]
@@ -666,7 +681,7 @@ class SGToolApp(tk.Tk):
                     for name in self.PREVIEW_FILTERS[tab]:
                         var = self._filter_var(name)
                         if var is not None:
-                            var.set(False)
+                            self._untick(var)
             finally:
                 self._preview_enforcing = False
         self._preview_tab = None
@@ -718,7 +733,7 @@ class SGToolApp(tk.Tk):
                 for name in self.PREVIEW_FILTERS[old]:
                     var = self._filter_var(name)
                     if var is not None:
-                        var.set(False)
+                        self._untick(var)
             finally:
                 self._preview_enforcing = False
         self._preview_tab = idx if idx in self.PREVIEW_FILTERS else None
@@ -789,7 +804,8 @@ class SGToolApp(tk.Tk):
             return
         tab = self._preview_tab
         if tab is None:
-            win.clear("The preview is on the FFT Filters, Conv + Stats and Utils (threshold) tabs")
+            win.clear("The preview is on the FFT Filters, Conv + Stats, Petrophys and Utils "
+                      "(threshold) tabs")
             win.set_status("")
             return
         path = self._resolve_input()
@@ -902,6 +918,8 @@ class SGToolApp(tk.Tk):
             if tab == 0:
                 self._fft_steps(path, sub, ecx, ecy, buf, proc, count, keep)
             elif tab == 3:
+                self._petro_steps(sub, ecx, ecy, buf, proc, keep)
+            elif tab == 4:
                 self._threshold_step(sub, keep)
             else:
                 self._conv_steps(path, sub, NODATA, 0.0, 0.0, ecx, ecy, None,
@@ -1000,6 +1018,8 @@ class SGToolApp(tk.Tk):
                 out.append("_ICA")
             if val("v_euler"):
                 out.append(f"_estimates_SI_{int(num('v_eu_si', 1.0))}")
+            if self._current_tab() == 3 and val("v_app_kind"):  # Petrophys: one at a time
+                out.append("_AppSus" if val("v_app_kind") == "sus" else "_AppDens")
         except Exception:
             logging.getLogger(__name__).debug("Ignored: a half-typed entry: show what could be worked out", exc_info=True)
         return [p for p in out if p]
@@ -1041,6 +1061,7 @@ class SGToolApp(tk.Tk):
             ("FFT Filters",     self._tab_fft),
             ("Conv + Stats",    self._tab_conv_stats),
             ("Grid + Wavelets", self._tab_grid_wavelets),
+            ("Petrophys",       self._tab_petro),
             ("Utils",           self._tab_utils),
             ("Help",            self._tab_help),
         ]
@@ -1631,7 +1652,627 @@ class SGToolApp(tk.Tk):
 
 
     # ======================================================================
-    # TAB 4 – UTILS
+    # TAB 4 – PETROPHYS
+    # ======================================================================
+    APPARENT_DENSITY = ("Apparent density (g/cc)", False)    # axis label, log axis
+    APPARENT_SUS = ("Apparent susceptibility (SI)", True)
+    VECTOR_FILES = [("Vector files", "*.shp *.gpkg *.geojson *.json *.gml *.kml *.tab"),
+                    ("All files", "*.*")]
+
+    def _tab_petro(self, p):
+        def row(parent, indent=0):
+            r = tk.Frame(parent, bg=BG)
+            r.pack(fill="x", padx=(4 + indent, 4), pady=2)
+            return r
+
+        def picks(kind, *entries):
+            """Typing in an entry chooses its calculation."""
+            for e in entries:
+                e.bind("<FocusIn>", lambda _e: self.v_app_kind.set(kind), add=True)
+                e.bind("<Key>", lambda _e: self.v_app_kind.set(kind), add=True)
+            return entries
+
+        def radio(parent, text, value):
+            return tk.Radiobutton(parent, text=text, variable=self.v_app_kind, value=value,
+                                  bg=BG, fg=FG, selectcolor=ENTRY_BG, activebackground=BG,
+                                  activeforeground=FG, font=FONT)
+
+        cut_tip = ("High-cut wavelength (m). Dividing out the layer response amplifies short\n"
+                   "wavelengths, so they are removed with a cosine roll-off: wavelengths longer\n"
+                   "than twice this value are kept, those at this value or shorter removed.\n"
+                   "Leave blank for 4 x the cell size; 0 for no high-cut.")
+
+        # ---- Apparent Petrophysics ----
+        ap = section(p, "Apparent Petrophysics")
+        ap.pack(fill="x", padx=8, pady=4)
+        self.v_app_kind = tk.StringVar(value="sus")
+
+        r = row(ap)
+        tip(radio(r, "Apparent Susceptibility", "sus"),
+            "Apparent susceptibility (SI) from a magnetic anomaly grid (nT, IGRF removed) that\n"
+            "has already been reduced to the pole (RTP), or to the equator (RTE: the result is\n"
+            "then only approximate). The ground is modelled as a layer of vertical prisms\n"
+            "magnetised by induction in the ambient field, and the layer's response is divided\n"
+            "out in the Fourier domain. The grid's absolute level is not used: the result is a\n"
+            "variation about the background susceptibility. Output: <grid>_AppSus.").pack(side="left")
+        r = row(ap, 22)
+        self.v_app_field = tk.StringVar(value="50000")
+        self.v_app_year = tk.StringVar(value=self.v_igrf_year.get())
+        lbl(r, "Field (nT):").pack(side="left")
+        e_field = tip(entry(r, self.v_app_field, 8),
+                      "Ambient field strength (nT): the full IGRF total intensity, not anything\n"
+                      "from the anomaly grid. Filled in from the IGRF at the centre of the input\n"
+                      "grid in the year shown whenever the input changes or IGRF is pressed (or\n"
+                      "from a Noddy grid's own metadata). It can also be typed in.")
+        e_field.pack(side="left", padx=2)
+        tip(btn(r, "IGRF", self._petro_igrf, w=6),
+            "Set the field strength from the IGRF at the centre of the input grid").pack(side="left", padx=4)
+        lbl(r, "Year:").pack(side="left", padx=(6, 0))
+        e_year = tip(entry(r, self.v_app_year, 7), "Survey year (decimal) for the IGRF")
+        e_year.pack(side="left", padx=2)
+        r = row(ap, 22)
+        self.v_app_sus_depth = tk.StringVar(value="0")
+        self.v_app_sus_finite = tk.BooleanVar(value=False)
+        self.v_app_sus_thick = tk.StringVar(value="1000")
+        lbl(r, "Depth to top (m):").pack(side="left")
+        e_sd = tip(entry(r, self.v_app_sus_depth, 7),
+                   "Depth from the sensor to the top of the magnetic layer (m).\n"
+                   "0 puts the top of the sources at the sensor. For airborne data set it to\n"
+                   "the terrain clearance (plus any cover) so the sources sit at the ground.")
+        e_sd.pack(side="left", padx=2)
+        tip(check(r, "Thickness (m):", self.v_app_sus_finite,
+                  command=lambda: self.v_app_kind.set("sus")),
+            "Untick for a layer of infinite thickness (the usual choice); tick to give\n"
+            "the layer a finite thickness").pack(side="left", padx=(8, 0))
+        e_st = tip(entry(r, self.v_app_sus_thick, 7), "Layer thickness (m), used when Thickness is ticked")
+        e_st.pack(side="left", padx=2)
+        r = row(ap, 22)
+        self.v_app_sus_bg = tk.StringVar(value="0.001")
+        self.v_app_sus_cut = tk.StringVar(value="")
+        lbl(r, "Background (SI):").pack(side="left")
+        e_sb = tip(entry(r, self.v_app_sus_bg, 7),
+                   "Background susceptibility (SI) added to the result. A magnetic anomaly grid\n"
+                   "has no absolute level, so the calculated susceptibility is relative to an\n"
+                   "unknown background and is partly negative. A typical background (e.g. 0.001\n"
+                   "SI) keeps most values positive; Henkel plots and histograms leave out values\n"
+                   "<= 0, which a log axis can't show.")
+        e_sb.pack(side="left", padx=2)
+        lbl(r, "High-cut (m):").pack(side="left", padx=(8, 0))
+        e_sc = tip(entry(r, self.v_app_sus_cut, 8), cut_tip)
+        e_sc.pack(side="left", padx=2)
+        tk.Label(r, text="(blank = 4 x cell)", bg=BG, fg="#666666", font=FONT).pack(side="left")
+        picks("sus", e_field, e_year, e_sd, e_st, e_sb, e_sc)
+
+        r = row(ap)
+        tip(radio(r, "Apparent Density", "dens"),
+            "Apparent density (g/cc) from a Bouguer gravity grid. The ground is modelled as a\n"
+            "layer of vertical prisms of finite thickness, and the layer's response is divided\n"
+            "out in the Fourier domain. A Bouguer grid's absolute level depends on its datum\n"
+            "and the regional field, so it is not used: the result's mean is the background\n"
+            "density. Output: <grid>_AppDens.").pack(side="left")
+        self.v_app_units = tk.StringVar(value="mGal")
+        lbl(r, "Grid units:").pack(side="left", padx=(12, 0))
+        c_units = tip(combo(r, ["mGal", "um/s2 (gu)"], self.v_app_units, w=10),
+                      "Units of the gravity grid (1 mGal = 10 um/s2 = 10 gu). Geoscience Australia's\n"
+                      "national grids are in um/s2.")
+        c_units.pack(side="left", padx=4)
+        c_units.bind("<<ComboboxSelected>>", lambda _e: self.v_app_kind.set("dens"), add=True)
+        r = row(ap, 22)
+        self.v_app_dens_depth = tk.StringVar(value="0")
+        self.v_app_dens_thick = tk.StringVar(value="5000")
+        lbl(r, "Depth to top (m):").pack(side="left")
+        e_dd = tip(entry(r, self.v_app_dens_depth, 7),
+                   "Depth from the sensor to the top of the layer (m).\n"
+                   "0 for ground gravity; the terrain clearance for airborne gravity.")
+        e_dd.pack(side="left", padx=2)
+        lbl(r, "Thickness (m):").pack(side="left", padx=(8, 0))
+        e_dt = tip(entry(r, self.v_app_dens_thick, 7),
+                   "Layer thickness (m); must be greater than 0. Thin layers exaggerate the\n"
+                   "density contrasts needed to explain long-wavelength anomalies.")
+        e_dt.pack(side="left", padx=2)
+        r = row(ap, 22)
+        self.v_app_dens_bg = tk.StringVar(value="2.67")
+        self.v_app_dens_cut = tk.StringVar(value="")
+        lbl(r, "Background (g/cc):").pack(side="left")
+        e_db = tip(entry(r, self.v_app_dens_bg, 7), "Background density (g/cc) added to the density contrast")
+        e_db.pack(side="left", padx=2)
+        lbl(r, "High-cut (m):").pack(side="left", padx=(8, 0))
+        e_dc = tip(entry(r, self.v_app_dens_cut, 8), cut_tip)
+        e_dc.pack(side="left", padx=2)
+        tk.Label(r, text="(blank = 4 x cell)", bg=BG, fg="#666666", font=FONT).pack(side="left")
+        picks("dens", e_dd, e_dt, e_db, e_dc)
+
+        r = row(ap)
+        b_app = btn(r, "Apply Petrophysics", self._apply_petro, w=22)
+        self._apply_btns[3] = b_app
+        tip(b_app, "Calculate the chosen grid (apparent susceptibility or density) from the\n"
+                   "input grid, using the FFT buffer set on the FFT Filters tab").pack(side="right", padx=4)
+        tip(check(r, "Preview", self.v_preview),
+            "Show the chosen calculation in a separate preview window that updates as you\n"
+            "change settings (zoom and pan to see detail). Apply Preview then saves it at\n"
+            "full resolution").pack(side="right", padx=10)
+        self._update_apply_text()
+
+        # ---- Apparent Henkel Plot / Histogram ----
+        hk = section(p, "Apparent Henkel Plot / Histogram")
+        hk.pack(fill="x", padx=8, pady=4)
+        self.v_hk_sus = tk.StringVar()
+        self.v_hk_dens = tk.StringVar()
+        self._petro_raster_combos = []
+        for text, var, tiptext in (
+                ("App. Susceptibility:", self.v_hk_sus,
+                 "Apparent susceptibility grid (SI): a layer of the map, or a file. Leave\n"
+                 "blank, with a density grid chosen, for density histograms."),
+                ("App. Density:", self.v_hk_dens,
+                 "Apparent density grid (g/cc): a layer of the map, or a file. Leave blank,\n"
+                 "with a susceptibility grid chosen, for susceptibility histograms.")):
+            r = row(hk)
+            lbl(r, text, width=17, anchor="e").pack(side="left")
+            c = ttk.Combobox(r, textvariable=var, width=44, font=FONT)
+            c.pack(side="left", padx=2)
+            ToolTip(c, tiptext)
+            self._petro_raster_combos.append(c)
+            btn(r, "Browse…", lambda v=var: self._petro_browse_raster(v), w=8).pack(side="left", padx=2)
+        self._petro_refresh_rasters()
+        r = row(hk)
+        tip(btn(r, "Plot Apparent", self._plot_apparent, w=16),
+            "Heat map of apparent density (linear x axis) against apparent susceptibility\n"
+            "(log y axis), counting grid cells per bin on a log colour scale. Each cell of\n"
+            "the coarser grid (usually gravity) is paired with the nearest cell of the finer\n"
+            "grid, reprojecting if the CRSs differ; cells where either grid has no data are\n"
+            "left out, as are susceptibilities <= 0 (counted in the title). Axes span the\n"
+            "0.1-99.9 percentiles, to keep FFT edge effects from squashing the plot.\n"
+            "With only one grid chosen: a histogram of it instead.").pack(side="left")
+        ttk.Separator(hk, orient="horizontal").pack(fill="x", padx=4, pady=4)
+        self.v_hk_poly = tk.StringVar()
+        self.v_hk_poly_field = tk.StringVar()
+        r = row(hk)
+        lbl(r, "Polygons:", width=17, anchor="e").pack(side="left")
+        tip(entry(r, self.v_hk_poly, 46),
+            "Polygon file, e.g. a geology map (shapefile, GeoPackage ...)").pack(side="left", padx=2)
+        btn(r, "Browse…", lambda: self._petro_browse_vector(
+            self.v_hk_poly, [(self._hk_poly_field_combo, False)]), w=8).pack(side="left", padx=2)
+        r = row(hk)
+        lbl(r, "Category field:", width=17, anchor="e").pack(side="left")
+        self._hk_poly_field_combo = tip(combo(r, [], self.v_hk_poly_field, w=20),
+                                        "Field holding the category (e.g. lithology) of each polygon")
+        self._hk_poly_field_combo.pack(side="left", padx=2)
+        r = row(hk)
+        self.v_hk_position = tk.BooleanVar(value=False)
+        tip(btn(r, "Plot per Category", self._plot_categories, w=16),
+            "A grid of Henkel heat maps (or histograms, with only one grid chosen), one per\n"
+            "category, using the grids above clipped to the polygons of that category.\n"
+            "Categories with no cells where the grids have data are left out. All panels\n"
+            "share their axes and colour scale; each shows the fraction of its own category's\n"
+            "cells per bin, so small and large categories compare fairly.").pack(side="left")
+        tip(check(r, "Colour by position", self.v_hk_position),
+            "For Henkel plots per category: colour each bin by where it is on the plot, red\n"
+            "to green along the density axis and red to blue up the susceptibility axis (low/\n"
+            "low red, dense green, magnetic blue, both cyan), with the fraction of the\n"
+            "category's cells per bin shown by opacity instead of a colour scale.").pack(side="left", padx=10)
+
+        # ---- Measured Petrophysics ----
+        ms = section(p, "Measured Petrophysics")
+        ms.pack(fill="x", padx=8, pady=4)
+        self.v_ms_points = tk.StringVar()
+        points_row = row(ms)
+        lbl(points_row, "Points:", width=17, anchor="e").pack(side="left")
+        tip(entry(points_row, self.v_ms_points, 46),
+            "Point file of samples with measured properties, e.g. density and susceptibility\n"
+            "(shapefile, GeoPackage ...)").pack(side="left", padx=2)
+        self._ms_field_combos = []
+        field_tip = ("Field plotted on the {axis} axis, and named on it: numeric, or text holding\n"
+                     "numbers (values that aren't numbers are skipped). Leave blank, with the\n"
+                     "{other} field chosen, for histograms of that field.")
+        scale_tip = ("Multiplier applied to the field's values, e.g. 0.001 for density in kg/m3\n"
+                     "to g/cc, or 0.00001 for susceptibility in x10^-5 SI to SI")
+        log_tip = ("Log scale for the {axis} axis (and log bins in histograms). Values <= 0\n"
+                   "can't be shown on a log axis, so they are left out (their number is given\n"
+                   "in the title).")
+        for axis, other, log_default in (("x", "Y", False), ("y", "X", True)):
+            field, scale, log = tk.StringVar(), tk.StringVar(value="1"), tk.BooleanVar(value=log_default)
+            setattr(self, f"v_ms_{axis}", field)
+            setattr(self, f"v_ms_{axis}_scale", scale)
+            setattr(self, f"v_ms_{axis}_log", log)
+            r = row(ms)
+            lbl(r, f"{axis.upper()} field:", width=17, anchor="e").pack(side="left")
+            c = tip(combo(r, [""], field, w=20), field_tip.format(axis=axis, other=other))
+            c.pack(side="left", padx=2)
+            self._ms_field_combos.append((c, True))
+            lbl(r, "x").pack(side="left", padx=(6, 0))
+            tip(entry(r, scale, 8), scale_tip).pack(side="left", padx=2)
+            tip(check(r, "Log", log), log_tip.format(axis=axis)).pack(side="left", padx=6)
+        self.v_ms_cat = tk.StringVar()
+        r = row(ms)
+        lbl(r, "Category field:", width=17, anchor="e").pack(side="left")
+        c = tip(combo(r, [""], self.v_ms_cat, w=20),
+                "Optional: field holding a category (e.g. lithology). With Points, each\n"
+                "category gets its own symbol and a legend; with only one of the X and Y\n"
+                "fields, a histogram per category.")
+        c.pack(side="left", padx=2)
+        self._ms_field_combos.append((c, True))
+        btn(points_row, "Browse…",
+            lambda: self._petro_browse_vector(self.v_ms_points, self._ms_field_combos),
+            w=8).pack(side="left", padx=2)
+        r = row(ms)
+        self.v_ms_style = tk.StringVar(value="points")
+        tip(btn(r, "Plot Samples", self._plot_samples, w=16),
+            "The Y field against the X field for every sample (a Henkel plot with density\n"
+            "as X and susceptibility as Y, log). The axes are named after the fields.\n"
+            "With only one field chosen: a histogram of it instead, one per category if a\n"
+            "category field is chosen.").pack(side="left")
+        for text, value, tiptext in (
+                ("Points", "points",
+                 "Plot every sample, with a colour and marker per category if one is chosen:\n"
+                 "8 colours x 8 markers give up to 64 categories, assigned to the categories\n"
+                 "with the most samples (beyond 64, the rest are grouped as Other)."),
+                ("Heat map", "heat",
+                 "Samples per bin on a log colour scale, for large datasets (ignores category)")):
+            tip(tk.Radiobutton(r, text=text, variable=self.v_ms_style, value=value, bg=BG, fg=FG,
+                               selectcolor=ENTRY_BG, activebackground=BG, activeforeground=FG,
+                               font=FONT), tiptext).pack(side="left", padx=(10, 0))
+
+        # ---- Save Plots ----
+        sp = section(p, "Save Plots")
+        sp.pack(fill="x", padx=8, pady=4)
+        r = row(sp)
+        self.v_plot_png = tk.BooleanVar(value=False)
+        self.v_plot_pdf = tk.BooleanVar(value=False)
+        self.v_plot_dir = tk.StringVar()
+        tip(check(r, "PNG", self.v_plot_png), "Also save each plot in this format").pack(side="left")
+        tip(check(r, "PDF", self.v_plot_pdf), "Also save each plot in this format").pack(side="left")
+        lbl(r, "Folder:").pack(side="left", padx=(8, 0))
+        tip(entry(r, self.v_plot_dir, 36),
+            "Folder for saved plots. Leave blank to save them beside the input grid or file.\n"
+            "Plots can also be saved from the plot window's toolbar.").pack(side="left", padx=2)
+        btn(r, "Browse…", lambda: _browse_dir(self.v_plot_dir), w=8).pack(side="left", padx=2)
+
+        # the field strength follows the input grid
+        self.v_input.trace_add("write", lambda *_: self.after(300, self._petro_igrf, True))
+        self._petro_igrf(True)
+
+    # ---- Petrophys: inputs ----
+    def _petro_refresh_rasters(self):
+        """List the map's raster layers (and a blank) in the apparent grid dropdowns."""
+        names = [""] + list(self._layer_combo["values"])
+        for c in getattr(self, "_petro_raster_combos", []):
+            c["values"] = names
+
+    def _petro_browse_raster(self, var):
+        path = filedialog.askopenfilename(
+            filetypes=[("Raster files", "*.tif *.tiff *.img *.ers"), ("All files", "*.*")])
+        if path:
+            var.set(path)
+
+    def _petro_browse_vector(self, var, combos):
+        """Choose a vector file and list its fields in combos: (combobox, blank allowed)."""
+        path = filedialog.askopenfilename(filetypes=self.VECTOR_FILES)
+        if not path:
+            return
+        var.set(path)
+        fields = list_point_fields(path)
+        for c, blank in combos:
+            c["values"] = ([""] if blank else []) + fields
+
+    def _petro_raster(self, var):
+        """File path of an apparent grid dropdown, or None if it is blank."""
+        name = var.get().strip()
+        if not name:
+            return None
+        path = self._layer_map.get(name, name)
+        if not os.path.exists(path):
+            raise ValueError(f"Cannot find the grid {name}")
+        return path
+
+    def _petro_igrf(self, quiet=False):
+        """Field strength for apparent susceptibility: from a Noddy grid's metadata,
+        otherwise the IGRF at the centre of the input grid in the year set."""
+        try:
+            from arcgis_utils import calc_igrf, raster_center_latlon, get_noddy_mag_params
+
+            in_r = self._resolve_input()
+            if not in_r or not os.path.exists(in_r):
+                if not quiet:
+                    messagebox.showwarning("IGRF", "Select an input raster first.")
+                return
+            noddy = get_noddy_mag_params(in_r)
+            if noddy is not None:
+                field = noddy[2]
+            else:
+                centre = raster_center_latlon(in_r)
+                res = calc_igrf(centre[0], centre[1], 0.0, float(self.v_app_year.get())) if centre else None
+                if res is None:
+                    if not quiet:
+                        self._status("IGRF failed – check the grid's coordinate system and the year.")
+                    return
+                field = res[2]
+            self.v_app_field.set(f"{field:.0f}")
+            if not quiet:
+                self._status(f"IGRF field strength {field:.0f} nT")
+        except Exception as e:
+            if not quiet:
+                messagebox.showerror("IGRF Error", str(e))
+
+    # ---- Petrophys: apparent susceptibility / density ----
+    def _petro_values(self):
+        """(spec id, values) of the chosen calculation, named as in the shared filter
+        table (sgt_filters): thickness 0 = infinite, high cut 0 = 4 x cell, -1 = none."""
+        def num(var, what, default=None):
+            text = var.get().strip().replace(",", ".")
+            if not text:
+                if default is None:
+                    raise ValueError(f"Set the {what}")
+                return default
+            try:
+                return float(text)
+            except ValueError:
+                raise ValueError(f"The {what} must be a number")
+
+        def cut(var):
+            value = num(var, "high-cut wavelength", default=0.0) if var.get().strip() else None
+            return 0.0 if value is None else (-1.0 if value == 0 else value)
+
+        if self.v_app_kind.get() == "sus":
+            values = dict(
+                FIELD=num(self.v_app_field, "field strength (nT)"),
+                DEPTH=num(self.v_app_sus_depth, "depth to top", 0.0),
+                THICKNESS=(num(self.v_app_sus_thick, "thickness")
+                           if self.v_app_sus_finite.get() else 0.0),
+                BACKGROUND=num(self.v_app_sus_bg, "background susceptibility", 0.0),
+                HIGH_CUT=cut(self.v_app_sus_cut),
+            )
+            if values["FIELD"] <= 0:
+                raise ValueError("Set the field strength (nT) for apparent susceptibility")
+            return "apparent_susceptibility", values
+        values = dict(
+            UNITS=self.v_app_units.get(),
+            DEPTH=num(self.v_app_dens_depth, "depth to top", 0.0),
+            THICKNESS=num(self.v_app_dens_thick, "thickness"),
+            BACKGROUND=num(self.v_app_dens_bg, "background density", 0.0),
+            HIGH_CUT=cut(self.v_app_dens_cut),
+        )
+        if values["THICKNESS"] <= 0:
+            raise ValueError("The apparent density layer thickness must be greater than 0")
+        return "apparent_density", values
+
+    def _petro_steps(self, arr, cx, cy, buf, proc, _save):
+        """The chosen apparent calculation; the result goes to _save(result, suffix, step)."""
+        spec_id, v = self._petro_values()
+        cutoff = 4 * max(cx, cy) if v["HIGH_CUT"] == 0 else (None if v["HIGH_CUT"] < 0 else v["HIGH_CUT"])
+        if spec_id == "apparent_susceptibility":
+            self.after(0, lambda: self._status("Apparent susceptibility…"))
+            result = proc.apparent_susceptibility(
+                arr, v["FIELD"], depth=v["DEPTH"], thickness=v["THICKNESS"] or None,
+                background=v["BACKGROUND"], cutoff_wavelength=cutoff, buffer_size=buf)
+            suffix = "_AppSus"
+        else:
+            self.after(0, lambda: self._status("Apparent density…"))
+            to_mgal = 0.1 if v["UNITS"].startswith("um") else 1.0  # 1 mGal = 10 um/s2
+            result = proc.apparent_density(
+                arr * to_mgal, depth=v["DEPTH"], thickness=v["THICKNESS"],
+                background=v["BACKGROUND"], cutoff_wavelength=cutoff, buffer_size=buf)
+            suffix = "_AppDens"
+        _save(result, suffix, step_record(spec_id, **v))
+
+    @staticmethod
+    def _is_geographic(path):
+        from osgeo import gdal, osr
+
+        ds = gdal.Open(str(path))
+        wkt = ds.GetProjection() if ds is not None else ""
+        ds = None
+        if not wkt:
+            return False
+        srs = osr.SpatialReference()
+        srs.ImportFromWkt(wkt)
+        return bool(srs.IsGeographic())
+
+    def _apply_petro(self):
+        in_r = self._compute_output_path()
+        if not in_r:
+            messagebox.showwarning("No Input", "Select an input raster.")
+            return
+        try:
+            self._petro_values()
+            if self._is_geographic(in_r):
+                raise ValueError("Apparent susceptibility and density need a grid in a "
+                                 "projected (metre-based) coordinate system")
+        except ValueError as e:
+            messagebox.showwarning("Petrophysics", str(e))
+            return
+        self._end_preview_for_apply()
+        self._status("Starting processing…")
+        self._run_in_thread(self._do_apply_petro, in_r)
+
+    def _do_apply_petro(self, in_r):
+        arr, nodata, ll_x, ll_y, cx, cy, sr = raster_to_numpy(in_r)
+        buf = min(int(self.v_buf.get() or 10), *arr.shape)
+        proc = make_processor(cx, cy, buf)
+        base, ext = os.path.splitext(in_r)
+        ext = ext or ".tif"
+        written = []
+
+        def _save(result, suffix, step=None):
+            self._check_cancel()
+            out_r = f"{base}{step_suffix(step) or suffix}{ext}"
+            numpy_to_raster(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
+            write_provenance(out_r, in_r, *(step or (suffix, {})))
+            self._record_pending(out_r)
+            written.append(out_r)
+            self.after(0, self._on_output_written, out_r)
+
+        self._petro_steps(arr, cx, cy, buf, proc, _save)
+        self.after(0, lambda: self._status(f"Done — {len(written)} output(s) written."))
+
+    # ---- Petrophys: plots ----
+    def _petro_plot(self, gather, build):
+        """gather() reads the settings (main thread); build(settings) makes the figure in
+        a worker thread and returns (figure, file name, default folder). The figure is
+        shown in its own window and saved as PNG / PDF if ticked."""
+        try:
+            settings = gather()
+        except ValueError as e:
+            messagebox.showwarning("Petrophysics", str(e))
+            return
+        settings["formats"] = [f for f, v in (("png", self.v_plot_png), ("pdf", self.v_plot_pdf)) if v.get()]
+        settings["folder"] = self.v_plot_dir.get().strip()
+        self._status("Plotting…")
+
+        def work():
+            try:
+                fig, name, folder = build(settings)
+            except ValueError as e:
+                self.after(0, lambda m=str(e): (messagebox.showwarning("Petrophysics", m),
+                                                self._status(m)))
+                return
+            saved = []
+            if settings["formats"]:
+                folder = settings["folder"] or folder
+                if folder and os.path.isdir(folder):
+                    base = os.path.join(folder, re.sub(r"[^\w\-]+", "_", name))
+                    saved = Petrophysics.save_figure(fig, base, settings["formats"])
+            self.after(0, self._show_figure, fig, name, saved)
+
+        self._run_in_thread(work)
+
+    def _show_figure(self, fig, name, saved):
+        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+
+        win = tk.Toplevel(self)
+        win.title(name)
+        w, h = fig.get_size_inches()
+        win.geometry(f"{int(w * fig.dpi)}x{int(h * fig.dpi) + 40}")
+        canvas = FigureCanvasTkAgg(fig, master=win)
+        canvas.draw()
+        toolbar = NavigationToolbar2Tk(canvas, win)
+        toolbar.update()
+        canvas.get_tk_widget().pack(fill="both", expand=True)
+        self._status("Saved " + ", ".join(saved) if saved else "Plot displayed.")
+
+    @staticmethod
+    def _stem(path):
+        return os.path.splitext(os.path.basename(path))[0]
+
+    def _gather_apparent(self):
+        dens, sus = self._petro_raster(self.v_hk_dens), self._petro_raster(self.v_hk_sus)
+        if dens is None and sus is None:
+            raise ValueError("Choose an apparent susceptibility and/or density grid")
+        if dens is not None and sus is not None and os.path.abspath(dens) == os.path.abspath(sus):
+            raise ValueError("The apparent susceptibility and density grids are the same file")
+        return {"dens": dens, "sus": sus}
+
+    def _single_grid(self, s, density, sus):
+        """For a histogram of whichever grid was chosen: (values, label, log, path)."""
+        if density is not None:
+            return (density,) + self.APPARENT_DENSITY + (s["dens"],)
+        return (sus,) + self.APPARENT_SUS + (s["sus"],)
+
+    def _plot_apparent(self):
+        def build(s):
+            density, sus, _gt, _wkt = Petrophysics.paired_grids(s["dens"], s["sus"])
+            if density is not None and sus is not None:
+                names = f"{self._stem(s['dens'])} vs {self._stem(s['sus'])}"
+                fig = Petrophysics.heatmap(
+                    density.ravel(), sus.ravel(), f"Apparent Henkel plot: {names}",
+                    self.APPARENT_DENSITY[0], self.APPARENT_SUS[0], what="cells")
+                return (fig, f"{self._stem(s['dens'])}_{self._stem(s['sus'])}_henkel",
+                        os.path.dirname(s["dens"]))
+            values, label, log, path = self._single_grid(s, density, sus)
+            fig = Petrophysics.histogram(values.ravel(), f"{label.split(' (')[0]}: {self._stem(path)}",
+                                         label, log=log, what="cells")
+            return fig, f"{self._stem(path)}_hist", os.path.dirname(path)
+
+        self._petro_plot(self._gather_apparent, build)
+
+    def _plot_categories(self):
+        def gather():
+            s = self._gather_apparent()
+            s["poly"], s["field"] = self.v_hk_poly.get().strip(), self.v_hk_poly_field.get()
+            s["position"] = self.v_hk_position.get()
+            if not s["poly"] or not s["field"]:
+                raise ValueError("Choose a polygon file and its category field")
+            return s
+
+        def build(s):
+            density, sus, gt, wkt = Petrophysics.paired_grids(s["dens"], s["sus"])
+            shapes = read_polygon_categories(s["poly"], s["field"], wkt)
+            if not shapes:
+                raise ValueError("The polygon file has no polygons with a category")
+            names = sorted({name for name, _ in shapes}, key=Petrophysics._natural_key)
+            index = {name: i for i, name in enumerate(names)}
+            shape = (density if density is not None else sus).shape
+            cats = Petrophysics.rasterize_categories(
+                [(geom, index[name]) for name, geom in shapes], wkt, gt, shape).ravel()
+            field, polys = s["field"], self._stem(s["poly"])
+            if density is not None and sus is not None:
+                fig = Petrophysics.heatmap_by_category(
+                    density.ravel(), sus.ravel(), cats, names,
+                    f"Apparent Henkel plots by {field} ({polys})",
+                    self.APPARENT_DENSITY[0], self.APPARENT_SUS[0],
+                    position_colours=s["position"])
+                return (fig, f"{self._stem(s['dens'])}_{self._stem(s['sus'])}_henkel_by_{field}",
+                        os.path.dirname(s["dens"]))
+            values, label, log, path = self._single_grid(s, density, sus)
+            fig = Petrophysics.histogram_by_category(
+                values.ravel(), cats, names, f"{label.split(' (')[0]} by {field} ({polys})",
+                label, log=log)
+            return fig, f"{self._stem(path)}_hist_by_{field}", os.path.dirname(path)
+
+        self._petro_plot(gather, build)
+
+    def _plot_samples(self):
+        def gather():
+            s = {"points": self.v_ms_points.get().strip(), "x": self.v_ms_x.get(),
+                 "y": self.v_ms_y.get(), "cat": self.v_ms_cat.get(),
+                 "x_log": self.v_ms_x_log.get(), "y_log": self.v_ms_y_log.get(),
+                 "heat": self.v_ms_style.get() == "heat"}
+            if not s["points"] or not (s["x"] or s["y"]):
+                raise ValueError("Choose a point file and its X and/or Y field")
+            try:
+                s["x_scale"] = float(self.v_ms_x_scale.get().replace(",", "."))
+                s["y_scale"] = float(self.v_ms_y_scale.get().replace(",", "."))
+            except ValueError:
+                raise ValueError("The X and Y multipliers must be numbers")
+            return s
+
+        def build(s):
+            x_field, y_field, cat_field = s["x"], s["y"], s["cat"]
+            raw = read_attributes_ogr(s["points"], [x_field, y_field, cat_field])
+            xs = (np.array([Petrophysics.to_number(v) for v in raw[x_field]]) * s["x_scale"]
+                  if x_field else None)
+            ys = (np.array([Petrophysics.to_number(v) for v in raw[y_field]]) * s["y_scale"]
+                  if y_field else None)
+            cats = [Petrophysics.category_label(v) for v in raw[cat_field]] if cat_field else None
+            layer, folder = self._stem(s["points"]), os.path.dirname(s["points"])
+
+            if not (x_field and y_field):
+                values, field, log = (xs, x_field, s["x_log"]) if x_field else (ys, y_field, s["y_log"])
+                if cat_field:
+                    index, names = Petrophysics.index_categories(cats)
+                    fig = Petrophysics.histogram_by_category(
+                        values, index, names, f"{field} by {cat_field}: {layer}", field,
+                        log=log, robust=False, what="samples")
+                    return fig, f"{layer}_{field}_hist_by_{cat_field}", folder
+                fig = Petrophysics.histogram(values, f"{field}: {layer}", field,
+                                             log=log, robust=False, what="samples")
+                return fig, f"{layer}_{field}_hist", folder
+
+            title = f"{y_field} vs {x_field}: {layer}"
+            if s["heat"]:
+                n = int(np.count_nonzero(np.isfinite(xs) & np.isfinite(ys)))
+                fig = Petrophysics.heatmap(xs, ys, title, x_field, y_field,
+                                           x_log=s["x_log"], y_log=s["y_log"], robust=False,
+                                           bins=Petrophysics.heat_bins(n), what="samples")
+            else:
+                fig = Petrophysics.scatter(xs, ys, title, x_field, y_field,
+                                           x_log=s["x_log"], y_log=s["y_log"],
+                                           categories=cats, legend_title=cat_field or None)
+            return fig, f"{layer}_{y_field}_vs_{x_field}", folder
+
+        self._petro_plot(gather, build)
+
+    # ======================================================================
+    # TAB 5 – UTILS
     # ======================================================================
     def _tab_utils(self, p):
         md = section(p, "SGTool Metadata")
@@ -1667,7 +2308,7 @@ class SGToolApp(tk.Tk):
         tip(entry(rt1, self.v_thresh_below, 10, chk_var=self.v_thresh_en),
             "Lower threshold value").pack(side="left", padx=2)
         b_thr = btn(rt1, "Apply Threshold → NaN", self._apply_threshold, w=22)
-        self._apply_btns[3] = b_thr
+        self._apply_btns[4] = b_thr
         tip(b_thr, "Apply threshold and set matching values to NaN (no-data)").pack(side="left", padx=8)
         tip(check(rt1, "Preview", self.v_preview),
             "Show the threshold in a separate preview window that updates as you change\n"

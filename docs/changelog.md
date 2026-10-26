@@ -4,6 +4,18 @@
 
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
+## 0.4.0
+      * New Petrophys tab (between Grid + Wavelets and Utils), described in [docs/petrophysics.md](petrophysics.md)
+      * Apparent susceptibility (SI) from an RTP/RTE magnetic anomaly grid, with the field strength from the IGRF at the grid centre, and apparent density (g/cc) from a Bouguer grid in mGal or µm/s², by dividing out the response of a layer of vertical prisms in the Fourier domain; settings for depth to top, thickness, background value and high-cut; the grids' arbitrary absolute level is not used, so each result is a variation about its background (0.001 SI, 2.67 g/cc); one calculation at a time (radio buttons), run by that tab's Apply Processing, with live preview and provenance metadata
+      * Henkel plots (density against log susceptibility) of two apparent grids as a heat map, pairing each cell of the coarser grid with the nearest cell of the finer one (reprojected if needed), and per category of a polygon layer (e.g. geology units) in a grid of panels with shared axes and colour scale
+      * Measured Petrophysics: any two fields of a point layer (numeric, or text holding numbers) plotted against each other, each with a multiplier and its own log option, as points with up to 64 category symbols (8 colours x 8 markers, by sample count) or as a heat map, with axes and legend named after the fields
+      * With only one apparent grid or measured field chosen, histograms instead, per category if one is chosen, with the median as a red line, median, mean and standard deviation as text, and the vertical axis clipped to the tallest bar
+      * Plots drawn by their own buttons, each in its own window, optionally saved as PNG and/or PDF; values <= 0 left out of log axes (and counted in the title); heat maps in viridis
+      * New script scripts/pivot_petrophysics.py: one point per sample from a petrophysics layer with one row per measurement, for Measured Petrophysics
+      * ArcGIS Pro: the same Petrophys tab in the GUI (with preview, IGRF field strength and all the plots, polygons and samples chosen as files), and Apparent Susceptibility and Apparent Density toolbox tools
+      * Apparent susceptibility and density are also QGIS Processing algorithms (Petrophysics group), and Apply same steps to another grid repeats them in both versions
+      * macOS: the dock uses a smaller font and the compact Fusion style, so its layout is no larger than on Windows (set the QSettings value SGTool/compactMacUI to false to keep the native look)
+
 ## 0.3.9
       * Utils tab: new Clip to Window button clips the selected grid to the current map window, saving it beside the original as <name>_clip.tif (then _clip_01, _clip_02 ... rather than overwriting an earlier clip); Clip All Layers is now half width, beside it. Also in the ArcGIS Pro GUI (Utils tab), using the ArcGIS Pro map view
       * Crop to area prior to preview to speed up on large grids

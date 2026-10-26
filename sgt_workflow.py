@@ -175,6 +175,8 @@ def _plan_one(index, step):
         notes.append("not recorded, default used for " + ", ".join(defaults))
     if spec_id in _IGRF_SPECS:
         notes.append("inclination and declination recalculated from IGRF")
+    if spec_id == "apparent_susceptibility":
+        notes.append("field strength as recorded (not recalculated for the new grid)")
     item.update(
         kind="filter", spec_id=spec_id, values=values, replayable=True,
         igrf=spec_id in _IGRF_SPECS,

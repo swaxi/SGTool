@@ -75,6 +75,9 @@ class Toolbox:
             PCAAnalysis,
             ICAAnalysis,
             EulerDeconvolution,
+            # ---- Petrophysics ----
+            ApparentSusceptibility,
+            ApparentDensity,
             # ---- Grid + Wavelets ----
             IDWGridding,
             SplineGridding,
@@ -1487,6 +1490,162 @@ class WTMMAnalysis(_RasterTool):
 # ============================================================================
 # ---- UTILS --------------------------------------------------------------
 # ============================================================================
+
+# ============================================================================
+# ---- PETROPHYSICS ---------------------------------------------------------
+# ============================================================================
+
+class _ApparentTool(_RasterTool):
+    """Shared by the apparent susceptibility and density tools: settings named as in
+    the shared filter table (sgt_filters), so outputs can be replayed on other grids."""
+    category = "Petrophysics"
+
+    @staticmethod
+    def _value(param, default):
+        return float(param.value) if param.value is not None else default
+
+    @staticmethod
+    def _cutoff(cut, cx, cy):
+        """High-cut wavelength: 0 = 4 x the cell size, negative = none."""
+        if not cut:
+            return 4 * max(cx, cy)
+        return None if cut < 0 else cut
+
+    @staticmethod
+    def _require_projected(sr, what):
+        geographic = False
+        try:
+            if isinstance(sr, str):
+                from osgeo import osr
+                srs = osr.SpatialReference()
+                srs.ImportFromWkt(sr)
+                geographic = bool(srs.IsGeographic())
+            elif sr is not None:
+                geographic = sr.type == "Geographic"
+        except Exception:
+            geographic = False
+        if geographic:
+            raise arcpy.ExecuteError(
+                f"{what} needs a raster in a projected (metre-based) coordinate system")
+
+    def _write_step(self, result, in_r, out_r, ll_x, ll_y, cx, cy, sr, nodata, spec_id, values):
+        _check_cancel()
+        numpy_to_raster(result, str(out_r), ll_x, ll_y, cx, cy, sr, nodata)
+        write_provenance(str(out_r), in_r, *step_record(spec_id, **values))
+
+
+class ApparentSusceptibility(_ApparentTool):
+    label       = "Apparent Susceptibility"
+    description = ("Apparent susceptibility (SI) from a magnetic anomaly grid (nT, IGRF removed) "
+                   "that has been reduced to the pole (or the equator, approximately), for a layer "
+                   "of vertical prisms magnetised by induction in the ambient field. The grid's "
+                   "absolute level is not used: the result is a variation about the background "
+                   "susceptibility. Leave the field strength blank to take it from the IGRF at the "
+                   "centre of the raster in the year given.")
+
+    def getParameterInfo(self):
+        return [
+            self._param("in_raster",  "Input RTP/RTE Raster (nT)"),
+            self._out ("out_raster",  "Output Raster"),
+            self._param("field",      "Field Strength (nT, blank = IGRF)", "GPDouble", required=False),
+            self._param("year",       "Survey Year (for the IGRF)", "GPDouble", required=False,
+                        default=2025.0),
+            self._param("depth",      "Depth to Top of Layer (m)", "GPDouble", required=False,
+                        default=0.0),
+            self._param("thickness",  "Layer Thickness (m, 0 = infinite)", "GPDouble",
+                        required=False, default=0.0),
+            self._param("background", "Background Susceptibility (SI)", "GPDouble",
+                        required=False, default=0.001),
+            self._param("high_cut",   "High-cut Wavelength (m, 0 = 4 x cell size, -1 = none)",
+                        "GPDouble", required=False, default=0.0),
+            self._param("buffer_size", "FFT Buffer (pixels)", "GPLong", required=False,
+                        default=10),
+        ]
+
+    def execute(self, parameters, messages):
+        from arcgis_utils import calc_igrf, raster_center_latlon, get_noddy_mag_params
+
+        in_r, out_r = parameters[0].valueAsText, parameters[1].valueAsText
+        field = self._value(parameters[2], 0.0)
+        if field <= 0:
+            noddy = get_noddy_mag_params(in_r)
+            if noddy is not None:
+                field = noddy[2]
+            else:
+                centre = raster_center_latlon(in_r)
+                res = (calc_igrf(centre[0], centre[1], 0.0, self._value(parameters[3], 2025.0))
+                       if centre else None)
+                if res is None:
+                    raise arcpy.ExecuteError("Could not work out the IGRF field strength: "
+                                             "check the raster's coordinate system, or enter it")
+                field = res[2]
+            messages.addMessage(f"Field strength {field:.0f} nT (IGRF)")
+        values = dict(FIELD=field, DEPTH=self._value(parameters[4], 0.0),
+                      THICKNESS=self._value(parameters[5], 0.0),
+                      BACKGROUND=self._value(parameters[6], 0.001),
+                      HIGH_CUT=self._value(parameters[7], 0.0))
+        buf = int(parameters[8].value) if parameters[8].value else 10
+
+        arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        self._require_projected(sr, "Apparent susceptibility")
+        result = self._proc(cx, cy, buf).apparent_susceptibility(
+            arr, field, depth=values["DEPTH"], thickness=values["THICKNESS"] or None,
+            background=values["BACKGROUND"],
+            cutoff_wavelength=self._cutoff(values["HIGH_CUT"], cx, cy), buffer_size=buf)
+        self._write_step(result, in_r, out_r, ll_x, ll_y, cx, cy, sr, nodata,
+                         "apparent_susceptibility", values)
+        messages.addMessage(f"Apparent susceptibility complete → {out_r}")
+
+
+class ApparentDensity(_ApparentTool):
+    label       = "Apparent Density"
+    description = ("Apparent density (g/cc) from a Bouguer gravity grid (mGal or um/s2), for a "
+                   "layer of vertical prisms. The grid's absolute level (datum, regional) is not "
+                   "used: the result is a variation about the background density.")
+
+    def getParameterInfo(self):
+        units = self._param("units", "Gravity Grid Units", "GPString", required=False,
+                            default="mGal")
+        units.filter.type = "ValueList"
+        units.filter.list = ["mGal", "um/s2 (gu)"]
+        return [
+            self._param("in_raster",  "Input Bouguer Gravity Raster"),
+            self._out ("out_raster",  "Output Raster"),
+            units,
+            self._param("depth",      "Depth to Top of Layer (m)", "GPDouble", required=False,
+                        default=0.0),
+            self._param("thickness",  "Layer Thickness (m)", "GPDouble", required=False,
+                        default=5000.0),
+            self._param("background", "Background Density (g/cc)", "GPDouble", required=False,
+                        default=2.67),
+            self._param("high_cut",   "High-cut Wavelength (m, 0 = 4 x cell size, -1 = none)",
+                        "GPDouble", required=False, default=0.0),
+            self._param("buffer_size", "FFT Buffer (pixels)", "GPLong", required=False,
+                        default=10),
+        ]
+
+    def execute(self, parameters, messages):
+        in_r, out_r = parameters[0].valueAsText, parameters[1].valueAsText
+        values = dict(UNITS=parameters[2].valueAsText or "mGal",
+                      DEPTH=self._value(parameters[3], 0.0),
+                      THICKNESS=self._value(parameters[4], 5000.0),
+                      BACKGROUND=self._value(parameters[5], 2.67),
+                      HIGH_CUT=self._value(parameters[6], 0.0))
+        if values["THICKNESS"] <= 0:
+            raise arcpy.ExecuteError("The layer thickness must be greater than 0")
+        buf = int(parameters[7].value) if parameters[7].value else 10
+        to_mgal = 0.1 if values["UNITS"].startswith("um") else 1.0  # 1 mGal = 10 um/s2
+
+        arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        self._require_projected(sr, "Apparent density")
+        result = self._proc(cx, cy, buf).apparent_density(
+            arr * to_mgal, depth=values["DEPTH"], thickness=values["THICKNESS"],
+            background=values["BACKGROUND"],
+            cutoff_wavelength=self._cutoff(values["HIGH_CUT"], cx, cy), buffer_size=buf)
+        self._write_step(result, in_r, out_r, ll_x, ll_y, cx, cy, sr, nodata,
+                         "apparent_density", values)
+        messages.addMessage(f"Apparent density complete → {out_r}")
+
 
 class ThresholdToNaN(_RasterTool):
     category    = "Utils"

@@ -309,6 +309,125 @@ class GeophysicalProcessor:
             data, filter_function, buffer_size, buffer_method
         )
 
+    # --- Apparent petrophysics ---
+    @staticmethod
+    def _high_cut_taper(k, cutoff_wavelength):
+        """1 for wavelengths longer than twice the cutoff, cosine roll-off to 0 at
+        the cutoff wavelength itself (stops the inverse filters blowing up)."""
+        if not cutoff_wavelength or cutoff_wavelength <= 0:
+            return np.ones_like(k)
+        k_cut = 2 * np.pi / cutoff_wavelength
+        k_pass = k_cut / 2
+        taper = np.ones_like(k)
+        taper[k >= k_cut] = 0.0
+        roll = (k > k_pass) & (k < k_cut)
+        taper[roll] = 0.5 * (1 + np.cos(np.pi * (k[roll] - k_pass) / (k_cut - k_pass)))
+        return taper
+
+    def _apply_layer_inverse(self, data, inverse, buffer_size, buffer_method):
+        """Run a layer-inversion filter. inverse(k) gives the filter for radial
+        wavenumber k. The k=0 term is dropped: the absolute level of a gravity
+        or magnetic anomaly grid (datum, regional, IGRF removal) is arbitrary, so
+        the result has a zero mean and the caller adds a background value."""
+
+        def filter_function(kx, ky):
+            k = np.sqrt(kx**2 + ky**2)
+            return np.where(k > 0, inverse(k), 0.0)
+
+        return self._apply_fourier_filter(
+            data, filter_function, buffer_size, buffer_method, preserve_dc=False
+        )
+
+    def apparent_susceptibility(
+        self,
+        data,
+        field_nT,
+        depth=0.0,
+        thickness=None,
+        background=0.0,
+        cutoff_wavelength=None,
+        buffer_size=10,
+        buffer_method="mirror",
+    ):
+        """
+        Apparent susceptibility (SI) from a reduced-to-pole TMI grid (nT), for a
+        layer of vertical prisms magnetised by induction only.
+
+        The pole response of a layer with top at `depth` below the sensor and
+        thickness t is  T(k) = chi(k) F/2 exp(-k depth) (1 - exp(-k t))
+        (t infinite: no last term), which is divided out here.
+
+        Parameters:
+            field_nT (float): Ambient (IGRF) field strength in nT.
+            depth (float): Depth from the sensor to the top of the layer (m).
+            thickness (float or None): Layer thickness (m), None for infinite.
+            background (float): Susceptibility (SI) added to the result, since
+                an anomaly grid has no absolute level.
+            cutoff_wavelength (float or None): High-cut wavelength (m).
+
+        Returns:
+            numpy.ndarray: Apparent susceptibility (SI), with the background
+            as its mean.
+        """
+
+        def inverse(k):
+            taper = self._high_cut_taper(k, cutoff_wavelength)
+            # upward continuation term, inverted; capped so exp never overflows
+            response = 2.0 / field_nT * np.exp(np.minimum(k * depth, 700.0))
+            if thickness:
+                with np.errstate(divide="ignore"):
+                    response = np.where(k > 0, response / (1 - np.exp(-k * thickness)), 0.0)
+            return np.where(taper > 0, response * taper, 0.0)
+
+        return background + self._apply_layer_inverse(
+            data, inverse, buffer_size, buffer_method
+        )
+
+    def apparent_density(
+        self,
+        data,
+        depth=0.0,
+        thickness=1000.0,
+        background=2.67,
+        cutoff_wavelength=None,
+        buffer_size=10,
+        buffer_method="mirror",
+    ):
+        """
+        Apparent density (g/cc) from a Bouguer gravity grid (mGal), for a layer of
+        vertical prisms.
+
+        The response of a layer with top at `depth` below the sensor and
+        thickness t is  g(k) = 2 pi G drho(k) exp(-k depth) (1 - exp(-k t)) / k,
+        which is divided out here. The mean level is not used (a Bouguer grid's
+        level depends on its datum and the regional field).
+
+        Parameters:
+            depth (float): Depth from the sensor to the top of the layer (m).
+            thickness (float): Layer thickness (m), must be > 0.
+            background (float): Density (g/cc) added to the density contrast.
+            cutoff_wavelength (float or None): High-cut wavelength (m).
+
+        Returns:
+            numpy.ndarray: Apparent density (g/cc), with the background as its mean.
+        """
+        G = 6.674e-11
+        # mGal -> m/s^2, and kg/m^3 -> g/cc
+        scale = 1e-5 / 1000.0
+
+        def inverse(k):
+            taper = self._high_cut_taper(k, cutoff_wavelength)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                slab = np.where(
+                    k > 0, (1 - np.exp(-k * thickness)) / np.where(k > 0, k, 1.0), thickness
+                )
+                response = scale * np.exp(np.minimum(k * depth, 700.0)) / (2 * np.pi * G * slab)
+            return np.where(taper > 0, response * taper, 0.0)
+
+        return background + self._apply_layer_inverse(
+            data, inverse, buffer_size, buffer_method
+        )
+
     # --- Continuation ---
     def upward_continuation(self, data, height, buffer_size=10, buffer_method="mirror"):
         """

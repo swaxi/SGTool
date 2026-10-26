@@ -10,4 +10,5 @@
 - [Provenance metadata and replaying a processing history](provenance-and-replay.md)
 - [FFT filters](filters-fft.md): Grav/Mag, frequency and gradient filters, with the formulas
 - [Convolution filters, spatial statistics, gridding and utilities](filters-convolution-and-statistics.md)
+- [Petrophysics (Petrophys tab)](petrophysics.md): apparent susceptibility and density grids, Henkel plots, measured sample plots and histograms
 - [Changelog](changelog.md)

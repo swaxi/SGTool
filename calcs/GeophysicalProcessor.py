@@ -592,7 +592,7 @@ class GeophysicalProcessor:
                           63, 80, 100, 125, 160, 200)
 
     def reduction_to_pole_low_latitude(
-        self, data, inclination, declination, iterations=0,
+        self, data, inclination, declination, iterations=0, stripe_width=0.0,
         buffer_size=10, buffer_method="mirror",
     ):
         """
@@ -613,6 +613,13 @@ class GeophysicalProcessor:
             Number of iterations m; 0 or less chooses m automatically as the
             one whose result correlates best with the analytic signal
             amplitude of the data (Eq. 14).
+        stripe_width : float
+            Suppression of the stripes parallel to the declination (degrees,
+            0 = none, as in the paper). Within about this angle of the direction
+            perpendicular to the declination, where the operator has to amplify
+            most and the data hold almost no signal at low latitude, the number
+            of iterations fades to 0: m_eff = m * (1 - exp(-(phi / width)^2)),
+            phi the angle of the wavenumber from that direction.
 
         Returns
         -------
@@ -623,7 +630,7 @@ class GeophysicalProcessor:
 
         inc, dec = np.radians(inclination), np.radians(declination)
 
-        def filter_function(kx, ky, m):
+        def filter_function(kx, ky, m, width=0.0):
             rte = self._rte_operator(kx, ky, inc, dec)  # Eq. 5
             theta = np.arctan2(kx, ky)
             cos_term = np.cos(dec - theta)
@@ -631,6 +638,9 @@ class GeophysicalProcessor:
             x = np.angle(np.exp(2j * (dec - theta))) / 2
             h_ea = -((1 + x**2 / 2) ** 2)  # Eq. 4
             q = cos_term**2 * (1 + x**2 / 2) ** 2  # Cpe * Hea, in [0, 1]
+            if width and width > 0:
+                phi = np.pi / 2 - np.abs(x)  # angle from the perpendicular to D
+                m = m * -np.expm1(-((phi / np.radians(width)) ** 2))
             # [1 - (1-q)^(m+1)] * He = Hea * [1 - (1-q)^(m+1)] / q, -> Hea (m+1) as q -> 0
             with np.errstate(divide="ignore", invalid="ignore"):
                 gain = np.where(
@@ -643,11 +653,13 @@ class GeophysicalProcessor:
         if iterations and iterations > 0:
             return self._apply_fourier_filter(
                 data,
-                lambda kx, ky: filter_function(kx, ky, int(iterations)),
+                lambda kx, ky: filter_function(kx, ky, int(iterations), stripe_width),
                 buffer_size, buffer_method,
             ), int(iterations)
 
-        # one forward transform, then an inverse one per trial iteration count
+        # one forward transform, then an inverse one per trial iteration count.
+        # m is chosen without the stripe suppression, which is then applied:
+        # the correlation would otherwise just raise m to make up for it
         median = np.nanmedian(data)
         filled_data, nan_mask = self.fill_nan(data)
         buffered_data, padding_info = self.add_buffer(
@@ -670,6 +682,12 @@ class GeophysicalProcessor:
             corr = np.sum(t * a) / denom if denom > 0 else -np.inf
             if corr > best_corr:
                 best, best_m, best_corr = result, m, corr
+
+        if stripe_width and stripe_width > 0:
+            best = np.real(ifft2(
+                data_fft * filter_function(kx, ky, best_m, stripe_width), workers=-1
+            ))
+            best = self.remove_buffer(best, buffer_size, padding_info)
 
         return self.restore_nan(best + median, nan_mask), best_m
 

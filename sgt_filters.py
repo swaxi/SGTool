@@ -232,7 +232,7 @@ def _c_rte(g, p):
 def _c_rtp_ll(g, p):
     grid, _m = g.processor.reduction_to_pole_low_latitude(
         g.arr, inclination=p["INCLINATION"], declination=p["DECLINATION"],
-        iterations=p["ITERATIONS"], buffer_size=g.buffer,
+        iterations=p["ITERATIONS"], stripe_width=p["STRIPE_WIDTH"], buffer_size=g.buffer,
     )
     return grid
 
@@ -481,11 +481,15 @@ FILTER_SPECS = [
             "iterative method (Hao et al. 2018): the grid is reduced to the equator, "
             "then to the pole with a stable truncated operator applied iteratively. "
             "More iterations sharpen the result but bring back stripes along the "
-            "declination; 0 chooses the number that best matches the analytic signal."
+            "declination; 0 chooses the number that best matches the analytic signal. "
+            "Stripe suppression fades the iterations out within about that angle of "
+            "the direction perpendicular to the declination."
         ),
         params=[_dbl("INCLINATION", "Inclination (degrees)", 5.0),
                 _dbl("DECLINATION", "Declination (degrees)", 0.0),
-                _int("ITERATIONS", "Iterations (0 = automatic)", 0, minimum=0, maximum=1000)],
+                _int("ITERATIONS", "Iterations (0 = automatic)", 0, minimum=0, maximum=1000),
+                _dbl("STRIPE_WIDTH", "Stripe suppression about the perpendicular to the "
+                     "declination (degrees, 0 = off)", 10.0, minimum=0.0, maximum=90.0)],
     ),
     dict(
         id="reduction_to_equator", name="Reduction to the equator",

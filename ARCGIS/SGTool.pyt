@@ -467,7 +467,7 @@ class ReductionToPoleEquator(_RasterTool):
         if mode == "Pole":
             result = proc.reduction_to_pole(arr, inc, dec)
         elif mode == "Pole (low latitude)":
-            result, m = proc.reduction_to_pole_low_latitude(arr, inc, dec)
+            result, m = proc.reduction_to_pole_low_latitude(arr, inc, dec, stripe_width=10.0)
             messages.addMessage(f"Low-latitude RTP (Hao et al. 2018): {m} iterations")
         else:
             result = proc.reduction_to_equator(arr, inc, dec)

@@ -434,14 +434,38 @@ class SGToolDockWidget(QDockWidget):
         row1.addStretch()
         g.addLayout(row1, 1, 0, 1, 5)
 
-        # Row 2: ● PGrav
+        # Row 2: low-latitude RTP settings, shown only when it is chosen
+        self.label_LL_iter = QLabel(_tr("Iterations"))
+        self.lineEdit_LL_iterations = QLineEdit("")
+        self.lineEdit_LL_iterations.setPlaceholderText(_tr("auto"))
+        self.lineEdit_LL_iterations.setFixedWidth(45)
+        self.label_LL_stripe = QLabel(_tr("Stripe suppression (°)"))
+        self.lineEdit_LL_stripe = QLineEdit("10")
+        self.lineEdit_LL_stripe.setFixedWidth(45)
+
+        self.widget_LL_RTP = QWidget()
+        row_ll = QHBoxLayout(self.widget_LL_RTP)
+        row_ll.setContentsMargins(0, 0, 0, 0)
+        row_ll.addWidget(self.label_LL_iter)
+        row_ll.addWidget(self.lineEdit_LL_iterations)
+        row_ll.addSpacing(6)
+        row_ll.addWidget(self.label_LL_stripe)
+        row_ll.addWidget(self.lineEdit_LL_stripe)
+        row_ll.addStretch()
+        self.widget_LL_RTP.setVisible(False)
+        self.comboBox_3_rte_p_list.currentTextChanged.connect(
+            lambda text: self.widget_LL_RTP.setVisible(text == "Low-lat. RTP")
+        )
+        g.addWidget(self.widget_LL_RTP, 2, 0, 1, 5)
+
+        # Row 3: ● PGrav
         self.label_26 = QLabel("●")
         self.label_26.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.checkBox_4_PGrav = QCheckBox(
             _tr("Vertical Integration (apply to RTE/P result to get Pseudo Gravity)"))
-        g.addLayout(self._bullet_check(self.label_26, self.checkBox_4_PGrav), 2, 0, 1, 5)
+        g.addLayout(self._bullet_check(self.label_26, self.checkBox_4_PGrav), 3, 0, 1, 5)
 
-        # Row 3: ● Continuation / Direction / Height
+        # Row 4: ● Continuation / Direction / Height
         self.label_28 = QLabel("●")
         self.label_28.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.checkBox_9_continuation = QCheckBox(_tr("Continuation"))
@@ -464,7 +488,7 @@ class SGToolDockWidget(QDockWidget):
         row3.addWidget(self.label_21)
         row3.addWidget(self.lineEdit_10_continuationHeight)
         row3.addStretch()
-        g.addLayout(row3, 3, 0, 1, 5)
+        g.addLayout(row3, 4, 0, 1, 5)
 
         g.setColumnStretch(4, 1)
         return gb

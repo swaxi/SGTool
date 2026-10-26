@@ -2662,10 +2662,11 @@ class SGToolApp(tk.Tk):
                       step_record("reduction_to_pole", INCLINATION=inc, DECLINATION=dec))
             elif rt == "Low-lat. RTP":
                 self.after(0, lambda: self._status("Low-latitude RTP…"))
-                result, m = proc.reduction_to_pole_low_latitude(arr, inc, dec, buffer_size=buf)
+                result, m = proc.reduction_to_pole_low_latitude(
+                    arr, inc, dec, stripe_width=10.0, buffer_size=buf)
                 _save(result, "rtp_ll",
                       step_record("reduction_to_pole_low_latitude", INCLINATION=inc,
-                                  DECLINATION=dec, ITERATIONS=0))
+                                  DECLINATION=dec, ITERATIONS=0, STRIPE_WIDTH=10.0))
                 self.after(0, lambda: self._status(f"Low-latitude RTP: {m} iterations"))
             else:
                 self.after(0, lambda: self._status("RTE…"))

@@ -452,6 +452,12 @@ class SGTool:
             self.tr("Manually define magnetic declination [degrees clockwise from North]")
         )
         self.dlg.lineEdit_6_int.setToolTip(self.tr("Survey intensity in nT"))
+        self.dlg.lineEdit_LL_iterations.setToolTip(
+            self.tr("Low-latitude RTP: number of iterations (blank = chosen automatically as the best match to the analytic signal)\nFewer iterations: less striping along the declination but a less complete reduction to the pole")
+        )
+        self.dlg.lineEdit_LL_stripe.setToolTip(
+            self.tr("Low-latitude RTP: suppresses stripes parallel to the declination (degrees, 0 = off)\nWithin about this angle of the direction perpendicular to the declination the iterations fade to none,\nas there the data hold almost no signal at low latitudes and the operator mostly amplifies noise.\n10-20° suits inclinations within a few degrees of the equator; use less further from it")
+        )
         self.dlg.dateEdit.setToolTip(self.tr("Survey date (1900-2030)"))
         self.dlg.checkBox_4_PGrav.setToolTip(
             self.tr("Vertical Integration:\nWhen applied to RTE/P result converts magnetic anomalies into gravity-like anomalies (i.e. same decay with distance from source) for comparison or joint interpretation\nAlso good for stitched grids with very different line spacing.\nRequires a metre-based projection")
@@ -880,6 +886,14 @@ class SGTool:
         self.RTE_P_inc = self.to_float(self.dlg.lineEdit_6_inc.text())
         self.RTE_P_dec = self.to_float(self.dlg.lineEdit_5_dec.text())
         self.RTE_P_int = self.to_float(self.dlg.lineEdit_6_int.text())
+        try:
+            self.RTE_P_LL_iterations = max(int(float(self.dlg.lineEdit_LL_iterations.text())), 0)
+        except ValueError:
+            self.RTE_P_LL_iterations = 0  # blank: automatic
+        try:
+            self.RTE_P_LL_stripe = max(float(self.dlg.lineEdit_LL_stripe.text()), 0.0)
+        except ValueError:
+            self.RTE_P_LL_stripe = 0.0
         date_text = str(self.dlg.dateEdit.date().toPyDate())
         date_split = date_text.split("-")
         self.RTE_P_date = [int(date_split[2]), int(date_split[1]), int(date_split[0])]
@@ -1667,8 +1681,9 @@ class SGTool:
             return "Low-latitude reduction to pole", {
                 "inclination": self.RTE_P_inc,
                 "declination": self.RTE_P_dec,
-                "iterations": 0,  # chosen automatically
+                "iterations": self.RTE_P_LL_iterations,  # 0: chosen automatically
                 "iterations_used": getattr(self, "RTE_P_iterations", ""),
+                "stripe_width": self.RTE_P_LL_stripe,
             }
         if s == "_DRTP":
             return "Differential reduction to pole", {
@@ -2658,9 +2673,17 @@ class SGTool:
                         self.raster_array,
                         inclination=float(self.RTE_P_inc),
                         declination=float(self.RTE_P_dec),
+                        iterations=self.RTE_P_LL_iterations,
+                        stripe_width=self.RTE_P_LL_stripe,
                         buffer_size=self.buffer,
                     )
                 )
+                if not self.RTE_P_LL_iterations:
+                    self._notify(
+                        f"Low-latitude RTP: {self.RTE_P_iterations} iterations chosen "
+                        "automatically (set fewer to reduce striping along the declination)",
+                        duration=8,
+                    )
                 self.suffix = "_RTP_LL"
             else:
                 self.new_grid = self.processor.reduction_to_equator(
@@ -6551,6 +6574,12 @@ class SGTool:
                 lambda: self.update_checkbox(self.dlg.checkBox_3_DirClean)
             )
             self.dlg.lineEdit_6_int.textChanged.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_4_RTE_P)
+            )
+            self.dlg.lineEdit_LL_iterations.textChanged.connect(
+                lambda: self.update_checkbox(self.dlg.checkBox_4_RTE_P)
+            )
+            self.dlg.lineEdit_LL_stripe.textChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_4_RTE_P)
             )
             self.dlg.lineEdit_6_inc.textChanged.connect(

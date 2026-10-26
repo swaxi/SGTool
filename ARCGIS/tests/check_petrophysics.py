@@ -109,9 +109,35 @@ for name in ("showwarning", "showerror", "showinfo"):
     setattr(G.messagebox, name, lambda *a, n=name, **k: boxes.append((n,) + a))
 
 app = G.SGToolApp()
+app.v_input.set(mag_tif)
+app.v_preview.set(True)          # Preview on, then arrive on the Petrophys tab
 app.nb.select(3); app.update()
 check("the Petrophys tab is the fourth tab and is built", app.nb.tab(3, "text") == "Petrophys"
-      and hasattr(app, "v_app_kind") and app.nb.tab(4, "text") == "Utils")
+      and hasattr(app, "v_app_sus") and app.nb.tab(4, "text") == "Utils")
+check("both calculations start unticked", not app.v_app_sus.get() and not app.v_app_dens.get())
+run_loop(lambda: False, 2)  # long enough for a preview calculation to show
+win = app._preview_win
+check("arriving on the tab with Preview on calculates nothing",
+      win is not None and win._result is None, None if win is None else win.v_status.get())
+app.v_preview.set(False); app.update()
+app.v_app_sus.set(True); app.v_app_dens.set(True)
+check("ticking one unticks the other", app.v_app_dens.get() and not app.v_app_sus.get())
+app.v_app_dens.set(False)
+check("both can be unticked", not app.v_app_sus.get() and not app.v_app_dens.get())
+
+# a Petrophys tick does not survive Preview choosing a filter on another tab
+app.v_app_sus.set(True)
+app.nb.select(0); app.update()
+app.v_preview.set(True); app.update()
+check("turning Preview on elsewhere unticks the Petrophys calculation", not app.v_app_sus.get())
+app.nb.select(3); app.update()
+app.v_app_dens.set(True); app.update()
+app.nb.select(0); app.update()
+app.v_thg.set(True); app.update()
+check("choosing a filter on another tab while previewing unticks it",
+      not app.v_app_dens.get() and app.v_thg.get())
+app.v_preview.set(False); app.v_thg.set(False); app.update()
+app.nb.select(3); app.update()
 
 app.v_input.set(mag_tif)
 app._petro_igrf()
@@ -119,7 +145,7 @@ field = float(app.v_app_field.get())
 check("IGRF fills in the field strength for the grid's location", 50000 < field < 65000, field)
 
 # ---- apparent susceptibility
-app.v_app_kind.set("sus")
+app.v_app_sus.set(True)
 out_sus = os.path.join(DATA, "mag_rtp_AppSus.tif")
 app._apply_petro()
 run_loop(lambda: app._active_token is None and os.path.exists(out_sus), 60)
@@ -136,7 +162,7 @@ check("the result's mean is the background susceptibility", abs(float(np.mean(su
 
 # ---- apparent density, grid in um/s2
 app.v_input.set(grav_tif)
-app.v_app_kind.set("dens")
+app.v_app_dens.set(True)
 app.v_app_units.set("um/s2 (gu)")
 out_dens = os.path.join(DATA, "grav_AppDens.tif")
 app._apply_petro()
@@ -148,7 +174,10 @@ spread = float(np.percentile(dens_arr, 90) - np.percentile(dens_arr, 10))
 check("the two units differ by a plausible density contrast (gu converted to mGal)",
       0.02 < spread < 1.0, spread)
 
-# ---- preview of the chosen calculation
+check("Apply unticks the calculation", not app.v_app_sus.get() and not app.v_app_dens.get())
+
+# ---- preview of the ticked calculation
+app.v_app_dens.set(True)
 res = app._compute_preview(3, grav_tif, "whole", None)
 check("the preview runs the chosen calculation", "Apparent density" in res["text"], res["text"])
 

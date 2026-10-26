@@ -41,9 +41,11 @@ the settings change.
 
 ## Apparent Petrophysics
 
-Apparent Susceptibility and Apparent Density are alternatives (radio buttons):
-**Apply Processing** on this tab runs the chosen one only, and Apply on the other
-tabs never runs them. Both need a grid in a metre-based projection.
+Apparent Susceptibility and Apparent Density are tick boxes, at most one ticked at
+a time (ticking one unticks the other; both start unticked, so arriving on the tab
+with Preview on calculates nothing until one is ticked). **Apply Processing** on
+this tab runs the ticked one only, and Apply on the other tabs never runs them.
+Both need a grid in a metre-based projection.
 
 Both model the ground as a layer of vertical prisms whose top is a depth *z* below
 the sensor and which is *t* thick, and divide the layer's response out of the grid

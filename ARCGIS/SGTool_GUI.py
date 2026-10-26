@@ -601,7 +601,7 @@ class SGToolApp(tk.Tk):
         1: ("v_mean", "v_med", "v_gauss", "v_dconv", "v_sun", "v_ss_min", "v_ss_max", "v_ss_var",
             "v_ss_std", "v_ss_skew", "v_ss_kurt", "v_ss_aniso", "v_ss_chain", "v_ss_stream",
             "v_mrvbf", "v_pca", "v_ica", "v_euler"),
-        3: ("v_app_kind",),   # Petrophys tab: apparent susceptibility or density
+        3: ("v_app_sus", "v_app_dens"),  # Petrophys tab: at most one ticked
         4: ("v_thresh_en",),  # Utils tab: Threshold to NaN
     }
     PREVIEW_NOT_POSSIBLE = ("v_ss_aniso", "v_ss_chain", "v_ss_stream", "v_mrvbf",
@@ -616,8 +616,7 @@ class SGToolApp(tk.Tk):
 
     @staticmethod
     def _untick(var):
-        """Untick a filter. The Petrophys calculations are a pair of radio buttons (a
-        StringVar, one always chosen), so there is nothing to untick there."""
+        """Untick a filter's tick box."""
         if isinstance(var, tk.BooleanVar):
             var.set(False)
 
@@ -701,7 +700,9 @@ class SGToolApp(tk.Tk):
                 self._preview_ending = False
 
     def _enforce_single(self, tab, keep):
-        """Only one filter of the tab stays ticked: `keep`, else the first ticked."""
+        """Only one filter stays ticked while previewing: `keep`, else the first ticked
+        of the tab; the filters of every other tab are unticked too (e.g. a Petrophys
+        calculation ticked before Preview was turned on)."""
         ticked = self._ticked(tab)
         if keep is None and ticked:
             keep = ticked[0]
@@ -710,6 +711,12 @@ class SGToolApp(tk.Tk):
             for name in ticked:
                 if name != keep:
                     self._filter_var(name).set(False)
+            for other_tab, names in self.PREVIEW_FILTERS.items():
+                if other_tab != tab:
+                    for name in names:
+                        var = self._filter_var(name)
+                        if var is not None:
+                            self._untick(var)
         finally:
             self._preview_enforcing = False
 
@@ -1018,8 +1025,11 @@ class SGToolApp(tk.Tk):
                 out.append("_ICA")
             if val("v_euler"):
                 out.append(f"_estimates_SI_{int(num('v_eu_si', 1.0))}")
-            if self._current_tab() == 3 and val("v_app_kind"):  # Petrophys: one at a time
-                out.append("_AppSus" if val("v_app_kind") == "sus" else "_AppDens")
+            if self._current_tab() == 3:  # Petrophys: at most one ticked
+                if val("v_app_sus"):
+                    out.append("_AppSus")
+                elif val("v_app_dens"):
+                    out.append("_AppDens")
         except Exception:
             logging.getLogger(__name__).debug("Ignored: a half-typed entry: show what could be worked out", exc_info=True)
         return [p for p in out if p]
@@ -1666,16 +1676,11 @@ class SGToolApp(tk.Tk):
             return r
 
         def picks(kind, *entries):
-            """Typing in an entry chooses its calculation."""
+            """Typing in an entry ticks its calculation."""
             for e in entries:
-                e.bind("<FocusIn>", lambda _e: self.v_app_kind.set(kind), add=True)
-                e.bind("<Key>", lambda _e: self.v_app_kind.set(kind), add=True)
+                e.bind("<FocusIn>", lambda _e: self._app_tick(kind), add=True)
+                e.bind("<Key>", lambda _e: self._app_tick(kind), add=True)
             return entries
-
-        def radio(parent, text, value):
-            return tk.Radiobutton(parent, text=text, variable=self.v_app_kind, value=value,
-                                  bg=BG, fg=FG, selectcolor=ENTRY_BG, activebackground=BG,
-                                  activeforeground=FG, font=FONT)
 
         cut_tip = ("High-cut wavelength (m). Dividing out the layer response amplifies short\n"
                    "wavelengths, so they are removed with a cosine roll-off: wavelengths longer\n"
@@ -1685,10 +1690,15 @@ class SGToolApp(tk.Tk):
         # ---- Apparent Petrophysics ----
         ap = section(p, "Apparent Petrophysics")
         ap.pack(fill="x", padx=8, pady=4)
-        self.v_app_kind = tk.StringVar(value="sus")
+        # at most one calculation ticked: ticking one unticks the other (both may be
+        # unticked, so arriving on this tab with Preview on calculates nothing)
+        self.v_app_sus = tk.BooleanVar(value=False)
+        self.v_app_dens = tk.BooleanVar(value=False)
+        self.v_app_sus.trace_add("write", lambda *_: self.v_app_sus.get() and self.v_app_dens.set(False))
+        self.v_app_dens.trace_add("write", lambda *_: self.v_app_dens.get() and self.v_app_sus.set(False))
 
         r = row(ap)
-        tip(radio(r, "Apparent Susceptibility", "sus"),
+        tip(check(r, "Apparent Susceptibility", self.v_app_sus),
             "Apparent susceptibility (SI) from a magnetic anomaly grid (nT, IGRF removed) that\n"
             "has already been reduced to the pole (RTP), or to the equator (RTE: the result is\n"
             "then only approximate). The ground is modelled as a layer of vertical prisms\n"
@@ -1721,7 +1731,7 @@ class SGToolApp(tk.Tk):
                    "the terrain clearance (plus any cover) so the sources sit at the ground.")
         e_sd.pack(side="left", padx=2)
         tip(check(r, "Thickness (m):", self.v_app_sus_finite,
-                  command=lambda: self.v_app_kind.set("sus")),
+                  command=lambda: self._app_tick("sus")),
             "Untick for a layer of infinite thickness (the usual choice); tick to give\n"
             "the layer a finite thickness").pack(side="left", padx=(8, 0))
         e_st = tip(entry(r, self.v_app_sus_thick, 7), "Layer thickness (m), used when Thickness is ticked")
@@ -1744,7 +1754,7 @@ class SGToolApp(tk.Tk):
         picks("sus", e_field, e_year, e_sd, e_st, e_sb, e_sc)
 
         r = row(ap)
-        tip(radio(r, "Apparent Density", "dens"),
+        tip(check(r, "Apparent Density", self.v_app_dens),
             "Apparent density (g/cc) from a Bouguer gravity grid. The ground is modelled as a\n"
             "layer of vertical prisms of finite thickness, and the layer's response is divided\n"
             "out in the Fourier domain. A Bouguer grid's absolute level depends on its datum\n"
@@ -1756,7 +1766,7 @@ class SGToolApp(tk.Tk):
                       "Units of the gravity grid (1 mGal = 10 um/s2 = 10 gu). Geoscience Australia's\n"
                       "national grids are in um/s2.")
         c_units.pack(side="left", padx=4)
-        c_units.bind("<<ComboboxSelected>>", lambda _e: self.v_app_kind.set("dens"), add=True)
+        c_units.bind("<<ComboboxSelected>>", lambda _e: self._app_tick("dens"), add=True)
         r = row(ap, 22)
         self.v_app_dens_depth = tk.StringVar(value="0")
         self.v_app_dens_thick = tk.StringVar(value="5000")
@@ -2012,7 +2022,9 @@ class SGToolApp(tk.Tk):
             value = num(var, "high-cut wavelength", default=0.0) if var.get().strip() else None
             return 0.0 if value is None else (-1.0 if value == 0 else value)
 
-        if self.v_app_kind.get() == "sus":
+        if not (self.v_app_sus.get() or self.v_app_dens.get()):
+            raise ValueError("Tick Apparent Susceptibility or Apparent Density")
+        if self.v_app_sus.get():
             values = dict(
                 FIELD=num(self.v_app_field, "field strength (nT)"),
                 DEPTH=num(self.v_app_sus_depth, "depth to top", 0.0),
@@ -2053,6 +2065,10 @@ class SGToolApp(tk.Tk):
                 background=v["BACKGROUND"], cutoff_wavelength=cutoff, buffer_size=buf)
             suffix = "_AppDens"
         _save(result, suffix, step_record(spec_id, **v))
+
+    def _app_tick(self, kind):
+        """Tick apparent susceptibility ("sus") or density ("dens"), unticking the other."""
+        (self.v_app_sus if kind == "sus" else self.v_app_dens).set(True)
 
     @staticmethod
     def _is_geographic(path):
@@ -2103,6 +2119,7 @@ class SGToolApp(tk.Tk):
 
         self._petro_steps(arr, cx, cy, buf, proc, _save)
         self.after(0, lambda: self._status(f"Done — {len(written)} output(s) written."))
+        self.after(0, lambda: (self.v_app_sus.set(False), self.v_app_dens.set(False)))
 
     # ---- Petrophys: plots ----
     def _petro_plot(self, gather, build):

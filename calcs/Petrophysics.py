@@ -222,12 +222,22 @@ def _subplots(*args, **kwargs):
     return fig, fig.subplots(*args, **kwargs)
 
 
+MAX_COLUMNS = 8  # panels per row in a grid of categories
+
+
+def _panel_scale(columns):
+    """Panels (and their titles) shrink as the number of columns grows."""
+    return 1.0 if columns <= 3 else 0.75 if columns <= 5 else 0.62
+
+
 def _grid_of_panels(n, width, height):
-    """ceil(sqrt(n)) columns and only as many rows as needed, with shared axes."""
-    side = math.ceil(math.sqrt(n))
+    """ceil(sqrt(n)) columns (at most MAX_COLUMNS) and only as many rows as
+    needed, with shared axes; panels smaller when there are many columns."""
+    side = min(math.ceil(math.sqrt(n)), MAX_COLUMNS)
     rows = math.ceil(n / side)
+    scale = _panel_scale(side)
     fig, axes = _subplots(
-        rows, side, figsize=(width * side + 1.2, height * rows + 1.0),
+        rows, side, figsize=(width * scale * side + 1.2, height * scale * rows + 1.0),
         sharex=True, sharey=True, squeeze=False,
     )
     for i in range(n, rows * side):
@@ -235,6 +245,19 @@ def _grid_of_panels(n, width, height):
         # the panel above is the last in its column: give it the x labels
         axes.flat[i - side].xaxis.set_tick_params(labelbottom=True)
     return fig, axes
+
+
+def _panel_title(ax, name, n, columns):
+    """The category name wrapped onto at most two lines, with its count beneath,
+    in a font that shrinks with the number of columns, so titles don't overlap."""
+    import textwrap
+
+    width = 30 if columns <= 3 else 24 if columns <= 5 else 18
+    lines = textwrap.wrap(name, width) or [name]
+    if len(lines) > 2:
+        lines = [lines[0], textwrap.shorten(" ".join(lines[1:]), width, placeholder="...")]
+    ax.set_title("\n".join(lines) + f"\n(n={n:,})",
+                 fontsize=9 if columns <= 3 else 8 if columns <= 5 else 7, linespacing=1.1)
 
 
 def _by_category(cats, names):
@@ -330,7 +353,7 @@ def heatmap_by_category(x, y, cats, names, title, x_label, y_label, x_log=False,
         else:
             mesh = _heat(ax, x[sel], y[sel], edges, norm, weights=weights)
         _style_axes(ax, "", "", x_log, y_log)
-        ax.set_title(f"{name}  (n={counts[i]:,})", fontsize=9)
+        _panel_title(ax, name, counts[i], axes.shape[1])
     axes.flat[0].set_xlim(xlim)
     axes.flat[0].set_ylim(ylim)
     fig.supxlabel(x_label, color=TEXT_SECONDARY)
@@ -490,7 +513,7 @@ def histogram_by_category(values, cats, names, title, label, log=False,
         top = max(top, float(counts.max()))
         _add_stats(ax, v, fontsize=7)
         _style_axes(ax, "", "", x_log=log, grid="y")
-        ax.set_title(f"{name}  (n={v.size:,})", fontsize=9)
+        _panel_title(ax, name, v.size, axes.shape[1])
     axes.flat[0].set_xlim(edges[0], edges[-1])
     axes.flat[0].set_ylim(0, _round_up(top))  # shared by all panels
     fig.supxlabel(label, color=TEXT_SECONDARY)

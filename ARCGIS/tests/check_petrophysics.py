@@ -211,6 +211,16 @@ plot(app._plot_samples, "one field only, with a category: histograms", "samples_
 windows = [w for w in app.winfo_children() if isinstance(w, G.tk.Toplevel)]
 check("each plot opened in its own window", len(windows) >= 6, len(windows))
 
+# ---- grouping similar categories
+app.v_hk_sus.set(out_sus); app.v_hk_position.set(False)
+app.v_hk_group.set(True); app.v_hk_groups.set("Auto")
+os.remove(os.path.join(DATA, "grav_AppDens_mag_rtp_AppSus_henkel_by_LITH.png"))
+plot(app._plot_categories, "Plot per Category with Group similar (auto)",
+     "grav_AppDens_mag_rtp_AppSus_henkel_by_LITH.png")
+app.v_ms_x.set("RHO"); app.v_ms_group.set(True); app.v_ms_groups.set("2")
+os.remove(os.path.join(DATA, "samples_CHI_vs_RHO.png"))
+plot(app._plot_samples, "Plot Samples with Group similar (2 groups)", "samples_CHI_vs_RHO.png")
+
 # ---- replay planning of the new steps
 from sgt_workflow import plan_steps
 items = plan_steps(history_steps(sm.read_sgt_metadata(out_dens))[1])

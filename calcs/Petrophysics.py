@@ -247,17 +247,134 @@ def _grid_of_panels(n, width, height):
     return fig, axes
 
 
-def _panel_title(ax, name, n, columns):
-    """The category name wrapped onto at most two lines, with its count beneath,
-    in a font that shrinks with the number of columns, so titles don't overlap."""
+def _panel_title(ax, name, n, columns, group=None):
+    """The category name (after its group letter, if grouped) wrapped onto at most
+    two lines, with its count beneath, in a font that shrinks with the number of
+    columns, so titles don't overlap."""
     import textwrap
 
     width = 30 if columns <= 3 else 24 if columns <= 5 else 18
+    if group is not None:
+        name = f"{group} | {name}"
     lines = textwrap.wrap(name, width) or [name]
     if len(lines) > 2:
         lines = [lines[0], textwrap.shorten(" ".join(lines[1:]), width, placeholder="...")]
     ax.set_title("\n".join(lines) + f"\n(n={n:,})",
                  fontsize=9 if columns <= 3 else 8 if columns <= 5 else 7, linespacing=1.1)
+
+
+# ------------------------------------------------ grouping similar categories
+GROUP_MIN_CELLS = 30      # grid cells a category needs to be grouped
+GROUP_MIN_SAMPLES = 10    # measured samples a category needs to be grouped
+MAX_GROUPS = 8
+UNGROUPED = "-"
+
+
+def _js_distance(p, q):
+    """Jensen-Shannon distance (base 2: 0 identical, 1 no overlap) of two
+    distributions that each sum to 1."""
+    m = (p + q) / 2
+
+    def kl(a, b):
+        nz = a > 0
+        return float(np.sum(a[nz] * np.log2(a[nz] / b[nz])))
+
+    return math.sqrt(max(0.0, (kl(p, m) + kl(q, m)) / 2))
+
+
+def group_distributions(distributions, counts, n_groups=0, min_count=GROUP_MIN_CELLS):
+    """Group categories whose distributions are alike.
+
+    distributions: for each category its fraction of points per bin (1-D or 2-D,
+    on bins shared by all categories). They are lightly smoothed, compared with
+    the Jensen-Shannon distance and grouped by average-linkage clustering.
+    n_groups: 0 chooses the number from the largest jump in the clustering (one
+    group if all are alike), otherwise 2 to MAX_GROUPS.
+    Returns a label per category: "A", "B" ... in order of the group's mean
+    position along the first (x) axis, or UNGROUPED for categories with fewer
+    than min_count points.
+    """
+    from scipy.cluster.hierarchy import fcluster, linkage
+    from scipy.ndimage import gaussian_filter
+
+    labels = [UNGROUPED] * len(distributions)
+    use = [i for i, n in enumerate(counts) if n >= min_count]
+    if len(use) < 2:
+        for i in use:
+            labels[i] = "A"
+        return labels
+    smooth = []
+    for i in use:
+        s = gaussian_filter(np.asarray(distributions[i], dtype=float), sigma=1.0, mode="constant")
+        smooth.append(s / s.sum() if s.sum() > 0 else s)
+    n = len(use)
+    pairs = [_js_distance(smooth[a], smooth[b]) for a in range(n) for b in range(a + 1, n)]
+    tree = linkage(np.array(pairs), method="average")
+    heights = tree[:, 2]
+    if n_groups:
+        k = int(n_groups)
+    elif heights[-1] < 0.25:      # even the least alike are close: one group
+        k = 1
+    elif n == 2:
+        k = 2
+    else:
+        # cut in the largest jump between merges: below merge j + 1, n - j - 1 groups
+        k = n - int(np.argmax(np.diff(heights))) - 1
+    k = int(np.clip(k, 1, min(MAX_GROUPS, n)))
+    cluster = fcluster(tree, k, criterion="maxclust")
+
+    # letters in order of the groups' mean position along the x axis
+    position = np.arange(smooth[0].shape[0])
+    centres = {}
+    for c, s in zip(cluster, smooth):
+        profile = s.sum(axis=tuple(range(1, s.ndim))) if s.ndim > 1 else s
+        centres.setdefault(c, []).append(float((position * profile).sum()))
+    order = sorted(centres, key=lambda c: np.mean(centres[c]))
+    letter = {c: "ABCDEFGH"[j] for j, c in enumerate(order)}
+    for i, c in zip(use, cluster):
+        labels[i] = letter[c]
+    return labels
+
+
+def group_colour(label):
+    return OTHER_COLOUR if label == UNGROUPED else CATEGORY_COLOURS["ABCDEFGH".index(label)]
+
+
+def _group_order(names, labels):
+    """Panel order: by group, then by name; ungrouped last."""
+    rank = lambda i: (labels[i] == UNGROUPED, labels[i], _natural_key(names[i]))
+    return sorted(range(len(names)), key=rank)
+
+
+def _frame(ax, label):
+    """Outline a panel in its group's colour."""
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_edgecolor(group_colour(label))
+        spine.set_linewidth(1.6)
+
+
+def _group_note(labels, what, min_count):
+    groups = sorted({g for g in labels if g != UNGROUPED})
+    text = (f"Groups {groups[0]}-{groups[-1]}" if len(groups) > 1 else f"Group {groups[0]}") \
+        if groups else "No groups"
+    text += (": categories with similar distributions (Jensen-Shannon distance on the "
+             "plotted bins, average-linkage clustering), lettered along the x axis.")
+    if UNGROUPED in labels:
+        text += f"\n{UNGROUPED} = fewer than {min_count} {what}, not grouped."
+    return text
+
+
+def _bottom_notes(fig, x_label, notes, right=1.0):
+    """Notes under the x axis label (a figure-wide label, if given), with room
+    made for them."""
+    lines = sum(n.count("\n") + 1 for n in notes)
+    bottom = 0.02 + 0.022 * lines
+    fig.tight_layout(rect=(0, bottom + (0.03 if x_label else 0.0), right, 1))
+    if x_label:
+        fig.supxlabel(x_label, color=TEXT_SECONDARY, y=bottom, va="bottom")
+    fig.text(0.5, 0.01, "\n".join(notes), ha="center", va="bottom", fontsize=8,
+             color=TEXT_SECONDARY)
 
 
 def _by_category(cats, names):
@@ -315,13 +432,15 @@ def _position_heat(ax, x, y, edges, norm, rgb, weights):
 
 def heatmap_by_category(x, y, cats, names, title, x_label, y_label, x_log=False,
                         y_log=True, robust=True, bins=100, what="cells",
-                        position_colours=False):
+                        position_colours=False, grouping=None, min_count=GROUP_MIN_CELLS):
     """Heat maps of each category that has data, in a grid of panels sharing
     their axes and colour scale. Each shows the fraction of its category's
     points per bin, so panels compare whatever their size.
     cats: index into names of each point (-1 for none).
     position_colours: colour each bin by its position (x red to green, y red to
-    blue) and show the fraction per bin by opacity instead of a colour scale."""
+    blue) and show the fraction per bin by opacity instead of a colour scale.
+    grouping: None for no grouping, 0 to group similar categories automatically,
+    or the number of groups (see group_distributions)."""
     from matplotlib.colors import LogNorm
 
     inside = cats >= 0
@@ -342,10 +461,14 @@ def heatmap_by_category(x, y, cats, names, title, x_label, y_label, x_log=False,
     vmin = min(float(f[f > 0].min()) for f in fractions if (f > 0).any())
     norm = LogNorm(vmin=vmin, vmax=max(vmax, vmin * 1.01))
 
+    labels = (group_distributions(fractions, counts, grouping, min_count)
+              if grouping is not None else None)
+    order = _group_order(names, labels) if labels else range(len(names))
+
     rgb = _position_colours(edges, x_log, y_log) if position_colours else None
     fig, axes = _grid_of_panels(len(names), 3.2, 3.0)
-    for i, name in enumerate(names):
-        ax = axes.flat[i]
+    for slot, i in enumerate(order):
+        ax = axes.flat[slot]
         sel = cats == i
         weights = np.full(counts[i], 1.0 / counts[i])
         if position_colours:
@@ -353,7 +476,9 @@ def heatmap_by_category(x, y, cats, names, title, x_label, y_label, x_log=False,
         else:
             mesh = _heat(ax, x[sel], y[sel], edges, norm, weights=weights)
         _style_axes(ax, "", "", x_log, y_log)
-        _panel_title(ax, name, counts[i], axes.shape[1])
+        _panel_title(ax, names[i], counts[i], axes.shape[1], labels[i] if labels else None)
+        if labels:
+            _frame(ax, labels[i])
     axes.flat[0].set_xlim(xlim)
     axes.flat[0].set_ylim(ylim)
     fig.supxlabel(x_label, color=TEXT_SECONDARY)
@@ -361,19 +486,20 @@ def heatmap_by_category(x, y, cats, names, title, x_label, y_label, x_log=False,
     if dropped:
         title += f"\n{dropped:,} {what} with values <= 0 on a log axis left out"
     fig.suptitle(title, fontsize=11)
+    notes = []
+    if labels:
+        notes.append(_group_note(labels, what, min_count))
     if position_colours:
-        # room at the bottom for the note, below the x axis label
-        fig.tight_layout(rect=(0, 0.08, 1, 1))
-        fig.supxlabel(x_label, color=TEXT_SECONDARY, y=0.055, va="bottom")
-        fig.text(
-            0.5, 0.01,
+        notes.append(
             "Colour shows position: red to green along the x axis, red to blue up the "
             f"y axis.\nOpacity shows the fraction of the category's {what} per bin "
-            "(log scale): solid where most crowded, faint where sparse.",
-            ha="center", va="bottom", fontsize=8, color=TEXT_SECONDARY,
-        )
+            "(log scale): solid where most crowded, faint where sparse.")
+        _bottom_notes(fig, x_label, notes)
         return fig
-    fig.tight_layout(rect=(0, 0, 0.9, 1))
+    if notes:
+        _bottom_notes(fig, x_label, notes, right=0.9)
+    else:
+        fig.tight_layout(rect=(0, 0, 0.9, 1))
     cax = fig.add_axes((0.92, 0.15, 0.015, 0.7))
     cbar = fig.colorbar(mesh, cax=cax)
     cbar.set_label(f"Fraction of category's {what} per bin", color=TEXT_SECONDARY)
@@ -382,8 +508,12 @@ def heatmap_by_category(x, y, cats, names, title, x_label, y_label, x_log=False,
 
 
 def scatter(x, y, title, x_label, y_label, x_log=False, y_log=True,
-            categories=None, legend_title=None, what="samples"):
-    """Every point of y against x, with a symbol per category if given."""
+            categories=None, legend_title=None, what="samples", grouping=None,
+            min_count=GROUP_MIN_SAMPLES):
+    """Every point of y against x, with a symbol per category if given.
+    grouping: None for no grouping, 0 to group categories with similar
+    distributions automatically, or the number of groups; the group letter is
+    shown in the legend (see group_distributions)."""
     if categories is None:
         (x, y), dropped = valid_points(x, y, x_log, y_log)
     else:
@@ -412,14 +542,27 @@ def scatter(x, y, title, x_label, y_label, x_log=False, y_log=True,
                    CATEGORY_MARKERS[i // len(CATEGORY_COLOURS)])
             for i, name in enumerate(ranked)
         }
+        group = {}
+        if grouping is not None:
+            # each category's distribution on a coarse grid of the plotted space
+            edges = (_edges(xlim, x_log, 20), _edges(ylim, y_log, 20))
+            sizes = [int(np.count_nonzero(labels == n)) for n in names]
+            fractions = [np.histogram2d(x[labels == n], y[labels == n], bins=edges)[0] / s
+                         for n, s in zip(names, sizes)]
+            group = dict(zip((str(n) for n in names),
+                             group_distributions(fractions, sizes, grouping, min_count)))
         entries = len(symbol) + (len(names) > len(symbol))
         columns = math.ceil(entries / 24)
         fig, ax = _subplots(figsize=(7 + 1.7 * columns, 6))
-        for name in sorted(symbol, key=_natural_key):  # legend in name order
+        # legend in name order, or by group then name
+        key = ((lambda n: (group[n] == UNGROUPED, group[n], _natural_key(n))) if group
+               else _natural_key)
+        for name in sorted(symbol, key=key):
             sel = labels == name
             colour, marker = symbol[name]
+            text = f"{name} ({sel.sum()})"
             ax.scatter(x[sel], y[sel], color=colour, marker=marker,
-                       label=f"{name} ({sel.sum()})", **style)
+                       label=f"{group[name]} | {text}" if group else text, **style)
         rest = ~np.isin(labels, list(symbol))
         if rest.any():
             ax.scatter(x[rest], y[rest], color=OTHER_COLOUR, marker=".",
@@ -435,7 +578,10 @@ def scatter(x, y, title, x_label, y_label, x_log=False, y_log=True,
     ax.set_xlim(_padded(xlim, x_log))
     ax.set_ylim(_padded(ylim, y_log))
     ax.set_title(f"{title}\n{_count_text(x.size, dropped, what)}", fontsize=11)
-    fig.tight_layout()
+    if categories is not None and group:
+        _bottom_notes(fig, None, [_group_note(list(group.values()), what, min_count)])
+    else:
+        fig.tight_layout()
     return fig
 
 
@@ -490,11 +636,14 @@ def index_categories(labels):
 
 
 def histogram_by_category(values, cats, names, title, label, log=False,
-                          robust=True, what="cells"):
+                          robust=True, what="cells", grouping=None,
+                          min_count=GROUP_MIN_CELLS):
     """Histograms of one variable for each category that has values, in a grid
     of panels sharing their bins and axes. Each shows the fraction of its
     category's values per bin, so categories compare whatever their size.
-    cats: index into names of each value (-1 for none)."""
+    cats: index into names of each value (-1 for none).
+    grouping: None for no grouping, 0 to group similar categories automatically,
+    or the number of groups (see group_distributions)."""
     inside = cats >= 0
     if not inside.any():
         raise ValueError("No polygon covers the grid")
@@ -503,17 +652,28 @@ def histogram_by_category(values, cats, names, title, label, log=False,
     lims = _axis_range(values, log, robust)
     edges = _edges(lims, log, int(np.clip(math.sqrt(values.size), 10, 100)))
 
+    sizes = [int(np.count_nonzero(cats == i)) for i in range(len(names))]
+    labels = None
+    if grouping is not None:
+        fractions = [np.histogram(values[cats == i], bins=edges)[0] / n
+                     for i, n in enumerate(sizes)]
+        labels = group_distributions(fractions, sizes, grouping, min_count)
+    order = _group_order(names, labels) if labels else range(len(names))
+
     fig, axes = _grid_of_panels(len(names), 3.2, 2.6)
     top = 0.0
-    for i, name in enumerate(names):
-        ax = axes.flat[i]
+    for slot, i in enumerate(order):
+        ax = axes.flat[slot]
         v = values[cats == i]
+        colour = group_colour(labels[i]) if labels else CATEGORY_COLOURS[0]
         counts, _, _ = ax.hist(v, bins=edges, weights=np.full(v.size, 1.0 / v.size),
-                               color=CATEGORY_COLOURS[0], histtype="stepfilled", linewidth=0)
+                               color=colour, histtype="stepfilled", linewidth=0)
         top = max(top, float(counts.max()))
         _add_stats(ax, v, fontsize=7)
         _style_axes(ax, "", "", x_log=log, grid="y")
-        _panel_title(ax, name, v.size, axes.shape[1])
+        _panel_title(ax, names[i], v.size, axes.shape[1], labels[i] if labels else None)
+        if labels:
+            _frame(ax, labels[i])
     axes.flat[0].set_xlim(edges[0], edges[-1])
     axes.flat[0].set_ylim(0, _round_up(top))  # shared by all panels
     fig.supxlabel(label, color=TEXT_SECONDARY)
@@ -521,7 +681,10 @@ def histogram_by_category(values, cats, names, title, label, log=False,
     if dropped:
         title += f"\n{dropped:,} {what} with values <= 0 on a log axis left out"
     fig.suptitle(title, fontsize=11)
-    fig.tight_layout()
+    if labels:
+        _bottom_notes(fig, label, [_group_note(labels, what, min_count)])
+    else:
+        fig.tight_layout()
     return fig
 
 

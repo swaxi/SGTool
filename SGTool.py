@@ -4275,14 +4275,23 @@ class SGTool:
                 f"Apparent Henkel plots by {field} ({polygons.name()})",
                 self.APPARENT_DENSITY[0], self.APPARENT_SUS[0],
                 position_colours=d.checkBox_Henkel_position.isChecked(),
+                grouping=self._grouping(d.checkBox_Henkel_group, d.comboBox_Henkel_groups),
             )
             return fig, f"{dens.name()}_{sus.name()}_henkel_by_{field}", self._layer_folder(dens)
         values, label, log, layer = self._single_grid(density, susceptibility, dens, sus)
         fig = Petrophysics.histogram_by_category(
             values.ravel(), cats, names,
             f"{label.split(' (')[0]} by {field} ({polygons.name()})", label, log=log,
+            grouping=self._grouping(d.checkBox_Henkel_group, d.comboBox_Henkel_groups),
         )
         return fig, f"{layer.name()}_hist_by_{field}", self._layer_folder(layer)
+
+    @staticmethod
+    def _grouping(box, combo):
+        """None (no grouping), 0 (automatic) or the number of groups chosen."""
+        if not box.isChecked():
+            return None
+        return 0 if combo.currentIndex() == 0 else int(combo.currentText())
 
     def _henkel_samples(self):
         d = self.dlg
@@ -4337,6 +4346,8 @@ class SGTool:
                 fig = Petrophysics.histogram_by_category(
                     values, index, names, f"{field} by {cat_field}: {layer.name()}",
                     field, log=log, robust=False, what="samples",
+                    grouping=self._grouping(d.checkBox_Petro_group, d.comboBox_Petro_groups),
+                    min_count=Petrophysics.GROUP_MIN_SAMPLES,
                 )
                 return fig, f"{layer.name()}_{field}_hist_by_{cat_field}", self._layer_folder(layer)
             fig = Petrophysics.histogram(
@@ -4357,6 +4368,7 @@ class SGTool:
                 xs, ys, title, x_field, y_field, x_log=x_log, y_log=y_log,
                 categories=cats if cat_field else None,
                 legend_title=cat_field or None,
+                grouping=self._grouping(d.checkBox_Petro_group, d.comboBox_Petro_groups),
             )
         return fig, f"{layer.name()}_{y_field}_vs_{x_field}", self._layer_folder(layer)
 

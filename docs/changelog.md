@@ -13,6 +13,7 @@ The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.
       * Plots drawn by their own buttons, each in its own window, optionally saved as PNG and/or PDF; values <= 0 left out of log axes (and counted in the title); heat maps in viridis
       * New script scripts/pivot_petrophysics.py: one point per sample from a petrophysics layer with one row per measurement, for Measured Petrophysics
       * ArcGIS Pro: the same Petrophys tab in the GUI (with preview, IGRF field strength and all the plots, polygons and samples chosen as files), and Apparent Susceptibility and Apparent Density toolbox tools
+      * Group similar: categories with alike distributions (Jensen-Shannon distance, average-linkage clustering) grouped automatically or into 2 to 8 groups, lettered A, B, C ... on the per-category plots (title, coloured frame) and in the sample plot legend
       * Apparent susceptibility and density are also QGIS Processing algorithms (Petrophysics group), and Apply same steps to another grid repeats them in both versions
       * macOS: the dock uses a smaller font and the compact Fusion style, so its layout is no larger than on Windows (set the QSettings value SGTool/compactMacUI to false to keep the native look)
 

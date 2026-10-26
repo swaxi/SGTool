@@ -1860,6 +1860,7 @@ class SGToolApp(tk.Tk):
             "to green along the density axis and red to blue up the susceptibility axis (low/\n"
             "low red, dense green, magnetic blue, both cyan), with the fraction of the\n"
             "category's cells per bin shown by opacity instead of a colour scale.").pack(side="left", padx=10)
+        self.v_hk_group, self.v_hk_groups = self._group_controls(r, "cells")
 
         # ---- Measured Petrophysics ----
         ms = section(p, "Measured Petrophysics")
@@ -1921,6 +1922,7 @@ class SGToolApp(tk.Tk):
             tip(tk.Radiobutton(r, text=text, variable=self.v_ms_style, value=value, bg=BG, fg=FG,
                                selectcolor=ENTRY_BG, activebackground=BG, activeforeground=FG,
                                font=FONT), tiptext).pack(side="left", padx=(10, 0))
+        self.v_ms_group, self.v_ms_groups = self._group_controls(r, "samples")
 
         # ---- Save Plots ----
         sp = section(p, "Save Plots")
@@ -1940,6 +1942,31 @@ class SGToolApp(tk.Tk):
         # the field strength follows the input grid
         self.v_input.trace_add("write", lambda *_: self.after(300, self._petro_igrf, True))
         self._petro_igrf(True)
+
+    def _group_controls(self, parent, what):
+        """'Group similar' tick box and the number of groups (Auto or 2 to 8), packed
+        into parent; returns their variables."""
+        on, count = tk.BooleanVar(value=False), tk.StringVar(value="Auto")
+        tip(check(parent, "Group similar", on),
+            "Group categories whose distributions are alike and label them A, B, C ...\n"
+            f"(in order along the x axis). Each category's fraction of {what} per bin is\n"
+            "compared with the others (Jensen-Shannon distance on the plotted bins, lightly\n"
+            "smoothed) and grouped by average-linkage clustering. Panels are ordered by group,\n"
+            "with the letter in the title and a coloured frame; in the sample plot the letter\n"
+            f"is shown in the legend. Categories with too few {what} to compare are marked -\n"
+            "and not grouped. A similar distribution does not mean the same geology: use the\n"
+            "groups as a prompt.").pack(side="left", padx=(10, 0))
+        tip(combo(parent, ["Auto"] + [str(n) for n in range(2, 9)], count, w=5),
+            "Number of groups. Auto cuts the clustering at its largest jump (one group if\n"
+            "all the categories are alike).").pack(side="left", padx=2)
+        return on, count
+
+    @staticmethod
+    def _grouping(on, count):
+        """None (no grouping), 0 (automatic) or the number of groups chosen."""
+        if not on.get():
+            return None
+        return 0 if count.get() == "Auto" else int(count.get())
 
     # ---- Petrophys: inputs ----
     def _petro_refresh_rasters(self):
@@ -2206,6 +2233,7 @@ class SGToolApp(tk.Tk):
             s = self._gather_apparent()
             s["poly"], s["field"] = self.v_hk_poly.get().strip(), self.v_hk_poly_field.get()
             s["position"] = self.v_hk_position.get()
+            s["grouping"] = self._grouping(self.v_hk_group, self.v_hk_groups)
             if not s["poly"] or not s["field"]:
                 raise ValueError("Choose a polygon file and its category field")
             return s
@@ -2226,13 +2254,13 @@ class SGToolApp(tk.Tk):
                     density.ravel(), sus.ravel(), cats, names,
                     f"Apparent Henkel plots by {field} ({polys})",
                     self.APPARENT_DENSITY[0], self.APPARENT_SUS[0],
-                    position_colours=s["position"])
+                    position_colours=s["position"], grouping=s["grouping"])
                 return (fig, f"{self._stem(s['dens'])}_{self._stem(s['sus'])}_henkel_by_{field}",
                         os.path.dirname(s["dens"]))
             values, label, log, path = self._single_grid(s, density, sus)
             fig = Petrophysics.histogram_by_category(
                 values.ravel(), cats, names, f"{label.split(' (')[0]} by {field} ({polys})",
-                label, log=log)
+                label, log=log, grouping=s["grouping"])
             return fig, f"{self._stem(path)}_hist_by_{field}", os.path.dirname(path)
 
         self._petro_plot(gather, build)
@@ -2242,7 +2270,8 @@ class SGToolApp(tk.Tk):
             s = {"points": self.v_ms_points.get().strip(), "x": self.v_ms_x.get(),
                  "y": self.v_ms_y.get(), "cat": self.v_ms_cat.get(),
                  "x_log": self.v_ms_x_log.get(), "y_log": self.v_ms_y_log.get(),
-                 "heat": self.v_ms_style.get() == "heat"}
+                 "heat": self.v_ms_style.get() == "heat",
+                 "grouping": self._grouping(self.v_ms_group, self.v_ms_groups)}
             if not s["points"] or not (s["x"] or s["y"]):
                 raise ValueError("Choose a point file and its X and/or Y field")
             try:
@@ -2268,7 +2297,8 @@ class SGToolApp(tk.Tk):
                     index, names = Petrophysics.index_categories(cats)
                     fig = Petrophysics.histogram_by_category(
                         values, index, names, f"{field} by {cat_field}: {layer}", field,
-                        log=log, robust=False, what="samples")
+                        log=log, robust=False, what="samples", grouping=s["grouping"],
+                        min_count=Petrophysics.GROUP_MIN_SAMPLES)
                     return fig, f"{layer}_{field}_hist_by_{cat_field}", folder
                 fig = Petrophysics.histogram(values, f"{field}: {layer}", field,
                                              log=log, robust=False, what="samples")
@@ -2283,7 +2313,8 @@ class SGToolApp(tk.Tk):
             else:
                 fig = Petrophysics.scatter(xs, ys, title, x_field, y_field,
                                            x_log=s["x_log"], y_log=s["y_log"],
-                                           categories=cats, legend_title=cat_field or None)
+                                           categories=cats, legend_title=cat_field or None,
+                                           grouping=s["grouping"])
             return fig, f"{layer}_{y_field}_vs_{x_field}", folder
 
         self._petro_plot(gather, build)

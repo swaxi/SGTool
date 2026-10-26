@@ -185,6 +185,28 @@ the other instead:
 - **Apply same steps to another grid** repeats both calculations; the field strength of
   apparent susceptibility is used as recorded, not recalculated for the new grid.
 
+### Grouping similar categories
+
+Tick **Group similar** (next to Plot per Category, and next to Plot Samples) to group
+categories whose distributions are alike and label them **A, B, C ...**:
+
+- Each category's fraction of cells (or samples) per bin, on the plotted bins and
+  lightly smoothed, is compared with every other category's using the
+  Jensen-Shannon distance (0 = identical, 1 = no overlap), and the categories are
+  grouped by average-linkage hierarchical clustering.
+- The box beside it sets the number of groups: **Auto** cuts the clustering at its
+  largest jump (one group if all the categories are alike), or choose 2 to 8.
+- Groups are lettered in order of their mean position along the x axis (for
+  Henkel plots, A is the lightest).
+- Per-category panels (heat maps and histograms) are ordered by group, with the
+  letter in the title and a frame in the group's colour (histogram bars too). In
+  the sample plot the letter is shown in the legend, which is sorted by group.
+- Categories with fewer than 30 cells (10 samples) are marked **-** and not grouped.
+
+A similar distribution does not mean the same geology, and apparent values blur
+across boundaries, so small polygons tend to group with their neighbours: use the
+groups as a prompt for interpretation, not a classification.
+
 ## Preparing sample data
 
 Petrophysical databases often hold one row per measurement (sample number,

@@ -28,6 +28,7 @@ changelog=0.4.0
       * Measured Petrophysics: any two fields of a point layer plotted against each other, each with a multiplier and log option, as points with up to 64 category symbols or as a heat map
       * With only one grid or field chosen, histograms instead, per category if one is chosen, with the median, mean and standard deviation
       * Plots drawn by their own buttons, optionally saved as PNG and/or PDF; new script scripts/pivot_petrophysics.py to make one point per sample from one row per measurement
+      * Group similar: categories with alike distributions grouped and lettered A, B, C ... on the per-category and sample plots
       * ArcGIS Pro: the same Petrophys tab in the GUI, and Apparent Susceptibility and Apparent Density toolbox tools; both calculations are also QGIS Processing algorithms and can be replayed on other grids
       * macOS: the dock uses a smaller font and the compact Fusion style, so its layout is no larger than on Windows (set the QSettings value SGTool/compactMacUI to false to keep the native look)
       0.3.9

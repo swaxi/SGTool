@@ -1307,6 +1307,28 @@ class SGToolDockWidget(QDockWidget):
         layout.addLayout(box)
 
     @staticmethod
+    def _group_controls(what):
+        """'Group similar' tick box and the number of groups (Auto or 2 to 8)."""
+        box = QCheckBox(_tr("Group similar"))
+        box.setToolTip(
+            _tr("Group categories whose distributions are alike and label them A, B, C ...\n"
+                "(in order along the x axis). Each category's fraction of {what} per bin is\n"
+                "compared with the others (Jensen-Shannon distance on the plotted bins,\n"
+                "lightly smoothed) and grouped by average-linkage clustering. Panels are\n"
+                "ordered by group, with the letter in the title and a coloured frame; in\n"
+                "the sample plot the letter is shown in the legend. Categories with too few\n"
+                "{what} to compare are marked - and not grouped. A similar distribution\n"
+                "does not mean the same geology: use the groups as a prompt.").format(what=what)
+        )
+        combo = QComboBox()
+        combo.addItems([_tr("Auto")] + [str(n) for n in range(2, 9)])
+        combo.setToolTip(
+            _tr("Number of groups. Auto cuts the clustering at its largest jump (one group\n"
+                "if all the categories are alike).")
+        )
+        return box, combo
+
+    @staticmethod
     def _plot_button(text):
         """A button that draws a plot as soon as it is pressed."""
         button = QPushButton(text)
@@ -1534,10 +1556,13 @@ class SGToolDockWidget(QDockWidget):
                 "fraction of the category's cells per bin shown by opacity instead of a\n"
                 "colour scale.")
         )
+        self.checkBox_Henkel_group, self.comboBox_Henkel_groups = self._group_controls("cells")
         category_row = QHBoxLayout()
         category_row.setSpacing(10)
         category_row.addWidget(self.pushButton_Henkel_categories)
         category_row.addWidget(self.checkBox_Henkel_position)
+        category_row.addWidget(self.checkBox_Henkel_group)
+        category_row.addWidget(self.comboBox_Henkel_groups)
         category_row.addStretch()
         g.addLayout(category_row,                          6, 0, 1, 2)
         g.setColumnStretch(1, 1)
@@ -1633,12 +1658,16 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(label(_tr("Category field")),        3, 0)
         g.addWidget(self.mFieldComboBox_Petro_cat,       3, 1)
 
+        self.checkBox_Petro_group, self.comboBox_Petro_groups = self._group_controls("samples")
         style_row = QHBoxLayout()
         style_row.setSpacing(6)
         style_row.addWidget(self.pushButton_Henkel_points)
         style_row.addSpacing(10)
         style_row.addWidget(self.radioButton_Petro_points)
         style_row.addWidget(self.radioButton_Petro_heat)
+        style_row.addSpacing(10)
+        style_row.addWidget(self.checkBox_Petro_group)
+        style_row.addWidget(self.comboBox_Petro_groups)
         style_row.addStretch()
         g.addLayout(style_row, 4, 0, 1, 5)
         g.setColumnStretch(1, 1)

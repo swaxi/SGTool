@@ -78,10 +78,10 @@ check("version and grid info shown", "Version" in info and "Units: m" in info an
       and "Pixels: 100 x 100" in info and "Pixel size: 100 m" in info, info)
 
 # ---- build every tab (they are built lazily)
-for i in range(5):
+for i in range(len(app._tab_specs)):
     app.nb.select(i)
     app.update()
-check("all tabs build", len(app._tab_built) == 5, app._tab_built)
+check("all tabs build", len(app._tab_built) == len(app._tab_specs), app._tab_built)
 check("Wedge entry exists with default 45", app.v_dc_wedge.get() == "45")
 
 # ---- FFT filters: outputs carry provenance in replayable form
@@ -544,11 +544,11 @@ tempfile.tempdir = _real_tmp
 # ---- Threshold to NaN preview, and the shape of the preview
 for v in (app.v_deriv, app.v_rtp, app.v_mean, app.v_thresh_en):
     v.set(False)
-app.nb.select(3); app.update()
+app.nb.select(4); app.update()
 app.v_input.set(pv)
 app.v_thresh_cond.set("above"); app.v_thresh_above.set("40"); app.v_thresh_below.set("-9e9")
 app.v_thresh_en.set(True)
-res = app._compute_preview(3, pv, "whole", (0, 0, 100, 100))
+res = app._compute_preview(4, pv, "whole", (0, 0, 100, 100))
 check("the threshold preview marks the values above the threshold as no data",
       "Threshold to NaN" in res["text"] and np.array_equal(np.isnan(res["filtered"]), res["original"] > 40)
       and np.isnan(res["filtered"]).any(), res["text"])
@@ -565,9 +565,9 @@ app.v_thresh_en.set(False)
 app.nb.select(0); app.update()
 app.v_preview.set(True)
 run_loop(lambda: app._preview_win is not None, 5)
-app.nb.select(3); app.update()
-check("Preview follows onto the Utils tab", app.v_preview.get() and app._preview_tab == 3
-      and app._apply_btns[3].cget("text") == "Apply Preview", app._apply_btns[3].cget("text"))
+app.nb.select(4); app.update()
+check("Preview follows onto the Utils tab", app.v_preview.get() and app._preview_tab == 4
+      and app._apply_btns[4].cget("text") == "Apply Preview", app._apply_btns[4].cget("text"))
 app.v_thresh_en.set(True)
 win = app._preview_win
 run_loop(lambda: win._result is not None and "Threshold" in win.v_status.get(), 40)
@@ -579,7 +579,7 @@ run_loop(lambda: app._active_token is None and os.path.exists(out_thr), 60)
 run_loop(lambda: not app.v_thresh_en.get(), 5)
 check("Apply Preview on the Utils tab writes the result, unticks the threshold and ends the preview",
       os.path.exists(out_thr) and not app.v_thresh_en.get() and not app.v_preview.get() and app._preview_win is None)
-check("the button reads Apply Threshold again", app._apply_btns[3].cget("text") == "Apply Threshold \u2192 NaN", app._apply_btns[3].cget("text"))
+check("the button reads Apply Threshold again", app._apply_btns[4].cget("text") == "Apply Threshold \u2192 NaN", app._apply_btns[4].cget("text"))
 
 # the preview window takes the shape of the ArcGIS Pro map canvas
 _real_tmp = tempfile.tempdir

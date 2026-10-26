@@ -1683,21 +1683,23 @@ class SGTool:
             return "Total horizontal gradient", {}
         if s == "_VI":
             return "Vertical integration", {}
+        # parameter names as in the shared filter table (sgt_filters), so that
+        # these steps can be replayed: thickness 0 = infinite, high cut -1 = none
         if s == "_AppSus":
             return "Apparent susceptibility", {
-                "field_nT": self.AppSus_field,
-                "depth_to_top": self.AppSus_depth,
-                "thickness": self.AppSus_thickness or "infinite",
-                "background_susceptibility": self.AppSus_background,
-                "high_cut_wavelength": self._petro_cut(self.AppSus_cut),
+                "field": self.AppSus_field,
+                "depth": self.AppSus_depth,
+                "thickness": self.AppSus_thickness or 0.0,
+                "background": self.AppSus_background,
+                "high_cut": self._petro_cut(self.AppSus_cut) or -1.0,
             }
         if s == "_AppDens":
             return "Apparent density", {
-                "grid_units": self.AppDens_units,
-                "depth_to_top": self.AppDens_depth,
+                "units": "mGal" if self.AppDens_to_mGal == 1.0 else "um/s2 (gu)",
+                "depth": self.AppDens_depth,
                 "thickness": self.AppDens_thickness,
-                "background_density": self.AppDens_background,
-                "high_cut_wavelength": self._petro_cut(self.AppDens_cut),
+                "background": self.AppDens_background,
+                "high_cut": self._petro_cut(self.AppDens_cut) or -1.0,
             }
         if s.startswith("_UC_") or s.startswith("_DC_"):
             return (

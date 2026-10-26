@@ -179,6 +179,8 @@ SUFFIXES = {
     "threshold_to_nan": lambda p: "_Clean",
     "pca": lambda p: "_PCA",
     "ica": lambda p: "_ICA",
+    "apparent_susceptibility": lambda p: "_AppSus",
+    "apparent_density": lambda p: "_AppDens",
 }
 
 
@@ -259,6 +261,37 @@ def _c_vint(g, p):
     return g.processor.vertical_integration(
         g.arr, max_wavenumber=None, min_wavenumber=1e-4,
         buffer_size=g.buffer, buffer_method="mirror",
+    )
+
+
+def _petro_cut(g, cut):
+    """High-cut wavelength for the apparent petrophysics filters: 0 means
+    4 x the cell size, a negative value no high-cut."""
+    if not cut:
+        return 4 * max(g.dx, g.dy)
+    return None if cut < 0 else cut
+
+
+def _c_app_sus(g, p):
+    g.require_projected("Apparent susceptibility")
+    if p["FIELD"] <= 0:
+        raise FilterError("Set the field strength (nT) for apparent susceptibility")
+    return g.processor.apparent_susceptibility(
+        g.arr, p["FIELD"], depth=p["DEPTH"], thickness=p["THICKNESS"] or None,
+        background=p["BACKGROUND"], cutoff_wavelength=_petro_cut(g, p["HIGH_CUT"]),
+        buffer_size=g.buffer,
+    )
+
+
+def _c_app_dens(g, p):
+    g.require_projected("Apparent density")
+    if p["THICKNESS"] <= 0:
+        raise FilterError("The apparent density layer thickness must be greater than 0")
+    to_mgal = 0.1 if p["UNITS"].startswith("um") else 1.0  # 1 mGal = 10 um/s^2
+    return g.processor.apparent_density(
+        g.arr * to_mgal, depth=p["DEPTH"], thickness=p["THICKNESS"],
+        background=p["BACKGROUND"], cutoff_wavelength=_petro_cut(g, p["HIGH_CUT"]),
+        buffer_size=g.buffer,
     )
 
 
@@ -396,6 +429,7 @@ GROUP_UTIL = ("utilities", "Utilities")
 GROUP_GRID = ("gridding", "Gridding")
 GROUP_EULER = ("euler", "Euler deconvolution")
 GROUP_MULTI = ("multivariate", "Multivariate analysis")
+GROUP_PETRO = ("petrophysics", "Petrophysics")
 
 _DIRECTIONS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
 
@@ -449,6 +483,41 @@ FILTER_SPECS = [
         group=GROUP_GRAV, fft=True, compute=_c_vint, operation="Vertical integration",
         help="Vertical integration; applied to an RTP/RTE grid it gives the pseudo-gravity.",
         params=[],
+    ),
+    dict(
+        id="apparent_susceptibility", name="Apparent susceptibility",
+        group=GROUP_PETRO, fft=True, compute=_c_app_sus,
+        operation="Apparent susceptibility",
+        help=(
+            "Apparent susceptibility (SI) from a magnetic anomaly grid (nT, IGRF removed) "
+            "reduced to the pole (or the equator, approximately), for a layer of vertical "
+            "prisms magnetised by induction in the ambient field. The grid's absolute level "
+            "is not used: the result is a variation about the background susceptibility."
+        ),
+        params=[
+            _dbl("FIELD", "Ambient (IGRF) field strength (nT)", 50000.0, minimum=0.0),
+            _dbl("DEPTH", "Depth from the sensor to the top of the layer (m)", 0.0, minimum=0.0),
+            _dbl("THICKNESS", "Layer thickness (m, 0 = infinite)", 0.0, minimum=0.0),
+            _dbl("BACKGROUND", "Background susceptibility (SI)", 0.001),
+            _dbl("HIGH_CUT", "High-cut wavelength (m, 0 = 4 x the cell size, -1 = none)", 0.0),
+        ],
+    ),
+    dict(
+        id="apparent_density", name="Apparent density",
+        group=GROUP_PETRO, fft=True, compute=_c_app_dens,
+        operation="Apparent density",
+        help=(
+            "Apparent density (g/cc) from a Bouguer gravity grid, for a layer of vertical "
+            "prisms. The grid's absolute level (datum, regional) is not used: the result is "
+            "a variation about the background density."
+        ),
+        params=[
+            _opt("UNITS", "Gravity grid units", ["mGal", "um/s2 (gu)"]),
+            _dbl("DEPTH", "Depth from the sensor to the top of the layer (m)", 0.0, minimum=0.0),
+            _dbl("THICKNESS", "Layer thickness (m)", 5000.0, minimum=0.0),
+            _dbl("BACKGROUND", "Background density (g/cc)", 2.67),
+            _dbl("HIGH_CUT", "High-cut wavelength (m, 0 = 4 x the cell size, -1 = none)", 0.0),
+        ],
     ),
     dict(
         id="remove_regional", name="Remove regional trend",

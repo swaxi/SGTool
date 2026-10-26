@@ -204,13 +204,29 @@ def heat_bins(n):
     return int(np.clip(math.sqrt(n) / 2, 20, 200))
 
 
+# The QGIS plugin shows plots in pyplot windows. The ArcGIS Pro GUI turns this
+# off: it builds figures in a worker thread and shows them in its own Tk windows,
+# and pyplot figures belong to the thread that made them.
+USE_PYPLOT = True
+
+
+def _subplots(*args, **kwargs):
+    """A figure and its axes, made with pyplot or (USE_PYPLOT off) without."""
+    if USE_PYPLOT:
+        import matplotlib.pyplot as plt
+
+        return plt.subplots(*args, **kwargs)
+    from matplotlib.figure import Figure
+
+    fig = Figure(figsize=kwargs.pop("figsize", None))
+    return fig, fig.subplots(*args, **kwargs)
+
+
 def _grid_of_panels(n, width, height):
     """ceil(sqrt(n)) columns and only as many rows as needed, with shared axes."""
-    import matplotlib.pyplot as plt
-
     side = math.ceil(math.sqrt(n))
     rows = math.ceil(n / side)
-    fig, axes = plt.subplots(
+    fig, axes = _subplots(
         rows, side, figsize=(width * side + 1.2, height * rows + 1.0),
         sharex=True, sharey=True, squeeze=False,
     )
@@ -230,14 +246,13 @@ def _by_category(cats, names):
 def heatmap(x, y, title, x_label, y_label, x_log=False, y_log=True,
             robust=True, bins=200, what="points"):
     """One heat map of y against x (points per bin, log colour scale)."""
-    import matplotlib.pyplot as plt
     from matplotlib.colors import LogNorm
 
     (x, y), dropped = valid_points(x, y, x_log, y_log)
     xlim, ylim = _axis_range(x, x_log, robust), _axis_range(y, y_log, robust)
     edges = (_edges(xlim, x_log, bins), _edges(ylim, y_log, bins))
 
-    fig, ax = plt.subplots(figsize=(7.5, 6))
+    fig, ax = _subplots(figsize=(7.5, 6))
     mesh = _heat(ax, x, y, edges, LogNorm())
     _style_axes(ax, x_label, y_label, x_log, y_log)
     ax.set_xlim(xlim)
@@ -346,8 +361,6 @@ def heatmap_by_category(x, y, cats, names, title, x_label, y_label, x_log=False,
 def scatter(x, y, title, x_label, y_label, x_log=False, y_log=True,
             categories=None, legend_title=None, what="samples"):
     """Every point of y against x, with a symbol per category if given."""
-    import matplotlib.pyplot as plt
-
     if categories is None:
         (x, y), dropped = valid_points(x, y, x_log, y_log)
     else:
@@ -358,7 +371,7 @@ def scatter(x, y, title, x_label, y_label, x_log=False, y_log=True,
 
     style = dict(s=24, linewidths=0.4, edgecolors="white", alpha=0.85)
     if categories is None:
-        fig, ax = plt.subplots(figsize=(7, 6))
+        fig, ax = _subplots(figsize=(7, 6))
         ax.scatter(x, y, color=CATEGORY_COLOURS[0], marker="o", **style)
     else:
         # Each category gets a colour + marker pair: 8 x 8 = 64 symbols. They go
@@ -378,7 +391,7 @@ def scatter(x, y, title, x_label, y_label, x_log=False, y_log=True,
         }
         entries = len(symbol) + (len(names) > len(symbol))
         columns = math.ceil(entries / 24)
-        fig, ax = plt.subplots(figsize=(7 + 1.7 * columns, 6))
+        fig, ax = _subplots(figsize=(7 + 1.7 * columns, 6))
         for name in sorted(symbol, key=_natural_key):  # legend in name order
             sel = labels == name
             colour, marker = symbol[name]
@@ -431,12 +444,10 @@ def _add_stats(ax, values, fontsize=8):
 
 def histogram(values, title, label, log=False, robust=True, what="points"):
     """Histogram of one variable, with linear or log bins."""
-    import matplotlib.pyplot as plt
-
     (values,), dropped = valid_values(values, log)
     lims = _axis_range(values, log, robust)
     edges = _edges(lims, log, int(np.clip(math.sqrt(values.size), 10, 100)))
-    fig, ax = plt.subplots(figsize=(7.5, 5))
+    fig, ax = _subplots(figsize=(7.5, 5))
     counts, _, _ = ax.hist(values, bins=edges, color=CATEGORY_COLOURS[0],
                            histtype="stepfilled", linewidth=0)
     _add_stats(ax, values, fontsize=9)
@@ -492,6 +503,27 @@ def histogram_by_category(values, cats, names, title, label, log=False,
 
 
 NO_CATEGORY = "(none)"
+
+
+def to_number(value):
+    """A numeric or text attribute as a number (text such as ' 2.67' or '2,67'
+    too); NaN for NULL or text that isn't a number."""
+    if value is None or str(value) == "NULL":
+        return np.nan
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        try:
+            return float(str(value).strip().replace(",", "."))
+        except ValueError:
+            return np.nan
+
+
+def category_label(value):
+    """A category attribute as text, NO_CATEGORY for NULL or blank."""
+    if value is None or str(value) == "NULL" or not str(value).strip():
+        return NO_CATEGORY
+    return str(value)
 
 
 def _natural_key(text):

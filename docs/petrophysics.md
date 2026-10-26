@@ -2,7 +2,7 @@
 
 # Petrophysics (Petrophys tab)
 
-The Petrophys tab, between Grid + Wavelets and Utils, turns magnetic and gravity
+The Petrophys tab (QGIS and ArcGIS Pro), between Grid + Wavelets and Utils, turns magnetic and gravity
 grids into **apparent susceptibility** and **apparent density** grids, and plots
 them against each other as **Henkel plots** (density against log susceptibility),
 for the whole area or for each unit of a geology map. Measured samples (any two
@@ -170,6 +170,18 @@ the other instead:
 - Every histogram marks its **median** with a red line and gives the median, mean
   and standard deviation of its values in the top right corner. The vertical axis
   stops at the tallest bar of all the panels, rounded up.
+
+## Other ways to run it
+
+- **QGIS Processing**: *Apparent susceptibility* and *Apparent density* algorithms in the
+  SGTool Petrophysics group, with the same settings (thickness 0 = infinite, high-cut
+  0 = 4 x the cell size and -1 = none).
+- **ArcGIS Pro**: the same tab in the SGTool GUI, and **Apparent Susceptibility** and
+  **Apparent Density** tools in the toolbox's Petrophysics category. In the GUI the
+  polygons and sample points are chosen as files, and all their features are used. See
+  [ArcGIS Pro differences](arcgis-pro.md).
+- **Apply same steps to another grid** repeats both calculations; the field strength of
+  apparent susceptibility is used as recorded, not recalculated for the new grid.
 
 ## Preparing sample data
 

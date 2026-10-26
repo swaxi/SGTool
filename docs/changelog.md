@@ -12,6 +12,8 @@ The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.
       * With only one apparent grid or measured field chosen, histograms instead, per category if one is chosen, with the median as a red line, median, mean and standard deviation as text, and the vertical axis clipped to the tallest bar
       * Plots drawn by their own buttons, each in its own window, optionally saved as PNG and/or PDF; values <= 0 left out of log axes (and counted in the title); heat maps in viridis
       * New script scripts/pivot_petrophysics.py: one point per sample from a petrophysics layer with one row per measurement, for Measured Petrophysics
+      * ArcGIS Pro: the same Petrophys tab in the GUI (with preview, IGRF field strength and all the plots, polygons and samples chosen as files), and Apparent Susceptibility and Apparent Density toolbox tools
+      * Apparent susceptibility and density are also QGIS Processing algorithms (Petrophysics group), and Apply same steps to another grid repeats them in both versions
 
 ## 0.3.9
       * Utils tab: new Clip to Window button clips the selected grid to the current map window, saving it beside the original as <name>_clip.tif (then _clip_01, _clip_02 ... rather than overwriting an earlier clip); Clip All Layers is now half width, beside it. Also in the ArcGIS Pro GUI (Utils tab), using the ArcGIS Pro map view

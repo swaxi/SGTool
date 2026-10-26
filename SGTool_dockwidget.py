@@ -560,8 +560,8 @@ class SGToolDockWidget(QDockWidget):
         self.lineEdit_3_BP_width.setFixedWidth(55)
 
         v.addLayout(self._bullet_check(self.label_29, self.checkBox_10_bandPass))
-        row(self.label_22, self.lineEdit_12_bandPassLow, 6, self.label_23, self.lineEdit_11_bandPassHigh)
-        row(self.label_39, self.lineEdit_3_BP_width)
+        row(self.label_22, self.lineEdit_12_bandPassLow, 6, self.label_23, self.lineEdit_11_bandPassHigh,
+            6, self.label_39, self.lineEdit_3_BP_width)
 
         # High/Low Pass
         self.label_32 = QLabel("●")
@@ -581,8 +581,8 @@ class SGToolDockWidget(QDockWidget):
         self.lineEdit_3_HLP_width.setFixedWidth(55)
 
         v.addLayout(self._bullet_check(self.label_32, self.checkBox_10_freqCut))
-        row(self.label_35, self.comboBox_2_FreqCutType, 6, self.label_34, self.lineEdit_12_FreqPass)
-        row(self.label_69, self.lineEdit_3_HLP_width)
+        row(self.label_35, self.comboBox_2_FreqCutType, 6, self.label_34, self.lineEdit_12_FreqPass,
+            6, self.label_69, self.lineEdit_3_HLP_width)
 
         # AGC
         self.label_30 = QLabel("●")
@@ -593,8 +593,20 @@ class SGToolDockWidget(QDockWidget):
         self.lineEdit_13_agc_window = QLineEdit("10")
         self.lineEdit_13_agc_window.setFixedWidth(45)
 
-        v.addLayout(self._bullet_check(self.label_30, self.checkBox_11_1vd_agc))
-        row(self.label_24, self.lineEdit_13_agc_window)
+        # window on the checkbox's own line (not _bullet_check, whose stretch
+        # would push it to the right)
+        agc = QHBoxLayout()
+        agc.setContentsMargins(0, 0, 0, 0)
+        agc.setSpacing(2)
+        self.label_30.setFixedWidth(10)
+        agc.addWidget(self.label_30)
+        agc.addWidget(self.checkBox_11_1vd_agc)
+        agc.addSpacing(8)
+        agc.addWidget(self.label_24)
+        agc.addSpacing(2)
+        agc.addWidget(self.lineEdit_13_agc_window)
+        agc.addStretch()
+        v.addLayout(agc)
 
         return gb
 

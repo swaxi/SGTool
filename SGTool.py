@@ -379,7 +379,12 @@ class SGTool:
             self._task.cancel()  # don't leave a calculation running without a plugin
 
         if getattr(self, "provider", None) is not None:
-            QgsApplication.processingRegistry().removeProvider(self.provider)
+            # the registry may already have deleted the provider (e.g. Processing
+            # unloaded first, or during uninstall)
+            try:
+                QgsApplication.processingRegistry().removeProvider(self.provider)
+            except RuntimeError:
+                pass
             self.provider = None
 
         for action in self.actions:
@@ -4457,7 +4462,6 @@ class SGTool:
         d.mMapLayerComboBox_selectGrid_Petro.layerChanged.connect(
             lambda layer: layer is not None and self._show_grid_info(layer)
         )
-        d.dateEdit_AppSus.dateChanged.connect(lambda _date: self.update_petro_field(quiet=True))
         self.update_petro_field(quiet=True)
 
         # editing a setting ticks its calculation (and updates a live preview);

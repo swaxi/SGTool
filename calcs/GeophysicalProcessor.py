@@ -556,39 +556,122 @@ class GeophysicalProcessor:
     def reduction_to_equator(
         self, data, inclination, declination, buffer_size=10, buffer_method="mirror"
     ):
-        from scipy.fftpack import fft2, ifft2, fftfreq
-
-        # Convert angles from degrees to radians
         inc, dec = np.radians(inclination), np.radians(declination)
 
         def filter_function(kx, ky):
-
-            # Polar component theta
-            theta = np.arctan2(kx, ky)
-
-            # Common term used in the formula
-            cos_term = np.cos(dec - theta)
-
-            # Numerator: [sin(inc) - i * cos(inc) * cos(dec - theta)]^2 * (-cos^2(dec - theta))
-            numerator = (np.sin(inc) - 1j * np.cos(inc) * cos_term) ** 2 * (
-                -(cos_term**2)
-            )
-
-            # Denominator: [sin^2(inc) + cos^2(inc) * cos^2(dec - theta)] * [sin^2(inc) + cos^2(inc) * cos^2(dec - theta)]
-            denominator = (
-                np.sin(inc) ** 2
-                + (np.cos(inc) ** 2 * cos_term**2) * np.sin(inc) ** 2
-                + (np.cos(inc) ** 2 * cos_term**2)
-            )
-
-            # We add a tiny epsilon to the denominator to avoid division by zero at k=0
-            rte_filter = numerator / (denominator + 1e-10)
-
-            return rte_filter
+            return self._rte_operator(kx, ky, inc, dec)
 
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method
         )
+
+    @staticmethod
+    def _rte_operator(kx, ky, inc, dec):
+        """
+        Reduction to the equator operator (Kis 1990; Hao et al. 2018, Eq. 5),
+        inc and dec in radians:
+
+            C = -cos^2(D-theta) / [sin I + i cos I cos(D-theta)]^2
+
+        evaluated as -cos^2 * conj(f)^2 / |f|^4 so the denominator is real.
+        At inclination 0 it is 1 (no change).
+        """
+        theta = np.arctan2(kx, ky)  # azimuth of the wavenumber, from north
+        cos_term = np.cos(dec - theta)
+        field = np.sin(inc) + 1j * np.cos(inc) * cos_term
+        power = np.abs(field) ** 2
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.where(
+                power > 1e-12,
+                -(cos_term**2) * np.conj(field) ** 2 / power**2,
+                1.0,  # inclination 0, perpendicular to the declination: the limit
+            )
+
+    # iteration counts tried when choosing m automatically
+    TSI_RTP_ITERATIONS = (0, 1, 2, 3, 4, 6, 8, 10, 13, 16, 20, 25, 32, 40, 50,
+                          63, 80, 100, 125, 160, 200)
+
+    def reduction_to_pole_low_latitude(
+        self, data, inclination, declination, iterations=0,
+        buffer_size=10, buffer_method="mirror",
+    ):
+        """
+        Reduction to the pole at low latitudes by the Taylor series iterative
+        (TSI) method of Hao et al. (2018, J. Appl. Geophys. 159, 127-134).
+
+        The data are first reduced to the equator (Eq. 5), then to the pole with
+        m iterations of a truncated Taylor-series RTP operator, in closed form
+        (Eq. 13):  Tp = [1 - (1 - Cpe*Hea)^(m+1)] * He * Te,
+        with He = -sec^2(D-theta), Cpe = -cos^2(D-theta) and
+        Hea = -(1 + (D-theta)^2/2)^2. More iterations approach the exact
+        (unstable) RTP; the gain perpendicular to the declination is at most
+        about 5(m+1).
+
+        Parameters
+        ----------
+        iterations : int
+            Number of iterations m; 0 or less chooses m automatically as the
+            one whose result correlates best with the analytic signal
+            amplitude of the data (Eq. 14).
+
+        Returns
+        -------
+        (array-like, int)
+            The reduced to pole data, and the number of iterations used.
+        """
+        from scipy.fft import fft2, ifft2
+
+        inc, dec = np.radians(inclination), np.radians(declination)
+
+        def filter_function(kx, ky, m):
+            rte = self._rte_operator(kx, ky, inc, dec)  # Eq. 5
+            theta = np.arctan2(kx, ky)
+            cos_term = np.cos(dec - theta)
+            # angle from the declination, folded to [-90, 90] degrees (sec^2 has period pi)
+            x = np.angle(np.exp(2j * (dec - theta))) / 2
+            h_ea = -((1 + x**2 / 2) ** 2)  # Eq. 4
+            q = cos_term**2 * (1 + x**2 / 2) ** 2  # Cpe * Hea, in [0, 1]
+            # [1 - (1-q)^(m+1)] * He = Hea * [1 - (1-q)^(m+1)] / q, -> Hea (m+1) as q -> 0
+            with np.errstate(divide="ignore", invalid="ignore"):
+                gain = np.where(
+                    q > 1e-12,
+                    -np.expm1((m + 1) * np.log1p(-np.minimum(q, 1 - 1e-15))) / q,
+                    m + 1.0,
+                )
+            return rte * h_ea * gain
+
+        if iterations and iterations > 0:
+            return self._apply_fourier_filter(
+                data,
+                lambda kx, ky: filter_function(kx, ky, int(iterations)),
+                buffer_size, buffer_method,
+            ), int(iterations)
+
+        # one forward transform, then an inverse one per trial iteration count
+        median = np.nanmedian(data)
+        filled_data, nan_mask = self.fill_nan(data)
+        buffered_data, padding_info = self.add_buffer(
+            filled_data - median, buffer_size, buffer_method
+        )
+        data_fft = fft2(buffered_data, workers=-1)
+        ny, nx = buffered_data.shape
+        kx, ky = self.create_wavenumber_grids(nx, ny)
+
+        asa = self.analytic_signal(data, buffer_size, buffer_method)
+        valid = ~nan_mask & np.isfinite(asa)
+        a = asa[valid] - np.mean(asa[valid])
+
+        best, best_m, best_corr = None, 0, -np.inf
+        for m in self.TSI_RTP_ITERATIONS:
+            result = np.real(ifft2(data_fft * filter_function(kx, ky, m), workers=-1))
+            result = self.remove_buffer(result, buffer_size, padding_info)
+            t = result[valid] - np.mean(result[valid])
+            denom = np.sqrt(np.sum(t**2) * np.sum(a**2))
+            corr = np.sum(t * a) / denom if denom > 0 else -np.inf
+            if corr > best_corr:
+                best, best_m, best_corr = result, m, corr
+
+        return self.restore_nan(best + median, nan_mask), best_m
 
     # --- Derivatives ---
 

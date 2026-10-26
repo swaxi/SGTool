@@ -150,6 +150,7 @@ SUFFIXES = {
     ),
     "reduction_to_pole": lambda p: "_RTP",
     "reduction_to_equator": lambda p: "_RTE",
+    "reduction_to_pole_low_latitude": lambda p: "_RTP_LL",
     "continuation": lambda p: ("_UC_" if p["DIRECTION"] == "up" else "_DC_") + _fmt(p["HEIGHT"]),
     "vertical_integration": lambda p: "_VI",
     "remove_regional": lambda p: "_RR_" + p["ORDER"][0] + "o",
@@ -226,6 +227,14 @@ def _c_rte(g, p):
         g.arr, inclination=p["INCLINATION"], declination=p["DECLINATION"],
         buffer_size=g.buffer,
     )
+
+
+def _c_rtp_ll(g, p):
+    grid, _m = g.processor.reduction_to_pole_low_latitude(
+        g.arr, inclination=p["INCLINATION"], declination=p["DECLINATION"],
+        iterations=p["ITERATIONS"], buffer_size=g.buffer,
+    )
+    return grid
 
 
 def _c_regional(g, p):
@@ -462,6 +471,21 @@ FILTER_SPECS = [
         help="Converts magnetic data to what it would be if measured at the magnetic pole.",
         params=[_dbl("INCLINATION", "Inclination (degrees)", -60.0),
                 _dbl("DECLINATION", "Declination (degrees)", 0.0)],
+    ),
+    dict(
+        id="reduction_to_pole_low_latitude", name="Reduction to the pole (low latitude)",
+        group=GROUP_GRAV, fft=True, compute=_c_rtp_ll,
+        operation="Low-latitude reduction to pole",
+        help=(
+            "Reduction to the pole for low magnetic latitudes by the Taylor series "
+            "iterative method (Hao et al. 2018): the grid is reduced to the equator, "
+            "then to the pole with a stable truncated operator applied iteratively. "
+            "More iterations sharpen the result but bring back stripes along the "
+            "declination; 0 chooses the number that best matches the analytic signal."
+        ),
+        params=[_dbl("INCLINATION", "Inclination (degrees)", 5.0),
+                _dbl("DECLINATION", "Declination (degrees)", 0.0),
+                _int("ITERATIONS", "Iterations (0 = automatic)", 0, minimum=0, maximum=1000)],
     ),
     dict(
         id="reduction_to_equator", name="Reduction to the equator",

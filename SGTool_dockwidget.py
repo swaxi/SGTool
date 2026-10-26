@@ -2129,6 +2129,7 @@ you are using, go to Code Repository for latest version</p>
 <a href="https://bitbucket.org/fghorow/bsdwormer/">https://bitbucket.org/fghorow/bsdwormer/</a></p>
 <p>- Multilevel B-Spline (MBA) Gridding — native Python translation of SAGA's grid_spline algorithm (no external plugin required)</p>
 <p>- Differential (Variable) RTP — G.R.J. Cooper & D.R. Cowan (2005) Taylor-series method</p>
+<p>- Low-latitude RTP — M. Hao et al. (2018) Taylor series iterative method</p>
 <p>- MRVBF/MRRTF (Multiresolution Valley Bottom/Ridge Top Flatness) — J.C. Gallant & T.I. Dowling (2003)</p>
 <p>- Euler Deconvolution uses Felipe F. Melo and Valéria C.F. Barbosa's Reliable Euler method https://github.com/ffigura/Euler-deconvolution-python</p>
 </body></html>"""

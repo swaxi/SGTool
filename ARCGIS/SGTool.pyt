@@ -446,7 +446,7 @@ class ReductionToPoleEquator(_RasterTool):
         rtp   = arcpy.Parameter(name="rtp_rte", displayName="Transform Type", datatype="GPString",
                          parameterType="Required", direction="Input")
         rtp.filter.type = "ValueList"
-        rtp.filter.list = ["Pole", "Equator"]
+        rtp.filter.list = ["Pole", "Pole (low latitude)", "Equator"]
         rtp.value = "Pole"
 
         inc   = self._param("inclination",  "Inclination (°)",  "GPDouble", default=-60.0)
@@ -466,6 +466,9 @@ class ReductionToPoleEquator(_RasterTool):
         proc = self._proc(cx, cy, buf)
         if mode == "Pole":
             result = proc.reduction_to_pole(arr, inc, dec)
+        elif mode == "Pole (low latitude)":
+            result, m = proc.reduction_to_pole_low_latitude(arr, inc, dec)
+            messages.addMessage(f"Low-latitude RTP (Hao et al. 2018): {m} iterations")
         else:
             result = proc.reduction_to_equator(arr, inc, dec)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)

@@ -443,7 +443,7 @@ class SGTool:
             self.tr("Calculate IGRF Inclination & Declination based on centroid of selected grid and specified survey height and date\nIf a grid originated from a Noddy calculation, the info is read from the geotiff metadata")
         )
         self.dlg.comboBox_3_rte_p_list.setToolTip(
-            self.tr("RTP: Reduction to Pole (high mag latitudes >20°)\nDiff. RTP: Variable (Differential) RTP using Cooper/Cowan Taylor series — accounts for spatial variation in inc/dec across the survey area\nRTE: Reduction to Equator (low mag latitudes <20°)")
+            self.tr("RTP: Reduction to Pole (high mag latitudes >20°)\nLow-lat. RTP: stable RTP for low mag latitudes (Taylor series iterative method, Hao et al. 2018); the number of iterations is chosen to best match the analytic signal\nDiff. RTP: Variable (Differential) RTP using Cooper/Cowan Taylor series — accounts for spatial variation in inc/dec across the survey area\nRTE: Reduction to Equator (low mag latitudes <20°)")
         )
         self.dlg.lineEdit_6_inc.setToolTip(
             self.tr("Manually define magnetic inclination [degrees from horizontal]")
@@ -1663,6 +1663,13 @@ class SGTool:
             return (
                 "Reduction to pole" if s == "_RTP" else "Reduction to equator"
             ), {"inclination": self.RTE_P_inc, "declination": self.RTE_P_dec}
+        if s == "_RTP_LL":
+            return "Low-latitude reduction to pole", {
+                "inclination": self.RTE_P_inc,
+                "declination": self.RTE_P_dec,
+                "iterations": 0,  # chosen automatically
+                "iterations_used": getattr(self, "RTE_P_iterations", ""),
+            }
         if s == "_DRTP":
             return "Differential reduction to pole", {
                 "date": "-".join(str(v) for v in reversed(self.RTE_P_date))
@@ -2645,6 +2652,16 @@ class SGTool:
                     buffer_size=self.buffer,
                 )
                 self.suffix = "_RTP"
+            elif self.RTE_P_type == "Low-lat. RTP":
+                self.new_grid, self.RTE_P_iterations = (
+                    self.processor.reduction_to_pole_low_latitude(
+                        self.raster_array,
+                        inclination=float(self.RTE_P_inc),
+                        declination=float(self.RTE_P_dec),
+                        buffer_size=self.buffer,
+                    )
+                )
+                self.suffix = "_RTP_LL"
             else:
                 self.new_grid = self.processor.reduction_to_equator(
                     self.raster_array,
@@ -6373,7 +6390,7 @@ class SGTool:
             self.dlg.comboBox_2_continuationDirection.addItems(self.contin_dir_list)
 
             self.dlg.comboBox_3_rte_p_list.clear()
-            self.ret_p_list = ["RTP", "Diff. RTP", "RTE"]
+            self.ret_p_list = ["RTP", "Low-lat. RTP", "Diff. RTP", "RTE"]
             self.dlg.comboBox_3_rte_p_list.addItems(self.ret_p_list)
 
             self.freq_cut_type_list = []

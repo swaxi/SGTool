@@ -74,7 +74,7 @@ _RENAMES = {
     "relief_shading": "RELIEF",
 }
 _MIN_MAX_SPECS = ("sun_shading", "anisotropy_chain_length", "anisotropy_streamline_length")
-_IGRF_SPECS = ("reduction_to_pole", "reduction_to_equator")
+_IGRF_SPECS = ("reduction_to_pole", "reduction_to_equator", "reduction_to_pole_low_latitude")
 
 
 class ReplayError(Exception):

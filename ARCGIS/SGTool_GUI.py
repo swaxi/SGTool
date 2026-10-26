@@ -240,6 +240,7 @@ HELP_TEXT = [
     "- Multilevel B-Spline (MBA) Gridding — native Python translation of SAGA's grid_spline algorithm "
     "(no external plugin required)",
     "- Differential (Variable) RTP — G.R.J. Cooper & D.R. Cowan (2005) Taylor-series method",
+    "- Low-latitude RTP — M. Hao et al. (2018) Taylor series iterative method",
     "- MRVBF/MRRTF (Multiresolution Valley Bottom/Ridge Top Flatness) — J.C. Gallant & T.I. Dowling (2003)",
     "- Euler Deconvolution uses Felipe F. Melo and Valéria C.F. Barbosa's Reliable Euler method "
     "[https://github.com/ffigura/Euler-deconvolution-python](https://github.com/ffigura/Euler-deconvolution-python)",
@@ -972,7 +973,8 @@ class SGToolApp(tk.Tk):
                 if rt == "Diff. RTP":
                     out += ["_DRTP", "_DRTP_inc", "_DRTP_dec"]
                 else:
-                    add("reduction_to_equator" if rt == "Equator" else "reduction_to_pole")
+                    add({"Equator": "reduction_to_equator",
+                         "Low-lat. RTP": "reduction_to_pole_low_latitude"}.get(rt, "reduction_to_pole"))
             if val("v_vint"):
                 add("vertical_integration")
             if val("v_cont"):
@@ -1139,8 +1141,11 @@ class SGToolApp(tk.Tk):
             "Reduction to pole or equator\n"
             "Transforms magnetic data so anomalies appear directly above sources\n"
             "Corrects asymmetry caused by the Earth's inclined field").pack(side="left")
-        tip(combo(r0, ["Pole", "Equator", "Diff. RTP"], self.v_rtp_type, w=10, chk_var=self.v_rtp),
+        tip(combo(r0, ["Pole", "Low-lat. RTP", "Equator", "Diff. RTP"], self.v_rtp_type, w=10,
+                  chk_var=self.v_rtp),
             "Choose Pole (high latitudes >20°), Equator (low latitudes <20°),\n"
+            "Low-lat. RTP (stable RTP at low latitudes, Taylor series iterative\n"
+            "method of Hao et al. 2018, iterations chosen automatically),\n"
             "or Diff. RTP (variable RTP accounting for spatial inc/dec variation\n"
             "across the survey area — Cooper & Cowan 2005)\n"
             "Diff. RTP uses the IGRF Year field; Inc/Dec are computed automatically from corners").pack(side="left", padx=4)
@@ -2655,6 +2660,13 @@ class SGToolApp(tk.Tk):
                 self.after(0, lambda: self._status("RTP…"))
                 _save(proc.reduction_to_pole(arr, inc, dec, buffer_size=buf), "rtp",
                       step_record("reduction_to_pole", INCLINATION=inc, DECLINATION=dec))
+            elif rt == "Low-lat. RTP":
+                self.after(0, lambda: self._status("Low-latitude RTP…"))
+                result, m = proc.reduction_to_pole_low_latitude(arr, inc, dec, buffer_size=buf)
+                _save(result, "rtp_ll",
+                      step_record("reduction_to_pole_low_latitude", INCLINATION=inc,
+                                  DECLINATION=dec, ITERATIONS=0))
+                self.after(0, lambda: self._status(f"Low-latitude RTP: {m} iterations"))
             else:
                 self.after(0, lambda: self._status("RTE…"))
                 _save(proc.reduction_to_equator(arr, inc, dec, buffer_size=buf), "rte",

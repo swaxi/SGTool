@@ -79,6 +79,7 @@ There are several excellent Open Source or at least free alternatives to this pl
 - Multilevel BSpline Gridding and MRVBF converted to python from SAGA code -https://saga-gis.sourceforge.io/
 - Euler Deconvolution uses Felipe F. Melo and Valéria C.F. Barbosa's Reliable Euler method https://github.com/ffigura/Euler-deconvolution-python   
 - Variable RTP modified from code kindly supplied by Gordon Cooper, Uni Witwatersrand, see Cooper & Cowan, Computers & Geosciences 31 (2005) 989–999   https://doi.org/10.1016/j.cageo.2005.02.005
+- Low-latitude RTP (Taylor series iterative method) from Hao et al., Journal of Applied Geophysics 159 (2018) 127–134   https://doi.org/10.1016/j.jappgeo.2018.08.004
 
 
 

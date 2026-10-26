@@ -20,15 +20,23 @@ Where
 
 
 **Reduction to the Equator**    
-$`H_{RTE}(k_x, k_y) = \frac{k \cos I \cos D + i k_y \cos I \sin D + k_x \sin I}{k \cos I \cos D - i k_y \cos I \sin D + k_x \sin I}`$     
-Converts magnetic data measured at any inclination and declination to what it would be if measured at the magnetic equator.
+$`H_{RTE}(\theta) = \frac{-\cos^2(D-\theta)}{[\sin I + i \cos I \cos(D-\theta)]^2}`$     
+Converts magnetic data measured at any inclination and declination to what it would be if measured at the magnetic equator (same declination); at I = 0 it leaves the data unchanged (Kis, 1990).
 Where   
-- k<sub>x</sub> and k<sub>y</sub> : The wavenumber components in the x and y directions.
-- k = The total wavenumber magnitude = $\sqrt{k_x^2 + k_y^2}$
+- $`\theta`$ : The azimuth of the wavenumber, clockwise from north = $`\arctan(k_x / k_y)`$
 - I : Magnetic inclination (in radians).
 - D : Magnetic declination (in radians).
 - i : Imaginary unit. 
    
+**Low-latitude Reduction to the Pole (Taylor series iterative)**   
+Stable RTP for low magnetic latitudes (Hao et al., 2018). With $`\theta`$ the azimuth of the wavenumber, the data are first reduced to the equator   
+$`C(\theta) = \frac{-\cos^2(D-\theta)}{[i \cos I \cos(D-\theta) + \sin I]^2}`$   
+and then to the pole with m iterations of a truncated (two-term Taylor series) equator-to-pole operator $`H_{ea} = -[1 + (D-\theta)^2/2]^2`$, which in closed form is   
+$`\tilde T_p = \{1 - [1 - C_{pe} H_{ea}]^{m+1}\} H_e \tilde T_e`$, with $`H_e = -\sec^2(D-\theta)`$ and $`C_{pe} = -\cos^2(D-\theta)`$.   
+More iterations get closer to the exact (unstable) RTP; the gain perpendicular to the declination is limited to about 5(m+1). The number of iterations is chosen automatically (0 to 200) as the one whose result correlates best with the analytic signal amplitude of the input grid. Assumes induced magnetisation only.   
+Output: `_RTP_LL`.   
+Based on: Hao, M., Zhang, F., Tai, Z., Du, W., Ren, L. & Li, Y. (2018), *Journal of Applied Geophysics* 159, 127–134. https://doi.org/10.1016/j.jappgeo.2018.08.004   
+
 **Variable (Differential) Reduction to the Pole**   
 Accounts for the spatial variation of inclination and declination across a survey area by applying a Taylor-series expansion of the standard RTP operator (Cooper & Cowan, 2005). The IGRF field is computed at the four grid corners and the centre, then bilinearly interpolated to build spatially varying inclination and declination grids. The expansion is evaluated at 13 perturbed inc/dec pairs and combined to give a single corrected output.   
 Outputs: `_DRTP` (corrected field), `_DRTP_inc` and `_DRTP_dec` (the interpolated inclination and declination fields used).   

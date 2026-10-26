@@ -7,7 +7,7 @@ name=SGTool
 qgisMinimumVersion=3.24
 qgisMaximumVersion=4.99
 description=Simple Potential Field Processing
-version=0.3.9
+version=0.4.0
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
@@ -21,7 +21,7 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=Unreleased (Petrophysics branch)
+changelog=0.4.0
       * New Petrophys tab (between Grid + Wavelets and Utils), described in docs/petrophysics.md
       * Apparent susceptibility (SI) from an RTP/RTE magnetic anomaly grid, with the field strength from the IGRF at the grid centre, and apparent density (g/cc) from a Bouguer grid in mGal or um/s2, by dividing out the response of a layer of vertical prisms in the Fourier domain; the grids' arbitrary level is not used, so each result is a variation about a background value; one calculation at a time, with live preview and provenance metadata
       * Henkel plots (density against log susceptibility) of two apparent grids as a heat map, for the whole area or per category of a polygon layer (e.g. geology units)
@@ -29,6 +29,7 @@ changelog=Unreleased (Petrophysics branch)
       * With only one grid or field chosen, histograms instead, per category if one is chosen, with the median, mean and standard deviation
       * Plots drawn by their own buttons, optionally saved as PNG and/or PDF; new script scripts/pivot_petrophysics.py to make one point per sample from one row per measurement
       * ArcGIS Pro: the same Petrophys tab in the GUI, and Apparent Susceptibility and Apparent Density toolbox tools; both calculations are also QGIS Processing algorithms and can be replayed on other grids
+      * macOS: the dock uses a smaller font and the compact Fusion style, so its layout is no larger than on Windows (set the QSettings value SGTool/compactMacUI to false to keep the native look)
       0.3.9
       * Utils tab: new Clip to Window button clips the selected grid to the current map window, saving it beside the original as <name>_clip.tif (then _clip_01, _clip_02 ... rather than overwriting an earlier clip); Clip All Layers is now half width, beside it. Also in the ArcGIS Pro GUI (Utils tab), using the ArcGIS Pro map view
       * Crop to area prior to preview to speed up on large grids

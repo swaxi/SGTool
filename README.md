@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.3.9
+# Structural Geophysics Tool v0.4.0
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
     
@@ -25,7 +25,7 @@ SGTool works in both **QGIS** and **ArcGIS Pro**: the calculations are shared, a
 - [Provenance metadata and replaying a processing history](docs/provenance-and-replay.md): every output records how it was made, and the steps can be repeated on another grid
 - [FFT filters](docs/filters-fft.md): reduction to the pole and equator, continuation, vertical integration, band / high / low pass, line-noise removal, derivatives, tilt angle, analytic signal
 - [Convolution filters, spatial statistics, gridding and utilities](docs/filters-convolution-and-statistics.md): convolution and windowed statistics, anisotropy and MRVBF, PCA / ICA, Euler deconvolution, B-spline gridding (with automatic cell size and levels from the point spacing), worms, and utilities including clipping a grid to the map window and clipping every layer of a project to a polygon
-- [Petrophysics](docs/petrophysics.md) (QGIS and ArcGIS Pro, Petrophysics branch): apparent susceptibility and density grids, Henkel plots of apparent grids for the whole area or per geology unit, plots of measured sample properties, and histograms
+- [Petrophysics](docs/petrophysics.md) (QGIS and ArcGIS Pro): apparent susceptibility and density grids, Henkel plots of apparent grids for the whole area or per geology unit, plots of measured sample properties, and histograms
 - [Changelog](docs/changelog.md) (also in `metadata.txt`)
 
 # Inputs   
@@ -45,7 +45,7 @@ SGTool works in both **QGIS** and **ArcGIS Pro**: the calculations are shared, a
 - Length units are defined by grid properties except for Up/Down Continuation (so Lat/Long wavelengths should be defined in degrees!)
 3) If multiple processing steps are required, first apply one process, select the result and then apply subsequent steps.
 
-# Petrophysics (Petrophysics branch)
+# Petrophysics
 The **Petrophys** tab (QGIS and ArcGIS Pro) estimates rock properties from potential field grids and compares them with measured samples:
 - **Apparent susceptibility** from an RTP magnetic anomaly grid (field strength from the IGRF) and **apparent density** from a Bouguer gravity grid (mGal or µm/s²), each as a new grid, with live preview
 - **Henkel plots** (density against log susceptibility) of the two apparent grids as a heat map, for the whole area or one panel per unit of a geology polygon layer

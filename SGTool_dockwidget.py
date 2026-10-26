@@ -77,6 +77,45 @@ class SGToolDockWidget(QDockWidget):
         self.closingPlugin.emit()
         event.accept()
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not getattr(self, "_tab_widths_capped", False):
+            self._tab_widths_capped = True
+            self._cap_tab_widths()
+
+    def _cap_tab_widths(self):
+        """Give every tab's group boxes, and the rows above and below them, the
+        same width (that of the Utils tab, or wider if a tab needs it) instead
+        of stretching to the width of the tab bar, so the "..." buttons and the
+        grid selectors stay beside the tab's other widgets. Run once shown, so
+        the sizes include the compact macOS style."""
+        pages = []
+        for i in range(self.tabWidget.count()):
+            page = self.tabWidget.widget(i)
+            scrolls = page.findChildren(QScrollArea)
+            if scrolls:
+                pages.append((page, scrolls[0].widget()))
+        if not pages:
+            return
+
+        def margins(content):
+            m = content.layout().contentsMargins()
+            return m.left() + m.right()
+
+        # width of the group boxes themselves, as tabs use different margins
+        groups = max(c.minimumSizeHint().width() - margins(c) for _p, c in pages)
+        for page, content in pages:
+            if page.objectName() == "Utils":
+                groups = max(groups, content.sizeHint().width() - margins(content))
+        for page, content in pages:
+            width = groups + margins(content)
+            content.setFixedWidth(width)
+            layout = page.layout()
+            for j in range(layout.count()):
+                w = layout.itemAt(j).widget()
+                if w is not None and not isinstance(w, QScrollArea):
+                    w.setMaximumWidth(max(width, w.minimumSizeHint().width()))
+
     # ------------------------------------------------------------------
     # Top-level UI assembly
     # ------------------------------------------------------------------
@@ -155,6 +194,13 @@ class SGToolDockWidget(QDockWidget):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        # vertical scroll bar on the left, beside the controls, so it can be
+        # reached without widening the dock; the contents stay left to right
+        scroll.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        content_widget.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+        scroll.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignAbsolute | Qt.AlignmentFlag.AlignTop
+        )
         scroll.setWidget(content_widget)
         return scroll
 
@@ -794,16 +840,15 @@ class SGToolDockWidget(QDockWidget):
         self.spinBox_SS_SearchRadius.setValue(2)
         self.spinBox_SS_SearchRadius.setFixedWidth(45)
 
-        g.addWidget(self.checkBox_SS_ChainLength,          5, 0, 1, 2)
-        g.addWidget(self.checkBox_SS_Streamline,           5, 2, 1, 2)
-        g.addWidget(lbl_aniso_thr,                         6, 0)
-        g.addWidget(self.doubleSpinBox_SS_AnisoThresh,     6, 1)
-        g.addWidget(lbl_ang_tol,                           6, 2)
-        g.addWidget(self.doubleSpinBox_SS_AngleTol,        6, 3)
-        g.addWidget(lbl_steps,                             6, 4)
-        g.addWidget(self.spinBox_SS_MaxSteps,              6, 5)
-        g.addWidget(lbl_search_r,                          6, 6)
-        g.addWidget(self.spinBox_SS_SearchRadius,          6, 7)
+        # Chain Length and Streamline Length don't work well yet: their widgets
+        # are kept (hidden) so the processing code that reads them still runs
+        for w in (self.checkBox_SS_ChainLength, self.checkBox_SS_Streamline,
+                  lbl_aniso_thr, self.doubleSpinBox_SS_AnisoThresh,
+                  lbl_ang_tol, self.doubleSpinBox_SS_AngleTol,
+                  lbl_steps, self.spinBox_SS_MaxSteps,
+                  lbl_search_r, self.spinBox_SS_SearchRadius):
+            w.setParent(gb)
+            w.hide()
 
         # MRVBF / MRRTF (Multiresolution Valley Bottom / Ridge Top Flatness)
         self.checkBox_MRVBF = QCheckBox(_tr("MRVBF / MRRTF / Slope"))

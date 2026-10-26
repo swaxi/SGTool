@@ -1099,24 +1099,30 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.lineEdit_bspline_epsilon, 7, 1)
         g.addWidget(self.label_bspline_lvl,        7, 2)
         g.addWidget(self.spinBox_bspline_levels,   7, 3)
-        g.addWidget(self.checkBox_bspline_ignore,  8, 0, 1, 2)
-        g.addWidget(self.lineEdit_bspline_ignore,  8, 2)
+        # the value entry sits right after the checkbox text
+        ignore_row = QHBoxLayout()
+        ignore_row.setContentsMargins(0, 0, 0, 0)
+        ignore_row.setSpacing(4)
+        ignore_row.addWidget(self.checkBox_bspline_ignore)
+        ignore_row.addWidget(self.lineEdit_bspline_ignore)
+        ignore_row.addStretch()
+        g.addLayout(ignore_row, 8, 0, 1, 4)
 
         self.checkBox_bspline_auto = QCheckBox(_tr("Auto"))
         self.checkBox_bspline_auto.setToolTip(_tr(
             "Choose the cell size and Max Levels from the spacing of the points.\n"
             "Editing either value yourself switches Auto off."))
-        g.addWidget(self.checkBox_bspline_auto, 6, 3, 1, 2)
+        g.addWidget(self.checkBox_bspline_auto, 9, 0, 1, 2)
+
+        self.pushButton_bspline_3 = QPushButton(_tr("BSpline Gridding"))
+        self.pushButton_bspline_3.setStyleSheet("font-weight: bold;")
+        g.addWidget(self.pushButton_bspline_3, 10, 1, 1, 3)
 
         self.label_bspline_auto_info = QLabel("")
         self.label_bspline_auto_info.setWordWrap(True)
         self.label_bspline_auto_info.setStyleSheet("color: #555555;")
         self.label_bspline_auto_info.setVisible(False)
-        g.addWidget(self.label_bspline_auto_info, 10, 0, 1, 5)
-
-        self.pushButton_bspline_3 = QPushButton(_tr("BSpline Gridding"))
-        self.pushButton_bspline_3.setStyleSheet("font-weight: bold;")
-        g.addWidget(self.pushButton_bspline_3, 9, 1, 1, 3)
+        g.addWidget(self.label_bspline_auto_info, 11, 0, 1, 5)
 
         g.setColumnStretch(1, 1)
         return gb

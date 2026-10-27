@@ -1145,7 +1145,7 @@ class SGToolApp(tk.Tk):
                   chk_var=self.v_rtp),
             "Choose Pole (high latitudes >20°), Equator (low latitudes <20°),\n"
             "Low-lat. RTP (stable RTP at low latitudes, Taylor series iterative\n"
-            "method of Hao et al. 2018, iterations chosen automatically),\n"
+            "method of Hao et al. 2018),\n"
             "or Diff. RTP (variable RTP accounting for spatial inc/dec variation\n"
             "across the survey area — Cooper & Cowan 2005)\n"
             "Diff. RTP uses the IGRF Year field; Inc/Dec are computed automatically from corners").pack(side="left", padx=4)
@@ -1163,6 +1163,30 @@ class SGToolApp(tk.Tk):
         lbl(r1, "Int (nT):").pack(side="left", padx=(8,0))
         tip(entry(r1, self.v_intensity, 8),
             "Survey intensity in nT").pack(side="left", padx=2)
+
+        # low-latitude RTP settings, shown only when it is chosen
+        r_ll = tk.Frame(gm, bg=BG)
+        self.v_ll_iterations = tk.StringVar(value="")
+        self.v_ll_stripe = tk.StringVar(value="10")
+        lbl(r_ll, "Iterations:").pack(side="left")
+        tip(entry(r_ll, self.v_ll_iterations, 5, chk_var=self.v_rtp),
+            "Low-latitude RTP: number of iterations (blank = chosen automatically as the\n"
+            "best match to the analytic signal). Fewer iterations: less striping along\n"
+            "the declination but a less complete reduction to the pole").pack(side="left", padx=2)
+        lbl(r_ll, "Stripe suppression (°):").pack(side="left", padx=(8,0))
+        tip(entry(r_ll, self.v_ll_stripe, 5, chk_var=self.v_rtp),
+            "Low-latitude RTP: suppresses stripes parallel to the declination (degrees, 0 = off)\n"
+            "Within about this angle of the direction perpendicular to the declination the\n"
+            "iterations fade to none, as there the data hold almost no signal at low latitudes.\n"
+            "10-20° suits inclinations within a few degrees of the equator; use less further from it"
+            ).pack(side="left", padx=2)
+
+        def _show_ll(*_):
+            if self.v_rtp_type.get() == "Low-lat. RTP":
+                r_ll.pack(fill="x", padx=4, pady=2, after=r1)
+            else:
+                r_ll.pack_forget()
+        self.v_rtp_type.trace_add("write", _show_ll)
 
         r2 = tk.Frame(gm, bg=BG); r2.pack(fill="x", padx=4, pady=2)
         self.v_igrf_lat  = tk.StringVar(value="-25.0")
@@ -2632,7 +2656,10 @@ class SGToolApp(tk.Tk):
             rt  = self.v_rtp_type.get()
             inc = float(self.v_inc.get())
             dec = float(self.v_dec.get())
-            if rt == "Diff. RTP":
+            if rt != "Diff. RTP" and inc == 0 and dec == 0:
+                self.after(0, lambda: messagebox.showwarning(
+                    "RTP/RTE", "You need to define Inc and Dec first!"))
+            elif rt == "Diff. RTP":
                 self.after(0, lambda: self._status("Differential (variable) RTP…"))
                 year = float(self.v_igrf_year.get())
                 inc_c, dec_c, inc_ctr, dec_ctr = self._get_igrf_corners(in_r, year)
@@ -2662,12 +2689,21 @@ class SGToolApp(tk.Tk):
                       step_record("reduction_to_pole", INCLINATION=inc, DECLINATION=dec))
             elif rt == "Low-lat. RTP":
                 self.after(0, lambda: self._status("Low-latitude RTP…"))
+                try:
+                    iterations = max(int(float(self.v_ll_iterations.get())), 0)
+                except ValueError:
+                    iterations = 0  # blank: automatic
+                try:
+                    stripe = max(float(self.v_ll_stripe.get()), 0.0)
+                except ValueError:
+                    stripe = 0.0
                 result, m = proc.reduction_to_pole_low_latitude(
-                    arr, inc, dec, stripe_width=10.0, buffer_size=buf)
+                    arr, inc, dec, iterations=iterations, stripe_width=stripe, buffer_size=buf)
                 _save(result, "rtp_ll",
                       step_record("reduction_to_pole_low_latitude", INCLINATION=inc,
-                                  DECLINATION=dec, ITERATIONS=0, STRIPE_WIDTH=10.0))
-                self.after(0, lambda: self._status(f"Low-latitude RTP: {m} iterations"))
+                                  DECLINATION=dec, ITERATIONS=iterations, STRIPE_WIDTH=stripe))
+                how = "chosen automatically" if not iterations else "set"
+                self.after(0, lambda: self._status(f"Low-latitude RTP: {m} iterations ({how})"))
             else:
                 self.after(0, lambda: self._status("RTE…"))
                 _save(proc.reduction_to_equator(arr, inc, dec, buffer_size=buf), "rte",

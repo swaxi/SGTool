@@ -452,7 +452,11 @@ class ReductionToPoleEquator(_RasterTool):
         inc   = self._param("inclination",  "Inclination (°)",  "GPDouble", default=-60.0)
         dec   = self._param("declination",  "Declination (°)",  "GPDouble", default=0.0)
         buf   = self._param("buffer_size",  "FFT Buffer (pixels)", "GPLong", required=False, default=10)
-        return [in_r, out_r, rtp, inc, dec, buf]
+        iters = self._param("iterations", "Low-latitude: iterations (0 = automatic)", "GPLong",
+                            required=False, default=0)
+        strp  = self._param("stripe_width", "Low-latitude: stripe suppression (°, 0 = off)",
+                            "GPDouble", required=False, default=10.0)
+        return [in_r, out_r, rtp, inc, dec, buf, iters, strp]
 
     def execute(self, parameters, messages):
         in_r  = parameters[0].valueAsText
@@ -461,16 +465,23 @@ class ReductionToPoleEquator(_RasterTool):
         inc   = float(parameters[3].value)
         dec   = float(parameters[4].value)
         buf   = int(parameters[5].value) if parameters[5].value else 10
+        iters = max(int(parameters[6].value or 0), 0)
+        strp  = max(float(parameters[7].value), 0.0) if parameters[7].value is not None else 10.0
+        if inc == 0 and dec == 0:
+            messages.addErrorMessage("You need to define Inc and Dec first!")
+            return
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
         proc = self._proc(cx, cy, buf)
         if mode == "Pole":
-            result = proc.reduction_to_pole(arr, inc, dec)
+            result = proc.reduction_to_pole(arr, inc, dec, buffer_size=buf)
         elif mode == "Pole (low latitude)":
-            result, m = proc.reduction_to_pole_low_latitude(arr, inc, dec, stripe_width=10.0)
-            messages.addMessage(f"Low-latitude RTP (Hao et al. 2018): {m} iterations")
+            result, m = proc.reduction_to_pole_low_latitude(
+                arr, inc, dec, iterations=iters, stripe_width=strp, buffer_size=buf)
+            how = "chosen automatically" if not iters else "set"
+            messages.addMessage(f"Low-latitude RTP (Hao et al. 2018): {m} iterations ({how})")
         else:
-            result = proc.reduction_to_equator(arr, inc, dec)
+            result = proc.reduction_to_equator(arr, inc, dec, buffer_size=buf)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"RTP/RTE ({mode}) complete → {out_r}")
 

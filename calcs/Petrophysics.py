@@ -282,32 +282,47 @@ def _js_distance(p, q):
     return math.sqrt(max(0.0, (kl(p, m) + kl(q, m)) / 2))
 
 
-def group_distributions(distributions, counts, n_groups=0, min_count=GROUP_MIN_CELLS):
-    """Group categories whose distributions are alike.
+def count_modes(distribution, count, min_frac=0.1, min_points=10, rise=1.25):
+    """Number of distinct peaks of a category's distribution (its fraction of
+    points per bin, 1-D or 2-D).
 
-    distributions: for each category its fraction of points per bin (1-D or 2-D,
-    on bins shared by all categories). They are lightly smoothed, compared with
-    the Jensen-Shannon distance and grouped by average-linkage clustering.
-    n_groups: 0 chooses the number from the largest jump in the clustering (one
-    group if all are alike), otherwise 2 to MAX_GROUPS.
-    Returns a label per category: "A", "B" ... in order of the group's mean
-    position along the first (x) axis, or UNGROUPED for categories with fewer
-    than min_count points.
+    The histogram is smoothed (by 4% of its bins per axis, at least one bin) and
+    cut at heights from 5% to 80% of its maximum. A cut that leaves several
+    separate regions (touching cells, diagonals included, are one region) counts
+    them as peaks if each holds at least min_frac of the points and min_points
+    points, and rises to at least `rise` times the cut, so there is a real dip
+    between the peaks. The most peaks found at any height is returned.
     """
-    from scipy.cluster.hierarchy import fcluster, linkage
-    from scipy.ndimage import gaussian_filter
+    from scipy import ndimage
 
-    labels = [UNGROUPED] * len(distributions)
-    use = [i for i, n in enumerate(counts) if n >= min_count]
-    if len(use) < 2:
-        for i in use:
-            labels[i] = "A"
-        return labels
-    smooth = []
-    for i in use:
-        s = gaussian_filter(np.asarray(distributions[i], dtype=float), sigma=1.0, mode="constant")
-        smooth.append(s / s.sum() if s.sum() > 0 else s)
-    n = len(use)
+    h = np.asarray(distribution, dtype=float)
+    s = ndimage.gaussian_filter(h, max(1.0, 0.04 * max(h.shape)), mode="constant")
+    if s.sum() <= 0:
+        return 1
+    s = s / s.sum()
+    structure = np.ones((3,) * s.ndim)
+    peaks = 1
+    for f in np.linspace(0.05, 0.8, 16):
+        level = f * s.max()
+        regions, n = ndimage.label(s > level, structure)
+        if n < 2:
+            continue
+        index = np.arange(1, n + 1)
+        mass = np.asarray(ndimage.sum(s, regions, index))
+        top = np.asarray(ndimage.maximum(s, regions, index))
+        real = (mass >= min_frac) & (mass * count >= min_points) & (top >= rise * level)
+        peaks = max(peaks, int(real.sum()))
+    return peaks
+
+
+def _cluster(smooth, n_groups):
+    """Cluster numbers (1, 2 ...) for smoothed distributions: Jensen-Shannon
+    distance, average linkage, cut into n_groups (0: at the largest jump)."""
+    from scipy.cluster.hierarchy import fcluster, linkage
+
+    n = len(smooth)
+    if n < 2:
+        return [1] * n
     pairs = [_js_distance(smooth[a], smooth[b]) for a in range(n) for b in range(a + 1, n)]
     tree = linkage(np.array(pairs), method="average")
     heights = tree[:, 2]
@@ -321,23 +336,63 @@ def group_distributions(distributions, counts, n_groups=0, min_count=GROUP_MIN_C
         # cut in the largest jump between merges: below merge j + 1, n - j - 1 groups
         k = n - int(np.argmax(np.diff(heights))) - 1
     k = int(np.clip(k, 1, min(MAX_GROUPS, n)))
-    cluster = fcluster(tree, k, criterion="maxclust")
+    return list(fcluster(tree, k, criterion="maxclust"))
 
-    # letters in order of the groups' mean position along the x axis
-    position = np.arange(smooth[0].shape[0])
-    centres = {}
-    for c, s in zip(cluster, smooth):
-        profile = s.sum(axis=tuple(range(1, s.ndim))) if s.ndim > 1 else s
-        centres.setdefault(c, []).append(float((position * profile).sum()))
-    order = sorted(centres, key=lambda c: np.mean(centres[c]))
-    letter = {c: "ABCDEFGH"[j] for j, c in enumerate(order)}
-    for i, c in zip(use, cluster):
-        labels[i] = letter[c]
+
+def group_distributions(distributions, counts, n_groups=0, min_count=GROUP_MIN_CELLS):
+    """Group categories whose distributions are alike.
+
+    distributions: for each category its fraction of points per bin (1-D or 2-D,
+    on bins shared by all categories). Categories with more than one peak
+    (count_modes) are grouped only among themselves, as a mixture of two
+    populations otherwise joins whichever of them it is nearest. Within each set
+    the distributions are lightly smoothed, compared with the Jensen-Shannon
+    distance and grouped by average-linkage clustering.
+    n_groups: 0 chooses the number from the largest jump in the clustering (one
+    group if all are alike), otherwise 2 to MAX_GROUPS; it applies to the
+    single-peaked categories, the multi-peaked ones are always grouped
+    automatically.
+    Returns a label per category: "A", "B" ... for single-peaked groups and
+    "M1", "M2" ... for multi-peaked ones, each in order of the group's mean
+    position along the first (x) axis, or UNGROUPED for categories with fewer
+    than min_count points.
+    """
+    from scipy.ndimage import gaussian_filter
+
+    labels = [UNGROUPED] * len(distributions)
+    use = [i for i, n in enumerate(counts) if n >= min_count]
+    smooth = {}
+    for i in use:
+        s = gaussian_filter(np.asarray(distributions[i], dtype=float), sigma=1.0, mode="constant")
+        smooth[i] = s / s.sum() if s.sum() > 0 else s
+    multi = [i for i in use if count_modes(distributions[i], counts[i]) > 1]
+    single = [i for i in use if i not in multi]
+
+    for members, k, names in ((single, n_groups, "ABCDEFGH"),
+                              (multi, 0, [f"M{j}" for j in range(1, MAX_GROUPS + 1)])):
+        if not members:
+            continue
+        cluster = _cluster([smooth[i] for i in members], k)
+        # labels in order of the groups' mean position along the x axis
+        position = np.arange(smooth[members[0]].shape[0])
+        centres = {}
+        for c, i in zip(cluster, members):
+            s = smooth[i]
+            profile = s.sum(axis=tuple(range(1, s.ndim))) if s.ndim > 1 else s
+            centres.setdefault(c, []).append(float((position * profile).sum()))
+        order = sorted(centres, key=lambda c: np.mean(centres[c]))
+        name = {c: names[j] for j, c in enumerate(order)}
+        for c, i in zip(cluster, members):
+            labels[i] = name[c]
     return labels
 
 
 def group_colour(label):
-    return OTHER_COLOUR if label == UNGROUPED else CATEGORY_COLOURS["ABCDEFGH".index(label)]
+    if label == UNGROUPED:
+        return OTHER_COLOUR
+    if label.startswith("M"):  # multi-peaked groups: colours from the other end
+        return CATEGORY_COLOURS[-int(label[1:])]
+    return CATEGORY_COLOURS["ABCDEFGH".index(label)]
 
 
 def _group_order(names, labels):
@@ -347,19 +402,26 @@ def _group_order(names, labels):
 
 
 def _frame(ax, label):
-    """Outline a panel in its group's colour."""
+    """Outline a panel in its group's colour (dashed for a multi-peaked group)."""
     for spine in ax.spines.values():
         spine.set_visible(True)
         spine.set_edgecolor(group_colour(label))
         spine.set_linewidth(1.6)
+        if label.startswith("M"):
+            spine.set_linestyle((0, (4, 2)))
 
 
 def _group_note(labels, what, min_count):
-    groups = sorted({g for g in labels if g != UNGROUPED})
-    text = (f"Groups {groups[0]}-{groups[-1]}" if len(groups) > 1 else f"Group {groups[0]}") \
-        if groups else "No groups"
+    single = sorted({g for g in labels if g != UNGROUPED and not g.startswith("M")})
+    multi = sorted({g for g in labels if g.startswith("M")})
+    text = (f"Groups {single[0]}-{single[-1]}" if len(single) > 1 else f"Group {single[0]}") \
+        if single else "No single-peaked groups"
     text += (": categories with similar distributions (Jensen-Shannon distance on the "
              "plotted bins, average-linkage clustering), lettered along the x axis.")
+    if multi:
+        text += ("\n" + (f"{multi[0]}-{multi[-1]}" if len(multi) > 1 else multi[0])
+                 + " (dashed): categories with more than one peak, grouped only among "
+                 "themselves.")
     if UNGROUPED in labels:
         text += f"\n{UNGROUPED} = fewer than {min_count} {what}, not grouped."
     return text

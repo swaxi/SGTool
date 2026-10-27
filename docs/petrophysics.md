@@ -210,6 +210,20 @@ categories whose distributions are alike and label them **A, B, C ...**:
   distributions and the choice of the number of groups are SGTool's.
 - The box beside it sets the number of groups: **Auto** cuts the clustering at its
   largest jump (one group if all the categories are alike), or choose 2 to 8.
+- Categories with **more than one peak** (for example a map unit that covers two
+  lithologies) are grouped only among themselves and labelled **M1, M2 ...**, with a
+  dashed outline. A mixture of two populations lies between them, so otherwise it
+  would join whichever group it happens to be nearest. A category counts as having
+  several peaks if its smoothed histogram (1-D, or 2-D for Henkel plots and sample
+  scatter plots), cut at some height between 5% and 80% of its maximum, splits into
+  separate parts that each hold at least 10% (and 10) of its values and rise at
+  least 25% above the cut. In tests it reliably flags two equal-width populations
+  whose means are about 3.5 standard deviations apart when they are in equal
+  proportions, or 4 when one is 30% of the values, and it flagged no
+  single-peaked distributions, skewed ones included. Closer populations, which
+  show as a single broad or shouldered peak, count as single-peaked. The
+  number of groups chosen applies to the single-peaked categories; the
+  multi-peaked ones are always grouped automatically.
 - Groups are lettered in order of their mean position along the x axis (for
   Henkel plots, A is the lightest).
 - Per-category panels (heat maps and histograms) are ordered by group, with the

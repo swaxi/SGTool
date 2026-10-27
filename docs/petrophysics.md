@@ -51,6 +51,13 @@ Both model the ground as a layer of vertical prisms whose top is a depth *z* bel
 the sensor and which is *t* thick, and divide the layer's response out of the grid
 in the Fourier domain (*k* is the radial wavenumber in rad/m).
 
+*Reference*: the Fourier-domain response of a layer, Parker (1973); apparent
+density mapping, Granser, Meurers & Steinhauser (1989).
+
+*In SGTool*: original code. The layer response is divided out directly, with
+SGTool's high-cut taper, without the k = 0 term, and with a background added (see
+below).
+
 ### Apparent susceptibility
 
 From a magnetic anomaly grid (nT) already reduced to the pole (or to the equator,
@@ -121,6 +128,10 @@ plot title says how many. Heat maps count points per bin on a log colour scale
 (viridis), with empty bins left white.
 
 ### Apparent Henkel Plot / Histogram
+
+*Reference*: Henkel plots (density against log susceptibility), Henkel (1991).
+
+*In SGTool*: original code (matplotlib).
 
 - **Plot Apparent**: a heat map (200 x 200 bins) of the chosen apparent density
   grid (linear x axis) against the apparent susceptibility grid (log y axis). Each
@@ -194,6 +205,9 @@ categories whose distributions are alike and label them **A, B, C ...**:
   lightly smoothed, is compared with every other category's using the
   Jensen-Shannon distance (0 = identical, 1 = no overlap), and the categories are
   grouped by average-linkage hierarchical clustering.
+  *Reference*: Jensen-Shannon divergence, Lin (1991); average linkage (UPGMA),
+  Sokal & Michener (1958). *In SGTool*: original code; the smoothing of the
+  distributions and the choice of the number of groups are SGTool's.
 - The box beside it sets the number of groups: **Auto** cuts the clustering at its
   largest jump (one group if all the categories are alike), or choose 2 to 8.
 - Groups are lettered in order of their mean position along the x axis (for
@@ -218,3 +232,19 @@ property on one sample are averaged), copying columns that are the same on every
 row of a sample (such as lithology) for use as the category field. The column
 names it reads (`SAMPLENO`, `PROPERTY`, `Value`) and the short property names are
 set at the top of the script.
+
+## References
+
+- Granser, H., Meurers, B., Steinhauser, P., 1989. Apparent density mapping and 3D
+  gravity inversion in the eastern Alps. *Geophysical Prospecting* 37, 279–292.
+  https://doi.org/10.1111/j.1365-2478.1989.tb02207.x
+- Henkel, H., 1991. Petrophysical properties (density and magnetization) of rocks
+  from the northern part of the Baltic Shield. *Tectonophysics* 192, 1–19.
+  https://doi.org/10.1016/0040-1951(91)90242-K
+- Lin, J., 1991. Divergence measures based on the Shannon entropy. *IEEE
+  Transactions on Information Theory* 37, 145–151. https://doi.org/10.1109/18.61115
+- Parker, R.L., 1973. The rapid calculation of potential anomalies. *Geophysical
+  Journal of the Royal Astronomical Society* 31, 447–455.
+  https://doi.org/10.1111/j.1365-246X.1973.tb06513.x
+- Sokal, R.R., Michener, C.D., 1958. A statistical method for evaluating systematic
+  relationships. *University of Kansas Science Bulletin* 38, 1409–1438.

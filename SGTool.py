@@ -3700,8 +3700,12 @@ class SGTool:
     def _map_window_layer(self):
         """A temporary polygon layer of the area the map canvas shows, in the canvas CRS."""
         canvas = self.iface.mapCanvas()
-        layer = QgsVectorLayer("Polygon", "map_window", "memory")
-        layer.setCrs(canvas.mapSettings().destinationCrs())
+        crs = canvas.mapSettings().destinationCrs()
+        # the CRS goes in the URI: setCrs() afterwards would leave the memory
+        # provider (which some algorithms read) in EPSG:4326
+        layer = QgsVectorLayer(
+            "Polygon?crs=" + (crs.authid() or "wkt:" + crs.toWkt()), "map_window", "memory"
+        )
         feature = QgsFeature()
         feature.setGeometry(QgsGeometry.fromRect(canvas.extent()))
         layer.dataProvider().addFeatures([feature])

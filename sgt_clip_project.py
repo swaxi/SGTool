@@ -141,8 +141,20 @@ class ClipJob:
         processing.run("native:savefeatures", {"INPUT": layer, "OUTPUT": path},
                        context=self.context, feedback=self.feedback)
 
+    def _why_missing(self, path):
+        """Why the clipping algorithm wrote no file: the end of its log (GDAL algorithms
+        report a failure there instead of raising)."""
+        try:
+            lines = [l for l in self.feedback.textLog().splitlines() if l.strip()]
+        except AttributeError:  # QGIS before 3.14
+            lines = []
+        tail = " / ".join(lines[-3:]) if lines else "no message from the algorithm"
+        return f"no file was written ({tail})"
+
     def _load_clipped(self, original, path, qml, name):
         """The clipped file as a layer called `name`, in the original's style."""
+        if not os.path.exists(path):
+            raise RuntimeError(self._why_missing(path))
         if isinstance(original, QgsRasterLayer):
             new = QgsRasterLayer(path, name)
         else:
@@ -184,6 +196,8 @@ class ClipJob:
         else:
             self.kept.append((name, f"{layer.__class__.__name__} layers are carried over unchanged"))
             return layer.clone()
+        if not os.path.exists(path):
+            raise RuntimeError(self._why_missing(path))
 
         message, ok = layer.saveNamedStyle(qml)
         if not ok:

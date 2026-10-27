@@ -1968,7 +1968,8 @@ class SGToolDockWidget(QDockWidget):
         self.mMapLayerComboBox_clip_polygon = QgsMapLayerComboBox()
         self.mMapLayerComboBox_clip_polygon.setToolTip(
             _tr("Polygon layer to clip every layer of the project to. If some of its "
-                "polygons are selected, only those are used.")
+                "polygons are selected, only those are used.\n"
+                "Current map window (the default) clips to the area the map shows.")
         )
         self.pushButton_clip_all_layers = QPushButton(_tr("Clip all Layers"))
         self.pushButton_clip_all_layers.setStyleSheet("font-weight: bold;")

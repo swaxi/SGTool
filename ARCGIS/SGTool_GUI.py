@@ -1474,7 +1474,7 @@ class SGToolApp(tk.Tk):
             lbl(frame, label).pack(side="left", padx=(8, 0))
             tip(entry(frame, var, 6, chk_var=self.v_mrvbf), text).pack(side="left", padx=2)
 
-        # ---- Local Anisotropy / Chain Length / Streamline Length ----
+        # ---- Local Anisotropy (Chain Length / Streamline Length hidden) ----
         ra1 = tk.Frame(ss, bg=BG); ra1.pack(fill="x", padx=4, pady=2)
         self.v_ss_aniso          = tk.BooleanVar()
         self.v_ss_aniso_win_type = tk.StringVar(value="Gaussian")
@@ -1487,7 +1487,9 @@ class SGToolApp(tk.Tk):
             "Gaussian: weighted by distance (recommended)\n"
             "Box: uniform mean").pack(side="left", padx=6)
 
-        ra2 = tk.Frame(ss, bg=BG); ra2.pack(fill="x", padx=4, pady=2)
+        # Chain Length and Streamline Length don't work well yet: their rows are
+        # built but not shown (as in the QGIS dialog), so they stay unticked
+        ra2 = tk.Frame(ss, bg=BG)
         self.v_ss_chain  = tk.BooleanVar()
         self.v_ss_stream = tk.BooleanVar()
         tip(check(ra2, "Chain Length", self.v_ss_chain),
@@ -1500,7 +1502,7 @@ class SGToolApp(tk.Tk):
             "using sub-pixel bilinear interpolation.  Total path length is the score.\n"
             "Returns: _SS_StreamLen").pack(side="left")
 
-        ra3 = tk.Frame(ss, bg=BG); ra3.pack(fill="x", padx=4, pady=2)
+        ra3 = tk.Frame(ss, bg=BG)
         self.v_ss_aniso_thresh = tk.StringVar(value="0.3")
         self.v_ss_angle_tol    = tk.StringVar(value="22.5")
         self.v_ss_search_r     = tk.StringVar(value="2")

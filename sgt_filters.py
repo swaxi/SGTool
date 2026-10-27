@@ -647,29 +647,8 @@ FILTER_SPECS = [
                 _opt("WINDOW_TYPE", "Window", ["gaussian", "box"]),
                 _opt("OUTPUT_TYPE", "Output", ["Magnitude", "Orientation"])],
     ),
-    dict(
-        id="anisotropy_chain_length", name="Anisotropy chain length",
-        group=GROUP_STATS, fft=False, compute=_c_chain_length, operation="Anisotropy chain length",
-        help="Scores each strongly directional cell by the size of the connected chain of cells "
-             "with similar orientation that it belongs to.",
-        params=[_int("WINDOW", "Window size (pixels)", 7, minimum=3),
-                _opt("WINDOW_TYPE", "Window", ["gaussian", "box"]),
-                _dbl("ANISOTROPY_THRESHOLD", "Anisotropy threshold (0-1)", 0.3, minimum=0.0, maximum=1.0),
-                _dbl("ANGLE_TOLERANCE", "Orientation tolerance (degrees)", 22.5, minimum=0.0),
-                _int("SEARCH_RADIUS", "Search radius (pixels)", 2, minimum=1)],
-    ),
-    dict(
-        id="anisotropy_streamline_length", name="Anisotropy streamline length",
-        group=GROUP_STATS, fft=False, compute=_c_streamline_length,
-        operation="Anisotropy streamline length",
-        help="Traces each strongly directional cell forwards and backwards along the orientation "
-             "field and gives the length of the path (pixels).",
-        params=[_int("WINDOW", "Window size (pixels)", 7, minimum=3),
-                _opt("WINDOW_TYPE", "Window", ["gaussian", "box"]),
-                _dbl("ANISOTROPY_THRESHOLD", "Anisotropy threshold (0-1)", 0.3, minimum=0.0, maximum=1.0),
-                _dbl("ANGLE_TOLERANCE", "Orientation tolerance (degrees)", 22.5, minimum=0.0),
-                _int("MAX_STEPS", "Maximum steps", 200, minimum=1)],
-    ),
+    # Anisotropy chain length and streamline length (_c_chain_length,
+    # _c_streamline_length) are left out until they work well, as in the dialog
     dict(
         id="threshold_to_nan", name="Threshold to NaN",
         group=GROUP_UTIL, fft=False, compute=_c_nan, operation="Threshold to NaN",

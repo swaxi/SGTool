@@ -3772,7 +3772,10 @@ class SGTool:
         level = Qgis.MessageLevel.Success if not job.errors else Qgis.MessageLevel.Warning
         text = job.summary()
         if job.errors:
-            text += " (see the SGTool messages log for the failures)"
+            first, why = job.errors[0]
+            text += f". First failure, {first}: {why}"
+            if job.report_path:
+                text += f" (all layers: {job.report_path})"
         self.iface.messageBar().pushMessage("SGTool", text, level=level, duration=20)
 
     def procBSDworms(self):

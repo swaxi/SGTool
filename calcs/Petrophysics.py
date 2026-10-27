@@ -254,8 +254,8 @@ def _panel_title(ax, name, n, columns, group=None):
     import textwrap
 
     width = 30 if columns <= 3 else 24 if columns <= 5 else 18
-    if group is not None:
-        name = f"{group} | {name}"
+    if group is not None and group != UNGROUPED:
+        name = f"{group} - {name}"
     lines = textwrap.wrap(name, width) or [name]
     if len(lines) > 2:
         lines = [lines[0], textwrap.shorten(" ".join(lines[1:]), width, placeholder="...")]
@@ -268,6 +268,16 @@ GROUP_MIN_CELLS = 30      # grid cells a category needs to be grouped
 GROUP_MIN_SAMPLES = 10    # measured samples a category needs to be grouped
 MAX_GROUPS = 8
 UNGROUPED = "-"
+BIMODAL = "Bimodal"       # label of groups of categories with more than one peak
+
+
+def _is_bimodal(label):
+    return label.startswith(BIMODAL)
+
+
+def _group_rank(label):
+    """Sort key for group labels: A, B ... then Bimodal (1, 2 ...), then ungrouped."""
+    return (label == UNGROUPED, _is_bimodal(label), label)
 
 
 def _js_distance(p, q):
@@ -353,9 +363,9 @@ def group_distributions(distributions, counts, n_groups=0, min_count=GROUP_MIN_C
     single-peaked categories, the multi-peaked ones are always grouped
     automatically.
     Returns a label per category: "A", "B" ... for single-peaked groups and
-    "M1", "M2" ... for multi-peaked ones, each in order of the group's mean
-    position along the first (x) axis, or UNGROUPED for categories with fewer
-    than min_count points.
+    "Bimodal" (or "Bimodal 1", "Bimodal 2" ... if there are several such groups)
+    for multi-peaked ones, each in order of the group's mean position along the
+    first (x) axis, or UNGROUPED for categories with fewer than min_count points.
     """
     from scipy.ndimage import gaussian_filter
 
@@ -368,8 +378,7 @@ def group_distributions(distributions, counts, n_groups=0, min_count=GROUP_MIN_C
     multi = [i for i in use if count_modes(distributions[i], counts[i]) > 1]
     single = [i for i in use if i not in multi]
 
-    for members, k, names in ((single, n_groups, "ABCDEFGH"),
-                              (multi, 0, [f"M{j}" for j in range(1, MAX_GROUPS + 1)])):
+    for members, k, multi_peaked in ((single, n_groups, False), (multi, 0, True)):
         if not members:
             continue
         cluster = _cluster([smooth[i] for i in members], k)
@@ -381,6 +390,12 @@ def group_distributions(distributions, counts, n_groups=0, min_count=GROUP_MIN_C
             profile = s.sum(axis=tuple(range(1, s.ndim))) if s.ndim > 1 else s
             centres.setdefault(c, []).append(float((position * profile).sum()))
         order = sorted(centres, key=lambda c: np.mean(centres[c]))
+        if not multi_peaked:
+            names = "ABCDEFGH"
+        elif len(order) == 1:
+            names = [BIMODAL]
+        else:
+            names = [f"{BIMODAL} {j}" for j in range(1, len(order) + 1)]
         name = {c: names[j] for j, c in enumerate(order)}
         for c, i in zip(cluster, members):
             labels[i] = name[c]
@@ -390,14 +405,15 @@ def group_distributions(distributions, counts, n_groups=0, min_count=GROUP_MIN_C
 def group_colour(label):
     if label == UNGROUPED:
         return OTHER_COLOUR
-    if label.startswith("M"):  # multi-peaked groups: colours from the other end
-        return CATEGORY_COLOURS[-int(label[1:])]
+    if _is_bimodal(label):  # multi-peaked groups: colours from the other end
+        number = label[len(BIMODAL):].strip()
+        return CATEGORY_COLOURS[-int(number or 1)]
     return CATEGORY_COLOURS["ABCDEFGH".index(label)]
 
 
 def _group_order(names, labels):
     """Panel order: by group, then by name; ungrouped last."""
-    rank = lambda i: (labels[i] == UNGROUPED, labels[i], _natural_key(names[i]))
+    rank = lambda i: (_group_rank(labels[i]), _natural_key(names[i]))
     return sorted(range(len(names)), key=rank)
 
 
@@ -407,23 +423,23 @@ def _frame(ax, label):
         spine.set_visible(True)
         spine.set_edgecolor(group_colour(label))
         spine.set_linewidth(1.6)
-        if label.startswith("M"):
+        if _is_bimodal(label):
             spine.set_linestyle((0, (4, 2)))
 
 
 def _group_note(labels, what, min_count):
-    single = sorted({g for g in labels if g != UNGROUPED and not g.startswith("M")})
-    multi = sorted({g for g in labels if g.startswith("M")})
+    single = sorted({g for g in labels if g != UNGROUPED and not _is_bimodal(g)})
+    multi = sorted({g for g in labels if _is_bimodal(g)})
     text = (f"Groups {single[0]}-{single[-1]}" if len(single) > 1 else f"Group {single[0]}") \
         if single else "No single-peaked groups"
     text += (": categories with similar distributions (Jensen-Shannon distance on the "
              "plotted bins, average-linkage clustering), lettered along the x axis.")
     if multi:
-        text += ("\n" + (f"{multi[0]}-{multi[-1]}" if len(multi) > 1 else multi[0])
-                 + " (dashed): categories with more than one peak, grouped only among "
-                 "themselves.")
+        text += ("\n" + (f"{BIMODAL} 1-{len(multi)}" if len(multi) > 1 else multi[0])
+                 + " (dashed outline): categories with more than one peak, grouped only "
+                 "among themselves.")
     if UNGROUPED in labels:
-        text += f"\n{UNGROUPED} = fewer than {min_count} {what}, not grouped."
+        text += f"\nNo group label: fewer than {min_count} {what}, not grouped."
     return text
 
 
@@ -617,14 +633,15 @@ def scatter(x, y, title, x_label, y_label, x_log=False, y_log=True,
         columns = math.ceil(entries / 24)
         fig, ax = _subplots(figsize=(7 + 1.7 * columns, 6))
         # legend in name order, or by group then name
-        key = ((lambda n: (group[n] == UNGROUPED, group[n], _natural_key(n))) if group
+        key = ((lambda n: (_group_rank(group[n]), _natural_key(n))) if group
                else _natural_key)
         for name in sorted(symbol, key=key):
             sel = labels == name
             colour, marker = symbol[name]
             text = f"{name} ({sel.sum()})"
             ax.scatter(x[sel], y[sel], color=colour, marker=marker,
-                       label=f"{group[name]} | {text}" if group else text, **style)
+                       label=f"{group[name]} - {text}" if group and group[name] != UNGROUPED
+                       else text, **style)
         rest = ~np.isin(labels, list(symbol))
         if rest.any():
             ax.scatter(x[rest], y[rest], color=OTHER_COLOUR, marker=".",

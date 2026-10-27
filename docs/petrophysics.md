@@ -211,7 +211,8 @@ categories whose distributions are alike and label them **A, B, C ...**:
 - The box beside it sets the number of groups: **Auto** cuts the clustering at its
   largest jump (one group if all the categories are alike), or choose 2 to 8.
 - Categories with **more than one peak** (for example a map unit that covers two
-  lithologies) are grouped only among themselves and labelled **M1, M2 ...**, with a
+  lithologies) are grouped only among themselves and labelled **Bimodal** (or
+  **Bimodal 1, 2 ...** if there are several such groups), with a
   dashed outline. A mixture of two populations lies between them, so otherwise it
   would join whichever group it happens to be nearest. A category counts as having
   several peaks if its smoothed histogram (1-D, or 2-D for Henkel plots and sample
@@ -226,10 +227,12 @@ categories whose distributions are alike and label them **A, B, C ...**:
   multi-peaked ones are always grouped automatically.
 - Groups are lettered in order of their mean position along the x axis (for
   Henkel plots, A is the lightest).
-- Per-category panels (heat maps and histograms) are ordered by group, with the
-  letter in the title and a frame in the group's colour (histogram bars too). In
-  the sample plot the letter is shown in the legend, which is sorted by group.
-- Categories with fewer than 30 cells (10 samples) are marked **-** and not grouped.
+- Per-category panels (heat maps and histograms) are ordered by group (A, B ...
+  then Bimodal), with the group before the name in the title ("A - Granite") and
+  a frame in the group's colour (histogram bars too). In the sample plot the
+  group is shown the same way in the legend, which is sorted by group.
+- Categories with fewer than 30 cells (10 samples) are not grouped and have no
+  group label.
 
 A similar distribution does not mean the same geology, and apparent values blur
 across boundaries, so small polygons tend to group with their neighbours: use the

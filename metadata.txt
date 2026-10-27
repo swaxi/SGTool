@@ -32,6 +32,7 @@ changelog=Unreleased
       * Petrophys: changing the survey date no longer recalculates the field strength; it updates when IGRF is pressed or a grid is selected
       * Fix an error when the plugin is unloaded after QGIS has already removed its Processing provider (seen when uninstalling on macOS)
       * Docs: every documented function gives its primary reference and an "In SGTool" note on how the code relates to the published method, with a reference list per page; equations corrected where they did not match the code (RTP, downward continuation, AGC, derivatives, directional line-noise filter)
+      * The grid that was processed stays selected (Layers panel and dropdowns) after Apply Processing, Apply Preview and the other calculations, instead of the new result; the RTE/P dropdown is wide enough to show "Low-lat. RTP"
       0.4.0
       * New Petrophys tab (between Grid + Wavelets and Utils), described in docs/petrophysics.md
       * Apparent susceptibility (SI) from an RTP/RTE magnetic anomaly grid, with the field strength from the IGRF at the grid centre, and apparent density (g/cc) from a Bouguer grid in mGal or um/s2, by dividing out the response of a layer of vertical prisms in the Fourier domain; the grids' arbitrary level is not used, so each result is a variation about a background value; one calculation at a time, with live preview and provenance metadata

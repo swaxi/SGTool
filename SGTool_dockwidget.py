@@ -396,6 +396,10 @@ class SGToolDockWidget(QDockWidget):
         # Row 0: RTE/P + combo + IGRF
         self.checkBox_4_RTE_P = QCheckBox("RTE/P")
         self.comboBox_3_rte_p_list = QComboBox()
+        # wide enough for the longest choice ("Low-lat. RTP")
+        self.comboBox_3_rte_p_list.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToContents
+        )
         self.pushButton_4_calcIGRF = QPushButton("IGRF")
 
         g.addWidget(self.checkBox_4_RTE_P,        0, 0)

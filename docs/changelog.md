@@ -15,6 +15,7 @@ The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.
       * Petrophys: changing the survey date no longer recalculates the field strength; it updates when IGRF is pressed or a grid is selected
       * Fix an error when the plugin is unloaded after QGIS has already removed its Processing provider (seen when uninstalling on macOS)
       * Docs: every documented function gives its primary reference and an "In SGTool" note on how the code relates to the published method, with a reference list per page; equations corrected where they did not match the code (RTP, downward continuation, AGC, derivatives, directional line-noise filter)
+      * The grid that was processed stays selected (Layers panel and dropdowns) after Apply Processing, Apply Preview and the other calculations, instead of the new result; the RTE/P dropdown is wide enough to show "Low-lat. RTP"
 
 ## 0.4.0
       * New Petrophys tab (between Grid + Wavelets and Utils), described in [docs/petrophysics.md](petrophysics.md)

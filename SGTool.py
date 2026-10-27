@@ -1280,7 +1280,7 @@ class SGTool:
         for path in result["outputs"]:
             new_layer = QgsRasterLayer(path, os.path.splitext(os.path.basename(path))[0])
             if new_layer.isValid():
-                QgsProject.instance().addMapLayer(new_layer)
+                self._add_output_layer(new_layer)
                 # the same stretch the dialog gives its results (sun shading: min/max)
                 self._apply_stretch(new_layer, path not in result["min_max"])
                 if path.endswith("_SS_AnisoOrient.tif"):
@@ -1333,6 +1333,13 @@ class SGTool:
             except Exception:
                 logging.getLogger(__name__).debug("Ignored: ignored", exc_info=True)
             self._syncing_layers = was_syncing
+
+    def _add_output_layer(self, layer):
+        """Add a result to the project without selecting it: the grid that was
+        processed stays selected in the Layers panel and the dropdowns, ready
+        for the next filter."""
+        with self._keep_selection():
+            return QgsProject.instance().addMapLayer(layer)
 
     def _move_preview_to_top(self, *_args):
         """Put the preview layer first in the Layers panel so it is always
@@ -2061,7 +2068,7 @@ class SGTool:
 
         raster_layer = QgsRasterLayer(out_path, layer_out_name)
         if raster_layer.isValid():
-            QgsProject.instance().addMapLayer(raster_layer)
+            self._add_output_layer(raster_layer)
         else:
             self.iface.messageBar().pushMessage(
                 "Error", self.tr("Failed to load gridded result"),
@@ -3158,7 +3165,7 @@ class SGTool:
     def _load_component_layer(self, out_path, layer_name, operation, params):
         """Main thread, after the job: record provenance and add the layer."""
         self.write_metadata(out_path, operation, params)
-        QgsProject.instance().addMapLayer(QgsRasterLayer(out_path, layer_name))
+        self._add_output_layer(QgsRasterLayer(out_path, layer_name))
 
     def procPCA(self):
         self.suffix = "_PCA"
@@ -3278,7 +3285,7 @@ class SGTool:
         if not layer.isValid():
             raise ValueError(f"Failed to load layer: {shapefile}")
         self.write_metadata(shapefile, "Grid boundary outline", {}, source=source_path)
-        QgsProject.instance().addMapLayer(layer)
+        self._add_output_layer(layer)
 
     def procNaN(self):
         self.new_grid = self.SG_Util.Threshold2Nan(
@@ -3509,7 +3516,7 @@ class SGTool:
             )
         slope_layer = QgsRasterLayer(slope_path, self.base_name + "_slope")
         if slope_layer.isValid():
-            QgsProject.instance().addMapLayer(slope_layer)
+            self._add_output_layer(slope_layer)
 
         sds = gdal.Open(slope_path)
         slope_arr = sds.GetRasterBand(1).ReadAsArray().astype(float)
@@ -3545,7 +3552,7 @@ class SGTool:
             )
         rgb_layer = QgsRasterLayer(rgb_path, self.base_name + "_MRVBF_RGB")
         if rgb_layer.isValid():
-            QgsProject.instance().addMapLayer(rgb_layer)
+            self._add_output_layer(rgb_layer)
 
     @staticmethod
     def _fit_to_shape(arr, shape):
@@ -3680,7 +3687,7 @@ class SGTool:
         if not new_layer.isValid():
             self._notify("The clipped grid could not be loaded", Qgis.MessageLevel.Warning, 8)
             return
-        QgsProject.instance().addMapLayer(new_layer)
+        self._add_output_layer(new_layer)
         try:  # keep the source layer's look
             new_layer.setRenderer(layer.renderer().clone())
             new_layer.triggerRepaint()
@@ -3874,7 +3881,7 @@ class SGTool:
                 raise ValueError(f"Failed to load layer: {out_path}")
             else:
                 # Add the layer to the current QGIS project
-                QgsProject.instance().addMapLayer(layer)
+                self._add_output_layer(layer)
 
     def set_normalise_in(self):
         """
@@ -4115,7 +4122,7 @@ class SGTool:
                     # QgsProject.instance().addMapLayer(con_raster_layer)
 
                     # Add the layer to the project
-                    QgsProject.instance().addMapLayer(con_raster_layer)
+                    self._add_output_layer(con_raster_layer)
 
                     # Access the raster data provider
                     provider = con_raster_layer.dataProvider()
@@ -5074,7 +5081,7 @@ class SGTool:
 
                 self.layer = QgsRasterLayer(RGBGridPath_gray, filename_without_extension)
                 if not self.is_layer_loaded(filename_without_extension):
-                    QgsProject.instance().addMapLayer(self.layer)
+                    self._add_output_layer(self.layer)
             elif RGBGridPath_gray != -3:
                 self.iface.messageBar().pushMessage(
                     "Conversion failed, check CSS colour names",

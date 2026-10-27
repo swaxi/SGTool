@@ -1141,7 +1141,7 @@ class SGToolApp(tk.Tk):
             "Reduction to pole or equator\n"
             "Transforms magnetic data so anomalies appear directly above sources\n"
             "Corrects asymmetry caused by the Earth's inclined field").pack(side="left")
-        tip(combo(r0, ["Pole", "Low-lat. RTP", "Equator", "Diff. RTP"], self.v_rtp_type, w=10,
+        tip(combo(r0, ["Pole", "Low-lat. RTP", "Equator", "Diff. RTP"], self.v_rtp_type, w=13,
                   chk_var=self.v_rtp),
             "Choose Pole (high latitudes >20°), Equator (low latitudes <20°),\n"
             "Low-lat. RTP (stable RTP at low latitudes, Taylor series iterative\n"

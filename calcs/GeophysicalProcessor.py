@@ -650,25 +650,28 @@ class GeophysicalProcessor:
                 )
             return rte * h_ea * gain
 
-        if iterations and iterations > 0:
-            return self._apply_fourier_filter(
-                data,
-                lambda kx, ky: filter_function(kx, ky, int(iterations), stripe_width),
-                buffer_size, buffer_method,
-            ), int(iterations)
-
-        # one forward transform, then an inverse one per trial iteration count.
-        # m is chosen without the stripe suppression, which is then applied:
-        # the correlation would otherwise just raise m to make up for it
+        # Mirror padding, tapered to zero within the padding only: the usual
+        # ramp to zero extends each column (or row) straight out from the edge,
+        # and where those streaks run along the declination this operator
+        # amplifies them into stripes across the whole grid
         median = np.nanmedian(data)
         filled_data, nan_mask = self.fill_nan(data)
-        buffered_data, padding_info = self.add_buffer(
-            filled_data - median, buffer_size, buffer_method
-        )
+        buffered_data, padding_info = self._mirror_buffer(filled_data - median, buffer_size)
         data_fft = fft2(buffered_data, workers=-1)
         ny, nx = buffered_data.shape
         kx, ky = self.create_wavenumber_grids(nx, ny)
 
+        if iterations and iterations > 0:
+            m = int(iterations)
+            result = np.real(ifft2(
+                data_fft * filter_function(kx, ky, m, stripe_width), workers=-1
+            ))
+            result = self.remove_buffer(result, buffer_size, padding_info)
+            return self.restore_nan(result + median, nan_mask), m
+
+        # an inverse transform per trial iteration count. m is chosen without
+        # the stripe suppression, which is then applied: the correlation
+        # would otherwise just raise m to make up for it
         asa = self.analytic_signal(data, buffer_size, buffer_method)
         valid = ~nan_mask & np.isfinite(asa)
         a = asa[valid] - np.mean(asa[valid])
@@ -690,6 +693,32 @@ class GeophysicalProcessor:
             best = self.remove_buffer(best, buffer_size, padding_info)
 
         return self.restore_nan(best + median, nan_mask), best_m
+
+    def _mirror_buffer(self, data, buffer_size):
+        """Pad to an FFT-friendly size by mirroring the edges, with a cosine
+        taper to zero across the padding (the data themselves are untouched).
+        Returns the padded grid and the padding info for remove_buffer."""
+        padding_info = self.optimize_grid_size(data.shape[1], data.shape[0], buffer_size)
+        pad = padding_info["padding"]
+
+        def taper(n, before, after):
+            w = np.ones(n + before + after)
+            if before:
+                w[:before] = 0.5 * (1 - np.cos(np.pi * np.arange(before) / before))
+            if after:
+                w[-after:] = 0.5 * (1 + np.cos(np.pi * (np.arange(after) + 1) / after))
+            return w
+
+        padded = np.pad(
+            data,
+            ((pad["top"], pad["bottom"]), (pad["left"], pad["right"])),
+            mode="symmetric",
+        )
+        window = np.outer(
+            taper(data.shape[0], pad["top"], pad["bottom"]),
+            taper(data.shape[1], pad["left"], pad["right"]),
+        )
+        return padded * window, padding_info
 
     # --- Derivatives ---
 

@@ -4,19 +4,6 @@
 
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
-## Unreleased
-      * New Low-latitude RTP (RTE/P choice "Low-lat. RTP", output _RTP_LL): stable reduction to the pole at low magnetic latitudes by the Taylor-series iterative method of Hao et al. (2018), reducing to the equator and then to the pole with m iterations; m chosen automatically (0 to 200, best correlation with the analytic signal) or set in Iterations. In the QGIS dialog, Processing, replay, and the ArcGIS Pro GUI and toolbox
-      * Low-latitude RTP: Stripe suppression setting (default 10 degrees, 0 = off) fades the iterations out near the direction perpendicular to the declination, where noise, edge effects and levelling errors otherwise show as stripes parallel to the declination; the dialog reports the iterations used
-      * Fix reduction to the equator: the operator's denominator was not squared, so at inclination 0 the grid was multiplied by cos^2(D - theta) instead of being left unchanged, and at other inclinations the anomalies were too weak. RTE results will differ from earlier versions
-      * RTE and Low-latitude RTP pad the grid by mirroring its edges, which stops stripes from the north and south edges along the declination
-      * RTP, RTE and Low-latitude RTP warn and stop again when Inc and Dec are both 0 (the check never fired); in the ArcGIS Pro toolbox the FFT buffer is now passed to RTP and RTE (it was read but not used)
-      * Chain Length and Streamline Length are hidden (QGIS dialog, Processing and the ArcGIS Pro GUI) until they work well; the calculation code is kept
-      * Dock layout: every tab's groups, grid selectors and file rows share one width (so "..." buttons stay in view), the scroll bars are on the left, and the band pass / high-low pass width and AGC window are on one line with their filters
-      * Petrophys: changing the survey date no longer recalculates the field strength; it updates when IGRF is pressed or a grid is selected
-      * Fix an error when the plugin is unloaded after QGIS has already removed its Processing provider (seen when uninstalling on macOS)
-      * Docs: every documented function gives its primary reference and an "In SGTool" note on how the code relates to the published method, with a reference list per page; equations corrected where they did not match the code (RTP, downward continuation, AGC, derivatives, directional line-noise filter)
-      * The grid that was processed stays selected (Layers panel and dropdowns) after Apply Processing, Apply Preview and the other calculations, instead of the new result; the RTE/P dropdown is wide enough to show "Low-lat. RTP"
-
 ## 0.4.0
       * New Petrophys tab (between Grid + Wavelets and Utils), described in [docs/petrophysics.md](petrophysics.md)
       * Apparent susceptibility (SI) from an RTP/RTE magnetic anomaly grid, with the field strength from the IGRF at the grid centre, and apparent density (g/cc) from a Bouguer grid in mGal or µm/s², by dividing out the response of a layer of vertical prisms in the Fourier domain; settings for depth to top, thickness, background value and high-cut; the grids' arbitrary absolute level is not used, so each result is a variation about its background (0.001 SI, 2.67 g/cc); at most one calculation ticked at a time, run by that tab's Apply Processing, with live preview and provenance metadata
@@ -29,6 +16,17 @@ The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.
       * Group similar: categories with alike distributions (Jensen-Shannon distance, average-linkage clustering) grouped automatically or into 2 to 8 groups, lettered A, B, C ... on the per-category plots (title, coloured frame) and in the sample plot legend
       * Apparent susceptibility and density are also QGIS Processing algorithms (Petrophysics group), and Apply same steps to another grid repeats them in both versions
       * macOS: the dock uses a smaller font and the compact Fusion style, so its layout is no larger than on Windows (set the QSettings value SGTool/compactMacUI to false to keep the native look)
+      * New Low-latitude RTP (RTE/P choice "Low-lat. RTP", output _RTP_LL): stable reduction to the pole at low magnetic latitudes by the Taylor-series iterative method of Hao et al. (2018), reducing to the equator and then to the pole with m iterations; m chosen automatically (0 to 200, best correlation with the analytic signal) or set in Iterations. In the QGIS dialog, Processing, replay, and the ArcGIS Pro GUI and toolbox
+      * Low-latitude RTP: Stripe suppression setting (default 10 degrees, 0 = off) fades the iterations out near the direction perpendicular to the declination, where noise, edge effects and levelling errors otherwise show as stripes parallel to the declination; the dialog reports the iterations used
+      * Fix reduction to the equator: the operator's denominator was not squared, so at inclination 0 the grid was multiplied by cos^2(D - theta) instead of being left unchanged, and at other inclinations the anomalies were too weak. RTE results will differ from earlier versions
+      * RTE and Low-latitude RTP pad the grid by mirroring its edges, which stops stripes from the north and south edges along the declination
+      * RTP, RTE and Low-latitude RTP warn and stop again when Inc and Dec are both 0 (the check never fired); in the ArcGIS Pro toolbox the FFT buffer is now passed to RTP and RTE (it was read but not used)
+      * Chain Length and Streamline Length are hidden (QGIS dialog, Processing and the ArcGIS Pro GUI) until they work well; the calculation code is kept
+      * Dock layout: every tab's groups, grid selectors and file rows share one width (so "..." buttons stay in view), the scroll bars are on the left, and the band pass / high-low pass width and AGC window are on one line with their filters
+      * Petrophys: changing the survey date no longer recalculates the field strength; it updates when IGRF is pressed or a grid is selected
+      * Fix an error when the plugin is unloaded after QGIS has already removed its Processing provider (seen when uninstalling on macOS)
+      * Docs: every documented function gives its primary reference and an "In SGTool" note on how the code relates to the published method, with a reference list per page; equations corrected where they did not match the code (RTP, downward continuation, AGC, derivatives, directional line-noise filter)
+      * The grid that was processed stays selected (Layers panel and dropdowns) after Apply Processing, Apply Preview and the other calculations, instead of the new result; the RTE/P dropdown is wide enough to show "Low-lat. RTP"
 
 ## 0.3.9
       * Utils tab: new Clip to Window button clips the selected grid to the current map window, saving it beside the original as <name>_clip.tif (then _clip_01, _clip_02 ... rather than overwriting an earlier clip); Clip All Layers is now half width, beside it. Also in the ArcGIS Pro GUI (Utils tab), using the ArcGIS Pro map view

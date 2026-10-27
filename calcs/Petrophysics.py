@@ -114,44 +114,52 @@ def rasterize_categories(polygons, wkt, gt, shape):
 
 # ---------------------------------------------------------------- plotting
 # Two-variable plots (heat maps and scatter plots) and one-variable histograms.
-# Each axis is linear or log; on a log axis values <= 0 can't be shown and are
-# left out (their number is given in the title). Henkel plots are the case
+# Each axis is linear or log. On a log axis, if any values are <= 0 (an apparent
+# susceptibility grid has no absolute level, and measured diamagnetic samples are
+# slightly negative), all values are shifted so the minimum plots just above 0,
+# and the axis label says so (see _log_shift). Henkel plots are the case
 # x = density (linear), y = susceptibility (log).
+def _log_shift(values):
+    """(shift, label suffix) for a log axis: 0 and "" if all values are > 0;
+    otherwise shift = delta - minimum, delta being 0.1% of the range (one
+    significant figure), so the minimum plots at delta."""
+    low = float(np.min(values))
+    if low > 0:
+        return 0.0, ""
+    spread = float(np.max(values)) - low
+    delta = 1e-3 * spread if spread > 0 else max(abs(low), 1.0)
+    delta = float(f"{delta:.0e}")
+    return delta - low, f" - min ({low:.3g}) + {delta:.0e}"
+
+
 def valid_points(x, y, x_log, y_log, *others):
-    """The points with both values defined (and > 0 on a log axis). Returns
-    the kept arrays (x, y, *others) and how many were left out for being <= 0."""
-    ok = np.isfinite(x) & np.isfinite(y)
-    keep = ok.copy()
-    if x_log:
-        keep &= x > 0
-    if y_log:
-        keep &= y > 0
-    dropped = int(np.count_nonzero(ok & ~keep))
-    kept = [x[keep], y[keep]] + [o[keep] for o in others]
-    if kept[0].size == 0:
-        raise ValueError(
-            "No points have both values" + (" above 0 on the log axes" if x_log or y_log else "")
-        )
-    return kept, dropped
+    """The points with both values defined, shifted on a log axis if needed
+    (_log_shift). Returns the kept arrays (x, y, *others) and the
+    ((x shift, x label suffix), (y shift, y label suffix))."""
+    keep = np.isfinite(x) & np.isfinite(y)
+    if not keep.any():
+        raise ValueError("No points have both values")
+    x, y = x[keep], y[keep]
+    shifts = []
+    for v, log in ((x, x_log), (y, y_log)):
+        shifts.append(_log_shift(v) if log else (0.0, ""))
+    kept = [x + shifts[0][0], y + shifts[1][0]] + [o[keep] for o in others]
+    return kept, tuple(shifts)
 
 
 def valid_values(values, log, *others):
-    """The defined values (and > 0 for a log axis), with *others, and how many
-    were left out for being <= 0."""
-    ok = np.isfinite(values)
-    keep = ok & (values > 0) if log else ok
-    dropped = int(np.count_nonzero(ok & ~keep))
-    kept = [values[keep]] + [o[keep] for o in others]
-    if kept[0].size == 0:
-        raise ValueError("No values" + (" above 0" if log else "") + " to plot")
-    return kept, dropped
+    """The defined values, shifted on a log axis if needed (_log_shift), with
+    *others, and the (shift, label suffix)."""
+    keep = np.isfinite(values)
+    if not keep.any():
+        raise ValueError("No values to plot")
+    values = values[keep]
+    shift = _log_shift(values) if log else (0.0, "")
+    return [values + shift[0]] + [o[keep] for o in others], shift
 
 
-def _count_text(n, dropped, what="points"):
-    text = f"{n:,} {what}"
-    if dropped:
-        text += f" ({dropped:,} with values <= 0 on a log axis left out)"
-    return text
+def _count_text(n, what="points"):
+    return f"{n:,} {what}"
 
 
 def _style_axes(ax, x_label, y_label, x_log=False, y_log=False, grid="both"):
@@ -247,7 +255,7 @@ def _grid_of_panels(n, width, height):
     return fig, axes
 
 
-def _panel_title(ax, name, n, columns, group=None):
+def _panel_title(ax, name, n, columns, group=None, total=None):
     """The category name (after its group letter, if grouped) wrapped onto at most
     two lines, with its count beneath, in a font that shrinks with the number of
     columns, so titles don't overlap."""
@@ -259,7 +267,8 @@ def _panel_title(ax, name, n, columns, group=None):
     lines = textwrap.wrap(name, width) or [name]
     if len(lines) > 2:
         lines = [lines[0], textwrap.shorten(" ".join(lines[1:]), width, placeholder="...")]
-    ax.set_title("\n".join(lines) + f"\n(n={n:,})",
+    share = f", {100 * n / total:.3g}%" if total else ""
+    ax.set_title("\n".join(lines) + f"\n(n={n:,}{share})",
                  fontsize=9 if columns <= 3 else 8 if columns <= 5 else 7, linespacing=1.1)
 
 
@@ -328,7 +337,7 @@ def count_modes(distribution, count, min_frac=0.1, min_points=10, rise=1.25):
 def _cluster(smooth, n_groups):
     """Cluster numbers (1, 2 ...) for smoothed distributions: Jensen-Shannon
     distance, average linkage, cut into n_groups (0: at the largest jump)."""
-    from scipy.cluster.hierarchy import fcluster, linkage
+    from scipy.cluster.hierarchy import cut_tree, linkage
 
     n = len(smooth)
     if n < 2:
@@ -346,7 +355,8 @@ def _cluster(smooth, n_groups):
         # cut in the largest jump between merges: below merge j + 1, n - j - 1 groups
         k = n - int(np.argmax(np.diff(heights))) - 1
     k = int(np.clip(k, 1, min(MAX_GROUPS, n)))
-    return list(fcluster(tree, k, criterion="maxclust"))
+    # cut_tree gives exactly k groups (fcluster's "maxclust" can give fewer)
+    return [int(c) + 1 for c in cut_tree(tree, n_clusters=k)[:, 0]]
 
 
 def group_distributions(distributions, counts, n_groups=0, min_count=GROUP_MIN_CELLS):
@@ -466,7 +476,8 @@ def heatmap(x, y, title, x_label, y_label, x_log=False, y_log=True,
     """One heat map of y against x (points per bin, log colour scale)."""
     from matplotlib.colors import LogNorm
 
-    (x, y), dropped = valid_points(x, y, x_log, y_log)
+    (x, y), ((_, x_note), (_, y_note)) = valid_points(x, y, x_log, y_log)
+    x_label, y_label = x_label + x_note, y_label + y_note
     xlim, ylim = _axis_range(x, x_log, robust), _axis_range(y, y_log, robust)
     edges = (_edges(xlim, x_log, bins), _edges(ylim, y_log, bins))
 
@@ -475,7 +486,7 @@ def heatmap(x, y, title, x_label, y_label, x_log=False, y_log=True,
     _style_axes(ax, x_label, y_label, x_log, y_log)
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
-    ax.set_title(f"{title}\n{_count_text(x.size, dropped, what)}", fontsize=11)
+    ax.set_title(f"{title}\n{_count_text(x.size, what)}", fontsize=11)
     cbar = fig.colorbar(mesh, ax=ax)
     cbar.set_label(f"{what.capitalize()} per bin", color=TEXT_SECONDARY)
     cbar.ax.tick_params(colors=TEXT_SECONDARY, labelsize=8)
@@ -524,7 +535,9 @@ def heatmap_by_category(x, y, cats, names, title, x_label, y_label, x_log=False,
     inside = cats >= 0
     if not inside.any():
         raise ValueError("No polygon covers the grids")
-    (x, y, cats), dropped = valid_points(x[inside], y[inside], x_log, y_log, cats[inside])
+    (x, y, cats), ((_, x_note), (_, y_note)) = valid_points(
+        x[inside], y[inside], x_log, y_log, cats[inside])
+    x_label, y_label = x_label + x_note, y_label + y_note
     names, cats = _by_category(cats, names)
     xlim, ylim = _axis_range(x, x_log, robust), _axis_range(y, y_log, robust)
     edges = (_edges(xlim, x_log, bins), _edges(ylim, y_log, bins))
@@ -554,16 +567,15 @@ def heatmap_by_category(x, y, cats, names, title, x_label, y_label, x_log=False,
         else:
             mesh = _heat(ax, x[sel], y[sel], edges, norm, weights=weights)
         _style_axes(ax, "", "", x_log, y_log)
-        _panel_title(ax, names[i], counts[i], axes.shape[1], labels[i] if labels else None)
+        _panel_title(ax, names[i], counts[i], axes.shape[1], labels[i] if labels else None,
+                     total=x.size)
         if labels:
             _frame(ax, labels[i])
     axes.flat[0].set_xlim(xlim)
     axes.flat[0].set_ylim(ylim)
     fig.supxlabel(x_label, color=TEXT_SECONDARY)
     fig.supylabel(y_label, color=TEXT_SECONDARY)
-    if dropped:
-        title += f"\n{dropped:,} {what} with values <= 0 on a log axis left out"
-    fig.suptitle(title, fontsize=11)
+    fig.suptitle(f"{title}\n{_count_text(x.size, what)}", fontsize=11)
     notes = []
     if labels:
         notes.append(_group_note(labels, what, min_count))
@@ -593,11 +605,12 @@ def scatter(x, y, title, x_label, y_label, x_log=False, y_log=True,
     distributions automatically, or the number of groups; the group letter is
     shown in the legend (see group_distributions)."""
     if categories is None:
-        (x, y), dropped = valid_points(x, y, x_log, y_log)
+        (x, y), ((_, x_note), (_, y_note)) = valid_points(x, y, x_log, y_log)
     else:
-        (x, y, categories), dropped = valid_points(
+        (x, y, categories), ((_, x_note), (_, y_note)) = valid_points(
             x, y, x_log, y_log, np.asarray(categories, dtype=object)
         )
+    x_label, y_label = x_label + x_note, y_label + y_note
     xlim, ylim = _axis_range(x, x_log, False), _axis_range(y, y_log, False)
 
     style = dict(s=24, linewidths=0.4, edgecolors="white", alpha=0.85)
@@ -656,7 +669,7 @@ def scatter(x, y, title, x_label, y_label, x_log=False, y_log=True,
     _style_axes(ax, x_label, y_label, x_log, y_log)
     ax.set_xlim(_padded(xlim, x_log))
     ax.set_ylim(_padded(ylim, y_log))
-    ax.set_title(f"{title}\n{_count_text(x.size, dropped, what)}", fontsize=11)
+    ax.set_title(f"{title}\n{_count_text(x.size, what)}", fontsize=11)
     if categories is not None and group:
         _bottom_notes(fig, None, [_group_note(list(group.values()), what, min_count)])
     else:
@@ -676,14 +689,16 @@ def _round_up(value):
     return math.ceil(value / step - 1e-9) * step
 
 
-def _add_stats(ax, values, fontsize=8):
+def _add_stats(ax, values, fontsize=8, shift=0.0):
     """Median as a red vertical line, and median, mean and standard deviation
-    as text in the top right corner."""
+    as text in the top right corner. values are as plotted; shift (from
+    _log_shift) is taken off again for the text, which gives the data's own values."""
     median = float(np.median(values))
     ax.axvline(median, color=MEDIAN_COLOUR, linewidth=1.5)
     ax.text(
         0.98, 0.97,
-        f"Median {median:.4g}\nMean {float(np.mean(values)):.4g}\nSD {float(np.std(values)):.4g}",
+        f"Median {median - shift:.4g}\nMean {float(np.mean(values)) - shift:.4g}"
+        f"\nSD {float(np.std(values)):.4g}",
         transform=ax.transAxes, ha="right", va="top", fontsize=fontsize,
         color=TEXT_SECONDARY, linespacing=1.3,
         bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor=GRID_COLOUR, alpha=0.85),
@@ -692,17 +707,18 @@ def _add_stats(ax, values, fontsize=8):
 
 def histogram(values, title, label, log=False, robust=True, what="points"):
     """Histogram of one variable, with linear or log bins."""
-    (values,), dropped = valid_values(values, log)
+    (values,), (shift, note) = valid_values(values, log)
+    label += note
     lims = _axis_range(values, log, robust)
     edges = _edges(lims, log, int(np.clip(math.sqrt(values.size), 10, 100)))
     fig, ax = _subplots(figsize=(7.5, 5))
     counts, _, _ = ax.hist(values, bins=edges, color=CATEGORY_COLOURS[0],
                            histtype="stepfilled", linewidth=0)
-    _add_stats(ax, values, fontsize=9)
+    _add_stats(ax, values, fontsize=9, shift=shift)
     _style_axes(ax, label, "Count", x_log=log, grid="y")
     ax.set_xlim(edges[0], edges[-1])
     ax.set_ylim(0, _round_up(counts.max()))
-    ax.set_title(f"{title}\n{_count_text(values.size, dropped, what)}", fontsize=11)
+    ax.set_title(f"{title}\n{_count_text(values.size, what)}", fontsize=11)
     fig.tight_layout()
     return fig
 
@@ -726,7 +742,8 @@ def histogram_by_category(values, cats, names, title, label, log=False,
     inside = cats >= 0
     if not inside.any():
         raise ValueError("No polygon covers the grid")
-    (values, cats), dropped = valid_values(values[inside], log, cats[inside])
+    (values, cats), (shift, note) = valid_values(values[inside], log, cats[inside])
+    label += note
     names, cats = _by_category(cats, names)
     lims = _axis_range(values, log, robust)
     edges = _edges(lims, log, int(np.clip(math.sqrt(values.size), 10, 100)))
@@ -748,18 +765,17 @@ def histogram_by_category(values, cats, names, title, label, log=False,
         counts, _, _ = ax.hist(v, bins=edges, weights=np.full(v.size, 1.0 / v.size),
                                color=colour, histtype="stepfilled", linewidth=0)
         top = max(top, float(counts.max()))
-        _add_stats(ax, v, fontsize=7)
+        _add_stats(ax, v, fontsize=7, shift=shift)
         _style_axes(ax, "", "", x_log=log, grid="y")
-        _panel_title(ax, names[i], v.size, axes.shape[1], labels[i] if labels else None)
+        _panel_title(ax, names[i], v.size, axes.shape[1], labels[i] if labels else None,
+                     total=values.size)
         if labels:
             _frame(ax, labels[i])
     axes.flat[0].set_xlim(edges[0], edges[-1])
     axes.flat[0].set_ylim(0, _round_up(top))  # shared by all panels
     fig.supxlabel(label, color=TEXT_SECONDARY)
     fig.supylabel(f"Fraction of category's {what}", color=TEXT_SECONDARY)
-    if dropped:
-        title += f"\n{dropped:,} {what} with values <= 0 on a log axis left out"
-    fig.suptitle(title, fontsize=11)
+    fig.suptitle(f"{title}\n{_count_text(values.size, what)}", fontsize=11)
     if labels:
         _bottom_notes(fig, label, [_group_note(labels, what, min_count)])
     else:

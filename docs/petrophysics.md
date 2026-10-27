@@ -96,9 +96,8 @@ The result is in g/cc.
 The absolute level of either grid (its datum, the regional field, the IGRF
 removal) carries no density or susceptibility information, so the *k* = 0 term is
 not used. Each result is a zero-mean variation to which a background is added:
-2.67 g/cc for density and 0.001 SI for susceptibility. The susceptibility
-background keeps most values positive for the log axis of Henkel plots; raise it
-if a plot reports many values left out.
+2.67 g/cc for density and 0.001 SI for susceptibility. Values at or below zero
+are still plotted on the log axis of Henkel plots (see below).
 
 Dividing by the response amplifies short wavelengths, so both calculations apply
 a high-cut: wavelengths longer than twice the cutoff pass, those at the cutoff or
@@ -123,9 +122,14 @@ Each plot is drawn as soon as its button is pressed, in its own matplotlib windo
 (whose toolbar can also save it). With PNG and/or PDF ticked under **Save Plots**
 it is saved too, in the chosen folder or, if that is blank, beside the input layer.
 
-On a log axis, values of zero or less can't be shown, so they are left out and the
-plot title says how many. Heat maps count points per bin on a log colour scale
-(viridis), with empty bins left white.
+On a log axis, if any values are zero or less, all of them are shifted so the
+minimum plots just above zero: the axis then shows value - minimum + d, with d
+0.1% of the range (rounded to one figure), and the axis label says so, for
+example "Susceptibility (SI) - min (-0.00425) + 1e-05". Nothing is left out. The
+median, mean and SD in the corner of a histogram are of the unshifted values.
+Each plot's title gives the number of cells (or samples) plotted, and each panel
+of a per-category plot its number and percentage of that total. Heat maps count
+points per bin on a log colour scale (viridis), with empty bins left white.
 
 ### Apparent Henkel Plot / Histogram
 

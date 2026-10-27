@@ -16,7 +16,6 @@ import logging
 import math
 import os
 import tempfile
-import traceback
 
 from qgis.core import (
     Qgis,
@@ -103,8 +102,6 @@ class ClipJob:
         self.kept = []                # (layer name, why it was carried over unchanged)
         self.skipped = []             # (layer name, why)
         self.errors = []              # (layer name, message)
-        self.details = []             # (layer name, full traceback) of each failure
-        self.report_path = None
         self.cancelled = False
         self.project_path = None
         self._masks = {}
@@ -287,33 +284,12 @@ class ClipJob:
                 continue
             except Exception as e:  # one failing layer must not stop the rest
                 self.errors.append((name, str(e).strip().splitlines()[0] if str(e).strip() else repr(e)))
-                self.details.append((name, traceback.format_exc()))
                 continue
             replacement[layer.id()] = (new_layer, node)
         if self.progress is not None:
             self.progress(len(nodes), len(nodes), "")
         self._write_project(root, replacement)
-        self._write_report()
         return self
-
-    def _write_report(self):
-        """What happened to each layer, beside the new project: <project>_clip_log.txt."""
-        stem = os.path.splitext(self.project_path)[0] if self.project_path else os.path.join(
-            self.out_dir, "clipped_layers" + SUFFIX)
-        lines = [self.summary(), ""]
-        lines += [f"clipped: {n} -> {p}" for n, p in self.clipped]
-        lines += [f"carried over unchanged: {n} ({why})" for n, why in self.kept]
-        lines += [f"skipped: {n} ({why})" for n, why in self.skipped]
-        lines += [f"FAILED: {n}: {m}" for n, m in self.errors]
-        lines += [f"note: {text}" for _level, text in self.log]
-        for n, tb in self.details:
-            lines += ["", f"---- {n}", tb.rstrip()]
-        try:
-            self.report_path = stem + "_log.txt"
-            with open(self.report_path, "w", encoding="utf-8") as f:
-                f.write("\n".join(lines) + "\n")
-        except OSError:
-            self.report_path = None
 
     def _write_project(self, root, replacement):
         new = QgsProject()

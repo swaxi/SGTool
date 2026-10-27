@@ -561,8 +561,11 @@ class GeophysicalProcessor:
         def filter_function(kx, ky):
             return self._rte_operator(kx, ky, inc, dec)
 
+        # mirror padding: the operator changes sharply near the direction
+        # perpendicular to the declination and would smear the streaks that
+        # ramp padding makes along the declination into the grid
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
+            data, filter_function, buffer_size, buffer_method, mirror_pad=True
         )
 
     @staticmethod
@@ -1395,6 +1398,7 @@ class GeophysicalProcessor:
         buffer_size=10,
         buffer_method="mirror",
         preserve_dc=True,
+        mirror_pad=False,
     ):
         """
         Apply a Fourier-domain filter with buffering and NaN handling.
@@ -1402,6 +1406,8 @@ class GeophysicalProcessor:
         Parameters:
             preserve_dc: If True, add median back after filtering (for RTP, continuation, etc.)
                         If False, return zero-centered result (for derivatives)
+            mirror_pad: If True, pad by mirroring the edges (tapered within the
+                        padding, see _mirror_buffer) rather than ramping to zero
         """
         from scipy.fft import fft2, ifft2
 
@@ -1414,9 +1420,12 @@ class GeophysicalProcessor:
         centered_data = filled_data - median
 
         # Add buffer
-        buffered_data, padding_info = self.add_buffer(
-            centered_data, buffer_size, buffer_method
-        )
+        if mirror_pad:
+            buffered_data, padding_info = self._mirror_buffer(centered_data, buffer_size)
+        else:
+            buffered_data, padding_info = self.add_buffer(
+                centered_data, buffer_size, buffer_method
+            )
 
         # Fourier transform
         data_fft = fft2(buffered_data, workers=-1)

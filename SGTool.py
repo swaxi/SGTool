@@ -2656,7 +2656,7 @@ class SGTool:
                 ce.setMaximumValue(stats.maximumValue)
 
     def procRTP_E(self, sgtool_instance=None):
-        if self.RTE_P_inc == "0" and self.RTE_P_dec == "0":
+        if self.RTE_P_inc == 0 and self.RTE_P_dec == 0:  # parsed numbers, not text
             self._notify("You need to define Inc and Dec first!", Qgis.MessageLevel.Warning, 15)
         else:
             if self.RTE_P_type == "RTP":

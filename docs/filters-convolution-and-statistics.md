@@ -72,17 +72,6 @@ Returns two layers: `_SS_AnisoMag` (0–1 saliency; 0 = flat or isotropic, 1 = s
 *Reference*: the structure tensor, Kass & Witkin (1987); Bigün, Granlund & Wiklund (1991).   
 *In SGTool*: original code. The gradients are Sobel derivatives, and the normalisation of the saliency by its 99th percentile is SGTool's choice.   
 
-**Chain Length**   
-Scores each pixel by the total size of the connected anisotropy component it belongs to. Two active pixels (those exceeding Aniso threshold) are linked if they lie within Search radius pixels of each other and their orientations differ by at most Angle tolerance degrees. The direction of the link is unconstrained so the full width of a multi-pixel-wide lineament is treated as a single entity. Connected components are found with Union-Find; every pixel in a component receives the same score equal to the number of pixels in that component.   
-Returns: `_SS_ChainLen`   
-*Reference*: the Union-Find (disjoint-set) algorithm, Galler & Fisher (1964).   
-*In SGTool*: original method and code.   
-
-**Streamline Length**   
-From each active pixel (exceeding Aniso threshold) traces forward and backward along the orientation field using sub-pixel bilinear interpolation and double-angle orientation averaging. The path continues while anisotropy remains above the threshold and the step-to-step orientation change stays within Angle tolerance. The total forward + backward path length in pixels is the score. Unlike Chain Length, Streamline Length follows the curvature of a lineament and produces a continuous (non-integer) distance measure.   
-Returns: `_SS_StreamLen`   
-*In SGTool*: original method and code.   
-
 **MRRTF / MRVBF / Slope**   
 Calculate DTM classification based on hill top & valley bottom curvature and slope  and combines as RGB.Converted from SAGA code  
 *Reference*: Gallant & Dowling (2003); slope from Zevenbergen & Thorne (1987).   
@@ -161,7 +150,6 @@ Takes a 3-band registered RGB image and converts it to a monotonically increasin
 
 - Bigün, J., Granlund, G.H., Wiklund, J., 1991. Multidimensional orientation estimation with applications to texture analysis and optical flow. *IEEE Transactions on Pattern Analysis and Machine Intelligence* 13, 775–790. https://doi.org/10.1109/34.85668   
 - Gallant, J.C., Dowling, T.I., 2003. A multiresolution index of valley bottom flatness for mapping depositional areas. *Water Resources Research* 39(12), 1347. https://doi.org/10.1029/2002WR001426   
-- Galler, B.A., Fisher, M.J., 1964. An improved equivalence algorithm. *Communications of the ACM* 7, 301–303. https://doi.org/10.1145/364099.364331   
 - Hornby, P., Boschetti, F., Horowitz, F.G., 1999. Analysis of potential field data in the wavelet domain. *Geophysical Journal International* 137, 175–196. https://doi.org/10.1046/j.1365-246x.1999.00788.x   
 - Horn, B.K.P., 1981. Hill shading and the reflectance map. *Proceedings of the IEEE* 69, 14–47. https://doi.org/10.1109/PROC.1981.11918   
 - Hotelling, H., 1933. Analysis of a complex of statistical variables into principal components. *Journal of Educational Psychology* 24, 417–441. https://doi.org/10.1037/h0071325   

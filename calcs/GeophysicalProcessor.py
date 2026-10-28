@@ -22,6 +22,7 @@ from .worms.Utility import (
     fill_nan,
 )
 from .text_io import write_rows
+from .sgt_cancel import OperationCancelled
 
 
 import os
@@ -1545,9 +1546,11 @@ class GeophysicalProcessor:
         header_written = False
         print("num_levels", num_levels)
 
+        # the levels take most of the time, unless polylines are made from them too
+        level_share = 0.7 if shps else 1.0
         for dz in range(0, num_levels):
             if callback is not None:
-                callback(dz / float(num_levels))
+                callback(level_share * dz / float(num_levels))
             dzm = (dz * delta_z) + bottom_level
             if dzm == 0:
                 dzm = 0.01
@@ -1600,7 +1603,13 @@ class GeophysicalProcessor:
             max_distance = job.geomat[1] * 1.3
             in_path = wormsPath
             out_path = wormsPath.replace(".csv", ".shp")
-            self.xyz_to_polylines(in_path, out_path, max_distance, crs)
+            polyline_callback = None
+            if callback is not None:
+                def polyline_callback(fraction=None):
+                    callback(None if fraction is None
+                             else level_share + (1 - level_share) * fraction)
+            self.xyz_to_polylines(in_path, out_path, max_distance, crs,
+                                  callback=polyline_callback)
 
     def display_grid(self, grid):
         import matplotlib.pyplot as plt
@@ -1611,8 +1620,10 @@ class GeophysicalProcessor:
         plt.title("Grid")
         plt.show()
 
-    def process_cluster(self, points, z, max_distance):
-        """Process a cluster of points to create split LineStrings with better connectivity."""
+    def process_cluster(self, points, z, max_distance, callback=None):
+        """Process a cluster of points to create split LineStrings with better connectivity.
+        callback(None), if given, is called every 2000 points and may raise
+        OperationCancelled to stop."""
         from scipy.spatial import cKDTree
         from shapely.geometry import LineString, Point
         import numpy as np
@@ -1633,6 +1644,8 @@ class GeophysicalProcessor:
 
         # Find path through points
         while remaining_count > 0:
+            if callback is not None and remaining_count % 2000 == 0:
+                callback(None)  # a big cluster can take seconds: let Cancel stop it
             last_point = sorted_points[-1]
 
             # Query more points than needed to have alternatives if the closest are already visited
@@ -1712,7 +1725,7 @@ class GeophysicalProcessor:
 
         return new_lines
 
-    def xyz_to_polylines(self, csv_file, output_shapefile, max_distance, crs):
+    def xyz_to_polylines(self, csv_file, output_shapefile, max_distance, crs, callback=None):
         """
         Converts XYZ points from a CSV file into polylines and saves them as a shapefile.
         Parameters:
@@ -1720,6 +1733,9 @@ class GeophysicalProcessor:
         output_shapefile (str): Path to the output shapefile where polylines will be saved.
         max_distance (float): Maximum distance between points to be considered part of the same cluster.
         crs (int): Coordinate Reference System (CRS) EPSG code for the output shapefile.
+        callback (callable, optional): callback(fraction done), called for each
+            cluster (and callback(None) within big ones); it may raise
+            OperationCancelled to stop.
         Raises:
         ValueError: If no valid LineStrings are created.
         Notes:
@@ -1745,7 +1761,7 @@ class GeophysicalProcessor:
         unique_z = np.unique(data[:, 2])
         results = []
 
-        for z in unique_z:
+        for zi, z in enumerate(unique_z):
 
             mask = data[:, 2] == z
             points = data[mask][:, :2]
@@ -1764,13 +1780,18 @@ class GeophysicalProcessor:
             unique_labels = np.unique(labels)
             unique_labels = unique_labels[unique_labels != -1]
 
-            for label in unique_labels:
+            for ci, label in enumerate(unique_labels):
+                if callback is not None:
+                    callback((zi + ci / len(unique_labels)) / len(unique_z))
                 cluster_points = points[labels == label]
                 if len(cluster_points) > 1:
                     try:
-                        result = self.process_cluster(cluster_points, z, max_distance)
+                        result = self.process_cluster(
+                            cluster_points, z, max_distance, callback=callback)
                         if result:
                             results.extend(result)
+                    except OperationCancelled:
+                        raise
                     except Exception as e:
                         print(f"Error processing cluster at Z-bin {z}: {e}")
 

@@ -5,40 +5,23 @@
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
 ## 0.4.0
-      * New Petrophys tab (between Grid + Wavelets and Utils), described in [docs/petrophysics.md](petrophysics.md)
-      * Apparent susceptibility (SI) from an RTP/RTE magnetic anomaly grid, with the field strength from the IGRF at the grid centre, and apparent density (g/cc) from a Bouguer grid in mGal or µm/s², by dividing out the response of a layer of vertical prisms in the Fourier domain; settings for depth to top, thickness, background value and high-cut; the grids' arbitrary absolute level is not used, so each result is a variation about its background (0.001 SI, 2.67 g/cc); at most one calculation ticked at a time, run by that tab's Apply Processing, with live preview and provenance metadata
-      * Henkel plots (density against log susceptibility) of two apparent grids as a heat map, pairing each cell of the coarser grid with the nearest cell of the finer one (reprojected if needed), and per category of a polygon layer (e.g. geology units) in a grid of panels with shared axes and colour scale
-      * Measured Petrophysics: any two fields of a point layer (numeric, or text holding numbers) plotted against each other, each with a multiplier and its own log option, as points with up to 64 category symbols (8 colours x 8 markers, by sample count) or as a heat map, with axes and legend named after the fields
-      * With only one apparent grid or measured field chosen, histograms instead, per category if one is chosen, with the median as a red line, median, mean and standard deviation as text, and the vertical axis clipped to the tallest bar
-      * Plots drawn by their own buttons, each in its own window, optionally saved as PNG and/or PDF; on a log axis with values <= 0 all values are shifted so they plot (value - min + a small offset, stated on the axis label) instead of being left out; titles give the number of cells or samples plotted and each per-category panel its share of it; heat maps in viridis
-      * New script scripts/pivot_petrophysics.py: one point per sample from a petrophysics layer with one row per measurement, for Measured Petrophysics
-      * ArcGIS Pro: the same Petrophys tab in the GUI (with preview, IGRF field strength and all the plots, polygons and samples chosen as files), and Apparent Susceptibility and Apparent Density toolbox tools
-      * Group similar: categories with alike distributions (Jensen-Shannon distance, average-linkage clustering) grouped automatically or into 2 to 8 groups, lettered A, B, C ... on the per-category plots (title "A - name", coloured frame) and in the sample plot legend; categories with more than one peak (e.g. a unit covering two lithologies) are grouped only among themselves and labelled Bimodal (Bimodal 1, 2 ... if several), with a dashed frame
-      * Apparent susceptibility and density are also QGIS Processing algorithms (Petrophysics group), and Apply same steps to another grid repeats them in both versions
-      * macOS: the dock uses a smaller font and the compact Fusion style, so its layout is no larger than on Windows (set the QSettings value SGTool/compactMacUI to false to keep the native look)
-      * New Low-latitude RTP (RTE/P choice "Low-lat. RTP", output _RTP_LL): stable reduction to the pole at low magnetic latitudes by the Taylor-series iterative method of Hao et al. (2018), reducing to the equator and then to the pole with m iterations; m chosen automatically (0 to 200, best correlation with the analytic signal) or set in Iterations. In the QGIS dialog, Processing, replay, and the ArcGIS Pro GUI and toolbox
-      * Low-latitude RTP: Stripe suppression setting (default 10 degrees, 0 = off) fades the iterations out near the direction perpendicular to the declination, where noise, edge effects and levelling errors otherwise show as stripes parallel to the declination; the dialog reports the iterations used
-      * Fix reduction to the equator: the operator's denominator was not squared, so at inclination 0 the grid was multiplied by cos^2(D - theta) instead of being left unchanged, and at other inclinations the anomalies were too weak. RTE results will differ from earlier versions
-      * RTE and Low-latitude RTP pad the grid by mirroring its edges, which stops stripes from the north and south edges along the declination
-      * RTP, RTE and Low-latitude RTP warn and stop again when Inc and Dec are both 0 (the check never fired); in the ArcGIS Pro toolbox the FFT buffer is now passed to RTP and RTE (it was read but not used)
-      * Chain Length and Streamline Length are hidden (QGIS dialog, Processing and the ArcGIS Pro GUI) until they work well; the calculation code is kept
-      * Dock layout: every tab's groups, grid selectors and file rows share one width (so "..." buttons stay in view), the scroll bars are on the left, and the band pass / high-low pass width and AGC window are on one line with their filters
-      * Petrophys: changing the survey date no longer recalculates the field strength; it updates when IGRF is pressed or a grid is selected
-      * Fix an error when the plugin is unloaded after QGIS has already removed its Processing provider (seen when uninstalling on macOS)
-      * Docs: every documented function gives its primary reference and an "In SGTool" note on how the code relates to the published method, with a reference list per page; equations corrected where they did not match the code (RTP, downward continuation, AGC, derivatives, directional line-noise filter)
-      * The grid that was processed stays selected (Layers panel and dropdowns) after Apply Processing, Apply Preview and the other calculations, instead of the new result; the RTE/P dropdown is wide enough to show "Low-lat. RTP"
-      * Clip All Layers: the clip area dropdown starts on Current map window, which clips every layer to the area the map shows; a polygon layer can still be chosen
-      * Fix Clip All Layers: in the macOS QGIS app every grid failed (the GDAL Processing tool runs gdalwarp, which could not find PROJ's database, so it could not match the clip polygon to the grid). Grids are now clipped with GDAL inside QGIS, on their own cell edges so cell positions and values are unchanged (the old clip shifted them by a fraction of a cell); grids outside the clip area are skipped and listed in the log, a layer only counts as clipped once its file is written, and the reason for a failure is recorded in the SGTool log
-      * Petrophys: a Log tickbox (default on) beside the apparent susceptibility grid chooses a log or linear susceptibility axis for the apparent Henkel plots and histograms, whole grid and per category; their axes span the 5-95 percentiles of the grids (was 0.1-99.9), so the bulk of the values fills the plot and Group similar compares finer bins (it usually finds more groups)
-      * Fix the SGTool dock staying in the QGIS window, with no plugin behind it, after the plugin was uninstalled, disabled or reloaded
+      * New Petrophys tab: apparent susceptibility and density grids by Fourier-domain layer inversion, also as Processing algorithms ([docs/petrophysics.md](petrophysics.md))
+      * Petrophys plots: Henkel plots and histograms of apparent grids and measured samples, per polygon category, with similar categories grouped A, B, C ...
+      * New low-latitude RTP (Hao et al. 2018) with automatic iterations and stripe suppression
+      * Fix the RTE operator (RTE results will differ); RTE and low-latitude RTP use mirror padding; RTP/RTE warn again when Inc and Dec are both 0
+      * ArcGIS Pro: Petrophys tab, apparent susceptibility and density tools and low-latitude RTP; toolbox RTP and RTE now use the FFT buffer
+      * Clip All Layers: clips to the current map window by default; fixed on macOS, and grids are clipped on their own cell edges
+      * The processed grid stays selected after processing, instead of the new result
+      * Fix unloading the plugin (dock left in the QGIS window, error when Processing was already unloaded)
+      * Chain Length and Streamline Length hidden until they work well
+      * macOS: compact dock (smaller font, Fusion style)
+      * Docs: primary references for every function, and equations corrected to match the code
 
 ## 0.3.9
-      * Utils tab: new Clip to Window button clips the selected grid to the current map window, saving it beside the original as <name>_clip.tif (then _clip_01, _clip_02 ... rather than overwriting an earlier clip); Clip All Layers is now half width, beside it. Also in the ArcGIS Pro GUI (Utils tab), using the ArcGIS Pro map view
-      * Crop to area prior to preview to speed up on large grids
-      * IGRF button no longer loads the whole grid just to find its centre
-      * Faster NaN filling and multithreaded FFT for Fourier-based filters (RTP etc.) on large grids
-      * Apply now reads the grid inside the background task, so QGIS stays responsive and Cancel works while a large grid loads
-      * Security and Qt6 compatibility fixes for the plugin repository checks (no silent try/except, safer XML parsing, fully scoped Qt/QGIS enums)
+      * Utils: new Clip to Window button (QGIS and ArcGIS Pro) clips the selected grid to the map view
+      * Faster on large grids: preview cropped to the map view, IGRF reads only the grid centre, faster NaN filling and multithreaded FFT
+      * Grids are read in the background task, so QGIS stays responsive and Cancel works while a large grid loads
+      * Security and Qt6 compatibility fixes for the plugin repository checks
 
 ## 0.3.8 and earlier
       * Utils tab: new Clip All Layers tool (QGIS dialog, and the ArcGIS Pro toolbox tool Clip All Layers to Polygon): clips every layer of the project to a chosen polygon layer (or its selected polygons), saving each as <name>_clip with its .qml style in a chosen folder, plus a copy of the project (.qgz) with the same groups, order, visibility and styles that loads the clipped layers   

@@ -141,8 +141,8 @@ points per bin on a log colour scale (viridis), with empty bins left white.
   grid (linear x axis) against the apparent susceptibility grid (log y axis). Each
   cell of the coarser grid (usually gravity) is paired with the nearest cell of the
   finer grid, reprojected if the CRSs differ; cells where either grid has no data
-  are left out. The axes span the 0.1-99.9 percentiles so FFT edge effects don't
-  squash the plot.
+  are left out. The axes span the 5-95 percentiles so FFT edge effects and
+  outliers don't squash the plot (the top and bottom 5% of cells fall outside it).
 - **Plot per Category**: the same grids clipped to the polygons of each category
   of a polygon layer (or of its selected polygons), e.g. the lithologies of a
   geology map. Categories with cells where both grids have data get a heat map

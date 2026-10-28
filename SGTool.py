@@ -387,6 +387,20 @@ class SGTool:
                 pass
             self.provider = None
 
+        # the dock belongs to the QGIS main window, so it stays on screen
+        # (with no plugin behind it) unless it is removed here
+        if getattr(self, "_preview_timer", None) is not None:
+            self._preview_timer.stop()
+        if self.dlg is not None:
+            try:
+                self.dlg.closingPlugin.disconnect(self.onClosePlugin)
+            except (TypeError, RuntimeError):
+                pass
+            self.iface.removeDockWidget(self.dlg)
+            self.dlg.deleteLater()
+            self.dlg = None
+            self.pluginIsActive = False
+
         for action in self.actions:
             self.iface.removePluginMenu(self.tr("&SGTool"), action)
             self.iface.removeToolBarIcon(action)
@@ -4292,7 +4306,11 @@ class SGTool:
         (values, axis label, log, layer)."""
         if density is not None:
             return (density,) + self.APPARENT_DENSITY + (dens_layer,)
-        return (sus,) + self.APPARENT_SUS + (sus_layer,)
+        return sus, self.APPARENT_SUS[0], self._sus_log(), sus_layer
+
+    def _sus_log(self):
+        """Apparent susceptibility on a log axis (the Log tickbox)."""
+        return self.dlg.checkBox_Henkel_log.isChecked()
 
     def _henkel_apparent(self):
         dens, sus, (density, susceptibility, _gt, _wkt) = self._henkel_grids()
@@ -4300,7 +4318,8 @@ class SGTool:
             fig = Petrophysics.heatmap(
                 density.ravel(), susceptibility.ravel(),
                 f"Apparent Henkel plot: {dens.name()} vs {sus.name()}",
-                self.APPARENT_DENSITY[0], self.APPARENT_SUS[0], what="cells",
+                self.APPARENT_DENSITY[0], self.APPARENT_SUS[0],
+                y_log=self._sus_log(), what="cells",
             )
             return fig, f"{dens.name()}_{sus.name()}_henkel", self._layer_folder(dens)
         values, label, log, layer = self._single_grid(density, susceptibility, dens, sus)
@@ -4346,6 +4365,7 @@ class SGTool:
                 density.ravel(), susceptibility.ravel(), cats, names,
                 f"Apparent Henkel plots by {field} ({polygons.name()})",
                 self.APPARENT_DENSITY[0], self.APPARENT_SUS[0],
+                y_log=self._sus_log(),
                 position_colours=d.checkBox_Henkel_position.isChecked(),
                 grouping=self._grouping(d.checkBox_Henkel_group, d.comboBox_Henkel_groups),
             )

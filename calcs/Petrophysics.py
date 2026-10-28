@@ -177,9 +177,10 @@ def _style_axes(ax, x_label, y_label, x_log=False, y_log=False, grid="both"):
 
 
 def _axis_range(values, log, robust):
-    """Axis range: the 0.1-99.9 percentiles for grids (FFT edge effects), the
-    full range for measured samples."""
-    lo, hi = np.percentile(values, [0.1, 99.9] if robust else [0, 100])
+    """Axis range: the 5-95 percentiles for grids (so FFT edge effects and
+    outliers don't squash the bulk of the values), the full range for
+    measured samples."""
+    lo, hi = np.percentile(values, [5, 95] if robust else [0, 100])
     if hi <= lo:
         lo, hi = (lo / 2, hi * 2) if log else (lo - 0.01, hi + 0.01)
     return lo, hi

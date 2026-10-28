@@ -1775,8 +1775,8 @@ class SGToolApp(tk.Tk):
                    "Background susceptibility (SI) added to the result. A magnetic anomaly grid\n"
                    "has no absolute level, so the calculated susceptibility is relative to an\n"
                    "unknown background and is partly negative. A typical background (e.g. 0.001\n"
-                   "SI) keeps most values positive; Henkel plots and histograms leave out values\n"
-                   "<= 0, which a log axis can't show.")
+                   "SI) keeps most values positive; on a log axis, Henkel plots and histograms\n"
+                   "shift all values to plot above 0 if any are <= 0.")
         e_sb.pack(side="left", padx=2)
         lbl(r, "High-cut (m):").pack(side="left", padx=(8, 0))
         e_sc = tip(entry(r, self.v_app_sus_cut, 8), cut_tip)
@@ -1854,6 +1854,13 @@ class SGToolApp(tk.Tk):
             ToolTip(c, tiptext)
             self._petro_raster_combos.append(c)
             btn(r, "Browse…", lambda v=var: self._petro_browse_raster(v), w=8).pack(side="left", padx=2)
+            if var is self.v_hk_sus:
+                self.v_hk_log = tk.BooleanVar(value=True)
+                tip(check(r, "Log", self.v_hk_log),
+                    "Plot apparent susceptibility on a log axis. The grid has no absolute level,\n"
+                    "so if it has values <= 0 they are all shifted to plot above 0 (the axis\n"
+                    "label gives the shift; the median, mean and SD shown are the real values).\n"
+                    "Untick for a linear axis, which shows the values as they are.").pack(side="left", padx=4)
         self._petro_refresh_rasters()
         r = row(hk)
         tip(btn(r, "Plot Apparent", self._plot_apparent, w=16),
@@ -1861,8 +1868,8 @@ class SGToolApp(tk.Tk):
             "(log y axis), counting grid cells per bin on a log colour scale. Each cell of\n"
             "the coarser grid (usually gravity) is paired with the nearest cell of the finer\n"
             "grid, reprojecting if the CRSs differ; cells where either grid has no data are\n"
-            "left out, as are susceptibilities <= 0 (counted in the title). Axes span the\n"
-            "0.1-99.9 percentiles, to keep FFT edge effects from squashing the plot.\n"
+            "left out. Susceptibility is on a log axis if Log is ticked. Axes span the\n"
+            "5-95 percentiles, to keep FFT edge effects from squashing the plot.\n"
             "With only one grid chosen: a histogram of it instead.").pack(side="left")
         ttk.Separator(hk, orient="horizontal").pack(fill="x", padx=4, pady=4)
         self.v_hk_poly = tk.StringVar()
@@ -1908,9 +1915,9 @@ class SGToolApp(tk.Tk):
                      "{other} field chosen, for histograms of that field.")
         scale_tip = ("Multiplier applied to the field's values, e.g. 0.001 for density in kg/m3\n"
                      "to g/cc, or 0.00001 for susceptibility in x10^-5 SI to SI")
-        log_tip = ("Log scale for the {axis} axis (and log bins in histograms). Values <= 0\n"
-                   "can't be shown on a log axis, so they are left out (their number is given\n"
-                   "in the title).")
+        log_tip = ("Log scale for the {axis} axis (and log bins in histograms). If any values\n"
+                   "are <= 0, all are shifted to plot above 0 (the axis label gives the shift;\n"
+                   "the median, mean and SD shown are the real values).")
         for axis, other, log_default in (("x", "Y", False), ("y", "X", True)):
             field, scale, log = tk.StringVar(), tk.StringVar(value="1"), tk.BooleanVar(value=log_default)
             setattr(self, f"v_ms_{axis}", field)
@@ -2234,13 +2241,13 @@ class SGToolApp(tk.Tk):
             raise ValueError("Choose an apparent susceptibility and/or density grid")
         if dens is not None and sus is not None and os.path.abspath(dens) == os.path.abspath(sus):
             raise ValueError("The apparent susceptibility and density grids are the same file")
-        return {"dens": dens, "sus": sus}
+        return {"dens": dens, "sus": sus, "sus_log": self.v_hk_log.get()}
 
     def _single_grid(self, s, density, sus):
         """For a histogram of whichever grid was chosen: (values, label, log, path)."""
         if density is not None:
             return (density,) + self.APPARENT_DENSITY + (s["dens"],)
-        return (sus,) + self.APPARENT_SUS + (s["sus"],)
+        return sus, self.APPARENT_SUS[0], s["sus_log"], s["sus"]
 
     def _plot_apparent(self):
         def build(s):
@@ -2249,7 +2256,8 @@ class SGToolApp(tk.Tk):
                 names = f"{self._stem(s['dens'])} vs {self._stem(s['sus'])}"
                 fig = Petrophysics.heatmap(
                     density.ravel(), sus.ravel(), f"Apparent Henkel plot: {names}",
-                    self.APPARENT_DENSITY[0], self.APPARENT_SUS[0], what="cells")
+                    self.APPARENT_DENSITY[0], self.APPARENT_SUS[0],
+                    y_log=s["sus_log"], what="cells")
                 return (fig, f"{self._stem(s['dens'])}_{self._stem(s['sus'])}_henkel",
                         os.path.dirname(s["dens"]))
             values, label, log, path = self._single_grid(s, density, sus)
@@ -2285,7 +2293,8 @@ class SGToolApp(tk.Tk):
                     density.ravel(), sus.ravel(), cats, names,
                     f"Apparent Henkel plots by {field} ({polys})",
                     self.APPARENT_DENSITY[0], self.APPARENT_SUS[0],
-                    position_colours=s["position"], grouping=s["grouping"])
+                    y_log=s["sus_log"], position_colours=s["position"],
+                    grouping=s["grouping"])
                 return (fig, f"{self._stem(s['dens'])}_{self._stem(s['sus'])}_henkel_by_{field}",
                         os.path.dirname(s["dens"]))
             values, label, log, path = self._single_grid(s, density, sus)

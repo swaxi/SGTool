@@ -21,6 +21,8 @@ from .worms.Utility import (
     insert_text_before_extension,
     fill_nan,
 )
+from .text_io import write_rows
+from .sgt_cancel import OperationCancelled
 
 
 import os
@@ -483,11 +485,12 @@ class GeophysicalProcessor:
             return 1j * ky
 
         # Compute derivatives in x and y directions using the Fourier filter
-        dx = self._apply_fourier_filter(
-            data, filter_function_dx, buffer_size, buffer_method, preserve_dc=False
-        )
-        dy = self._apply_fourier_filter(
-            data, filter_function_dy, buffer_size, buffer_method, preserve_dc=False
+        dx, dy = self._apply_fourier_filters(
+            data,
+            [filter_function_dx, filter_function_dy],
+            buffer_size,
+            buffer_method,
+            preserve_dc=False,
         )
 
         print("dx range:", np.nanmin(dx), np.nanmax(dx))
@@ -731,59 +734,56 @@ class GeophysicalProcessor:
         """
         Compute derivatives in x, y, or z directions.
         """
+        return self.compute_derivatives(
+            data, [direction], order, buffer_size, buffer_method
+        )[0]
 
-        def filter_function(kx, ky):
-            if direction == "x":
-                return (1j * kx) ** order
-            elif direction == "y":
-                return (1j * ky) ** order
-            elif direction == "z":
-                k = np.sqrt(kx**2 + ky**2)
-                return k**order
-            else:
-                raise ValueError("Invalid direction. Choose 'x', 'y', or 'z'.")
+    def compute_derivatives(
+        self, data, directions, order=1, buffer_size=10, buffer_method="mirror"
+    ):
+        """
+        Derivatives of the same grid in several directions (each as
+        compute_derivative gives it), sharing one forward transform.
+        """
 
-        return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method, preserve_dc=False
+        def derivative_filter(direction):
+            def filter_function(kx, ky):
+                if direction == "x":
+                    return (1j * kx) ** order
+                elif direction == "y":
+                    return (1j * ky) ** order
+                elif direction == "z":
+                    k = np.sqrt(kx**2 + ky**2)
+                    return k**order
+                else:
+                    raise ValueError("Invalid direction. Choose 'x', 'y', or 'z'.")
+
+            return filter_function
+
+        return self._apply_fourier_filters(
+            data,
+            [derivative_filter(d) for d in directions],
+            buffer_size,
+            buffer_method,
+            preserve_dc=False,
         )
 
     def tilt_angle(self, data, buffer_size=10, buffer_method="mirror"):
         """
         Compute the tilt derivative of the data.
         """
-        dfdx = self.compute_derivative(
-            data, "x", buffer_size=buffer_size, buffer_method=buffer_method
-        )
-        dfdy = self.compute_derivative(
-            data, "y", buffer_size=buffer_size, buffer_method=buffer_method
+        dfdx, dfdy, dfdz = self.compute_derivatives(
+            data, "xyz", buffer_size=buffer_size, buffer_method=buffer_method
         )
         horizontal_gradient = np.sqrt(dfdx**2 + dfdy**2)
-        dfdz = self.compute_derivative(
-            data, "z", buffer_size=buffer_size, buffer_method=buffer_method
-        )
         return np.arctan2(dfdz, horizontal_gradient)
 
     def analytic_signal(self, data, buffer_size=10, buffer_method="mirror"):
         """
         Compute the analytic signal amplitude.
         """
-        dfdx = self.compute_derivative(
-            data,
-            "x",
-            buffer_size=buffer_size,
-            buffer_method=buffer_method,
-        )
-        dfdy = self.compute_derivative(
-            data,
-            "y",
-            buffer_size=buffer_size,
-            buffer_method=buffer_method,
-        )
-        dfdz = self.compute_derivative(
-            data,
-            "z",
-            buffer_size=buffer_size,
-            buffer_method=buffer_method,
+        dfdx, dfdy, dfdz = self.compute_derivatives(
+            data, "xyz", buffer_size=buffer_size, buffer_method=buffer_method
         )
         return np.sqrt(dfdx**2 + dfdy**2 + dfdz**2)
 
@@ -1363,17 +1363,8 @@ class GeophysicalProcessor:
         Returns:
             numpy.ndarray: Total horizontal gradient of the input data.
         """
-        dfdx = self.compute_derivative(
-            data,
-            "x",
-            buffer_size=buffer_size,
-            buffer_method=buffer_method,
-        )
-        dfdy = self.compute_derivative(
-            data,
-            "y",
-            buffer_size=buffer_size,
-            buffer_method=buffer_method,
+        dfdx, dfdy = self.compute_derivatives(
+            data, "xy", buffer_size=buffer_size, buffer_method=buffer_method
         )
         horizontal_gradient = np.sqrt(dfdx**2 + dfdy**2)
         return horizontal_gradient
@@ -1409,6 +1400,25 @@ class GeophysicalProcessor:
             mirror_pad: If True, pad by mirroring the edges (tapered within the
                         padding, see _mirror_buffer) rather than ramping to zero
         """
+        return self._apply_fourier_filters(
+            data, [filter_function], buffer_size, buffer_method, preserve_dc,
+            mirror_pad,
+        )[0]
+
+    def _apply_fourier_filters(
+        self,
+        data,
+        filter_functions,
+        buffer_size=10,
+        buffer_method="mirror",
+        preserve_dc=True,
+        mirror_pad=False,
+    ):
+        """
+        Apply several Fourier-domain filters to the same grid, sharing the NaN
+        fill, buffering and forward transform; returns one grid per filter,
+        each as _apply_fourier_filter would give it.
+        """
         from scipy.fft import fft2, ifft2
 
         median = np.nanmedian(data)
@@ -1430,25 +1440,31 @@ class GeophysicalProcessor:
         # Fourier transform
         data_fft = fft2(buffered_data, workers=-1)
 
-        # Compute filter
         ny, nx = buffered_data.shape
         kx, ky = self.create_wavenumber_grids(nx, ny)
-        filter_array = filter_function(kx, ky)
 
-        # Apply filter
-        filtered_fft = data_fft * filter_array
+        results = []
+        for filter_function in filter_functions:
+            # Compute filter
+            filter_array = filter_function(kx, ky)
 
-        # Inverse transform
-        filtered_data = np.real(ifft2(filtered_fft, workers=-1))
+            # Apply filter
+            filtered_fft = data_fft * filter_array
 
-        # Remove buffer
-        unbuffered_data = self.remove_buffer(filtered_data, buffer_size, padding_info)
+            # Inverse transform
+            filtered_data = np.real(ifft2(filtered_fft, workers=-1))
 
-        # Restore DC level only for non-derivative operations
-        if preserve_dc:
-            unbuffered_data = unbuffered_data + median
+            # Remove buffer
+            unbuffered_data = self.remove_buffer(
+                filtered_data, buffer_size, padding_info
+            )
 
-        return self.restore_nan(unbuffered_data, nan_mask)
+            # Restore DC level only for non-derivative operations
+            if preserve_dc:
+                unbuffered_data = unbuffered_data + median
+
+            results.append(self.restore_nan(unbuffered_data, nan_mask))
+        return results
 
     def bsdwormer(
         self, image, layer, gridPath, num_levels, bottom_level, delta_z, shps, crs,
@@ -1530,9 +1546,11 @@ class GeophysicalProcessor:
         header_written = False
         print("num_levels", num_levels)
 
+        # the levels take most of the time, unless polylines are made from them too
+        level_share = 0.7 if shps else 1.0
         for dz in range(0, num_levels):
             if callback is not None:
-                callback(dz / float(num_levels))
+                callback(level_share * dz / float(num_levels))
             dzm = (dz * delta_z) + bottom_level
             if dzm == 0:
                 dzm = 0.01
@@ -1579,13 +1597,19 @@ class GeophysicalProcessor:
                     f.write("y,x,z,val\n")
                     header_written = True
                 # Append the filtered points
-                np.savetxt(f, filtered_points, delimiter=",", fmt="%s")
+                write_rows(f, filtered_points, "%s")  # same text as savetxt fmt="%s"
 
         if shps:
             max_distance = job.geomat[1] * 1.3
             in_path = wormsPath
             out_path = wormsPath.replace(".csv", ".shp")
-            self.xyz_to_polylines(in_path, out_path, max_distance, crs)
+            polyline_callback = None
+            if callback is not None:
+                def polyline_callback(fraction=None):
+                    callback(None if fraction is None
+                             else level_share + (1 - level_share) * fraction)
+            self.xyz_to_polylines(in_path, out_path, max_distance, crs,
+                                  callback=polyline_callback)
 
     def display_grid(self, grid):
         import matplotlib.pyplot as plt
@@ -1596,8 +1620,10 @@ class GeophysicalProcessor:
         plt.title("Grid")
         plt.show()
 
-    def process_cluster(self, points, z, max_distance):
-        """Process a cluster of points to create split LineStrings with better connectivity."""
+    def process_cluster(self, points, z, max_distance, callback=None):
+        """Process a cluster of points to create split LineStrings with better connectivity.
+        callback(None), if given, is called every 2000 points and may raise
+        OperationCancelled to stop."""
         from scipy.spatial import cKDTree
         from shapely.geometry import LineString, Point
         import numpy as np
@@ -1618,6 +1644,8 @@ class GeophysicalProcessor:
 
         # Find path through points
         while remaining_count > 0:
+            if callback is not None and remaining_count % 2000 == 0:
+                callback(None)  # a big cluster can take seconds: let Cancel stop it
             last_point = sorted_points[-1]
 
             # Query more points than needed to have alternatives if the closest are already visited
@@ -1642,16 +1670,21 @@ class GeophysicalProcessor:
 
             # If no point within max_distance is found, try to start a new segment
             if not found_next:
-                # Find the closest unvisited point to any point in our current path
-                min_dist = float("inf")
+                # Find the closest unvisited point to any point in our current
+                # path: the first path point with the smallest distance to an
+                # unvisited point (one query per path point against a tree of
+                # the unvisited points only), then its nearest unvisited point
+                # in the order the full tree lists them
                 best_pair = None
-
-                for i, point in enumerate(sorted_points):
-                    distances, indices = tree.query(point, k=len(points))
-                    for j, (idx, dist) in enumerate(zip(indices, distances)):
-                        if not visited[idx] and dist < min_dist:
-                            min_dist = dist
+                unvisited = np.flatnonzero(~visited)
+                if unvisited.size:
+                    nearest, _ = cKDTree(points[unvisited]).query(sorted_points, k=1)
+                    i = int(np.argmin(nearest))
+                    distances, indices = tree.query(sorted_points[i], k=len(points))
+                    for idx in np.atleast_1d(indices):
+                        if not visited[idx]:
                             best_pair = (i, idx)
+                            break
 
                 # If we found an unvisited point, start a new segment
                 if best_pair:
@@ -1692,7 +1725,7 @@ class GeophysicalProcessor:
 
         return new_lines
 
-    def xyz_to_polylines(self, csv_file, output_shapefile, max_distance, crs):
+    def xyz_to_polylines(self, csv_file, output_shapefile, max_distance, crs, callback=None):
         """
         Converts XYZ points from a CSV file into polylines and saves them as a shapefile.
         Parameters:
@@ -1700,6 +1733,9 @@ class GeophysicalProcessor:
         output_shapefile (str): Path to the output shapefile where polylines will be saved.
         max_distance (float): Maximum distance between points to be considered part of the same cluster.
         crs (int): Coordinate Reference System (CRS) EPSG code for the output shapefile.
+        callback (callable, optional): callback(fraction done), called for each
+            cluster (and callback(None) within big ones); it may raise
+            OperationCancelled to stop.
         Raises:
         ValueError: If no valid LineStrings are created.
         Notes:
@@ -1725,7 +1761,7 @@ class GeophysicalProcessor:
         unique_z = np.unique(data[:, 2])
         results = []
 
-        for z in unique_z:
+        for zi, z in enumerate(unique_z):
 
             mask = data[:, 2] == z
             points = data[mask][:, :2]
@@ -1744,13 +1780,18 @@ class GeophysicalProcessor:
             unique_labels = np.unique(labels)
             unique_labels = unique_labels[unique_labels != -1]
 
-            for label in unique_labels:
+            for ci, label in enumerate(unique_labels):
+                if callback is not None:
+                    callback((zi + ci / len(unique_labels)) / len(unique_z))
                 cluster_points = points[labels == label]
                 if len(cluster_points) > 1:
                     try:
-                        result = self.process_cluster(cluster_points, z, max_distance)
+                        result = self.process_cluster(
+                            cluster_points, z, max_distance, callback=callback)
                         if result:
                             results.extend(result)
+                    except OperationCancelled:
+                        raise
                     except Exception as e:
                         print(f"Error processing cluster at Z-bin {z}: {e}")
 
@@ -1770,7 +1811,8 @@ class GeophysicalProcessor:
         ds = driver.CreateDataSource(output_shapefile)
         spatial_ref = osr.SpatialReference()
         spatial_ref.ImportFromEPSG(crs)
-        layer = ds.CreateLayer("polylines", spatial_ref, ogr.wkbLineString)
+        # 3D (PolylineZ): every vertex carries the worm level as its Z
+        layer = ds.CreateLayer("polylines", spatial_ref, ogr.wkbLineString25D)
 
         field_defn = ogr.FieldDefn("Z", ogr.OFTInteger)
         layer.CreateField(field_defn)
@@ -1778,7 +1820,9 @@ class GeophysicalProcessor:
         for polyline, z in zip(polylines, z_values):
             feature = ogr.Feature(layer.GetLayerDefn())
             feature.SetField("Z", int(z))
-            geom = ogr.CreateGeometryFromWkt(polyline.wkt)
+            geom = ogr.Geometry(ogr.wkbLineString25D)
+            for x, y in polyline.coords:
+                geom.AddPoint(x, y, float(z))
             feature.SetGeometry(geom)
             layer.CreateFeature(feature)
             feature = None

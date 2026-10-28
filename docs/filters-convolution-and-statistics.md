@@ -33,7 +33,7 @@ Computes relief shading for a digital elevation model (DEM) or other 2D grids.
 ## Spatial Statistics   
 Calculates 1D statistics in a windowed grid   
 *Reference* (Min to Skewness): standard sample statistics, with no single primary reference.   
-*In SGTool* (Min to Skewness): original code. The window is a circle whose diameter is the window size, no-data cells are left out, and a window needs at least 3 valid values. Skewness and kurtosis come from `scipy.stats` (biased estimates; kurtosis is the excess kurtosis, 0 for a normal distribution).   
+*In SGTool* (Min to Skewness): original code. The window is a circle whose diameter is the window size, no-data cells are left out, and a window needs at least 3 valid values. Skewness and kurtosis follow `scipy.stats` (biased estimates; kurtosis is the excess kurtosis, 0 for a normal distribution; a near-constant window gives no-data), calculated for many windows at once.   
    
 **Min**   
 Calculate Minimum of values around central pixel for given window size  
@@ -92,7 +92,7 @@ Independent Component Analysis separates a multivariate signal into additive, st
 **Euler Deconvolution**   
 Reliable Euler Deconvolution provides estimates of depth to gravity or magnetic sources based on analysis of gradients. Code derived from Reliable Euler Deconvolution by Felipe F. Melo and Valéria C.F. Barbosa https://github.com/ffigura/Euler-deconvolution-python.   
 *Reference*: Euler deconvolution, Thompson (1982) and Reid et al. (1990); the selection of reliable solutions, Melo & Barbosa (2020).   
-*In SGTool*: the authors' `euler_python.py`, with the x and y axes swapped to match SGTool's grids (tested against the original code), and the standard deviation of the vertical derivative saved with each solution. The statistics of the solutions in grid windows (`window_stats`) are SGTool's addition to the authors' `estimates_statistics.py`.   
+*In SGTool*: the authors' `euler_python.py`, with the x and y axes swapped to match SGTool's grids (tested against the original code), and the standard deviation of the vertical derivative saved with each solution. The windows are solved together from moving-window sums rather than one at a time (the same solutions, much faster). The statistics of the solutions in grid windows (`window_stats`) are SGTool's addition to the authors' `estimates_statistics.py`.   
    
    
 ## Gridding   
@@ -119,7 +119,7 @@ Tick **Auto** next to the B-spline settings (ArcGIS Pro GUI: the **Auto** box be
 **BSDWorms**   
 Worms are calculated by upward continuing the data to a series of heights (levels), finding the edges at each level with wavelet transforms of the horizontal gradient. The source depth of an edge is approximately **half the upward continuation height** of the level it appears at (Jacobsen, 1987), so edges that persist up to a level of 2000 m come from sources at about 1000 m depth. This is a guide, not a precise depth. Levels are set by the base level and the increment (metres) between levels.   
 
-Use wavelet transforms to build multilevel "worms", saves out a single csv file of points (for use in 3D visualisation), and optionally a shapefile (for use in QGIS). Code from Frank Horowitz's bsdwormer  https://bitbucket.org/fghorow/bsdwormer/   
+Use wavelet transforms to build multilevel "worms", saves out a single csv file of points (for use in 3D visualisation), and optionally a 3D polyline shapefile (PolylineZ, with the level as each vertex's Z and in the `Z` field). Code from Frank Horowitz's bsdwormer  https://bitbucket.org/fghorow/bsdwormer/   
 *Reference*: Hornby, Boschetti & Horowitz (1999); depth rule, Jacobsen (1987).   
 *In SGTool*: the worm detection is Frank Horowitz's bsdwormer code. SGTool adds the preparation of the grid (mean removed, no-data filled, 20% linear-ramp padding and a Hanning window), the loop over levels, and the CSV and shapefile output.   
 

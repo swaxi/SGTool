@@ -14,6 +14,7 @@ email: felipe146@hotmail.com, valcris@on.br
 """
 
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 
 
 def fft_pad_data(data, mode="edge"):
@@ -226,60 +227,74 @@ def euler_deconv(data, xi, yi, zi, shape, area, SI, windowSize, filt, callback=N
     yi = yi.reshape(shape)
     zi = zi.reshape(shape)
 
+    # the system for each window is solved through its normal equations
+    # (A^T A) p = A^T y, whose terms are sums over the window; these sums are
+    # computed for all windows at once, in blocks of rows to bound memory
     delta = windowSize // 2
-    estx = np.zeros_like(data)
-    esty = np.zeros_like(data)
-    estz = np.zeros_like(data)
-    estb = np.zeros_like(data)
-    stdzmat = np.zeros_like(data)
+    ny, nx = data.shape
+    n_out_y, n_out_x = ny - 2 * delta, nx - 2 * delta
+    n = float(windowSize * windowSize)
+    vety = dx * xi + dy * yi + dz * zi + SI * data
+    # products of the columns of A = [dx, dy, dz, SI] and y, as summed below
+    terms = (
+        dx * dx, dx * dy, dx * dz, dx,
+        dy * dy, dy * dz, dy,
+        dz * dz, dz,
+        dx * vety, dy * vety, dz * vety, vety,
+    )
 
-    # run the moving data window and perform the computations
-    for east, south, windata, windx, windy, windz, winx, winy, winz in moving_window(
-        data, dx, dy, dz, xi, yi, zi, (windowSize, windowSize)
-    ):
-        if callback is not None and east == 0:
-            callback(south / float(data.shape[0]))  # once per row of windows
-        # to keep the same size of the window throughout the grid
-        if windata.shape[0] != windowSize or windata.shape[1] != windowSize:
-            continue
-        # system of equations on Euler deconvolution
-        A = np.zeros((windowSize * windowSize, 4))
-        A[:, 0] = windx.ravel()
-        A[:, 1] = windy.ravel()
-        A[:, 2] = windz.ravel()
-        A[:, 3] = SI * np.ones_like(winx.ravel())
+    def window_sums(a):
+        # sums over every windowSize x windowSize window (top-left anchored)
+        s = sliding_window_view(a, windowSize, axis=1).sum(axis=-1)
+        return sliding_window_view(s, windowSize, axis=0).sum(axis=-1)
 
-        vety = np.zeros((windowSize * windowSize, 1))
-        vety = (
-            windx.ravel() * winx.ravel()
-            + windy.ravel() * winy.ravel()
-            + windz.ravel() * winz.ravel()
-            + SI * windata.ravel()
-        )
-        # compute the estimates
-        ATA = np.linalg.inv(np.dot(A.T, A))
-        ATy = np.dot(A.T, vety)
-        p = np.dot(ATA, ATy)
+    estx = np.empty((n_out_y, n_out_x))
+    esty = np.empty_like(estx)
+    estz = np.empty_like(estx)
+    estb = np.empty_like(estx)
+    stdzmat = np.empty_like(estx)
 
-        # standard deviation of z derivative (for populations population)
-        stdz = np.sqrt(
-            np.sum(abs(A[:, 2] - A[:, 2].mean()) ** 2) / (len(A[:, 2]) - 1.0)
-        )
+    block = max(1, 2000000 // max(nx, 1))  # windows rows per block
+    for r0 in range(0, n_out_y, block):
+        if callback is not None:
+            callback(r0 / float(n_out_y))
+        r1 = min(r0 + block, n_out_y)
+        rows = slice(r0, r1 + windowSize - 1)
+        (sxx, sxy, sxz, sx, syy, syz, sy, szz, sz,
+         sxv, syv, szv, sv) = (window_sums(t[rows])[: r1 - r0, :n_out_x]
+                               for t in terms)
 
-        estx[south + windowSize // 2][east + windowSize // 2] = p[0]
-        esty[south + windowSize // 2][east + windowSize // 2] = p[1]
-        estz[south + windowSize // 2][east + windowSize // 2] = p[2]
-        estb[south + windowSize // 2][east + windowSize // 2] = p[3]
-        stdzmat[south + windowSize // 2][east + windowSize // 2] = stdz
+        ATA = np.empty(sxx.shape + (4, 4))
+        ATA[..., 0, 0] = sxx
+        ATA[..., 0, 1] = ATA[..., 1, 0] = sxy
+        ATA[..., 0, 2] = ATA[..., 2, 0] = sxz
+        ATA[..., 0, 3] = ATA[..., 3, 0] = SI * sx
+        ATA[..., 1, 1] = syy
+        ATA[..., 1, 2] = ATA[..., 2, 1] = syz
+        ATA[..., 1, 3] = ATA[..., 3, 1] = SI * sy
+        ATA[..., 2, 2] = szz
+        ATA[..., 2, 3] = ATA[..., 3, 2] = SI * sz
+        ATA[..., 3, 3] = SI * SI * n
+        ATy = np.stack((sxv, syv, szv, SI * sv), axis=-1)[..., None]
 
-    # get rid of zeros in the border
-    estx = estx[delta:-delta, delta:-delta]
-    esty = esty[delta:-delta, delta:-delta]
-    estz = estz[delta:-delta, delta:-delta]
-    estb = estb[delta:-delta, delta:-delta]
-    stdzmat = stdzmat[delta:-delta, delta:-delta]
-    xi = xi[delta:-delta, delta:-delta]
-    yi = yi[delta:-delta, delta:-delta]
+        # a singular window (e.g. a flat patch) has no solution: give it zero
+        # estimates and a zero std of df/dz, so it is the first to be dropped
+        det = np.linalg.det(ATA)
+        bad = ~np.isfinite(det) | (det == 0)
+        ATA[bad] = np.eye(4)
+        p = np.linalg.solve(ATA, ATy)[..., 0]
+        p[bad] = 0.0
+
+        # standard deviation of the z derivative (sample, as in the original)
+        stdz = np.sqrt(np.maximum(szz - sz * sz / n, 0.0) / (n - 1.0))
+        stdz[bad] = 0.0
+
+        estx[r0:r1] = p[..., 0]
+        esty[r0:r1] = p[..., 1]
+        estz[r0:r1] = p[..., 2]
+        estb[r0:r1] = p[..., 3]
+        stdzmat[r0:r1] = stdz
+
     # group the solutions for the classic plot
     classic = np.stack(
         (estx.ravel(), esty.ravel(), estz.ravel(), estb.ravel(), stdzmat.ravel()),
@@ -287,7 +302,6 @@ def euler_deconv(data, xi, yi, zi, shape, area, SI, windowSize, filt, callback=N
     )
     # sort the solutions according to the std of df/dz and filter a percentage;
     # the std of df/dz is kept as the last column for secondary filtering
-    classic_est = np.array(sorted(classic, key=lambda l: l[-1], reverse=True))[
-        : int(len(classic) * filt), :
-    ]
+    order = np.argsort(-classic[:, -1], kind="stable")
+    classic_est = classic[order[: int(len(classic) * filt)], :]
     return classic_est

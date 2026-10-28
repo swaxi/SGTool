@@ -1,4 +1,5 @@
 import numpy as np
+from scipy import fft as sp_fft
 
 class FourierDomainGrid(object):
     """Deal with Fourier Domain entities and Operators.
@@ -78,13 +79,13 @@ class FourierDomainGrid(object):
         """ Perform a simple FFT without pre-conditioning
             Input: complex; Output: complex
         """        
-        return np.fft.fft2(spatial_grid)
+        return sp_fft.fft2(spatial_grid, workers=-1)  # multithreaded
 
     def simpleIFFT(self,hat_grid):
         """ Perform a simple inverse FFT without pre-conditioning
             Input: complex; Output: complex
         """        
-        return np.fft.ifft2(hat_grid)
+        return sp_fft.ifft2(hat_grid, workers=-1)
     
 if __name__ == '__main__':
     import doctest

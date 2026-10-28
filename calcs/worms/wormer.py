@@ -66,11 +66,20 @@ class Wormer(object):
         """Export a numpy array into a GDAL image, using the initial image as a prototype."""
         gdalnumeric.SaveArray(narray, gdal_filename, format=fmt, prototype=self.ds)
 
+    def _paddedGridFdg(self):
+        """The padded grid's transform, computed once and reused by every level."""
+        key = (self.padded_grid, self.dx, self.dy)
+        cache = getattr(self, "_fdg_cache", None)
+        if cache is None or cache[0][0] is not key[0] or cache[0][1:] != key[1:]:
+            fdg = GRID(dx=self.dx, dy=self.dy)
+            fdg.setSpatialGrid(self.padded_grid)
+            fdg.setHatGrid(fdg.simpleFFT(fdg.spatial_grid.astype(complex)))
+            fdg.buildWavenumbers(fdg.spatial_grid)
+            self._fdg_cache = (key, fdg)
+        return self._fdg_cache[1]
+
     def wormLevel(self, dz):
-        fdg = GRID(dx=self.dx, dy=self.dy)
-        fdg.setSpatialGrid(self.padded_grid)
-        fdg.setHatGrid(fdg.simpleFFT(fdg.spatial_grid.astype(complex)))
-        fdg.buildWavenumbers(fdg.spatial_grid)
+        fdg = self._paddedGridFdg()
         up_fdg = GRID(dx=self.dx, dy=self.dy)
         fdo = FDO(fdg)
         fdo.buildModK()

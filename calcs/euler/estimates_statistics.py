@@ -64,6 +64,21 @@ def classic(est_classic, area_plt, SI_vet, name, path):
     return
 
 
+def _window_index(values, origin, size, n_windows):
+    """
+    Index of the window holding each value, the window i spanning
+    origin + i * size <= value < origin + (i + 1) * size (the bounds computed
+    exactly as written, so values on a boundary fall where a direct test of
+    each window puts them), and whether the value lies in any window.
+    """
+    finite = np.isfinite(values)
+    v = np.where(finite, values, origin)
+    i = np.floor((v - origin) / size).astype(np.int64)
+    i = np.where(v < origin + i * size, i - 1, i)
+    i = np.where(v >= origin + (i + 1) * size, i + 1, i)
+    return i, finite & (i >= 0) & (i < n_windows)
+
+
 def window_stats(
     est_classic,
     area_plt,
@@ -116,96 +131,59 @@ def window_stats(
     for si_idx, SI in enumerate(SI_vet):
         estimates = est_classic[si_idx]
 
-        # Create arrays to store window statistics
-        window_results = []
+        # Assign each estimate to its window once (rather than testing every
+        # estimate against every window), then gather the estimates of each
+        # window with a sort, keeping windows in row-major order
+        ix, ok_x = _window_index(estimates[:, 1], west, window_size_x, n_windows_x)
+        iy, ok_y = _window_index(estimates[:, 0], south, window_size_y, n_windows_y)
+        ok = ok_x & ok_y
+        key = iy[ok] * n_windows_x + ix[ok]
+        order = np.argsort(key, kind="stable")
+        key = key[order]
+        window_estimates = estimates[ok][order][:, :4]
 
-        # Process each window
-        for row in range(n_windows_y):
-            for col in range(n_windows_x):
-                # Calculate window bounds
-                win_west = west + col * window_size_x
-                win_east = west + (col + 1) * window_size_x
-                win_south = south + row * window_size_y
-                win_north = south + (row + 1) * window_size_y
+        windows, start, n_points = np.unique(
+            key, return_index=True, return_counts=True
+        )
+        row = windows // n_windows_x
+        col = windows % n_windows_x
+        # window bounds and centres, from the same expressions as the bounds
+        win_west = west + col * window_size_x
+        win_east = west + (col + 1) * window_size_x
+        win_south = south + row * window_size_y
+        win_north = south + (row + 1) * window_size_y
+        win_center_x = (win_west + win_east) / 2.0
+        win_center_y = (win_south + win_north) / 2.0
 
-                # Window center coordinates
-                win_center_x = (win_west + win_east) / 2.0
-                win_center_y = (win_south + win_north) / 2.0
+        if len(windows):
+            means = np.add.reduceat(window_estimates, start, axis=0) / n_points[:, None]
+        else:
+            means = np.zeros((0, 4))
+        mean_x, mean_y, mean_z, mean_base = means.T
+        columns = [
+            row, col, win_center_x, win_center_y, n_points,
+            mean_x, mean_y, mean_z / 1000.0, mean_base,
+        ]
 
-                # Filter estimates within this window
-                in_window = (
-                    (estimates[:, 1] >= win_west)
-                    & (estimates[:, 1] < win_east)
-                    & (estimates[:, 0] >= win_south)
-                    & (estimates[:, 0] < win_north)
+        if detailed_stats:
+            if len(windows):
+                deviations = window_estimates - np.repeat(means, n_points, axis=0)
+                stds = np.sqrt(
+                    np.add.reduceat(deviations**2, start, axis=0) / n_points[:, None]
                 )
+                min_z = np.minimum.reduceat(window_estimates[:, 2], start)
+                max_z = np.maximum.reduceat(window_estimates[:, 2], start)
+            else:
+                stds = np.zeros((0, 4))
+                min_z = max_z = np.zeros(0)
+            # Single point - no standard deviation possible
+            stds[n_points == 1] = 0.0
+            std_x, std_y, std_z, std_base = stds.T
+            columns += [std_x, std_y, std_z / 1000.0, std_base,
+                        min_z / 1000.0, max_z / 1000.0]
 
-                window_estimates = estimates[in_window]
-                n_points = len(window_estimates)
-
-                if n_points > 0:
-                    # Only save windows with estimates
-                    # Calculate statistics
-                    mean_x = np.mean(window_estimates[:, 0])
-                    mean_y = np.mean(window_estimates[:, 1])
-                    mean_z = np.mean(window_estimates[:, 2])
-                    mean_base = np.mean(window_estimates[:, 3])
-
-                    if detailed_stats:
-                        # Always calculate all stats, use 0 for single points
-                        if n_points > 1:
-                            std_x = np.std(window_estimates[:, 0])
-                            std_y = np.std(window_estimates[:, 1])
-                            std_z = np.std(window_estimates[:, 2])
-                            std_base = np.std(window_estimates[:, 3])
-                            min_z = np.min(window_estimates[:, 2])
-                            max_z = np.max(window_estimates[:, 2])
-                        else:
-                            # Single point - no standard deviation possible
-                            std_x = 0.0
-                            std_y = 0.0
-                            std_z = 0.0
-                            std_base = 0.0
-                            min_z = mean_z
-                            max_z = mean_z
-
-                        window_results.append(
-                            [
-                                row,
-                                col,
-                                win_center_x,
-                                win_center_y,
-                                n_points,
-                                mean_x,
-                                mean_y,
-                                mean_z / 1000.0,
-                                mean_base,
-                                std_x,
-                                std_y,
-                                std_z / 1000.0,
-                                std_base,
-                                min_z / 1000.0,
-                                max_z / 1000.0,
-                            ]
-                        )
-                    else:
-                        window_results.append(
-                            [
-                                row,
-                                col,
-                                win_center_x,
-                                win_center_y,
-                                n_points,
-                                mean_x,
-                                mean_y,
-                                mean_z / 1000.0,
-                                mean_base,
-                            ]
-                        )
-                # Skip empty windows - don't append anything
-
-        # Convert to numpy array
-        window_results = np.array(window_results)
+        # only windows with estimates are kept
+        window_results = np.column_stack(columns).astype(float)
         all_results[SI] = window_results
 
         # Save results for this SI

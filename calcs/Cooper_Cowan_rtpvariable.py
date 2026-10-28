@@ -13,6 +13,7 @@ Run with QGIS Python 3.12 (has scipy + GDAL):
 import numpy as np
 import matplotlib.pyplot as plt
 from osgeo import gdal, osr
+from scipy.fft import fft2, ifft2
 
 
 # =============================================================================
@@ -134,15 +135,22 @@ def rtpvariable(magc, nr, nc, inc_corners, dec_corners, incv=None, decv=None,
     incv = incv - inc
     decv = decv - azimuth
 
+    # the first inc and dec derivatives share the rtp of magc_deriv itself
+    deriv_spectrum = rtp_spectrum(magc_deriv, npts, nr, nc, rdiff, cdiff)
+    deriv_rtp = rtp(magc_deriv, npts, nr, nc, rdiff, cdiff, azimuth, inc,
+                    spectrum=deriv_spectrum)
+
     print('Computing inc dx1')
-    drtp1_inc = taylortp1(magc_deriv, npts, nr, nc, rdiff, cdiff, azimuth, inc)
+    drtp1_inc = taylortp1(magc_deriv, npts, nr, nc, rdiff, cdiff, azimuth, inc,
+                          spectrum=deriv_spectrum, base=deriv_rtp)
     print('Computing inc dx2')
     drtp2_inc = taylortp1(drtp1_inc, npts, nr, nc, rdiff, cdiff, azimuth, inc)
     print('Computing inc dx3')
     drtp3_inc = taylortp1(drtp2_inc, npts, nr, nc, rdiff, cdiff, azimuth, inc)
 
     print('Computing dec dx1')
-    drtp1_dec = taylordec1(magc_deriv, npts, nr, nc, rdiff, cdiff, azimuth, inc)
+    drtp1_dec = taylordec1(magc_deriv, npts, nr, nc, rdiff, cdiff, azimuth, inc,
+                           spectrum=deriv_spectrum, base=deriv_rtp)
     print('Computing dec dx2')
     drtp2_dec = taylordec1(drtp1_dec, npts, nr, nc, rdiff, cdiff, azimuth, inc)
     print('Computing dec dx3')
@@ -164,18 +172,31 @@ def rtpvariable(magc, nr, nc, inc_corners, dec_corners, incv=None, decv=None,
 # Helper: RTP derivatives via Taylor series
 # =============================================================================
 
-def taylortp1(magc, npts, nr, nc, rdiff, cdiff, azimuth, inc):
+def taylortp1(magc, npts, nr, nc, rdiff, cdiff, azimuth, inc,
+              spectrum=None, base=None):
+    # spectrum: magc's tapered spectrum (rtp_spectrum), computed here if not
+    # given; base: magc's rtp at (azimuth, inc), if already computed
     dtheta = 0.01
-    rtpdata1 = rtp(magc, npts, nr, nc, rdiff, cdiff, azimuth, inc)
-    rtpdata2 = rtp(magc, npts, nr, nc, rdiff, cdiff, azimuth, inc + dtheta)
+    if spectrum is None:
+        spectrum = rtp_spectrum(magc, npts, nr, nc, rdiff, cdiff)
+    rtpdata1 = base if base is not None else rtp(
+        magc, npts, nr, nc, rdiff, cdiff, azimuth, inc, spectrum=spectrum)
+    rtpdata2 = rtp(magc, npts, nr, nc, rdiff, cdiff, azimuth, inc + dtheta,
+                   spectrum=spectrum)
     drtp = (rtpdata2 - rtpdata1) / dtheta
     return drtp
 
 
-def taylordec1(magc, npts, nr, nc, rdiff, cdiff, azimuth, inc):
+def taylordec1(magc, npts, nr, nc, rdiff, cdiff, azimuth, inc,
+               spectrum=None, base=None):
+    # spectrum and base as for taylortp1
     dtheta = 0.01
-    rtpdata1 = rtp(magc, npts, nr, nc, rdiff, cdiff, azimuth, inc)
-    rtpdata2 = rtp(magc, npts, nr, nc, rdiff, cdiff, azimuth + dtheta, inc)
+    if spectrum is None:
+        spectrum = rtp_spectrum(magc, npts, nr, nc, rdiff, cdiff)
+    rtpdata1 = base if base is not None else rtp(
+        magc, npts, nr, nc, rdiff, cdiff, azimuth, inc, spectrum=spectrum)
+    rtpdata2 = rtp(magc, npts, nr, nc, rdiff, cdiff, azimuth + dtheta, inc,
+                   spectrum=spectrum)
     drtp = (rtpdata2 - rtpdata1) / dtheta
     return drtp
 
@@ -184,9 +205,16 @@ def taylordec1(magc, npts, nr, nc, rdiff, cdiff, azimuth, inc):
 # Helper: core RTP computation
 # =============================================================================
 
-def rtp(magc, npts, nr, nc, rdiff, cdiff, azimuth, inc):
+def rtp_spectrum(magc, npts, nr, nc, rdiff, cdiff):
+    """Spectrum of the tapered, padded grid, as rtp() transforms it."""
     gf = taper2d(magc, npts, nc, nr, cdiff, rdiff)
-    f = np.fft.fft2(gf, s=(npts, npts))
+    return fft2(gf, s=(npts, npts), workers=-1)
+
+
+def rtp(magc, npts, nr, nc, rdiff, cdiff, azimuth, inc, spectrum=None):
+    # spectrum: magc's rtp_spectrum, to reuse it across calls on the same grid
+    f = spectrum if spectrum is not None else rtp_spectrum(
+        magc, npts, nr, nc, rdiff, cdiff)
     fx = f.copy()
 
     # Direction cosines
@@ -218,7 +246,7 @@ def rtp(magc, npts, nr, nc, rdiff, cdiff, azimuth, inc):
     fx[np.ix_(ii - 1,    npts - jj)] = _apply(f[np.ix_(ii - 1,    npts - jj)],  L * U - M * V)
     fx[np.ix_(npts - ii, npts - jj)] = _apply(f[np.ix_(npts - ii, npts - jj)], -L * U - M * V)
 
-    fxinv = np.fft.ifft2(fx);  rtpdata = fxinv[rdiff:rdiff + nr, cdiff:cdiff + nc].real
+    fxinv = ifft2(fx, workers=-1);  rtpdata = fxinv[rdiff:rdiff + nr, cdiff:cdiff + nc].real
     return rtpdata
 
 

@@ -47,6 +47,7 @@ from .calcs.mba_suggest import describe as describe_mba_suggestion, suggest_mba_
 from .calcs.saga_mba_gridding import mba_gridding
 from .calcs.sgt_cancel import OperationCancelled
 from .calcs.sgt_metadata import write_sgt_metadata
+from .calcs.text_io import savetxt as savetxt_fast
 
 PROVIDER_ID = "sgtool"
 
@@ -410,8 +411,6 @@ class EulerAlgorithm(_SGToolAlgorithm):
             result = euler_deconv(
                 data, xi, yi, zi, shape, area, SI, winsize, filt, callback=callback
             )
-            # same x-coordinate flip the plugin dialog applies to its solutions
-            result[1, :] = area[0] - result[1, :] + area[1]
         except OperationCancelled:
             return {}
 
@@ -421,7 +420,7 @@ class EulerAlgorithm(_SGToolAlgorithm):
             auto_output_path(source_path, f"_estimates_SI_{si_index}", ".csv"),
             "", raster=False,
         )
-        np.savetxt(out_path, result, delimiter=",", header=self.HEADER, comments="")
+        savetxt_fast(out_path, result, header=self.HEADER)
         write_sgt_metadata(
             out_path, source_path, "Euler deconvolution",
             {

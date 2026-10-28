@@ -18,7 +18,21 @@
    
 ## ArcGIS Pro:
 1) Download and unzip this respository and store somewhere safe.
-2) In order to run python code in ARCGIS Pro you will need to manually add some python libraries so SGTool has everything it needs:
+2) In the ArcGIS Pro Catalog pane, go to **Toolboxes > Add Toolbox** and select the file **SGTool.pyt** in the **ARCGIS** directory in this repository.
+3) SGTool needs some Python libraries that ArcGIS Pro does not include. The default environment (arcgispro-py3) cannot be changed, so they go into a clone of it. Either use the setup tool (3A, recommended) or do it by hand (3B).
+
+### 3A) Setup tool
+- In the SGTool toolbox, open **Setup > Set Up Python Environment** and click **Run**.
+- The tool clones arcgispro-py3 into a new environment called **arcgispro-py3-geotools**, installs the missing packages, checks that they all import, and makes the new environment the one ArcGIS Pro uses. It needs an internet connection and takes about 10 minutes. Click **View Details** in the Geoprocessing pane to follow its progress.
+- When it has finished, **restart ArcGIS Pro**.
+- The same tool is in the **SGTool**, **tomofast_x_q** and **GeoSubSampler** toolboxes and installs what all three need, so you only need to run it once. Running it again only adds what is missing.
+- Its options let you choose a different environment name, leave ArcGIS Pro's active environment unchanged (activate it later in Package Manager), or delete the environment and start again from a new clone.
+- The tool runs the script `ARCGIS/setup_arcgispro_env.py`, which can also be run from a Windows Command Prompt (change the paths if ArcGIS Pro or this repository are somewhere else):
+  ```
+  "C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" "C:\path\to\SGTool\ARCGIS\setup_arcgispro_env.py"
+  ```
+
+### 3B) By hand
 - a) Open Package Manager: Click the Project tab on the ribbon and select Package Manager from the side menu. Access Environment Manager (Gear icon to right of active environemnt): 
   - i) Click the Environment Manager button (top right) to open the management dialog.
   - ii) Clone the Environment: Locate the environment you wish to copy (usually arcgispro-py3) and click the Clone button next to it.
@@ -32,7 +46,10 @@
   - networkx
   - shapely
   - geopandas
-- c) In the ArcGIS Pro Catalogue area, go to Add toolbox and select the file **SGTool.pyt** in the **ArcGIS** directory in this repository. 
-- d) Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run, and select  **Launch** then **run** to launch the SGTool GUI. Alternatively you can access individual tools from the same Toolbox.    
+  - scikit-image
+  - pywavelets
+- c) Activate the clone and restart ArcGIS Pro.
+
+4) Double click on the new Geophysical Processing Toolbox to get the list of functions that can be run, and select  **Launch** then **run** to launch the SGTool GUI. Alternatively you can access individual tools from the same Toolbox.    
 
    

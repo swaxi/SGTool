@@ -11,7 +11,7 @@
 # Installation
 
 - **QGIS**: install **Structural Geophysics Tool** from the QGIS Plugin Manager, or install the zip from the green **<> Code** button of this page. If QGIS warns that a Python package such as scikit-learn is missing, install the **qpip** plugin and let it add it.
-- **ArcGIS Pro**: download this repository, clone the Pro Python environment, add a few packages and add the toolbox `ARCGIS/SGTool.pyt`.
+- **ArcGIS Pro**: download this repository, clone the Pro Python environment, add a few packages and add the toolbox `ARCGIS/SGTool.pyt`. The toolbox's **Setup > Set Up Python Environment** tool does the clone and the packages for you: add the toolbox, run that tool (about 10 minutes), then restart ArcGIS Pro. It creates and activates an environment called `arcgispro-py3-geotools`. The same tool is in the tomofast_x_q and GeoSubSampler toolboxes, and one run covers all three.
 
 Full steps for both, including the packages and which tools need them, are in [docs/installation.md](docs/installation.md).
 

@@ -2155,14 +2155,15 @@ class SGToolDockWidget(QDockWidget):
 
         self.textBrowser = QTextBrowser()
         self.textBrowser.setOpenExternalLinks(True)
-        self.textBrowser.setHtml(self._help_html())
+        # the same point size reads much smaller on macOS
+        self.textBrowser.setHtml(self._help_html(12 if IS_MACOS else 8))
         outer.addWidget(self.textBrowser)
         return tab
 
     @staticmethod
-    def _help_html():
+    def _help_html(font_pt=8):
         return """<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN">
-<html><body style="font-family:'MS Shell Dlg 2'; font-size:8pt;">
+<html><body style="font-family:'MS Shell Dlg 2'; font-size:""" + str(font_pt) + """pt;">
 <p><b>Simple Potential Field Calcs to assist WAXI/Agate Structural Geophysics Course</b></p>
 <p><a href="https://waxi4.org">https://waxi4.org</a> &nbsp;
    <a href="https://agate-project.org">https://agate-project.org</a></p>

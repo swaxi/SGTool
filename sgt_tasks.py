@@ -46,9 +46,13 @@ class SGToolTask(QgsTask):
         self.result = None
         self.error = None
         self.cancelled = False
+        self.worker = None  # the helper thread running work(), once started
 
     # -- worker thread -------------------------------------------------
     def run(self):
+        if self.isCanceled():  # cancelled before it started: run nothing
+            self.cancelled = True
+            return False
         outcome = {}
 
         def target():
@@ -60,6 +64,7 @@ class SGToolTask(QgsTask):
                 outcome["error"] = traceback.format_exc()
 
         worker = threading.Thread(target=target, daemon=True)
+        self.worker = worker
         worker.start()
         while worker.is_alive():
             worker.join(0.05)
@@ -78,6 +83,11 @@ class SGToolTask(QgsTask):
             self.cancelled = True
             return False
         return True
+
+    def busy(self):
+        """True while the helper thread is still running work(), which can be
+        after the task itself has ended (cancelled, until the next check())."""
+        return self.worker is not None and self.worker.is_alive()
 
     def check(self, percent=None):
         """Call from the work function: report progress and stop if cancelled."""

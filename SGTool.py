@@ -2581,6 +2581,7 @@ class SGTool:
 
         def work(task):
             runner._task_ref = task
+            runner.processor.cancel_check = task.check
             getattr(runner, entry[1])()
             return runner.new_grid, runner.suffix
 
@@ -2627,6 +2628,7 @@ class SGTool:
         task = SGToolTask("SGTool: preview", work, done)
         task.is_preview = True
         task.superseded = False
+        self._last_preview_task = task
         self._task = task
         self._set_busy(True, preview=True)
         QgsApplication.taskManager().addTask(task)
@@ -2651,6 +2653,32 @@ class SGTool:
             self._preview_pending = True
             QTimer.singleShot(0, self._run_pending_preview)
 
+    _last_preview_task = None  # the latest preview task (it may have been abandoned)
+    _preview_waiting = False  # a check for the abandoned calculation is scheduled
+
+    def _preview_calc_running(self):
+        """True while the latest preview's calculation is still running, also
+        after its task was abandoned (until its next checkpoint)."""
+        task = self._last_preview_task
+        return task is not None and task.busy()
+
+    def _wait_for_preview_calc(self):
+        """Check again shortly; once the abandoned calculation has stopped,
+        draw the preview that waited for it."""
+        if self._preview_waiting:
+            return
+        self._preview_waiting = True
+
+        def again():
+            self._preview_waiting = False
+            if self._preview_calc_running():
+                self._wait_for_preview_calc()
+            elif self._preview_pending and self._task is None:
+                self._preview_pending = False
+                self.updatePreview()
+
+        QTimer.singleShot(50, again)
+
     def _run_pending_preview(self):
         """After a job ends: draw the preview that waited for it."""
         if self._preview_pending and self._task is None:
@@ -2667,6 +2695,12 @@ class SGTool:
             else:
                 self._preview_pending = True  # starts when the job ends
                 return
+        if self._preview_calc_running():
+            # an abandoned preview is still calculating (it stops at its next
+            # checkpoint): start this one when it has, so they never compete
+            self._preview_pending = True
+            self._wait_for_preview_calc()
+            return
         chk, rad_extent, combo = self._preview_widgets(tab)
         name = combo.currentText()
         layers = QgsProject.instance().mapLayersByName(name) if name else []
@@ -4908,6 +4942,7 @@ class SGTool:
         self.raster_array = arr
 
         self.processor = GeophysicalProcessor(self.dx, self.dy, self.buffer)
+        self.processor.cancel_check = task.check
         self.convolution = ConvolutionFilter(arr)
         task.check()
         self.SG_Util = SG_Util(arr)

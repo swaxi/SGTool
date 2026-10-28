@@ -42,6 +42,15 @@ class GeophysicalProcessor:
         self.dy = dy
         self.buffer = buffer
 
+    # Optional cancel check, called between the steps of the Fourier filters;
+    # it may raise calcs.sgt_cancel.OperationCancelled (set by a background
+    # task so an abandoned preview or cancelled job stops part-way)
+    cancel_check = None
+
+    def _check(self):
+        if self.cancel_check is not None:
+            self.cancel_check()
+
     # --- Utility Methods ---
     def create_wavenumber_grids(self, nx, ny):
         """
@@ -663,7 +672,9 @@ class GeophysicalProcessor:
         median = np.nanmedian(data)
         filled_data, nan_mask = self.fill_nan(data)
         buffered_data, padding_info = self._mirror_buffer(filled_data - median, buffer_size)
+        self._check()
         data_fft = fft2(buffered_data, workers=-1)
+        self._check()
         ny, nx = buffered_data.shape
         kx, ky = self.create_wavenumber_grids(nx, ny)
 
@@ -684,6 +695,7 @@ class GeophysicalProcessor:
 
         best, best_m, best_corr = None, 0, -np.inf
         for m in self.TSI_RTP_ITERATIONS:
+            self._check()
             result = np.real(ifft2(data_fft * filter_function(kx, ky, m), workers=-1))
             result = self.remove_buffer(result, buffer_size, padding_info)
             t = result[valid] - np.mean(result[valid])
@@ -1425,6 +1437,7 @@ class GeophysicalProcessor:
 
         # inpaint NaN values
         filled_data, nan_mask = self.fill_nan(data)
+        self._check()
 
         # remove median to reduce ringing artifacts from windowing
         centered_data = filled_data - median
@@ -1438,6 +1451,7 @@ class GeophysicalProcessor:
             )
 
         # Fourier transform
+        self._check()
         data_fft = fft2(buffered_data, workers=-1)
 
         ny, nx = buffered_data.shape
@@ -1445,6 +1459,7 @@ class GeophysicalProcessor:
 
         results = []
         for filter_function in filter_functions:
+            self._check()
             # Compute filter
             filter_array = filter_function(kx, ky)
 

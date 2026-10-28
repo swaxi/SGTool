@@ -45,16 +45,20 @@ COMPACT_MAC = _compact_mac_ui()
 
 TAB_STYLE = """
 QTabWidget::tab-bar { alignment: left; }
+QTabBar { font-family: Arial; font-size: %dpx; }
 QTabBar::tab {
-    min-width: 116px; min-height: 23px;
+    min-height: 23px; padding: 0px 10px;
     background-color: rgb(220,220,220);
     border-radius: 2px;
     border: 1px solid #000000;
-    font-family: Arial; font-size: %dpx;
 }
 QTabBar::tab:selected { background-color: rgb(190,190,190); }
 QTabBar::tab:hover    { background-color: rgb(229,241,251); }
-""" % (11 if COMPACT_MAC else 13)
+""" % (11 if COMPACT_MAC else 12)
+# Tabs are as wide as their labels (no minimum width), so those up to Utils
+# fit within the width the tabs' contents share (see _cap_tab_widths). The
+# font is set on the tab bar, not on ::tab, as Qt sizes the tabs with the tab
+# bar's font: a ::tab font draws wider labels than it measured, clipping them.
 
 TAB_BG = "background-color: rgb(240,240,240);"
 

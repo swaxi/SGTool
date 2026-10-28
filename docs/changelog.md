@@ -19,7 +19,7 @@ The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.
       * Euler deconvolution: fix one solution per file plotting far from the rest; about 30x faster, with faster file writing and window statistics
       * Faster median filter, window statistics, variable RTP, tilt angle, analytic signal, horizontal gradient and worms, with the same results
       * Preview is calculated in the background: QGIS stays responsive and Cancel stops it
-      * Worms shapefile: 3D PolylineZ with the worm level as Z, and built much faster
+      * Worms shapefile: 3D PolylineZ with the worm level as Z, built much faster, and Cancel stops it
 
 ## 0.3.9
       * Utils: new Clip to Window button (QGIS and ArcGIS Pro) clips the selected grid to the map view

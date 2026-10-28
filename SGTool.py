@@ -386,6 +386,20 @@ class SGTool:
                 pass
             self.provider = None
 
+        # the dock belongs to the QGIS main window, so it stays on screen
+        # (with no plugin behind it) unless it is removed here
+        if getattr(self, "_preview_timer", None) is not None:
+            self._preview_timer.stop()
+        if self.dlg is not None:
+            try:
+                self.dlg.closingPlugin.disconnect(self.onClosePlugin)
+            except (TypeError, RuntimeError):
+                pass
+            self.iface.removeDockWidget(self.dlg)
+            self.dlg.deleteLater()
+            self.dlg = None
+            self.pluginIsActive = False
+
         for action in self.actions:
             self.iface.removePluginMenu(self.tr("&SGTool"), action)
             self.iface.removeToolBarIcon(action)

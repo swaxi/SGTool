@@ -8,7 +8,7 @@ from qgis.PyQt.QtWidgets import (
     QScrollArea, QTabWidget, QPushButton, QLabel, QLineEdit,
     QCheckBox, QRadioButton, QComboBox, QGroupBox, QDateEdit,
     QTextEdit, QTextBrowser, QSpinBox, QDoubleSpinBox, QFrame,
-    QButtonGroup, QStyleFactory, QApplication, QScrollBar,
+    QButtonGroup, QStyleFactory, QApplication, QScrollBar, QSizePolicy,
 )
 from qgis.gui import (
     QgsMapLayerComboBox, QgsProjectionSelectionWidget,
@@ -349,56 +349,58 @@ class SGToolDockWidget(QDockWidget):
 
         outer.addWidget(self._scroll_wrap(scroll_content), 1)
 
-        # ── Fixed bottom: buffer / version row ──────────────────────
-        bot = QWidget()
-        bl = QHBoxLayout(bot)
+        # ── Fixed bottom: the FFT buffer on its own row, then the version /
+        # grid information row the other tabs have ─────────────────────
+        buf_row = QWidget()
+        bl = QHBoxLayout(buf_row)
         bl.setContentsMargins(0, 2, 0, 0)
         bl.setSpacing(6)
-
         self.label_37 = QLabel(_tr("Max FFT Buffer (pixels)"))
-        self.label_37.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.label_37.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.lineEdit_13_max_buffer = QLineEdit("5000")
         self.lineEdit_13_max_buffer.setFixedWidth(55)
-
-        self.label_27 = QLabel(_tr("Version"))
-        self.label_27.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
-        self.version_label = QLabel("0.1")
-        self.version_label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
-
-        self.label_41_units = QLabel(_tr("Units"))
-
         bl.addWidget(self.label_37)
         bl.addWidget(self.lineEdit_13_max_buffer)
-        bl.addWidget(self.label_27)
-        bl.addWidget(self.version_label)
-        bl.addWidget(self.label_41_units)
         bl.addStretch()  # keep the row at the left of the tab
+        outer.addWidget(buf_row)
+
+        self.label_27 = QLabel(_tr("Version"))
+        self.version_label = QLabel("0.1")
+        self.label_41_units = QLabel(_tr("Units"))
         self._info_labels = [self.label_41_units]
         self._version_labels = [self.version_label]
-
-        outer.addWidget(bot)
+        outer.addWidget(self._info_row(self.label_27, self.version_label, self.label_41_units))
         return tab
+
+    @staticmethod
+    def _info_row(version_text, version, info):
+        """Version and grid information (units, CRS, pixels, pixel size) at the
+        left of the tab; the information wraps onto further lines rather than
+        being cut off when the dock is narrower than it."""
+        bar = QWidget()
+        bl = QHBoxLayout(bar)
+        bl.setContentsMargins(0, 2, 0, 0)
+        bl.setSpacing(6)
+        version_text.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        version.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        info.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        info.setWordWrap(True)
+        info.setMinimumWidth(1)  # may be narrower than its text: it wraps instead
+        info.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        bl.addWidget(version_text, 0, Qt.AlignmentFlag.AlignTop)
+        bl.addWidget(version, 0, Qt.AlignmentFlag.AlignTop)
+        bl.addWidget(info, 1)
+        return bar
 
     def _grid_info_bar(self):
         """The version and grid information row (units, CRS, pixels, pixel size)
         for the bottom of a tab. Each tab needs its own widgets, which the plugin
         updates together with those of the first tab."""
-        bar = QWidget()
-        bl = QHBoxLayout(bar)
-        bl.setContentsMargins(0, 2, 0, 0)
-        bl.setSpacing(6)
-        version_text = QLabel(_tr("Version"))
-        version_text.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
         version = QLabel(self._version_labels[0].text())
-        version.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
         info = QLabel(self._info_labels[0].text())
-        bl.addWidget(version_text)
-        bl.addWidget(version)
-        bl.addWidget(info)
-        bl.addStretch()
         self._version_labels.append(version)
         self._info_labels.append(info)
-        return bar
+        return self._info_row(QLabel(_tr("Version")), version, info)
 
     @staticmethod
     def _bullet_check(bullet, checkbox):

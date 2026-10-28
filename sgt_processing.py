@@ -47,6 +47,7 @@ from .calcs.mba_suggest import describe as describe_mba_suggestion, suggest_mba_
 from .calcs.saga_mba_gridding import mba_gridding
 from .calcs.sgt_cancel import OperationCancelled
 from .calcs.sgt_metadata import write_sgt_metadata
+from .sgt_crs import is_geographic
 from .calcs.text_io import savetxt as savetxt_fast
 
 PROVIDER_ID = "sgtool"
@@ -631,7 +632,7 @@ class BSplineGriddingAlgorithm(_SGToolAlgorithm):
         if auto:
             try:
                 suggestion = suggest_mba_parameters(
-                    xs, ys, geographic=source.sourceCrs().isGeographic()
+                    xs, ys, geographic=is_geographic(source.sourceCrs())
                 )
             except ValueError as e:
                 raise QgsProcessingException(f"Cannot choose the settings automatically: {e}")
@@ -743,7 +744,7 @@ class WormsAlgorithm(_SGToolAlgorithm):
         delta_z = self.parameterAsDouble(parameters, self.INCREMENT, context)
         shapefile = self.parameterAsBoolean(parameters, self.SHAPEFILE, context)
 
-        if layer.crs().isGeographic():
+        if is_geographic(layer.crs()):
             raise QgsProcessingException(
                 "Worms need a grid in a projected (metre-based) coordinate system, "
                 "not latitude / longitude"

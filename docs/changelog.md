@@ -4,6 +4,9 @@
 
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
+## 0.4.1
+      * Lat/long grids whose CRS QGIS does not flag as geographic (e.g. ER Mapper .ers) are treated as geographic, fixing relief shading and other cell-size steps
+
 ## 0.4.0
       * New Petrophys tab: apparent susceptibility and density grids by Fourier-domain layer inversion, also as Processing algorithms ([docs/petrophysics.md](petrophysics.md))
       * Petrophys plots: Henkel plots and histograms of apparent grids and measured samples, per polygon category, with similar categories grouped A, B, C ...

@@ -138,6 +138,7 @@ from .calcs.aseggdf2parser import AsegGdf2Parser
 from .calcs.euler.euler_python import euler_deconv
 from .calcs.euler.estimates_statistics import window_stats
 from .calcs.text_io import savetxt as savetxt_fast
+from .sgt_crs import is_geographic
 from .calcs.sgt_metadata import (
     write_sgt_metadata,
     remove_sgt_metadata,
@@ -1520,7 +1521,7 @@ class SGTool:
         ext = layer.extent()
         crs = layer.crs()
         return {
-            "geographic": crs.isGeographic(),
+            "geographic": is_geographic(crs),
             "authid": crs.authid(),
             "extent": (ext.xMinimum(), ext.yMinimum(), ext.xMaximum(), ext.yMaximum()),
             "centroid": (
@@ -3889,7 +3890,7 @@ class SGTool:
         delta_z = self.to_float(self.dlg.doubleSpinBox_inc.text())
         layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
 
-        if layer.crs().isGeographic():
+        if is_geographic(layer.crs()):
             self.iface.messageBar().pushMessage(
                 "This is a geographic projection, you need to convert it to a projected CRS",
                 level=Qgis.MessageLevel.Warning,
@@ -6310,7 +6311,7 @@ class SGTool:
     def _grid_info_text(layer):
         """Units, size in pixels and pixel size of a raster layer, for the bottom row
         of the first tab, e.g. "Units: m   CRS: EPSG:28350   Pixels: 120 x 120   Pixel size: 100 m"."""
-        unit = "deg" if layer.crs().isGeographic() else "m"
+        unit = "deg" if is_geographic(layer.crs()) else "m"
         crs = layer.crs()
         text = f"Units: {unit}   CRS: {crs.authid() or crs.description()}"
         width, height = layer.width(), layer.height()
@@ -6952,7 +6953,7 @@ class SGTool:
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             xs, ys = self._bspline_points_xy(layer)
-            suggestion = suggest_mba_parameters(xs, ys, geographic=layer.crs().isGeographic())
+            suggestion = suggest_mba_parameters(xs, ys, geographic=is_geographic(layer.crs()))
         except ValueError as e:
             dlg.label_bspline_auto_info.setText(self.tr("Cannot choose automatically: %s") % e)
             dlg.label_bspline_auto_info.setVisible(True)

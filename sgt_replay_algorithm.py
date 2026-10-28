@@ -18,6 +18,7 @@ from qgis.core import (
 
 from .calcs.sgt_metadata import read_sgt_metadata
 from .calcs.workflow import history_steps
+from .sgt_crs import is_geographic
 from .sgt_processing import _SGToolAlgorithm, GROUP_UTIL
 from .sgt_workflow import (
     ReplayError, plan_steps, run_replay, output_paths, final_output_path,
@@ -116,7 +117,7 @@ class ReplayHistoryAlgorithm(_SGToolAlgorithm):
         self._source = layer.source().split("|")[0]
         ext = layer.extent()
         self._grid_info = {
-            "geographic": layer.crs().isGeographic(),
+            "geographic": is_geographic(layer.crs()),
             "authid": layer.crs().authid(),
             "extent": (ext.xMinimum(), ext.yMinimum(), ext.xMaximum(), ext.yMaximum()),
         }

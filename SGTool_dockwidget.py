@@ -1504,7 +1504,8 @@ class SGToolDockWidget(QDockWidget):
                 "A magnetic anomaly grid (IGRF removed) has no absolute level, so the\n"
                 "calculated susceptibility is relative to an unknown background and is\n"
                 "partly negative. A typical background (e.g. 0.001 SI) keeps most values\n"
-                "positive; Henkel plots and histograms leave out values <= 0, which a log axis can't show.")
+                "positive; on a log axis, Henkel plots and histograms shift all values to plot\n"
+                "above 0 if any are <= 0.")
         )
         self.lineEdit_AppSus_cut = self._short_edit("", 70, cut_tip)
         self.lineEdit_AppSus_cut.setPlaceholderText(_tr("4 x cell"))
@@ -1575,6 +1576,14 @@ class SGToolDockWidget(QDockWidget):
             _tr("Apparent susceptibility grid (SI). Leave blank, with a density grid\n"
                 "chosen, for density histograms.")
         )
+        self.checkBox_Henkel_log = QCheckBox(_tr("Log"))
+        self.checkBox_Henkel_log.setChecked(True)
+        self.checkBox_Henkel_log.setToolTip(
+            _tr("Plot apparent susceptibility on a log axis. The grid has no absolute\n"
+                "level, so if it has values <= 0 they are all shifted to plot above 0\n"
+                "(the axis label gives the shift; the median, mean and SD shown are the\n"
+                "real values). Untick for a linear axis, which shows the values as they are.")
+        )
         lbl_dens = QLabel(_tr("App. Density"))
         lbl_dens.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.mMapLayerComboBox_Henkel_dens = QgsMapLayerComboBox()
@@ -1589,11 +1598,11 @@ class SGToolDockWidget(QDockWidget):
                 "(log y axis), counting grid cells per bin on a log colour scale.\n"
                 "Each cell of the coarser grid (usually gravity) is paired with the nearest\n"
                 "cell of the finer grid, reprojecting if the CRSs differ; cells where either\n"
-                "grid has no data are left out, as are susceptibilities <= 0, which a log\n"
-                "axis can't show (their number is given in the title). Axes span the\n"
-                "0.1-99.9 percentiles, to keep FFT edge effects from squashing the plot.\n"
+                "grid has no data are left out. Susceptibility is on a log axis if Log is\n"
+                "ticked. Axes span the 5-95 percentiles, to keep FFT edge effects\n"
+                "from squashing the plot.\n"
                 "With only one grid chosen: a histogram of it instead (linear bins for\n"
-                "density, log bins for susceptibility).")
+                "density; log or linear bins for susceptibility, as set by Log).")
         )
         # Per-category plots of the same two grids, clipped to polygons
         lbl_poly = QLabel(_tr("Polygons"))
@@ -1625,10 +1634,11 @@ class SGToolDockWidget(QDockWidget):
 
         g.addWidget(lbl_sus,                               0, 0)
         g.addWidget(self.mMapLayerComboBox_Henkel_sus,     0, 1)
+        g.addWidget(self.checkBox_Henkel_log,              0, 2)
         g.addWidget(lbl_dens,                              1, 0)
         g.addWidget(self.mMapLayerComboBox_Henkel_dens,    1, 1)
-        g.addWidget(self.pushButton_Henkel,                2, 0, 1, 2, Qt.AlignmentFlag.AlignLeft)
-        g.addWidget(divider,                               3, 0, 1, 2)
+        g.addWidget(self.pushButton_Henkel,                2, 0, 1, 3, Qt.AlignmentFlag.AlignLeft)
+        g.addWidget(divider,                               3, 0, 1, 3)
         g.addWidget(lbl_poly,                              4, 0)
         g.addWidget(self.mMapLayerComboBox_Petro_polygons, 4, 1)
         g.addWidget(lbl_cat,                               5, 0)
@@ -1649,7 +1659,7 @@ class SGToolDockWidget(QDockWidget):
         category_row.addWidget(self.checkBox_Henkel_group)
         category_row.addWidget(self.comboBox_Henkel_groups)
         category_row.addStretch()
-        g.addLayout(category_row,                          6, 0, 1, 2)
+        g.addLayout(category_row,                          6, 0, 1, 3)
         g.setColumnStretch(1, 1)
         return gb
 
@@ -1670,9 +1680,9 @@ class SGToolDockWidget(QDockWidget):
             "to g/cc, or 0.00001 for susceptibility in x10^-5 SI to SI"
         )
         log_tip = _tr(
-            "Log scale for the {axis} axis (and log bins in histograms). Values <= 0\n"
-            "can't be shown on a log axis, so they are left out (their number is given\n"
-            "in the title)."
+            "Log scale for the {axis} axis (and log bins in histograms). If any values\n"
+            "are <= 0, all are shifted to plot above 0 (the axis label gives the shift;\n"
+            "the median, mean and SD shown are the real values)."
         )
 
         def label(text):
@@ -1968,7 +1978,8 @@ class SGToolDockWidget(QDockWidget):
         self.mMapLayerComboBox_clip_polygon = QgsMapLayerComboBox()
         self.mMapLayerComboBox_clip_polygon.setToolTip(
             _tr("Polygon layer to clip every layer of the project to. If some of its "
-                "polygons are selected, only those are used.")
+                "polygons are selected, only those are used.\n"
+                "Current map window (the default) clips to the area the map shows.")
         )
         self.pushButton_clip_all_layers = QPushButton(_tr("Clip all Layers"))
         self.pushButton_clip_all_layers.setStyleSheet("font-weight: bold;")

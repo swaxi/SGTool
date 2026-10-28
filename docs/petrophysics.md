@@ -96,9 +96,8 @@ The result is in g/cc.
 The absolute level of either grid (its datum, the regional field, the IGRF
 removal) carries no density or susceptibility information, so the *k* = 0 term is
 not used. Each result is a zero-mean variation to which a background is added:
-2.67 g/cc for density and 0.001 SI for susceptibility. The susceptibility
-background keeps most values positive for the log axis of Henkel plots; raise it
-if a plot reports many values left out.
+2.67 g/cc for density and 0.001 SI for susceptibility. Values at or below zero
+are still plotted on the log axis of Henkel plots (see below).
 
 Dividing by the response amplifies short wavelengths, so both calculations apply
 a high-cut: wavelengths longer than twice the cutoff pass, those at the cutoff or
@@ -123,9 +122,14 @@ Each plot is drawn as soon as its button is pressed, in its own matplotlib windo
 (whose toolbar can also save it). With PNG and/or PDF ticked under **Save Plots**
 it is saved too, in the chosen folder or, if that is blank, beside the input layer.
 
-On a log axis, values of zero or less can't be shown, so they are left out and the
-plot title says how many. Heat maps count points per bin on a log colour scale
-(viridis), with empty bins left white.
+On a log axis, if any values are zero or less, all of them are shifted so the
+minimum plots just above zero: the axis then shows value - minimum + d, with d
+0.1% of the range (rounded to one figure), and the axis label says so, for
+example "Susceptibility (SI) - min (-0.00425) + 1e-05". Nothing is left out. The
+median, mean and SD in the corner of a histogram are of the unshifted values.
+Each plot's title gives the number of cells (or samples) plotted, and each panel
+of a per-category plot its number and percentage of that total. Heat maps count
+points per bin on a log colour scale (viridis), with empty bins left white.
 
 ### Apparent Henkel Plot / Histogram
 
@@ -137,8 +141,8 @@ plot title says how many. Heat maps count points per bin on a log colour scale
   grid (linear x axis) against the apparent susceptibility grid (log y axis). Each
   cell of the coarser grid (usually gravity) is paired with the nearest cell of the
   finer grid, reprojected if the CRSs differ; cells where either grid has no data
-  are left out. The axes span the 0.1-99.9 percentiles so FFT edge effects don't
-  squash the plot.
+  are left out. The axes span the 5-95 percentiles so FFT edge effects and
+  outliers don't squash the plot (the top and bottom 5% of cells fall outside it).
 - **Plot per Category**: the same grids clipped to the polygons of each category
   of a polygon layer (or of its selected polygons), e.g. the lithologies of a
   geology map. Categories with cells where both grids have data get a heat map
@@ -210,12 +214,29 @@ categories whose distributions are alike and label them **A, B, C ...**:
   distributions and the choice of the number of groups are SGTool's.
 - The box beside it sets the number of groups: **Auto** cuts the clustering at its
   largest jump (one group if all the categories are alike), or choose 2 to 8.
+- Categories with **more than one peak** (for example a map unit that covers two
+  lithologies) are grouped only among themselves and labelled **Bimodal** (or
+  **Bimodal 1, 2 ...** if there are several such groups), with a
+  dashed outline. A mixture of two populations lies between them, so otherwise it
+  would join whichever group it happens to be nearest. A category counts as having
+  several peaks if its smoothed histogram (1-D, or 2-D for Henkel plots and sample
+  scatter plots), cut at some height between 5% and 80% of its maximum, splits into
+  separate parts that each hold at least 10% (and 10) of its values and rise at
+  least 25% above the cut. In tests it reliably flags two equal-width populations
+  whose means are about 3.5 standard deviations apart when they are in equal
+  proportions, or 4 when one is 30% of the values, and it flagged no
+  single-peaked distributions, skewed ones included. Closer populations, which
+  show as a single broad or shouldered peak, count as single-peaked. The
+  number of groups chosen applies to the single-peaked categories; the
+  multi-peaked ones are always grouped automatically.
 - Groups are lettered in order of their mean position along the x axis (for
   Henkel plots, A is the lightest).
-- Per-category panels (heat maps and histograms) are ordered by group, with the
-  letter in the title and a frame in the group's colour (histogram bars too). In
-  the sample plot the letter is shown in the legend, which is sorted by group.
-- Categories with fewer than 30 cells (10 samples) are marked **-** and not grouped.
+- Per-category panels (heat maps and histograms) are ordered by group (A, B ...
+  then Bimodal), with the group before the name in the title ("A - Granite") and
+  a frame in the group's colour (histogram bars too). In the sample plot the
+  group is shown the same way in the legend, which is sorted by group.
+- Categories with fewer than 30 cells (10 samples) are not grouped and have no
+  group label.
 
 A similar distribution does not mean the same geology, and apparent values blur
 across boundaries, so small polygons tend to group with their neighbours: use the

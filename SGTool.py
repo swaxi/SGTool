@@ -3708,11 +3708,31 @@ class SGTool:
             logging.getLogger(__name__).debug("Ignored: renderer copy", exc_info=True)
         self._notify(f"Clipped {name} to the map window: {out_path}", Qgis.MessageLevel.Success, 10)
 
+    CLIP_TO_WINDOW = "Current map window"
+
+    def _map_window_layer(self):
+        """A temporary polygon layer of the area the map canvas shows, in the canvas CRS."""
+        canvas = self.iface.mapCanvas()
+        crs = canvas.mapSettings().destinationCrs()
+        # the CRS goes in the URI: setCrs() afterwards would leave the memory
+        # provider (which some algorithms read) in EPSG:4326
+        layer = QgsVectorLayer(
+            "Polygon?crs=" + (crs.authid() or "wkt:" + crs.toWkt()), "map_window", "memory"
+        )
+        feature = QgsFeature()
+        feature.setGeometry(QgsGeometry.fromRect(canvas.extent()))
+        layer.dataProvider().addFeatures([feature])
+        layer.updateExtents()
+        return layer
+
     def procClipAllLayers(self):
-        """Clip every layer of the project to the chosen polygon layer: the clipped layers and
-        their styles are saved in a folder together with a copy of the project that loads them
-        (see sgt_clip_project.py)."""
-        layer = self.dlg.mMapLayerComboBox_clip_polygon.currentLayer()
+        """Clip every layer of the project to the chosen polygon layer, or to the map window:
+        the clipped layers and their styles are saved in a folder together with a copy of the
+        project that loads them (see sgt_clip_project.py)."""
+        combo = self.dlg.mMapLayerComboBox_clip_polygon
+        layer = combo.currentLayer()
+        if layer is None and combo.currentText() == self.tr(self.CLIP_TO_WINDOW):
+            layer = self._map_window_layer()
         if layer is None:
             self.iface.messageBar().pushMessage(
                 "SGTool", self.tr("There is no polygon layer to clip to: load one first"),
@@ -4285,7 +4305,11 @@ class SGTool:
         (values, axis label, log, layer)."""
         if density is not None:
             return (density,) + self.APPARENT_DENSITY + (dens_layer,)
-        return (sus,) + self.APPARENT_SUS + (sus_layer,)
+        return sus, self.APPARENT_SUS[0], self._sus_log(), sus_layer
+
+    def _sus_log(self):
+        """Apparent susceptibility on a log axis (the Log tickbox)."""
+        return self.dlg.checkBox_Henkel_log.isChecked()
 
     def _henkel_apparent(self):
         dens, sus, (density, susceptibility, _gt, _wkt) = self._henkel_grids()
@@ -4293,7 +4317,8 @@ class SGTool:
             fig = Petrophysics.heatmap(
                 density.ravel(), susceptibility.ravel(),
                 f"Apparent Henkel plot: {dens.name()} vs {sus.name()}",
-                self.APPARENT_DENSITY[0], self.APPARENT_SUS[0], what="cells",
+                self.APPARENT_DENSITY[0], self.APPARENT_SUS[0],
+                y_log=self._sus_log(), what="cells",
             )
             return fig, f"{dens.name()}_{sus.name()}_henkel", self._layer_folder(dens)
         values, label, log, layer = self._single_grid(density, susceptibility, dens, sus)
@@ -4339,6 +4364,7 @@ class SGTool:
                 density.ravel(), susceptibility.ravel(), cats, names,
                 f"Apparent Henkel plots by {field} ({polygons.name()})",
                 self.APPARENT_DENSITY[0], self.APPARENT_SUS[0],
+                y_log=self._sus_log(),
                 position_colours=d.checkBox_Henkel_position.isChecked(),
                 grouping=self._grouping(d.checkBox_Henkel_group, d.comboBox_Henkel_groups),
             )
@@ -6414,6 +6440,12 @@ class SGTool:
 
             self.dlg.mMapLayerComboBox_clip_polygon.setFilters(
                 QgsMapLayerProxyModel.Filter.PolygonLayer
+            )
+            # first choice: clip to the part of the map being shown
+            window = self.tr(self.CLIP_TO_WINDOW)
+            self.dlg.mMapLayerComboBox_clip_polygon.setAdditionalItems([window])
+            self.dlg.mMapLayerComboBox_clip_polygon.setCurrentIndex(
+                self.dlg.mMapLayerComboBox_clip_polygon.findText(window)
             )
             self.dlg.pushButton_clip_all_layers.clicked.connect(self.procClipAllLayers)
             self.dlg.pushButton_clip_to_window.clicked.connect(self.procClipToWindow)

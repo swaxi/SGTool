@@ -13,7 +13,9 @@ out of the new project.
 """
 
 import logging
+import math
 import os
+import tempfile
 
 from qgis.core import (
     Qgis,
@@ -58,6 +60,25 @@ def _is_float_raster(layer):
         return "Float" in getattr(dtype, "name", str(dtype))
     except Exception:
         return False
+
+
+class _Outside(Exception):
+    """The layer does not overlap the clip area."""
+
+
+def _snapped_window(gt, nx, ny, extent):
+    """(xmin, ymin, xmax, ymax) of the part of a north- or south-up grid (geotransform gt,
+    nx x ny cells) inside `extent`, widened to the grid's own cell edges, or None if
+    they don't overlap."""
+    dx, dy = abs(gt[1]), abs(gt[5])
+    xs, ys = (gt[0], gt[0] + gt[1] * nx), (gt[3], gt[3] + gt[5] * ny)
+    x0, x1 = max(extent.xMinimum(), min(xs)), min(extent.xMaximum(), max(xs))
+    y0, y1 = max(extent.yMinimum(), min(ys)), min(extent.yMaximum(), max(ys))
+    if x0 >= x1 or y0 >= y1:
+        return None
+    snap = lambda v, origin, step, rnd: origin + rnd((v - origin) / step - 1e-9 * rnd(1)) * step
+    return (snap(x0, gt[0], dx, math.floor), snap(y0, gt[3], dy, math.floor),
+            snap(x1, gt[0], dx, math.ceil), snap(y1, gt[3], dy, math.ceil))
 
 
 class ClipJob:
@@ -122,27 +143,68 @@ class ClipJob:
             context=self.context, feedback=self.feedback)
 
     def _clip_raster(self, layer, path):
+        """Clip with GDAL in this process. (The GDAL Processing algorithm runs the gdalwarp
+        program, which in the macOS QGIS app cannot find PROJ's database, so it cannot relate
+        the mask's CRS to the raster's and writes nothing.)"""
+        from osgeo import gdal
+
         nodata = None
         if not layer.dataProvider().sourceHasNoDataValue(1) and _is_float_raster(layer):
             nodata = -9999.0  # the cells outside the polygon need a value that means "no data"
-        processing.run(
-            "gdal:cliprasterbymasklayer",
-            {
-                "INPUT": layer, "MASK": self._mask_for(layer.crs()),
-                "SOURCE_CRS": layer.crs(), "TARGET_CRS": layer.crs(),
-                "NODATA": nodata, "ALPHA_BAND": False, "CROP_TO_CUTLINE": True,
-                "KEEP_RESOLUTION": True, "SET_RESOLUTION": False,
-                "X_RESOLUTION": None, "Y_RESOLUTION": None, "MULTITHREADING": True,
-                "OPTIONS": "COMPRESS=LZW", "DATA_TYPE": 0, "EXTRA": "", "OUTPUT": path,
-            },
-            context=self.context, feedback=self.feedback)
+        mask = self._mask_for(layer.crs())
+        source = gdal.Open(layer.source().split("|")[0])
+        if source is None:
+            raise RuntimeError(f"GDAL could not open {layer.source()}")
+        gt = source.GetGeoTransform()
+        if gt[2] or gt[4]:  # a rotated grid: crop to the polygon, without snapping
+            bounds = None
+        else:
+            # the window is cut on the grid's own cell edges, so the cells stay where they were
+            bounds = _snapped_window(gt, source.RasterXSize, source.RasterYSize, mask.extent())
+            if bounds is None:
+                raise _Outside()
+        with tempfile.TemporaryDirectory() as tmp:
+            # the mask, already in the raster's CRS, as a file gdal can read as a cutline
+            cutline = os.path.join(tmp, "mask.gpkg")
+            self._save_copy(mask, cutline)
+            used = gdal.GetUseExceptions()
+            gdal.UseExceptions()
+            try:
+                result = gdal.Warp(
+                    path, source,
+                    options=gdal.WarpOptions(
+                        format="GTiff", cutlineDSName=cutline, cropToCutline=bounds is None,
+                        outputBounds=bounds,
+                        xRes=abs(gt[1]), yRes=abs(gt[5]),  # keep the cell size
+                        dstNodata=nodata, multithread=True, creationOptions=["COMPRESS=LZW"],
+                    ),
+                )
+            except RuntimeError as e:
+                raise RuntimeError(f"GDAL could not clip it: {e}") from None
+            finally:
+                if not used:
+                    gdal.DontUseExceptions()
+            result = None  # closes and writes the file
+            source = None
 
     def _save_copy(self, layer, path):
         processing.run("native:savefeatures", {"INPUT": layer, "OUTPUT": path},
                        context=self.context, feedback=self.feedback)
 
+    def _why_missing(self, path):
+        """Why the clipping algorithm wrote no file: the end of its log (GDAL algorithms
+        report a failure there instead of raising)."""
+        try:
+            lines = [l for l in self.feedback.textLog().splitlines() if l.strip()]
+        except AttributeError:  # QGIS before 3.14
+            lines = []
+        tail = " / ".join(lines[-3:]) if lines else "no message from the algorithm"
+        return f"no file was written ({tail})"
+
     def _load_clipped(self, original, path, qml, name):
         """The clipped file as a layer called `name`, in the original's style."""
+        if not os.path.exists(path):
+            raise RuntimeError(self._why_missing(path))
         if isinstance(original, QgsRasterLayer):
             new = QgsRasterLayer(path, name)
         else:
@@ -165,8 +227,9 @@ class ClipJob:
             path = os.path.join(self.out_dir, stem + ".gpkg")
             self._save_copy(self._base_mask, path)  # the polygon(s) actually used
             layer.saveNamedStyle(qml)
+            new = self._load_clipped(layer, path, qml, name + SUFFIX)
             self.clipped.append((name, path))
-            return self._load_clipped(layer, path, qml, name + SUFFIX)
+            return new
 
         if isinstance(layer, QgsVectorLayer):
             if _geometry_type_is_null(layer):
@@ -184,12 +247,15 @@ class ClipJob:
         else:
             self.kept.append((name, f"{layer.__class__.__name__} layers are carried over unchanged"))
             return layer.clone()
+        if not os.path.exists(path):
+            raise RuntimeError(self._why_missing(path))
 
         message, ok = layer.saveNamedStyle(qml)
         if not ok:
             self.log.append((Qgis.MessageLevel.Warning, f"Style of '{name}' not saved: {message}"))
-        self.clipped.append((name, path))
-        return self._load_clipped(layer, path, qml, name + SUFFIX)
+        new = self._load_clipped(layer, path, qml, name + SUFFIX)
+        self.clipped.append((name, path))  # only once it is there and opens
+        return new
 
     # ---------------------------------------------------------------- the whole project
     def run(self):
@@ -213,6 +279,9 @@ class ClipJob:
                 continue
             try:
                 new_layer = self._process_layer(layer, used)
+            except _Outside:
+                self.skipped.append((name, "it does not overlap the clip area"))
+                continue
             except Exception as e:  # one failing layer must not stop the rest
                 self.errors.append((name, str(e).strip().splitlines()[0] if str(e).strip() else repr(e)))
                 continue

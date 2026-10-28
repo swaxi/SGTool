@@ -137,6 +137,7 @@ from .calcs.aseggdf2parser import AsegGdf2Parser
 # from .calcs.euler.euler_python_optimised import euler_deconv_opt
 from .calcs.euler.euler_python import euler_deconv
 from .calcs.euler.estimates_statistics import window_stats
+from .calcs.text_io import savetxt as savetxt_fast
 from .calcs.sgt_metadata import (
     write_sgt_metadata,
     remove_sgt_metadata,
@@ -390,6 +391,7 @@ class SGTool:
         # (with no plugin behind it) unless it is removed here
         if getattr(self, "_preview_timer", None) is not None:
             self._preview_timer.stop()
+        self._cancel_preview_task()
         if self.dlg is not None:
             try:
                 self.dlg.closingPlugin.disconnect(self.onClosePlugin)
@@ -1562,6 +1564,13 @@ class SGTool:
         else:
             self._results.append(item)
 
+    def _progress(self, start=0.0, end=100.0):
+        """A progress/cancel callback for calculation code when running as a
+        background task (preview or job), else None."""
+        if self._task_ref is None:
+            return None
+        return self._task_ref.callback(start, end)
+
     def _call_later(self, fn):
         """Run fn on the main thread once the compute steps have finished
         (loading layers, anything needing QGIS). Immediately if not in a job."""
@@ -1595,16 +1604,19 @@ class SGTool:
         cancels.append(d.pushButton_cancel_grid)  # Grid + Wavelets tab
         return applies, cancels
 
-    def _set_busy(self, busy):
+    def _set_busy(self, busy, preview=False):
+        """Enable Cancel while a calculation runs; Apply too unless it is a
+        preview (Apply Preview, or another Apply, replaces a preview)."""
         applies, cancels = self._busy_buttons()
         for tab, button in applies:
-            button.setEnabled(not busy)
+            button.setEnabled(not busy or preview)
         for button in cancels:
             button.setEnabled(busy)
 
     def start_task(self, description, work, on_success, messages=None):
         """Run work(task) in a background task. Returns False if one is already
         running. on_success(result) runs on the main thread if it completes."""
+        self._replace_preview_task()
         if self._task is not None:
             self.iface.messageBar().pushMessage(
                 "SGTool",
@@ -1619,6 +1631,7 @@ class SGTool:
             self._task = None
             self._set_busy(False)
             self._flush_messages(messages)
+            self._run_pending_preview()
             if ok:
                 try:
                     on_success(task.result)
@@ -1651,6 +1664,7 @@ class SGTool:
 
     def _busy(self):
         """True (after telling the user) if a calculation is already running."""
+        self._replace_preview_task()
         if self._task is None:
             return False
         self.iface.messageBar().pushMessage(
@@ -1663,6 +1677,12 @@ class SGTool:
 
     def cancel_task(self):
         """Cancel button: stop the running calculation at its next checkpoint."""
+        if self._cancel_preview_task():
+            self.iface.messageBar().pushMessage(
+                "Preview", "Preview cancelled",
+                level=Qgis.MessageLevel.Info, duration=3,
+            )
+            return
         if self._task is not None:
             self._task.cancel()
             self.iface.messageBar().pushMessage(
@@ -2221,6 +2241,7 @@ class SGTool:
         self._preview_canvas_connected = False
         self._preview_only_entry = None
         self._preview_keep = None  # (entry, grid name) while Keep is running
+        self._preview_pending = False  # a preview waits for a running job
 
         self._preview_timer = QTimer()
         self._preview_timer.setSingleShot(True)
@@ -2355,6 +2376,8 @@ class SGTool:
             return
         # switched off: discard, unless Keep asked for the full-res result
         self._preview_timer.stop()
+        self._cancel_preview_task()
+        self._preview_pending = False
         pending = self._preview_keep
         self._preview_keep = None
         self._preview_tab = None
@@ -2523,46 +2546,126 @@ class SGTool:
         self._preview_src = (key, arr, out_gt)
         return arr, out_gt
 
-    def _run_filter_on(self, entry, arr, dx, dy, grid_name):
-        """Run one filter's proc method on arr without disturbing the main state.
+    def _preview_runner(self, arr, dx, dy, grid_name):
+        """Main thread: a copy of the plugin set up to run one filter's proc
+        method on the (cropped/subsampled) preview array in the background,
+        leaving the main state alone."""
+        runner = copy.copy(self)
+        layers = QgsProject.instance().mapLayersByName(grid_name)
+        runner._grid_info = self._make_grid_info(layers[0]) if layers else None
+        runner._results = []  # the preview shows one grid, nothing is written
+        runner._pending_messages = []
+        runner._task_ref = None
+        buffer = min(arr.shape)
+        max_buf = self.to_int(self.dlg.lineEdit_13_max_buffer.text())
+        if buffer > max_buf:
+            buffer = max_buf
+        runner.raster_array = arr
+        runner.dx, runner.dy, runner.buffer = dx, dy, buffer
+        runner.processor = GeophysicalProcessor(dx, dy, buffer)
+        runner.convolution = ConvolutionFilter(arr)
+        runner.SG_Util = SG_Util(arr)
+        runner.SpatialStats = SpatialStats(arr)
+        runner.localGridName = grid_name
+        runner.new_grid = None
+        runner.suffix = ""
+        return runner
 
-        The proc* methods work on instance attributes, so swap in the
-        (cropped/subsampled) array, run the method, then restore.
-        """
-        names = (
-            "raster_array", "dx", "dy", "buffer", "processor", "convolution",
-            "SG_Util", "SpatialStats", "localGridName", "new_grid", "suffix",
-            "_grid_info", "_results", "_task_ref",
-        )
-        saved = {n: getattr(self, n, None) for n in names}
-        try:
-            layers = QgsProject.instance().mapLayersByName(grid_name)
-            self._grid_info = self._make_grid_info(layers[0]) if layers else None
-            self._results = None  # the preview shows one grid, nothing is written
-            self._task_ref = None
-            buffer = min(arr.shape)
-            max_buf = self.to_int(self.dlg.lineEdit_13_max_buffer.text())
-            if buffer > max_buf:
-                buffer = max_buf
-            self.raster_array = arr
-            self.dx, self.dy, self.buffer = dx, dy, buffer
-            self.processor = GeophysicalProcessor(dx, dy, buffer)
-            self.convolution = ConvolutionFilter(arr)
-            self.SG_Util = SG_Util(arr)
-            self.SpatialStats = SpatialStats(arr)
-            self.localGridName = grid_name
-            self.new_grid = None
-            self.suffix = ""
-            getattr(self, entry[1])()
-            return self.new_grid, self.suffix
-        finally:
-            for n, v in saved.items():
-                setattr(self, n, v)
+    def _start_preview_task(self, tab, entry, arr, gt, src, name):
+        """Calculate the preview in a background task, so QGIS stays usable and
+        Cancel works (zooming out can make a big calculation); the image is
+        drawn when it finishes, unless a newer view or Cancel replaced it."""
+        runner = self._preview_runner(arr, gt[1], -gt[5], name)
+        messages = runner._pending_messages
+
+        def work(task):
+            runner._task_ref = task
+            getattr(runner, entry[1])()
+            return runner.new_grid, runner.suffix
+
+        def done(task, ok):
+            if self._task is task:
+                self._task = None
+                self._set_busy(False)
+            if task.superseded:
+                return  # a newer view, Cancel or preview off took over
+            self._flush_messages(messages)
+            if self._preview_tab == tab:
+                if ok:
+                    grid, suffix = task.result
+                    if grid is None:
+                        self.iface.messageBar().pushMessage(
+                            "Preview", "Nothing to preview for these settings",
+                            level=Qgis.MessageLevel.Info, duration=3,
+                        )
+                    else:
+                        try:
+                            self._write_preview(
+                                grid, gt, src, f"{name}{suffix}_preview",
+                                std_clip=entry[2],
+                            )
+                        except Exception as e:
+                            self.iface.messageBar().pushMessage(
+                                "Preview", str(e),
+                                level=Qgis.MessageLevel.Warning, duration=5,
+                            )
+                elif task.cancelled:
+                    self.iface.messageBar().pushMessage(
+                        "Preview", "Preview cancelled",
+                        level=Qgis.MessageLevel.Info, duration=3,
+                    )
+                else:
+                    print(task.error)
+                    last = (task.error or "").strip().splitlines()[-1:] or ["unknown error"]
+                    self.iface.messageBar().pushMessage(
+                        "Preview", last[0],
+                        level=Qgis.MessageLevel.Warning, duration=5,
+                    )
+            self._run_pending_preview()
+
+        task = SGToolTask("SGTool: preview", work, done)
+        task.is_preview = True
+        task.superseded = False
+        self._task = task
+        self._set_busy(True, preview=True)
+        QgsApplication.taskManager().addTask(task)
+
+    def _cancel_preview_task(self):
+        """Drop a preview still being calculated: its task ends now and its
+        result is ignored (the calculation stops at its next checkpoint).
+        True if there was one."""
+        task = self._task
+        if task is None or not getattr(task, "is_preview", False):
+            return False
+        task.superseded = True
+        task.cancel()
+        self._task = None
+        self._set_busy(False)
+        return True
+
+    def _replace_preview_task(self):
+        """A job is starting: drop a preview still being calculated and redraw
+        it once the job ends (or straight away if no job starts after all)."""
+        if self._cancel_preview_task():
+            self._preview_pending = True
+            QTimer.singleShot(0, self._run_pending_preview)
+
+    def _run_pending_preview(self):
+        """After a job ends: draw the preview that waited for it."""
+        if self._preview_pending and self._task is None:
+            self._preview_pending = False
+            self.schedulePreview()
 
     def updatePreview(self):
         tab = self._preview_tab
         if tab is None:
             return
+        if self._task is not None:
+            if getattr(self._task, "is_preview", False):
+                self._cancel_preview_task()  # superseded by this newer view
+            else:
+                self._preview_pending = True  # starts when the job ends
+                return
         chk, rad_extent, combo = self._preview_widgets(tab)
         name = combo.currentText()
         layers = QgsProject.instance().mapLayersByName(name) if name else []
@@ -2609,16 +2712,7 @@ class SGTool:
                     "is under-sampled. Use Map extent and zoom in.",
                     level=Qgis.MessageLevel.Warning, duration=3,
                 )
-            grid, suffix = self._run_filter_on(entry, arr, dx, dy, name)
-            if grid is None:
-                self.iface.messageBar().pushMessage(
-                    "Preview", "Nothing to preview for these settings",
-                    level=Qgis.MessageLevel.Info, duration=3,
-                )
-                return
-            self._write_preview(
-                grid, gt, src, f"{name}{suffix}_preview", std_clip=entry[2]
-            )
+            self._start_preview_task(tab, entry, arr, gt, src, name)
         except Exception as e:
             self.iface.messageBar().pushMessage(
                 "Preview", str(e), level=Qgis.MessageLevel.Warning, duration=5
@@ -2944,7 +3038,8 @@ class SGTool:
     def procMedian(self):
         self.new_grid = self.convolution.median_filter(
             # self.raster_array,
-            self.median_conv_size
+            self.median_conv_size,
+            callback=self._progress(),
         )
         self.suffix = "_Md"
 
@@ -3075,9 +3170,6 @@ class SGTool:
                 classic_result = euler_deconv(
                     data, xi, yi, zi, shape, area, SI, winsize, filt, callback=callback
                 )
-                classic_result[1, :] = (
-                    area[0] - classic_result[1, :] + area[1]
-                )  # Flip x-coordinates
                 est_classic.append(classic_result)
 
             area_classic = area
@@ -3096,13 +3188,8 @@ class SGTool:
                     + str(i)
                     + ".txt"
                 )
-                np.savetxt(
-                    est_path,
-                    output[i],
-                    delimiter=",",
-                    header=euler_header,
-                    comments="",  # This removes the # prefix
-                )
+                # %.17g reads back to exactly the same values, written ~2x faster
+                savetxt_fast(est_path, output[i], header=euler_header)
                 self.write_metadata(
                     est_path,
                     "Euler deconvolution",
@@ -3349,37 +3436,43 @@ class SGTool:
 
     def procSS_Min(self):
         self.new_grid = self.SpatialStats.calculate_windowed_stats(
-            window_size=self.SS_window_size, stat_type="min"
+            window_size=self.SS_window_size, stat_type="min",
+            callback=self._progress(),
         )
         self.suffix = "_SS_Min"
 
     def procSS_Max(self):
         self.new_grid = self.SpatialStats.calculate_windowed_stats(
-            window_size=self.SS_window_size, stat_type="max"
+            window_size=self.SS_window_size, stat_type="max",
+            callback=self._progress(),
         )
         self.suffix = "_SS_Max"
 
     def procSS_StdDev(self):
         self.new_grid = self.SpatialStats.calculate_windowed_stats(
-            window_size=self.SS_window_size, stat_type="std"
+            window_size=self.SS_window_size, stat_type="std",
+            callback=self._progress(),
         )
         self.suffix = "_SS_StdDev"
 
     def procSS_Variance(self):
         self.new_grid = self.SpatialStats.calculate_windowed_stats(
-            window_size=self.SS_window_size, stat_type="variance"
+            window_size=self.SS_window_size, stat_type="variance",
+            callback=self._progress(),
         )
         self.suffix = "_SS_Var"
 
     def procSS_Skewness(self):
         self.new_grid = self.SpatialStats.calculate_windowed_stats(
-            window_size=self.SS_window_size, stat_type="skewness"
+            window_size=self.SS_window_size, stat_type="skewness",
+            callback=self._progress(),
         )
         self.suffix = "_SS_Skew"
 
     def procSS_Kurtosis(self):
         self.new_grid = self.SpatialStats.calculate_windowed_stats(
-            window_size=self.SS_window_size, stat_type="kurtosis"
+            window_size=self.SS_window_size, stat_type="kurtosis",
+            callback=self._progress(),
         )
         self.suffix = "_SS_Kurt"
 

@@ -1,6 +1,8 @@
 import numpy as np
-from scipy import stats
-from scipy.ndimage import generic_filter, gaussian_filter, sobel, uniform_filter
+
+from scipy.ndimage import gaussian_filter, sobel, uniform_filter
+
+from .window_ops import iter_windows, masked_stat
 
 class SpatialStats:
     def __init__(self, grid):
@@ -11,7 +13,7 @@ class SpatialStats:
         """
         self.grid = np.array(grid, dtype=float)
 
-    def calculate_windowed_stats(self, window_size=3, stat_type="variance"):
+    def calculate_windowed_stats(self, window_size=3, stat_type="variance", callback=None):
         """
         Calculate windowed statistics on a 2D raster grid.
 
@@ -24,6 +26,9 @@ class SpatialStats:
         stat_type : str
             Type of statistic to calculate. Options:
             'variance', 'std', 'skewness', 'kurtosis', 'mean', 'median', 'min', 'max'
+        callback : callable, optional
+            callback(fraction done), called between blocks of rows; it may
+            raise OperationCancelled to stop
 
         Returns:
         --------
@@ -46,48 +51,20 @@ class SpatialStats:
         # Create a mask for NaN values
         mask = np.isnan(self.grid)
 
-        # Function to calculate statistics on a window, ignoring NaNs
-        def window_stat(window):
-            # Reshape the window to a 2D array
-            window_2d = window.reshape(window_size, window_size)
-
-            # Remove the circular mask from the window
-            # This will create a circular window of valid values
-            window_2d[~circular_mask] = np.nan
-
-            # Remove NaN values
-            valid_values = window_2d[~np.isnan(window_2d)]
-
-            # Return NaN if not enough valid values in the window
-            if (
-                len(valid_values) < 3
-            ):  # Require at least 3 values for meaningful statistics
-                return np.nan
-
-            if stat_type == "variance":
-                return np.var(valid_values)
-            elif stat_type == "std":
-                return np.std(valid_values)
-            elif stat_type == "skewness":
-                return stats.skew(valid_values)
-            elif stat_type == "kurtosis":
-                return stats.kurtosis(valid_values)
-            elif stat_type == "mean":
-                return np.mean(valid_values)
-            elif stat_type == "median":
-                return np.median(valid_values)
-            elif stat_type == "min":
-                return np.min(valid_values)
-            elif stat_type == "max":
-                return np.max(valid_values)
-            else:
-                return np.nan
-
-        # Apply the function to the padded grid
-        result = generic_filter(padded_grid, window_stat, size=window_size)
-
-        # Crop the result to match the original grid dimensions
-        result = result[pad_size:-pad_size, pad_size:-pad_size]
+        # Statistics of the valid values in the circular window of every
+        # pixel, many windows at once, ignoring NaNs
+        result = np.full(self.grid.shape, np.nan)
+        for r0, r1, windows in iter_windows(
+            padded_grid, window_size, self.grid.shape, footprint=circular_mask
+        ):
+            if callback is not None:
+                callback(r0 / float(self.grid.shape[0]))
+            valid = ~np.isnan(windows)
+            count = valid.sum(axis=-1)
+            block = masked_stat(windows, valid, count, stat_type)
+            # Require at least 3 values for meaningful statistics
+            block[count < 3] = np.nan
+            result[r0:r1] = block
 
         # Make sure NaN areas in the original grid remain NaN in the result
         result[mask] = np.nan

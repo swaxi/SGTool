@@ -1,5 +1,6 @@
 import numpy as np
 
+from .window_ops import iter_windows, nanmedian_last
 
 class ConvolutionFilter:
     def __init__(self, grid):
@@ -61,28 +62,27 @@ class ConvolutionFilter:
         kernel = np.ones((n, n), dtype=float)
         return self.nan_convolution(kernel)
 
-    def median_filter(self, n):
+    def median_filter(self, n, callback=None):
         """
         Apply median filter while handling NaN values.
 
         :param n: Size of the kernel (n x n)
+        :param callback: optional callback(fraction done), called between
+            blocks of rows; it may raise OperationCancelled to stop
         :return: Filtered grid
         """
 
-        # Use a sliding window approach with NaN handling
-        def nanmedian(values):
-            return np.nan if np.isnan(values).all() else np.nanmedian(values)
-
+        # Use a sliding window approach with NaN handling, many windows at once
         output = np.zeros_like(self.grid, dtype=float)
         pad_width = n // 2
         padded_grid = np.pad(
             self.grid, pad_width, mode="constant", constant_values=np.nan
         )
 
-        for i in range(output.shape[0]):
-            for j in range(output.shape[1]):
-                window = padded_grid[i : i + n, j : j + n]
-                output[i, j] = nanmedian(window)
+        for r0, r1, windows in iter_windows(padded_grid, n, output.shape):
+            if callback is not None:
+                callback(r0 / float(output.shape[0]))
+            output[r0:r1] = nanmedian_last(windows)
 
         return output
 

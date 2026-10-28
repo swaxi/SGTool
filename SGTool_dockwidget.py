@@ -8,7 +8,7 @@ from qgis.PyQt.QtWidgets import (
     QScrollArea, QTabWidget, QPushButton, QLabel, QLineEdit,
     QCheckBox, QRadioButton, QComboBox, QGroupBox, QDateEdit,
     QTextEdit, QTextBrowser, QSpinBox, QDoubleSpinBox, QFrame,
-    QButtonGroup, QStyleFactory, QApplication,
+    QButtonGroup, QStyleFactory, QApplication, QScrollBar,
 )
 from qgis.gui import (
     QgsMapLayerComboBox, QgsProjectionSelectionWidget,
@@ -117,7 +117,7 @@ class SGToolDockWidget(QDockWidget):
             layout = page.layout()
             for j in range(layout.count()):
                 w = layout.itemAt(j).widget()
-                if w is not None and not isinstance(w, QScrollArea):
+                if w is not None and not w.property("sgtScroll"):
                     w.setMaximumWidth(max(width, w.minimumSizeHint().width()))
 
     # ------------------------------------------------------------------
@@ -193,20 +193,44 @@ class SGToolDockWidget(QDockWidget):
     # ------------------------------------------------------------------
     @staticmethod
     def _scroll_wrap(content_widget):
+        """The content in a scroll area, with its vertical scroll bar on the left,
+        beside the controls, so it can be reached without widening the dock.
+
+        The scroll area stays left to right (a right-to-left one would put its
+        bar on the left, but also start horizontal scrolling at the right, so a
+        narrow dock cut off the left of the controls). Its own vertical bar is
+        hidden (it still takes the mouse wheel) and a separate bar on the left
+        is kept in step with it."""
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        # vertical scroll bar on the left, beside the controls, so it can be
-        # reached without widening the dock; the contents stay left to right
-        scroll.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
-        content_widget.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
-        scroll.setAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignAbsolute | Qt.AlignmentFlag.AlignTop
-        )
+        scroll.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         scroll.setWidget(content_widget)
-        return scroll
+
+        inner = scroll.verticalScrollBar()
+        bar = QScrollBar(Qt.Orientation.Vertical)
+
+        def follow_range(low, high):
+            bar.setRange(low, high)
+            bar.setPageStep(inner.pageStep())
+            bar.setSingleStep(inner.singleStep())
+            bar.setVisible(high > low)
+
+        inner.rangeChanged.connect(follow_range)
+        inner.valueChanged.connect(bar.setValue)
+        bar.valueChanged.connect(inner.setValue)
+        follow_range(inner.minimum(), inner.maximum())
+
+        wrapper = QWidget()
+        wrapper.setProperty("sgtScroll", True)  # _cap_tab_widths leaves it full width
+        row = QHBoxLayout(wrapper)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(0)
+        row.addWidget(bar)
+        row.addWidget(scroll, 1)
+        return wrapper
 
     # ------------------------------------------------------------------
     # Helper: Apply button + live-preview controls (fixed bar above the

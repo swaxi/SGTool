@@ -211,7 +211,7 @@ class FourierDomainOps(object):
     # A link to the paper is http://math.mit.edu/~stevenj/fft-deriv.pdf
 
     def buildDxOp(self):
-        """The analytic expression for a derivative is available in closed form in the
+        r"""The analytic expression for a derivative is available in closed form in the
         Fourier Domain. Unfortunately, it exponentially amplifies the shortest
         wavelengths in the signal, leading to extreme amplification of the
         content that usually isn't known very well at all. The resulting

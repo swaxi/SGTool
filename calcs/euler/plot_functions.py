@@ -102,7 +102,7 @@ def plot_classic(data,est_classic,xi,yi,zi,shape):
                          edgecolors='k')             
         cbar=plt.colorbar(scat,ticks=levelsz,pad=0.01,shrink=1,
                           format='%0.1f')
-        cbar.set_label('$\^z_o$ (km)',labelpad=-18,y=-0.03, rotation=0,
+        cbar.set_label(r'$\^z_o$ (km)',labelpad=-18,y=-0.03, rotation=0,
                        fontsize=13)
         cbar.ax.tick_params(labelsize=13)
         ax.set_xlim(np.min(yi/1000.),np.max(yi/1000.))
@@ -146,7 +146,7 @@ def plot_classic(data,est_classic,xi,yi,zi,shape):
                              vmax=maxb,edgecolors='k')             
             cbar=plt.colorbar(scat,ticks=levelsb,pad=0.01,shrink=1,
                               format='%d')
-            cbar.set_label('$\^b$ (nT)',labelpad=-18,y=-0.03, rotation=0,
+            cbar.set_label(r'$\^b$ (nT)',labelpad=-18,y=-0.03, rotation=0,
                            fontsize=13)
             cbar.ax.tick_params(labelsize=13)
             ax.set_xlim(np.min(yi/1000.),np.max(yi/1000.))
@@ -178,7 +178,7 @@ def plot_classic(data,est_classic,xi,yi,zi,shape):
                              vmin=minb, vmax=maxb,edgecolors='k')        
             cbar=plt.colorbar(scat,ticks=levelsb,pad=0.01,shrink=1,
                               format='%d')
-            cbar.set_label('$\^b$ (nT)',labelpad=-18,y=-0.03, rotation=0,
+            cbar.set_label(r'$\^b$ (nT)',labelpad=-18,y=-0.03, rotation=0,
                            fontsize=13)
             cbar.ax.tick_params(labelsize=13)
             ax.set_xlim(np.min(yi/1000.),np.max(yi/1000.))

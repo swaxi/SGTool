@@ -72,7 +72,7 @@ def runcmd(cmd, format="s"):
     @rtype:   C{tuple}
     @return:  Returns (exit_code,stdout,stderr)
     """
-    import subprocess
+    import subprocess  # nosec B404 - only runs gdalinfo, see runcmd below
     import shlex
     if isinstance(cmd, str):
         cmd = shlex.split(cmd)

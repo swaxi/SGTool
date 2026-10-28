@@ -111,7 +111,6 @@ import processing
 from osgeo import gdal, gdal_array, osr
 import platform
 import importlib
-import subprocess
 import os
 
 # Initialize Qt resources from file resources.py

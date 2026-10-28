@@ -305,3 +305,39 @@ def euler_deconv(data, xi, yi, zi, shape, area, SI, windowSize, filt, callback=N
     order = np.argsort(-classic[:, -1], kind="stable")
     classic_est = classic[order[: int(len(classic) * filt)], :]
     return classic_est
+
+
+def euler_deconv_grid(grid, extent, SI, windowSize, filt, callback=None):
+    """
+    Euler deconvolution of a north-up grid (row 0 = north), prepared exactly as
+    the QGIS dialog does: no-data filled from the nearest valid cell, rows
+    flipped to south-up, the northing passed as the first coordinate and z = 1.
+
+    * grid : 2d-array, north-up, NaN for no-data
+    * extent : (xmin, ymin, xmax, ymax) of the grid's outer cell edges
+
+    Returns the kept solutions as columns [easting, northing, depth,
+    base level, std of df/dz] (euler_deconv itself gives northing first).
+    """
+    from scipy.ndimage import distance_transform_edt
+
+    data = np.array(grid, dtype=float)
+    nan_mask = np.isnan(data)
+    if nan_mask.any() and not nan_mask.all():
+        idx = distance_transform_edt(
+            nan_mask, return_distances=False, return_indices=True
+        )
+        data[nan_mask] = data[idx[0][nan_mask], idx[1][nan_mask]]
+
+    xmin, ymin, xmax, ymax = extent
+    rows, cols = data.shape
+    area = [ymin, ymax, xmin, xmax]  # south, north, west, east
+    easting, northing = np.meshgrid(
+        np.linspace(xmin, xmax, cols), np.linspace(ymin, ymax, rows)
+    )
+    est = euler_deconv(
+        np.flipud(data).ravel(), northing.ravel(), easting.ravel(),
+        np.ones(data.size), data.shape, area, SI, windowSize, filt,
+        callback=callback,
+    )
+    return est[:, [1, 0, 2, 3, 4]]

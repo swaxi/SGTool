@@ -165,6 +165,13 @@ class _RasterTool:
         return make_processor(cx, cy, buf)
 
     @staticmethod
+    def _buffer(value, arr):
+        """FFT buffer in pixels, as QGIS chooses it: the smaller grid side, capped
+        at the value given (0 or blank: 5000)."""
+        cap = int(value) if value else 0
+        return min(*arr.shape, cap if cap > 0 else 5000)
+
+    @staticmethod
     def _param(name, label, dtype="GPRasterLayer",
                 direction="Input", required=True, default=None):
         p = arcpy.Parameter(
@@ -451,7 +458,7 @@ class ReductionToPoleEquator(_RasterTool):
 
         inc   = self._param("inclination",  "Inclination (°)",  "GPDouble", default=-60.0)
         dec   = self._param("declination",  "Declination (°)",  "GPDouble", default=0.0)
-        buf   = self._param("buffer_size",  "FFT Buffer (pixels)", "GPLong", required=False, default=10)
+        buf   = self._param("buffer_size",  "FFT Buffer (pixels, 0 = automatic)", "GPLong", required=False, default=0)
         iters = self._param("iterations", "Low-latitude: iterations (0 = automatic)", "GPLong",
                             required=False, default=0)
         strp  = self._param("stripe_width", "Low-latitude: stripe suppression (°, 0 = off)",
@@ -464,7 +471,7 @@ class ReductionToPoleEquator(_RasterTool):
         mode  = parameters[2].valueAsText
         inc   = float(parameters[3].value)
         dec   = float(parameters[4].value)
-        buf   = int(parameters[5].value) if parameters[5].value else 10
+        buf   = parameters[5].value
         iters = max(int(parameters[6].value or 0), 0)
         strp  = max(float(parameters[7].value), 0.0) if parameters[7].value is not None else 10.0
         if inc == 0 and dec == 0:
@@ -472,6 +479,7 @@ class ReductionToPoleEquator(_RasterTool):
             return
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(buf, arr)
         proc = self._proc(cx, cy, buf)
         if mode == "Pole":
             result = proc.reduction_to_pole(arr, inc, dec, buffer_size=buf)
@@ -496,18 +504,19 @@ class UpwardContinuation(_RasterTool):
             self._param("in_raster",  "Input Raster"),
             self._out ("out_raster",  "Output Raster"),
             self._param("height",     "Continuation Height (map units)", "GPDouble", default=1000.0),
-            self._param("buffer_size","FFT Buffer (pixels)", "GPLong", required=False, default=10),
+            self._param("buffer_size","FFT Buffer (pixels, 0 = automatic)", "GPLong", required=False, default=0),
         ]
 
     def execute(self, parameters, messages):
         in_r   = parameters[0].valueAsText
         out_r  = parameters[1].valueAsText
         height = float(parameters[2].value)
-        buf    = int(parameters[3].value) if parameters[3].value else 10
+        buf    = parameters[3].value
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(buf, arr)
         proc   = self._proc(cx, cy, buf)
-        result = proc.upward_continuation(arr, height)
+        result = proc.upward_continuation(arr, height, buffer_size=buf)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Upward continuation by {height} units complete → {out_r}")
 
@@ -523,18 +532,19 @@ class DownwardContinuation(_RasterTool):
             self._param("in_raster",  "Input Raster"),
             self._out ("out_raster",  "Output Raster"),
             self._param("height",     "Continuation Height (map units)", "GPDouble", default=500.0),
-            self._param("buffer_size","FFT Buffer (pixels)", "GPLong", required=False, default=10),
+            self._param("buffer_size","FFT Buffer (pixels, 0 = automatic)", "GPLong", required=False, default=0),
         ]
 
     def execute(self, parameters, messages):
         in_r   = parameters[0].valueAsText
         out_r  = parameters[1].valueAsText
         height = float(parameters[2].value)
-        buf    = int(parameters[3].value) if parameters[3].value else 10
+        buf    = parameters[3].value
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(buf, arr)
         proc   = self._proc(cx, cy, buf)
-        result = proc.downward_continuation(arr, height)
+        result = proc.downward_continuation(arr, height, buffer_size=buf)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Downward continuation by {height} units complete → {out_r}")
 
@@ -552,9 +562,9 @@ class VerticalIntegration(_RasterTool):
             self._param("max_wn",       "Max Wavenumber (0 = auto)", "GPDouble",
                         required=False, default=0.0),
             self._param("min_wn",       "Min Wavenumber (stability floor)",
-                        "GPDouble", required=False, default=1e-6),
-            self._param("buffer_size",  "FFT Buffer (pixels)", "GPLong",
-                        required=False, default=10),
+                        "GPDouble", required=False, default=1e-4),
+            self._param("buffer_size",  "FFT Buffer (pixels, 0 = automatic)", "GPLong",
+                        required=False, default=0),
         ]
 
     def execute(self, parameters, messages):
@@ -563,13 +573,15 @@ class VerticalIntegration(_RasterTool):
         max_wn = float(parameters[2].value) if parameters[2].value else None
         if max_wn == 0.0:
             max_wn = None
-        min_wn = float(parameters[3].value) if parameters[3].value else 1e-6
-        buf    = int(parameters[4].value) if parameters[4].value else 10
+        min_wn = float(parameters[3].value) if parameters[3].value else 1e-4
+        buf    = parameters[4].value
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(buf, arr)
         proc   = self._proc(cx, cy, buf)
         result = proc.vertical_integration(arr, max_wavenumber=max_wn,
-                                           min_wavenumber=min_wn)
+                                           min_wavenumber=min_wn, buffer_size=buf,
+                                           buffer_method="mirror")
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Vertical integration complete → {out_r}")
 
@@ -588,7 +600,7 @@ class BandPassFilter(_RasterTool):
             self._param("high_cut",    "High-cut Wavelength (map units)", "GPDouble", default=50000.0),
             self._param("high_width",  "High-transition Width (0=step)",  "GPDouble", default=0.0),
             self._param("low_width",   "Low-transition Width  (0=step)",  "GPDouble", default=0.0),
-            self._param("buffer_size", "FFT Buffer (pixels)", "GPLong",   required=False, default=10),
+            self._param("buffer_size", "FFT Buffer (pixels, 0 = automatic)", "GPLong",   required=False, default=0),
         ]
 
     def execute(self, parameters, messages):
@@ -598,11 +610,12 @@ class BandPassFilter(_RasterTool):
         hc    = float(parameters[3].value)
         hw    = float(parameters[4].value)
         lw    = float(parameters[5].value)
-        buf   = int(parameters[6].value) if parameters[6].value else 10
+        buf   = parameters[6].value
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(buf, arr)
         proc   = self._proc(cx, cy, buf)
-        result = proc.band_pass_filter(arr, lc, hc, hw, lw)
+        result = proc.band_pass_filter(arr, lc, hc, hw, lw, buffer_size=buf)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Band-pass filter ({lc}–{hc} m) complete → {out_r}")
 
@@ -618,7 +631,7 @@ class HighPassFilter(_RasterTool):
             self._out ("out_raster",   "Output Raster"),
             self._param("cutoff",      "Cutoff Wavelength (map units)", "GPDouble", default=10000.0),
             self._param("width",       "Transition Width (0=step)",     "GPDouble", default=0.0),
-            self._param("buffer_size", "FFT Buffer (pixels)", "GPLong", required=False, default=10),
+            self._param("buffer_size", "FFT Buffer (pixels, 0 = automatic)", "GPLong", required=False, default=0),
         ]
 
     def execute(self, parameters, messages):
@@ -626,11 +639,12 @@ class HighPassFilter(_RasterTool):
         out_r  = parameters[1].valueAsText
         cutoff = float(parameters[2].value)
         width  = float(parameters[3].value)
-        buf    = int(parameters[4].value) if parameters[4].value else 10
+        buf    = parameters[4].value
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(buf, arr)
         proc   = self._proc(cx, cy, buf)
-        result = proc.high_pass_filter(arr, cutoff, width)
+        result = proc.high_pass_filter(arr, cutoff, width, buffer_size=buf)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"High-pass filter (cutoff={cutoff} m) complete → {out_r}")
 
@@ -646,7 +660,7 @@ class LowPassFilter(_RasterTool):
             self._out ("out_raster",   "Output Raster"),
             self._param("cutoff",      "Cutoff Wavelength (map units)", "GPDouble", default=10000.0),
             self._param("width",       "Transition Width (0=step)",     "GPDouble", default=0.0),
-            self._param("buffer_size", "FFT Buffer (pixels)", "GPLong", required=False, default=10),
+            self._param("buffer_size", "FFT Buffer (pixels, 0 = automatic)", "GPLong", required=False, default=0),
         ]
 
     def execute(self, parameters, messages):
@@ -654,11 +668,12 @@ class LowPassFilter(_RasterTool):
         out_r  = parameters[1].valueAsText
         cutoff = float(parameters[2].value)
         width  = float(parameters[3].value)
-        buf    = int(parameters[4].value) if parameters[4].value else 10
+        buf    = parameters[4].value
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(buf, arr)
         proc   = self._proc(cx, cy, buf)
-        result = proc.low_pass_filter(arr, cutoff, width)
+        result = proc.low_pass_filter(arr, cutoff, width, buffer_size=buf)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Low-pass filter (cutoff={cutoff} m) complete → {out_r}")
 
@@ -704,23 +719,27 @@ class RemoveRegional(_RasterTool):
         order.filter.list = ["1st Order", "2nd Order"]
         order.value = "1st Order"
 
-        buf = self._param("buffer_size", "FFT Buffer (pixels)", "GPLong",
-                          required=False, default=10)
+        buf = self._param("buffer_size", "FFT Buffer (pixels, 0 = automatic)", "GPLong",
+                          required=False, default=0)
         return [in_r, out_r, order, buf]
 
     def execute(self, parameters, messages):
         in_r  = parameters[0].valueAsText
         out_r = parameters[1].valueAsText
         order = parameters[2].valueAsText
-        buf   = int(parameters[3].value) if parameters[3].value else 10
+        buf   = parameters[3].value
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(buf, arr)
         proc  = self._proc(cx, cy, buf)
-        mask  = ~np.isnan(arr)
+        # prepared as the QGIS dialog does; mask is True where there is no data
+        data, nodata_value = proc.fix_extreme_values(arr.copy())
+        data = data.astype(np.float32)
+        mask = (data == nodata_value) | np.isnan(data)
         if "2nd" in order:
-            result = proc.remove_2o_gradient(arr, mask)
+            result = proc.remove_2o_gradient(data, mask)
         else:
-            result = proc.remove_gradient(arr, mask)
+            result = proc.remove_gradient(data, mask)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Regional trend removal ({order}) complete → {out_r}")
 
@@ -747,8 +766,8 @@ class RemoveLineNoise(_RasterTool):
                         "GPDouble", default=1.0),
             self._param("wedge",            "Wedge half-width (°)",
                         "GPDouble", default=45.0),
-            self._param("buffer_size",      "FFT Buffer (pixels)", "GPLong",
-                        required=False, default=10),
+            self._param("buffer_size",      "FFT Buffer (pixels, 0 = automatic)", "GPLong",
+                        required=False, default=0),
         ]
 
     def execute(self, parameters, messages):
@@ -759,10 +778,10 @@ class RemoveLineNoise(_RasterTool):
         smax   = float(parameters[4].value) if parameters[4].value else 0.0
         scale  = float(parameters[5].value)
         wedge  = float(parameters[6].value)
-        buf    = int(parameters[7].value) if parameters[7].value else 10
+        buf    = parameters[7].value
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
-        buf    = min(buf, *arr.shape)
+        buf = self._buffer(buf, arr)
         proc   = self._proc(cx, cy, buf)
         result = proc.line_noise_removal(
             arr, az, smin, smax or None, scale=scale, buffer_size=buf,
@@ -793,7 +812,7 @@ class DirectionalButterworthFilter(_RasterTool):
             self._param("direction",      "Azimuth Direction (°, N=0)",       "GPDouble", default=0.0),
             self._param("direction_width","Direction Width (°)",              "GPDouble", default=30.0),
             self._param("order",          "Butterworth Order",                "GPLong",   default=4),
-            self._param("buffer_size",    "FFT Buffer (pixels)", "GPLong",    required=False, default=10),
+            self._param("buffer_size",    "FFT Buffer (pixels, 0 = automatic)", "GPLong",    required=False, default=0),
         ]
 
     def execute(self, parameters, messages):
@@ -804,12 +823,13 @@ class DirectionalButterworthFilter(_RasterTool):
         dirn  = float(parameters[4].value)
         dw    = float(parameters[5].value)
         ordr  = int(parameters[6].value)
-        buf   = int(parameters[7].value) if parameters[7].value else 10
+        buf   = parameters[7].value
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(buf, arr)
         proc   = self._proc(cx, cy, buf)
         result = proc.directional_butterworth_band_pass(
-            arr, lc, hc, dirn, dw, order=ordr)
+            arr, lc, hc, dirn, dw, order=ordr, buffer_size=buf)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Directional Butterworth ({dirn}°, {lc}–{hc} m) complete → {out_r}")
 
@@ -834,8 +854,8 @@ class ComputeDerivative(_RasterTool):
         dirn.value = "z"
 
         order = self._param("order",       "Order (power)", "GPDouble", default=1.0)
-        buf   = self._param("buffer_size", "FFT Buffer (pixels)", "GPLong",
-                            required=False, default=10)
+        buf   = self._param("buffer_size", "FFT Buffer (pixels, 0 = automatic)", "GPLong",
+                            required=False, default=0)
         return [in_r, out_r, dirn, order, buf]
 
     def execute(self, parameters, messages):
@@ -843,11 +863,12 @@ class ComputeDerivative(_RasterTool):
         out_r = parameters[1].valueAsText
         dirn  = parameters[2].valueAsText
         order = float(parameters[3].value)
-        buf   = int(parameters[4].value) if parameters[4].value else 10
+        buf   = parameters[4].value
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(buf, arr)
         proc   = self._proc(cx, cy, buf)
-        result = proc.compute_derivative(arr, direction=dirn, order=order)
+        result = proc.compute_derivative(arr, direction=dirn, order=order, buffer_size=buf)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Derivative ({dirn}, order={order}) complete → {out_r}")
 
@@ -862,18 +883,19 @@ class TotalHorizontalGradient(_RasterTool):
         return [
             self._param("in_raster",   "Input Raster"),
             self._out ("out_raster",   "Output Raster"),
-            self._param("buffer_size", "FFT Buffer (pixels)", "GPLong",
-                        required=False, default=10),
+            self._param("buffer_size", "FFT Buffer (pixels, 0 = automatic)", "GPLong",
+                        required=False, default=0),
         ]
 
     def execute(self, parameters, messages):
         in_r  = parameters[0].valueAsText
         out_r = parameters[1].valueAsText
-        buf   = int(parameters[2].value) if parameters[2].value else 10
+        buf   = parameters[2].value
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(buf, arr)
         proc   = self._proc(cx, cy, buf)
-        result = proc.total_hz_grad(arr)
+        result = proc.total_hz_grad(arr, buffer_size=buf)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Total Horizontal Gradient complete → {out_r}")
 
@@ -888,18 +910,19 @@ class TiltAngle(_RasterTool):
         return [
             self._param("in_raster",   "Input Raster"),
             self._out ("out_raster",   "Output Raster"),
-            self._param("buffer_size", "FFT Buffer (pixels)", "GPLong",
-                        required=False, default=10),
+            self._param("buffer_size", "FFT Buffer (pixels, 0 = automatic)", "GPLong",
+                        required=False, default=0),
         ]
 
     def execute(self, parameters, messages):
         in_r  = parameters[0].valueAsText
         out_r = parameters[1].valueAsText
-        buf   = int(parameters[2].value) if parameters[2].value else 10
+        buf   = parameters[2].value
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(buf, arr)
         proc   = self._proc(cx, cy, buf)
-        result_rad = proc.tilt_angle(arr)
+        result_rad = proc.tilt_angle(arr, buffer_size=buf)
         result     = np.degrees(result_rad)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Tilt angle (degrees) complete → {out_r}")
@@ -915,18 +938,19 @@ class AnalyticSignal(_RasterTool):
         return [
             self._param("in_raster",   "Input Raster"),
             self._out ("out_raster",   "Output Raster"),
-            self._param("buffer_size", "FFT Buffer (pixels)", "GPLong",
-                        required=False, default=10),
+            self._param("buffer_size", "FFT Buffer (pixels, 0 = automatic)", "GPLong",
+                        required=False, default=0),
         ]
 
     def execute(self, parameters, messages):
         in_r  = parameters[0].valueAsText
         out_r = parameters[1].valueAsText
-        buf   = int(parameters[2].value) if parameters[2].value else 10
+        buf   = parameters[2].value
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(buf, arr)
         proc   = self._proc(cx, cy, buf)
-        result = proc.analytic_signal(arr)
+        result = proc.analytic_signal(arr, buffer_size=buf)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Analytic signal complete → {out_r}")
 
@@ -978,7 +1002,7 @@ class MedianFilter(_RasterTool):
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
         from calcs.ConvolutionFilter import ConvolutionFilter
-        result = ConvolutionFilter(arr).median_filter(n)
+        result = ConvolutionFilter(arr).median_filter(n, callback=_check_cancel)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Median filter (kernel={n}) complete → {out_r}")
 
@@ -1071,9 +1095,12 @@ class SunShading(_RasterTool):
         from calcs.ConvolutionFilter import ConvolutionFilter
         cf = ConvolutionFilter(arr)
         if method == "Simple":
-            result = cf.sun_shading_filter(alt, azim)
+            # as the QGIS dialog: the simple filter takes 180 - azimuth
+            result = cf.sun_shading_filter(arr, sun_alt=alt, sun_az=180 - azim)
         else:
-            result = cf.sun_shading_filter_grass(alt, azim, cy, cx, 1, zscl)
+            result = cf.sun_shading_filter_grass(
+                arr, resolution_ns=cy, resolution_ew=cx, altitude=alt, azimuth=azim,
+                scale=1.0, zscale=zscl)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Sun shading ({method}, alt={alt}°, az={azim}°) complete → {out_r}")
 
@@ -1107,7 +1134,7 @@ class SpatialStatistics(_RasterTool):
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
         from calcs.SpatialStats import SpatialStats
-        result = SpatialStats(arr).calculate_windowed_stats(win, stat)
+        result = SpatialStats(arr).calculate_windowed_stats(win, stat, callback=_check_cancel)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Spatial {stat} (window={win}) complete → {out_r}")
 
@@ -1249,29 +1276,20 @@ class EulerDeconvolution(_RasterTool):
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
         rows, cols = arr.shape
 
-        from calcs.euler.euler_python_optimised import euler_deconv_optimized
-        x_max = ll_x + cols * cx
-        y_max = ll_y + rows * cy
-        area  = (ll_y, y_max, ll_x, x_max)
-        xs    = np.linspace(ll_x, x_max, cols)
-        ys    = np.linspace(ll_y, y_max, rows)
-        XI, YI = np.meshgrid(xs, ys)
-        ZI     = np.zeros_like(arr)
+        from calcs.euler.euler_python import euler_deconv_grid
+        from calcs.text_io import write_rows
+        extent = (ll_x, ll_y, ll_x + cols * cx, ll_y + rows * cy)
 
-        filled = np.where(np.isnan(arr), 0.0, arr)
         _check_cancel()
-        results = euler_deconv_optimized(
-            filled, XI, YI, ZI,
-            filled.shape, area, SI, win, filt
+        # the same calculation as the QGIS dialog; arr is north-up
+        results = euler_deconv_grid(
+            arr, extent, SI, win, filt, callback=_check_cancel
         )
         if results is not None and len(results) > 0:
             # results: (n_keep, 5) columns [X, Y, Depth, BaseLevel, StdDfDz]
-            import csv
-            with open(out_c, "w", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerow(["X", "Y", "Depth", "BaseLevel", "StdDfDz"])
-                for row in results:
-                    writer.writerow([row[0], row[1], row[2], row[3], row[4]])
+            with open(out_c, "w") as f:
+                f.write("X,Y,Depth,BaseLevel,StdDfDz\n")
+                write_rows(f, results[:, :5], "%s")  # the same text csv.writer wrote
             messages.addMessage(
                 f"Euler deconvolution (SI={SI}) → {len(results)} estimates → {out_c}")
         else:
@@ -1452,16 +1470,13 @@ class BSDWorms(_RasterTool):
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
         proc = self._proc(cx, cy, 10)
 
-        # Get CRS string
-        try:
-            crs = sr.exportToString() if hasattr(sr, 'exportToString') else str(sr)
-        except Exception:
-            crs = ""
+        from arcgis_utils import worms_reference
+        layer, epsg = worms_reference(in_r)  # extent and EPSG code, as a QGIS layer gives
 
         os.makedirs(out_d, exist_ok=True)
-        layer_name = os.path.splitext(os.path.basename(in_r))[0]
-        proc.bsdwormer(arr, layer_name, out_d,
-                       levels, base, delta, shp, crs, callback=_check_cancel)
+        proc.bsdwormer(arr, layer, in_r,
+                       levels, base, delta, shp, epsg, callback=_check_cancel,
+                       out_dir=out_d)
         messages.addMessage(f"BSD Worms ({levels} levels) complete → {out_d}")
 
 
@@ -1572,8 +1587,8 @@ class ApparentSusceptibility(_ApparentTool):
                         required=False, default=0.001),
             self._param("high_cut",   "High-cut Wavelength (m, 0 = 4 x cell size, -1 = none)",
                         "GPDouble", required=False, default=0.0),
-            self._param("buffer_size", "FFT Buffer (pixels)", "GPLong", required=False,
-                        default=10),
+            self._param("buffer_size", "FFT Buffer (pixels, 0 = automatic)", "GPLong", required=False,
+                        default=0),
         ]
 
     def execute(self, parameters, messages):
@@ -1598,9 +1613,10 @@ class ApparentSusceptibility(_ApparentTool):
                       THICKNESS=self._value(parameters[5], 0.0),
                       BACKGROUND=self._value(parameters[6], 0.001),
                       HIGH_CUT=self._value(parameters[7], 0.0))
-        buf = int(parameters[8].value) if parameters[8].value else 10
+        buf = parameters[8].value
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(buf, arr)
         self._require_projected(sr, "Apparent susceptibility")
         result = self._proc(cx, cy, buf).apparent_susceptibility(
             arr, field, depth=values["DEPTH"], thickness=values["THICKNESS"] or None,
@@ -1634,8 +1650,8 @@ class ApparentDensity(_ApparentTool):
                         default=2.67),
             self._param("high_cut",   "High-cut Wavelength (m, 0 = 4 x cell size, -1 = none)",
                         "GPDouble", required=False, default=0.0),
-            self._param("buffer_size", "FFT Buffer (pixels)", "GPLong", required=False,
-                        default=10),
+            self._param("buffer_size", "FFT Buffer (pixels, 0 = automatic)", "GPLong", required=False,
+                        default=0),
         ]
 
     def execute(self, parameters, messages):
@@ -1647,10 +1663,11 @@ class ApparentDensity(_ApparentTool):
                       HIGH_CUT=self._value(parameters[6], 0.0))
         if values["THICKNESS"] <= 0:
             raise arcpy.ExecuteError("The layer thickness must be greater than 0")
-        buf = int(parameters[7].value) if parameters[7].value else 10
+        buf = parameters[7].value
         to_mgal = 0.1 if values["UNITS"].startswith("um") else 1.0  # 1 mGal = 10 um/s2
 
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(buf, arr)
         self._require_projected(sr, "Apparent density")
         result = self._proc(cx, cy, buf).apparent_density(
             arr * to_mgal, depth=values["DEPTH"], thickness=values["THICKNESS"],

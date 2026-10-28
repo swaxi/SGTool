@@ -9,7 +9,7 @@ The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.
       * Petrophys plots: Henkel plots and histograms of apparent grids and measured samples, per polygon category, with similar categories grouped A, B, C ...
       * New low-latitude RTP (Hao et al. 2018) with automatic iterations and stripe suppression
       * Fix the RTE operator (RTE results will differ); RTE and low-latitude RTP use mirror padding; RTP/RTE warn again when Inc and Dec are both 0
-      * ArcGIS Pro: Petrophys tab, apparent susceptibility and density tools and low-latitude RTP; toolbox RTP and RTE now use the FFT buffer
+      * ArcGIS Pro: Petrophys tab, apparent susceptibility and density tools and low-latitude RTP; toolbox RTP and RTE now use the FFT buffer; results now match QGIS (Euler, worms, vertical integration, remove regional, line noise, differential RTP, sun shading, toolbox FFT buffer)
       * Clip All Layers: clips to the current map window by default; fixed on macOS, and grids are clipped on their own cell edges
       * The processed grid stays selected after processing, instead of the new result
       * Fix unloading the plugin (dock left in the QGIS window, error when Processing was already unloaded)

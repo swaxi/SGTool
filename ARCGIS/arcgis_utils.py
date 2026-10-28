@@ -347,6 +347,22 @@ def raster_header_info(path):
         return None
 
 
+def worms_reference(raster_path):
+    """(layer, epsg) for GeophysicalProcessor.bsdwormer: a LayerShim with the
+    raster's extent and EPSG code (it georeferences the padded grid) and the
+    EPSG number (for the worms shapefile)."""
+    from calcs.layer_shim import LayerShim
+
+    info = raster_header_info(raster_path)
+    if not info or not info["authid"]:
+        raise ValueError(
+            "Worms needs a grid whose coordinate system has an EPSG code: "
+            f"none found for {raster_path}"
+        )
+    shim = LayerShim(info["extent"], info["authid"], info["geographic"])
+    return shim, int(info["authid"].split(":")[1])
+
+
 def grid_info_text(info):
     """e.g. "Units: m   CRS: EPSG:28350   Pixels: 120 x 120   Pixel size: 100 m"."""
     if not info:

@@ -1311,7 +1311,6 @@ class SGToolApp(tk.Tk):
         r10 = tk.Frame(ff, bg=BG); r10.pack(fill="x", padx=4, pady=2)
         self.v_agc     = tk.BooleanVar()
         self.v_agc_win = tk.StringVar(value="15")
-        self._setup_odd_trace(self.v_agc_win)
         tip(check(r10, "AGC", self.v_agc),
             "Automatic Gain Control (AGC) or Amplitude Normalisation\n"
             "Highlights short wavelength/low amplitude features").pack(side="left")
@@ -2682,9 +2681,9 @@ class SGToolApp(tk.Tk):
                 else:
                     from calcs.Cooper_Cowan_rtpvariable import rtpvariable as cooper_rtpvariable
                     nr, nc = arr.shape
-                    data = np.where(np.isnan(arr), 0.0, arr)
+                    # NaN filling and restoration are handled inside rtpvariable (as in QGIS)
                     _, varrtp, incv_deg, decv_deg = cooper_rtpvariable(
-                        np.flipud(data), nr, nc, inc_c, dec_c,
+                        np.flipud(arr), nr, nc, inc_c, dec_c,
                         inc_center=inc_ctr, dec_center=dec_ctr,
                     )
                     when = self._year_to_date(year)
@@ -2723,7 +2722,9 @@ class SGToolApp(tk.Tk):
         if self.v_vint.get():
             self._check_cancel()
             self.after(0, lambda: self._status("Vertical integration…"))
-            _save(proc.vertical_integration(arr, buffer_size=buf), "vi",
+            # the same settings as the QGIS dialog
+            _save(proc.vertical_integration(arr, max_wavenumber=None, min_wavenumber=1e-4,
+                                            buffer_size=buf, buffer_method="mirror"), "vi",
                   step_record("vertical_integration"))
 
         if self.v_cont.get():
@@ -2751,15 +2752,9 @@ class SGToolApp(tk.Tk):
             # zero-centred line-noise estimate (2x min to 10x max spacing,
             # within a 45 degree wedge about the azimuth), scaled and
             # subtracted from the original grid
-            noise = proc.directional_butterworth_band_pass(
-                arr,
-                2 * min_sp, 10 * max_sp,
-                direction_angle=float(self.v_dc_az.get()),
-                direction_width=wedge,
-                order=4,
-                buffer_size=buf,
-                preserve_dc=False)
-            _save(arr - noise * scale, "dir",
+            _save(proc.line_noise_removal(
+                arr, float(self.v_dc_az.get()), min_sp, max_sp, scale=scale,
+                buffer_size=buf, direction_width=wedge), "dir",
                   step_record("directional_line_noise",
                               AZIMUTH=float(self.v_dc_az.get()),
                               LINE_SPACING_MIN=min_sp, LINE_SPACING_MAX=max_sp,
@@ -2768,23 +2763,23 @@ class SGToolApp(tk.Tk):
         if self.v_regrem.get():
             self._check_cancel()
             self.after(0, lambda: self._status("Remove regional…"))
-            mask = ~np.isnan(arr)
+            data, mask = self._regional_input(proc, arr)
             if self.v_regorder.get() == "1st":
-                _save(proc.remove_gradient(arr, mask), "reg1",
+                _save(proc.remove_gradient(data, mask), "reg1",
                       step_record("remove_regional", ORDER="1st order"))
             else:
-                _save(proc.remove_2o_gradient(arr, mask), "reg2",
+                _save(proc.remove_2o_gradient(data, mask), "reg2",
                       step_record("remove_regional", ORDER="2nd order"))
 
         if self.v_bp.get():
             self._check_cancel()
             self.after(0, lambda: self._status("Band-pass filter…"))
-            w = float(self.v_bp_w.get()) or None
+            w = float(self.v_bp_w.get() or 0)
             _save(proc.band_pass_filter(
                 arr, float(self.v_bp_lo.get()), float(self.v_bp_hi.get()),
                 w, w, buffer_size=buf), "bp",
                 step_record("band_pass", LOW_CUT=float(self.v_bp_lo.get()),
-                            HIGH_CUT=float(self.v_bp_hi.get()), WIDTH=w or 0.0))
+                            HIGH_CUT=float(self.v_bp_hi.get()), WIDTH=w))
 
         if self.v_hlp.get():
             self._check_cancel()
@@ -2801,7 +2796,7 @@ class SGToolApp(tk.Tk):
         if self.v_agc.get():
             self._check_cancel()
             self.after(0, lambda: self._status("AGC…"))
-            agc_n = self._ensure_odd(self.v_agc_win.get())
+            agc_n = int(float(self.v_agc_win.get()))
             _save(proc.automatic_gain_control(arr, agc_n), "agc",
                   step_record("automatic_gain_control", WINDOW=agc_n))
 
@@ -2831,6 +2826,14 @@ class SGToolApp(tk.Tk):
             self.after(0, lambda: self._status("Analytic signal…"))
             _save(proc.analytic_signal(arr, buffer_size=buf), "as",
                   step_record("analytic_signal"))
+
+    @staticmethod
+    def _regional_input(proc, arr):
+        """(data, mask) for remove_gradient / remove_2o_gradient, prepared as the
+        QGIS dialog does; mask is True where there is no data."""
+        data, nodata_value = proc.fix_extreme_values(arr.copy())
+        data = data.astype(np.float32)
+        return data, (data == nodata_value) | np.isnan(data)
 
     def _uncheck_fft(self):
         for v in (self.v_rtp, self.v_vint, self.v_cont, self.v_dirclean,
@@ -2889,7 +2892,8 @@ class SGToolApp(tk.Tk):
             self._check_cancel()
             self.after(0, lambda: self._status("Median filter…"))
             n = self._ensure_odd(self.v_med_n.get())
-            _save(ConvolutionFilter(arr).median_filter(n), f"med{n}",
+            _save(ConvolutionFilter(arr).median_filter(
+                      n, callback=lambda fraction=None: self._check_cancel()), f"med{n}",
                   step_record("median_filter", SIZE=n))
 
         if self.v_gauss.get():
@@ -2915,7 +2919,7 @@ class SGToolApp(tk.Tk):
             cf  = ConvolutionFilter(arr)
             result = (cf.sun_shading_filter_grass(arr, cy, cx, altitude=alt, azimuth=az)
                       if self.v_sun_relief.get()
-                      else cf.sun_shading_filter(arr, alt, az))
+                      else cf.sun_shading_filter(arr, sun_alt=alt, sun_az=180 - az))
             _save(result, "shade",
                   step_record("sun_shading", AZIMUTH=az, ZENITH=alt,
                               RELIEF=bool(self.v_sun_relief.get())))
@@ -2932,7 +2936,9 @@ class SGToolApp(tk.Tk):
             if v_chk.get():
                 self._check_cancel()
                 self.after(0, lambda s=stat: self._status(f"Spatial {s}…"))
-                _save(SpatialStats(arr).calculate_windowed_stats(win, stat), sfx,
+                _save(SpatialStats(arr).calculate_windowed_stats(
+                          win, stat, callback=lambda fraction=None: self._check_cancel()),
+                      sfx,
                       step_record("windowed_statistic", STATISTIC=stat, WINDOW=win))
 
         if self.v_mrvbf.get():
@@ -3040,36 +3046,28 @@ class SGToolApp(tk.Tk):
             v.set(False)
 
     def _do_euler(self, arr, nodata, ll_x, ll_y, cx, cy, in_r):
-        from calcs.euler.euler_python_optimised import euler_deconv_optimized
-        import csv
+        from calcs.euler.euler_python import euler_deconv_grid
+        from calcs.text_io import write_rows
 
         rows, cols = arr.shape
-        x_max = ll_x + cols * cx
-        y_max = ll_y + rows * cy
-        area  = (ll_y, y_max, ll_x, x_max)
-        xs = np.linspace(ll_x, x_max, cols)
-        ys = np.linspace(ll_y, y_max, rows)
-        XI, YI = np.meshgrid(xs, ys)
-        ZI     = np.zeros_like(arr)
-        filled = np.where(np.isnan(arr), 0.0, arr)
-
+        extent = (ll_x, ll_y, ll_x + cols * cx, ll_y + rows * cy)
+        # the same calculation as the QGIS dialog; arr is north-up
         # Returns array shape (n_keep, 5): columns [X, Y, Depth, B, StdDfDz]
-        res = euler_deconv_optimized(
-            filled, XI, YI, ZI, filled.shape, area,
+        res = euler_deconv_grid(
+            arr, extent,
             float(self.v_eu_si.get()),
             int(self.v_eu_win.get()),
-            float(self.v_eu_filt.get()))
+            float(self.v_eu_filt.get()),
+            callback=lambda fraction=None: self._check_cancel())
         if res is None or len(res) == 0:
             self.after(0, lambda: self._status("Euler: no estimates produced."))
             return
 
         # QGIS naming: <grid>_estimates_SI_<n>.txt, n being the structural index
         out_csv = os.path.splitext(in_r)[0] + f"_estimates_SI_{int(float(self.v_eu_si.get()))}.txt"
-        with open(out_csv, "w", newline="") as f:
-            wr = csv.writer(f)
-            wr.writerow(["X", "Y", "Depth", "B", "StdDfDz"])
-            for row in res:
-                wr.writerow([row[0], row[1], row[2], row[3], row[4]])
+        with open(out_csv, "w") as f:
+            f.write("X,Y,Depth,B,StdDfDz\n")
+            write_rows(f, res[:, :5], "%s")  # the same text csv.writer wrote
         write_provenance(out_csv, in_r, "Euler deconvolution", {
             "structural_index": self.v_eu_si.get(), "window_size": self.v_eu_win.get(),
             "fraction_kept": self.v_eu_filt.get()})
@@ -3248,19 +3246,18 @@ class SGToolApp(tk.Tk):
 
     def _do_calc_worms(self, in_r, out_d):
         self.after(0, lambda: self._status("Calculating BSD Worms…"))
+        from arcgis_utils import worms_reference
         arr, nodata, ll_x, ll_y, cx, cy, sr = raster_to_numpy(in_r)
         proc = make_processor(cx, cy, 10)
-        try:
-            crs = sr.exportToString() if hasattr(sr, "exportToString") else str(sr)
-        except Exception:
-            crs = ""
+        layer, epsg = worms_reference(in_r)  # extent and EPSG code, as a QGIS layer gives
         os.makedirs(out_d, exist_ok=True)
-        proc.bsdwormer(arr,
-                       os.path.splitext(os.path.basename(in_r))[0], in_r,
+        proc.bsdwormer(arr, layer, in_r,
                        int(self.v_worm_levels.get() or 10),
                        float(self.v_worm_base.get() or 1000.0),
                        float(self.v_worm_inc.get()  or 1000.0),
-                       bool(self.v_worm_shp.get()), crs)
+                       bool(self.v_worm_shp.get()), epsg,
+                       callback=lambda fraction=None: self._check_cancel(),
+                       out_dir=out_d)
         self.after(0, lambda: self._status(f"BSD Worms done → {out_d}"))
 
     # ======================================================================
@@ -3685,6 +3682,14 @@ class SGToolApp(tk.Tk):
             # Noddy GeoTIFF: uniform field, so centre equals corners
             inc, dec, _ = noddy
             return [inc] * 4, [dec] * 4, inc, dec
+        hdr = raster_header_info(in_r)
+        if hdr and hdr["authid"]:
+            # the same calculation as the QGIS dialog (calcs/igrf/igrf_field.py)
+            try:
+                from calcs.igrf.igrf_field import grid_field
+                return grid_field(hdr["extent"], hdr["authid"], float(year), corners=True)
+            except Exception:
+                logging.getLogger(__name__).debug("grid_field failed", exc_info=True)
         try:
             from osgeo import gdal, osr
             ds = gdal.Open(str(in_r), gdal.GA_ReadOnly)

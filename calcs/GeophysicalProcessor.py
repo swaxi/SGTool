@@ -1468,12 +1468,14 @@ class GeophysicalProcessor:
 
     def bsdwormer(
         self, image, layer, gridPath, num_levels, bottom_level, delta_z, shps, crs,
-        callback=None,
+        callback=None, out_dir=None,
     ):
         # code borrows heavilly from bsdwormer example ipynb template example
         # adds on the fly calc of padded grid
         # callback(fraction_done) is called before each level and may raise
         # calcs.sgt_cancel.OperationCancelled to stop the calculation.
+        # layer: a QgsRasterLayer or LayerShim (extent and EPSG code), crs: the
+        # EPSG number; outputs go beside gridPath, or into out_dir if given.
 
         print(gridPath, num_levels, bottom_level, delta_z)
         # load grid and convert to numpy
@@ -1525,6 +1527,9 @@ class GeophysicalProcessor:
 
         # Separate the file path into directory, base name, and extension
         dir_name, base_name = os.path.split(gridPath)
+        if out_dir:
+            dir_name = out_dir
+            gridPathPadded = os.path.join(out_dir, os.path.basename(gridPathPadded))
         file_name, file_ext = os.path.splitext(base_name)
         wormsPath = dir_name + "/" + file_name + "_worms.csv"
 

@@ -1015,7 +1015,9 @@ class SGTool:
         self.SS_angle_tolerance = float(self.dlg.doubleSpinBox_SS_AngleTol.value())
         self.SS_max_steps       = int(self.dlg.spinBox_SS_MaxSteps.value())
         self.SS_search_radius   = int(self.dlg.spinBox_SS_SearchRadius.value())
-        self.SS_window_size = self.to_int(self.dlg.lineEdit_SS_Window.text())
+        # the window statistics need an odd size: an even one (as typed, before
+        # the box's validator corrects it) is taken as the next odd number
+        self.SS_window_size = max(1, self.to_int(self.dlg.lineEdit_SS_Window.text())) | 1
 
         self.MRVBF = self.dlg.checkBox_MRVBF.isChecked()
         self.MRVBF_t_slope = self.to_float(self.dlg.lineEdit_MRVBF_tslope.text())
@@ -6825,6 +6827,8 @@ class SGTool:
             self.dlg.lineEdit_SunSh_Zn.textChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_SunShading)
             )
+            # shared by the six window statistics: refresh a ticked one
+            self.dlg.lineEdit_SS_Window.textChanged.connect(self._ss_window_changed)
             self.dlg.radioButton_NaN_Above.toggled.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_NaN)
             )
@@ -6866,6 +6870,16 @@ class SGTool:
             self.dlg.lineEdit_ED_Window.textChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_ED)
             )
+
+    SS_PREVIEW_BOXES = (
+        "checkBox_SS_Min", "checkBox_SS_Max", "checkBox_SS_StdDev",
+        "checkBox_SS_Variance", "checkBox_SS_Skewness", "checkBox_SS_Kurtosis",
+    )
+
+    def _ss_window_changed(self, *_args):
+        """Window size edited: redraw the preview if it shows a window statistic."""
+        if any(getattr(self.dlg, cb).isChecked() for cb in self.SS_PREVIEW_BOXES):
+            self.schedulePreview()
 
     def update_checkbox(self, checkbox):
         """Generic method to set a checkbox to checked state."""

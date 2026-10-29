@@ -4,8 +4,8 @@ External preview window for the ArcGIS Pro GUI.
 ArcGIS Pro offers no hook into its map, so the preview is shown in its own window
 (like the colour picker of the RGB tool): the filtered grid, drawn with the usual
 mean +/- 2 standard deviation grey stretch, that you can zoom with the mouse wheel and
-pan by dragging. The GUI recalculates the filter for what is in view (or for the whole
-grid, reduced) whenever a setting changes.
+pan by dragging. The GUI recalculates the filter for what is in view (block-averaged
+when more than 1000 cells are in view) whenever the view or a setting changes.
 
 This module only draws and handles the mouse; SGToolApp (SGTool_GUI.py) does the
 calculation and tells the window what to show.
@@ -58,8 +58,8 @@ def stretch_to_grey(a, std_clip=True):
 
 
 class PreviewWindow(tk.Toplevel):
-    """The window. Callbacks: on_view_changed() after the view moved or the mode was
-    switched, on_close() when the user closes the window."""
+    """The window. Callbacks: on_view_changed() after the view moved, on_close() when
+    the user closes the window."""
 
     ZOOM_STEP = 1.25
     MAX_PIXELS_PER_CELL = 100.0   # deepest zoom: 100 canvas pixels per cell
@@ -76,23 +76,10 @@ class PreviewWindow(tk.Toplevel):
 
         bar = tk.Frame(self, bg=BG)
         bar.pack(fill="x", padx=6, pady=(6, 2))
-        self.v_mode = tk.StringVar(value="view")
         self.v_original = tk.BooleanVar(value=False)
-        for text, value, tip in (
-                ("View extent", "view",
-                 "Recalculate at full detail for the part of the grid in view\n"
-                 "(zoom and pan to update; edges show filter edge effects)"),
-                ("Whole grid (reduced)", "whole",
-                 "Preview the whole grid, block-averaged to a coarser cell size.\n"
-                 "Fast, but filters set in pixels act on the coarser cells, and line\n"
-                 "noise is lost if the cell size exceeds the line spacing")):
-            rb = tk.Radiobutton(bar, text=text, value=value, variable=self.v_mode,
-                                command=self._mode_changed, bg=BG, fg=FG,
-                                activebackground=BG, selectcolor="#ffffff", font=FONT)
-            rb.pack(side="left", padx=4)
         tk.Checkbutton(bar, text="Show original", variable=self.v_original,
                        command=self._redraw, bg=BG, fg=FG, activebackground=BG,
-                       selectcolor="#ffffff", font=FONT).pack(side="left", padx=12)
+                       selectcolor="#ffffff", font=FONT).pack(side="left", padx=4)
         tk.Label(bar, text="wheel: zoom   drag: pan   double-click: whole grid",
                  bg=BG, fg="#666666", font=FONT).pack(side="right", padx=4)
         if on_match_map is not None:
@@ -243,9 +230,6 @@ class PreviewWindow(tk.Toplevel):
     def _resized(self):
         self._fit()
         self._redraw()
-        self._on_view_changed()
-
-    def _mode_changed(self):
         self._on_view_changed()
 
     # ------------------------------------------------------------------ content

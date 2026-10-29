@@ -247,24 +247,15 @@ class SGToolDockWidget(QDockWidget):
                 "Unchecking discards the preview; press Apply Processing to "
                 "save the full-resolution result as a permanent layer."
             )
+            + "\n\n"
+            + _tr(
+                "The preview is calculated for the area shown in the map (pan or "
+                "zoom to update),\nat full resolution once at most 1000 cells "
+                "are in view; a larger view is block-averaged.\nThe edges of the "
+                "view show filter edge effects: zoom out to preview long-wavelength "
+                "filters."
+            )
         )
-        rad_extent = QRadioButton(_tr("Map extent"))
-        rad_extent.setToolTip(
-            _tr("Preview at full resolution for the current map canvas extent\n"
-                "(pan/zoom to update; edges show filter edge effects)")
-        )
-        rad_extent.setChecked(True)
-        rad_sub = QRadioButton(_tr("Subsampled grid"))
-        rad_sub.setToolTip(
-            _tr("Preview the whole grid, block-averaged to a coarser cell size.\n"
-                "Fast, but filters set in pixels (convolution, stats, AGC) act on\n"
-                "the coarser cells, and line noise is lost if the cell size\n"
-                "exceeds the line spacing.")
-        )
-        # explicit group so these don't share exclusivity with other radios
-        group = QButtonGroup(self)
-        group.addButton(rad_extent)
-        group.addButton(rad_sub)
         cancel = QPushButton(_tr("Cancel"))
         cancel.setToolTip(
             _tr("Stop the running calculation. It stops at its next checkpoint "
@@ -275,9 +266,6 @@ class SGToolDockWidget(QDockWidget):
 
         setattr(self, "pushButton_cancel" + suffix, cancel)
         setattr(self, "checkBox_preview" + suffix, chk)
-        setattr(self, "radioButton_preview_extent" + suffix, rad_extent)
-        setattr(self, "radioButton_preview_sub" + suffix, rad_sub)
-        setattr(self, "buttonGroup_preview" + suffix, group)
 
         bar = QWidget()
         bl = QHBoxLayout(bar)
@@ -287,8 +275,6 @@ class SGToolDockWidget(QDockWidget):
         bl.addWidget(cancel)
         bl.addSpacing(10)
         bl.addWidget(chk)
-        bl.addWidget(rad_extent)
-        bl.addWidget(rad_sub)
         bl.addStretch()
         return bar
 

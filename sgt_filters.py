@@ -95,9 +95,12 @@ class GridContext:
         rows, cols = arr.shape
         self.buffer = int(buffer) if buffer and buffer > 0 else min(rows, cols, 5000)
         ext = layer.extent()
-        from .sgt_crs import is_geographic  # QGIS only (this module also serves ArcGIS)
+        try:  # QGIS: also catches lat/long CRSs QGIS does not flag as geographic
+            from .sgt_crs import is_geographic
 
-        self.geographic = is_geographic(layer.crs())
+            self.geographic = is_geographic(layer.crs())
+        except ImportError:  # ArcGIS Pro: a LayerShim, which knows itself
+            self.geographic = layer.crs().isGeographic()
         self.centroid = (
             (ext.xMinimum() + ext.xMaximum()) / 2.0,
             (ext.yMinimum() + ext.yMaximum()) / 2.0,

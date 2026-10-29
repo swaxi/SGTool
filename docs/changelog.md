@@ -7,6 +7,8 @@ The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.
 ## 0.4.1
       * Lat/long grids whose CRS QGIS does not flag as geographic (e.g. ER Mapper .ers) are treated as geographic, fixing relief shading and other cell-size steps
       * Preview runs one calculation at a time and Cancel stops FFT filters part-way, so quick panning or edits no longer slow it down
+      * Preview: the second preview mode (Subsampled grid in QGIS, Whole grid (reduced) in ArcGIS Pro) is removed. Preview always calculates what is in view, at full resolution up to 1000 cells on the longest side and block-averaged beyond, so zoom out to see the whole grid; bilinear resampling zoomed out as well as zoomed in
+      * Fix: reloading the plugin no longer adds a second toolbar icon; ArcGIS Pro: replaying a processing history works again
 
 ## 0.4.0
       * New Petrophys tab: apparent susceptibility and density grids by Fourier-domain layer inversion, also as Processing algorithms ([docs/petrophysics.md](petrophysics.md))

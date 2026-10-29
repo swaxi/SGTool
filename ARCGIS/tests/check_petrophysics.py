@@ -178,7 +178,7 @@ check("Apply unticks the calculation", not app.v_app_sus.get() and not app.v_app
 
 # ---- preview of the ticked calculation
 app.v_app_dens.set(True)
-res = app._compute_preview(3, grav_tif, "whole", None)
+res = app._compute_preview(3, grav_tif, None)
 check("the preview runs the chosen calculation", "Apparent density" in res["text"], res["text"])
 
 # ---- plots, saved as PNG beside the inputs

@@ -591,7 +591,7 @@ class SGToolApp(tk.Tk):
     #
     # ArcGIS Pro gives a separate Python window no map hooks, so the preview has its own
     # window (sgt_preview_window.PreviewWindow). One filter at a time is ticked; the filter
-    # is run on what is in view (or on the whole grid, reduced) by the very same code that
+    # is run on what is in view (block-averaged if large) by the very same code that
     # Apply uses (_fft_steps / _conv_steps), with a _save that keeps the first result
     # instead of writing it. Preview follows you between the FFT Filters and Conv + Stats
     # tabs; Apply Preview saves the ticked filter at full resolution.
@@ -607,8 +607,7 @@ class SGToolApp(tk.Tk):
     }
     PREVIEW_NOT_POSSIBLE = ("v_ss_aniso", "v_ss_chain", "v_ss_stream", "v_mrvbf",
                             "v_pca", "v_ica", "v_euler")
-    PREVIEW_VIEW_SIDE = 1000    # most cells (longest side) calculated for the view
-    PREVIEW_WHOLE_SIDE = 600    # the whole grid is reduced to about this
+    PREVIEW_SIDE = 1000    # most cells (longest side) calculated for the view, as QGIS
     APPLY_TEXT = {0: "Apply FFT Processing", 1: "Apply Conv + Stats", 3: "Apply Petrophysics",
                   4: "Apply Threshold \u2192 NaN"}
 
@@ -843,12 +842,12 @@ class SGToolApp(tk.Tk):
         gen = self._preview_gen
         win.set_status("Calculating…")
         threading.Thread(target=self._preview_worker,
-                         args=(gen, tab, path, win.v_mode.get(), win.view_box()),
+                         args=(gen, tab, path, win.view_box()),
                          daemon=True).start()
 
-    def _preview_worker(self, gen, tab, path, mode, view):
+    def _preview_worker(self, gen, tab, path, view):
         try:
-            result, error = self._compute_preview(tab, path, mode, view), None
+            result, error = self._compute_preview(tab, path, view), None
         except Exception as e:
             result, error = None, str(e) or type(e).__name__
         try:
@@ -879,11 +878,11 @@ class SGToolApp(tk.Tk):
         self._preview_src = (path, stamp, (arr, cx, cy))
         return self._preview_src[2]
 
-    def _compute_preview(self, tab, path, mode, view):
+    def _compute_preview(self, tab, path, view):
         """Run the ticked filter of `tab` on the part of the grid the preview shows.
 
-        mode "view" calculates what is in `view` = (x0, y0, x1, y1) cells at full detail
-        (reduced if it is large), "whole" the whole grid reduced. Returns a dict with the
+        Calculates what is in `view` = (x0, y0, x1, y1) cells (None: the whole grid) at
+        full detail, block-averaged if it is large. Returns a dict with the
         filtered grid, the input it came from, where it lies (box, in cells of the full
         grid), whether to stretch by standard deviation, and a line of text."""
         import math
@@ -892,9 +891,8 @@ class SGToolApp(tk.Tk):
         t0 = time.time()
         arr, cx, cy = self._preview_source(path)
         rows, cols = arr.shape
-        if mode == "whole":
+        if view is None:
             x0, y0, x1, y1 = 0, 0, cols, rows
-            side = self.PREVIEW_WHOLE_SIDE
         else:
             vx0, vy0, vx1, vy1 = view
             x0, y0 = int(max(0, math.floor(vx0))), int(max(0, math.floor(vy0)))
@@ -903,9 +901,8 @@ class SGToolApp(tk.Tk):
                 x0, x1 = max(0, min(x0, cols - 16)), min(cols, max(x1, 16))
             if y1 - y0 < 16:
                 y0, y1 = max(0, min(y0, rows - 16)), min(rows, max(y1, 16))
-            side = self.PREVIEW_VIEW_SIDE
         crop = arr[y0:y1, x0:x1]
-        k = max(1, int(math.ceil(max(crop.shape) / side)))
+        k = max(1, int(math.ceil(max(crop.shape) / self.PREVIEW_SIDE)))
         sub = block_mean(crop, k)
         ecx, ecy = cx * k, cy * k
         buf = max(1, min(int(self.v_buf.get() or 10), *sub.shape))

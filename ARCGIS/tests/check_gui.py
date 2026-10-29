@@ -378,9 +378,9 @@ pv = make_tif("prevsrc.tif", size=100, cell=100.0, seed=3)
 app.v_input.set(pv)
 app.nb.select(0); app.update()
 
-# the calculation: whole grid <= 600 cells is the full-resolution result Apply would write
+# the calculation: a whole grid of <= 1000 cells is the full-resolution result Apply would write
 app.v_deriv.set(True); app.v_deriv_dir.set("z"); app.v_deriv_pow.set("1")
-res = app._compute_preview(0, pv, "whole", (0, 0, 100, 100))
+res = app._compute_preview(0, pv, (0, 0, 100, 100))
 app._do_apply_fft(pv)                      # what Apply writes
 pump(0.3)
 written = band(os.path.join(DATA, "prevsrc_d1z.tif"))
@@ -389,9 +389,9 @@ check("whole-grid preview equals the filter Apply writes", np.allclose(res["filt
 check("the preview reports the operation and the cell count", "Derivative" in res["text"] and "100 x 100" in res["text"], res["text"])
 app.v_deriv.set(False)
 
-# view mode: only what is in view is calculated, from the full-resolution cells
+# only what is in view is calculated, from the full-resolution cells
 app.v_deriv.set(True)
-res = app._compute_preview(0, pv, "view", (20.0, 30.0, 70.0, 80.0))
+res = app._compute_preview(0, pv, (20.0, 30.0, 70.0, 80.0))
 from calcs.GeophysicalProcessor import GeophysicalProcessor
 arr_pv = au.raster_to_numpy(pv)[0]
 crop = arr_pv[30:80, 20:70]
@@ -403,11 +403,11 @@ check("the original crop is returned for the toggle", np.allclose(res["original"
 app.v_deriv.set(False)
 
 # big grids are block-averaged for the preview
-big_pv = make_tif("prevbig.tif", size=700, cell=50.0, seed=4)
+big_pv = make_tif("prevbig.tif", size=1400, cell=50.0, seed=4)
 app.v_mean.set(True); app.v_mean_n.set("3")
-res = app._compute_preview(1, big_pv, "whole", (0, 0, 700, 700))
-check("a 700-cell grid is reduced 2 x for the whole-grid preview",
-      res["filtered"].shape == (350, 350) and res["box"] == (0, 0, 700, 700) and "block-averaged 2" in res["text"],
+res = app._compute_preview(1, big_pv, None)
+check("a 1400-cell grid is reduced 2 x for the whole-grid preview",
+      res["filtered"].shape == (700, 700) and res["box"] == (0, 0, 1400, 1400) and "block-averaged 2" in res["text"],
       (res["filtered"].shape, res["text"]))
 check("block_mean averages blocks and ignores no data",
       np.allclose(block_mean(np.array([[1.0, 3.0], [np.nan, 5.0]]), 2), [[3.0]]))
@@ -416,7 +416,7 @@ app.v_mean.set(False)
 # sun shading is stretched min to max, the rest by standard deviation
 app.nb.select(1); app.update()
 app.v_sun.set(True)
-res = app._compute_preview(1, pv, "whole", (0, 0, 100, 100))
+res = app._compute_preview(1, pv, (0, 0, 100, 100))
 check("sun shading is not stretched by standard deviation", res["std_clip"] is False)
 app.v_sun.set(False)
 rgb = stretch_to_grey(np.array([[0.0, 1.0], [np.nan, 0.5]]), std_clip=False)
@@ -548,7 +548,7 @@ app.nb.select(4); app.update()
 app.v_input.set(pv)
 app.v_thresh_cond.set("above"); app.v_thresh_above.set("40"); app.v_thresh_below.set("-9e9")
 app.v_thresh_en.set(True)
-res = app._compute_preview(4, pv, "whole", (0, 0, 100, 100))
+res = app._compute_preview(4, pv, (0, 0, 100, 100))
 check("the threshold preview marks the values above the threshold as no data",
       "Threshold to NaN" in res["text"] and np.array_equal(np.isnan(res["filtered"]), res["original"] > 40)
       and np.isnan(res["filtered"]).any(), res["text"])

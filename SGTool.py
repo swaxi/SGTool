@@ -357,6 +357,17 @@ class SGTool:
 
         # print "** UNLOAD SGTool"
 
+        # the menu entry and the plugin's own toolbar first, so a failure in
+        # the clean-up below can't leave them behind (a reload would then add
+        # a second toolbar with another icon)
+        for action in self.actions:
+            self.iface.removePluginMenu(self.tr("&SGTool"), action)
+            self.toolbar.removeAction(action)
+            action.deleteLater()
+        self.actions = []
+        self.iface.mainWindow().removeToolBar(self.toolbar)
+        self.toolbar.deleteLater()
+
         try:
             self.iface.currentLayerChanged.disconnect(self._active_layer_changed)
         except (TypeError, RuntimeError):
@@ -402,12 +413,6 @@ class SGTool:
             self.dlg.deleteLater()
             self.dlg = None
             self.pluginIsActive = False
-
-        for action in self.actions:
-            self.iface.removePluginMenu(self.tr("&SGTool"), action)
-            self.iface.removeToolBarIcon(action)
-        # remove the toolbar
-        del self.toolbar
 
     def define_tips(self):
         """
@@ -2168,8 +2173,7 @@ class SGTool:
     _preview_sticky = False  # Preview was ticked by the user: it follows them between tabs
     _preview_handover = False  # True while the plugin itself moves Preview between tabs
     PREVIEW_PATH = "/vsimem/sgtool_preview.tif"
-    PREVIEW_SUBSAMPLE_SIDE = 600  # max cells on longest side, subsampled mode
-    PREVIEW_EXTENT_SIDE = 2000  # cap on longest side, map-extent mode
+    PREVIEW_SIDE = 1000  # max cells on the longest side of the map extent previewed
 
     # (flag set by parseParams, proc method, stdClip, checkbox attribute),
     # in the same order processGeophysics runs them. Filters that need
@@ -2254,10 +2258,6 @@ class SGTool:
             getattr(d, "checkBox_preview" + sfx).toggled.connect(
                 lambda checked, t=tab: self.onPreviewToggled(checked, t)
             )
-            # fires on either switch of the pair
-            getattr(d, "radioButton_preview_extent" + sfx).toggled.connect(
-                self.schedulePreview
-            )
             getattr(d, "pushButton_cancel" + sfx).clicked.connect(
                 lambda _checked=False: self.cancel_task()
             )
@@ -2274,14 +2274,10 @@ class SGTool:
         d.tabWidget.currentChanged.connect(self._preview_tab_changed)
 
     def _preview_widgets(self, tab):
-        """(checkbox, extent radio, grid combo) for the given tab."""
+        """(checkbox, grid combo) for the given tab."""
         sfx, combo, _apply = self.PREVIEW_TABS[tab]
         d = self.dlg
-        return (
-            getattr(d, "checkBox_preview" + sfx),
-            getattr(d, "radioButton_preview_extent" + sfx),
-            getattr(d, combo),
-        )
+        return getattr(d, "checkBox_preview" + sfx), getattr(d, combo)
 
     def _previewing_here(self):
         """True while a preview is on and its tab is the one being shown."""
@@ -2414,7 +2410,7 @@ class SGTool:
                 level=Qgis.MessageLevel.Info, duration=3,
             )
             return
-        self._preview_keep = (entry, self._preview_widgets(tab)[2].currentText())
+        self._preview_keep = (entry, self._preview_widgets(tab)[1].currentText())
         self._preview_widgets(tab)[0].setChecked(False)  # runs onPreviewToggled
 
     def discardPreview(self):
@@ -2487,13 +2483,13 @@ class SGTool:
         except RuntimeError:
             pass  # nothing there yet
 
-    def _read_preview_array(self, layer, use_extent, max_side):
+    def _read_preview_array(self, layer, max_side):
         """Read band 1 for the preview as a north-up float array plus geotransform.
 
-        Only the needed window (the map canvas, or the whole grid) is read, and
-        GDAL decimates it to at most max_side cells on its longest side, so a
-        huge raster is never loaded in full. Returns (None, None) if the
-        canvas covers fewer than 16 cells of the grid.
+        Only the window under the map canvas is read, and GDAL block-averages
+        it to at most max_side cells on its longest side, so a huge raster is
+        never loaded in full. Returns (None, None) if the canvas covers fewer
+        than 16 cells of the grid.
         """
         path = layer.dataProvider().dataSourceUri()
         try:
@@ -2504,23 +2500,21 @@ class SGTool:
         gt = ds.GetGeoTransform()
         cols, rows = ds.RasterXSize, ds.RasterYSize
         x0, dx, _, y0, _, dys = gt  # dys < 0 for north-up, > 0 for south-up
-        c0, c1, r0, r1 = 0, cols, 0, rows
-        if use_extent:
-            canvas = self.iface.mapCanvas()
-            ext = canvas.extent()
-            canvas_crs = canvas.mapSettings().destinationCrs()
-            if canvas_crs != layer.crs():
-                ext = QgsCoordinateTransform(
-                    canvas_crs, layer.crs(), QgsProject.instance()
-                ).transformBoundingBox(ext)
-            ra = (ext.yMaximum() - y0) / dys
-            rb = (ext.yMinimum() - y0) / dys
-            c0 = max(0, int(np.floor((ext.xMinimum() - x0) / dx)))
-            c1 = min(cols, int(np.ceil((ext.xMaximum() - x0) / dx)))
-            r0 = max(0, int(np.floor(min(ra, rb))))
-            r1 = min(rows, int(np.ceil(max(ra, rb))))
-            if c1 - c0 < 16 or r1 - r0 < 16:
-                return None, None
+        canvas = self.iface.mapCanvas()
+        ext = canvas.extent()
+        canvas_crs = canvas.mapSettings().destinationCrs()
+        if canvas_crs != layer.crs():
+            ext = QgsCoordinateTransform(
+                canvas_crs, layer.crs(), QgsProject.instance()
+            ).transformBoundingBox(ext)
+        ra = (ext.yMaximum() - y0) / dys
+        rb = (ext.yMinimum() - y0) / dys
+        c0 = max(0, int(np.floor((ext.xMinimum() - x0) / dx)))
+        c1 = min(cols, int(np.ceil((ext.xMaximum() - x0) / dx)))
+        r0 = max(0, int(np.floor(min(ra, rb))))
+        r1 = min(rows, int(np.ceil(max(ra, rb))))
+        if c1 - c0 < 16 or r1 - r0 < 16:
+            return None, None
         w, h = c1 - c0, r1 - r0
         key = (path, mtime, c0, r0, w, h, max_side)
         if self._preview_src is not None and self._preview_src[0] == key:
@@ -2701,7 +2695,7 @@ class SGTool:
             self._preview_pending = True
             self._wait_for_preview_calc()
             return
-        chk, rad_extent, combo = self._preview_widgets(tab)
+        chk, combo = self._preview_widgets(tab)
         name = combo.currentText()
         layers = QgsProject.instance().mapLayersByName(name) if name else []
         src = layers[0] if layers else None
@@ -2726,25 +2720,20 @@ class SGTool:
             )
             return
         try:
-            if rad_extent.isChecked():
-                arr, gt = self._read_preview_array(src, True, self.PREVIEW_EXTENT_SIDE)
-                if arr is None:
-                    self.iface.messageBar().pushMessage(
-                        "Preview", "Map extent does not cover enough of the grid",
-                        level=Qgis.MessageLevel.Warning, duration=3,
-                    )
-                    return
-            else:
-                arr, gt = self._read_preview_array(
-                    src, False, self.PREVIEW_SUBSAMPLE_SIDE
+            arr, gt = self._read_preview_array(src, self.PREVIEW_SIDE)
+            if arr is None:
+                self.iface.messageBar().pushMessage(
+                    "Preview", "Map extent does not cover enough of the grid",
+                    level=Qgis.MessageLevel.Warning, duration=3,
                 )
+                return
 
             dx, dy = gt[1], -gt[5]
             if entry[0] == "DirClean" and dx > float(self.DC_lineSpacing):
                 self.iface.messageBar().pushMessage(
                     "Preview",
                     "Preview cell size exceeds the line spacing, so line noise "
-                    "is under-sampled. Use Map extent and zoom in.",
+                    "is under-sampled. Zoom in.",
                     level=Qgis.MessageLevel.Warning, duration=3,
                 )
             self._start_preview_task(tab, entry, arr, gt, src, name)
@@ -2785,9 +2774,10 @@ class SGTool:
         else:
             layer.setDataSource(self.PREVIEW_PATH, layer_name, "gdal")
         self._apply_stretch(layer, std_clip)
-        # smooth the blocky look of a coarse preview when zoomed in
+        # bilinear when zoomed in (smooths a coarse preview) and zoomed out
         # (setDataSource resets the pipe, so this is set on every update)
         layer.resampleFilter().setZoomedInResampler(QgsBilinearRasterResampler())
+        layer.resampleFilter().setZoomedOutResampler(QgsBilinearRasterResampler())
         layer.triggerRepaint()
 
     @staticmethod

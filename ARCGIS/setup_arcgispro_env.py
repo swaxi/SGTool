@@ -85,16 +85,37 @@ def find_pro():
     return None
 
 
+def _child_env(prefix):
+    """Environment variables for the programs this script runs on the new
+    environment: run from a toolbox, it inherits those of the ArcGIS Pro
+    environment in use (PYTHONHOME, PYTHONPATH, its folders on PATH ...), which
+    would make the new environment's python.exe load the other environment's
+    packages, so pip installed into it and the check looked in it."""
+    env = dict(os.environ)
+    for key in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONUSERBASE",
+                "PYTHONEXECUTABLE", "VIRTUAL_ENV", "CONDA_PREFIX", "CONDA_DEFAULT_ENV",
+                "CONDA_PYTHON_EXE", "CONDA_SHLVL", "CONDA_PROMPT_MODIFIER"):
+        env.pop(key, None)
+    env["PYTHONNOUSERSITE"] = "1"  # nor packages from the user's own site folder
+    running = os.path.normcase(os.path.normpath(sys.prefix))
+    keep = [d for d in env.get("PATH", "").split(os.pathsep)
+            if d and not os.path.normcase(os.path.normpath(d)).startswith(running)]
+    first = [prefix, os.path.join(prefix, "Library", "bin"), os.path.join(prefix, "Scripts")]
+    env["PATH"] = os.pathsep.join(first + keep)
+    return env
+
+
 class _Setup:
-    def __init__(self, log):
+    def __init__(self, log, env=None):
         self.log = log
+        self.env = env  # environment variables for the programs run
 
     def run(self, cmd):
         """Run cmd, passing its output to the log line by line; returns the exit code."""
         self.log("> " + subprocess.list2cmdline(cmd))
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 stdin=subprocess.DEVNULL, text=True, errors="replace",
-                                creationflags=_NO_WINDOW)
+                                creationflags=_NO_WINDOW, env=self.env)
         for line in proc.stdout:
             if line.strip():
                 self.log(line.rstrip())
@@ -109,7 +130,8 @@ class _Setup:
                 "    except Exception:\n"
                 "        print(m)\n")
         result = subprocess.run([python, "-c", code] + [m for _, m, _ in packages],
-                                capture_output=True, text=True, creationflags=_NO_WINDOW)
+                                capture_output=True, text=True, creationflags=_NO_WINDOW,
+                                env=self.env)
         bad = set(result.stdout.split())
         return [p for p in packages if p[1] in bad]
 
@@ -141,7 +163,8 @@ class _Setup:
             return []
         names = {p for p, _, _ in packages}
         frozen = subprocess.run([python, "-m", "pip", "list", "--format=freeze"],
-                                capture_output=True, text=True, creationflags=_NO_WINDOW).stdout
+                                capture_output=True, text=True, creationflags=_NO_WINDOW,
+                                env=self.env).stdout
         pins = [line for line in frozen.splitlines()
                 if "==" in line and line.split("==")[0].lower() not in names]
         with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
@@ -182,7 +205,7 @@ def setup(name=DEFAULT_ENV, activate=True, recreate=False, log=print):
             f"'{name}' is the environment ArcGIS Pro is using now, and packages cannot be added to "
             "it while it is in use. In Project > Package Manager switch back to arcgispro-py3, "
             "restart ArcGIS Pro and run this again (or choose a different environment name).")
-    worker = _Setup(log)
+    worker = _Setup(log, _child_env(dest))
     if recreate and os.path.isdir(dest):
         log("Removing the existing environment")
         if worker.run([conda, "env", "remove", "--prefix", dest, "--yes", "--quiet"]) != 0:

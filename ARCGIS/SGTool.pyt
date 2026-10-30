@@ -707,8 +707,8 @@ class AutomaticGainControl(_RasterTool):
 class RemoveRegional(_RasterTool):
     category    = "FFT Filters"
     label       = "Remove Regional Trend"
-    description = ("Fit and remove a 1st- or 2nd-order polynomial trend "
-                   "(frequency-domain method).")
+    description = ("Fit a 1st- or 2nd-order polynomial surface to the valid cells "
+                   "by least squares and subtract it.")
 
     def getParameterInfo(self):
         in_r  = self._param("in_raster",  "Input Raster")
@@ -1263,7 +1263,7 @@ class EulerDeconvolution(_RasterTool):
         si.value = 1.0
 
         win   = self._param("window_size", "Window Size (pixels, odd)", "GPLong",   default=5)
-        filt  = self._param("threshold",   "Percent Uncertainty Filter (0–1)",
+        filt  = self._param("threshold",   "Fraction of Solutions Kept (0–1)",
                             "GPDouble", default=0.1)
         return [in_r, out_csv, si, win, filt]
 
@@ -1441,9 +1441,9 @@ class MultilevelBSplineGridding(_RasterTool):
 class BSDWorms(_RasterTool):
     category    = "Grid + Wavelets"
     label       = "BSD Worms (Multi-scale Edge Extraction)"
-    description = ("Extract multi-scale maxima of the analytic signal at multiple "
-                   "upward-continuation levels. Produces CSV files and optionally "
-                   "shapefiles.")
+    description = ("Multi-scale edges: upward continue the grid to a series of levels "
+                   "and find the edges (horizontal gradient maxima) at each. Writes a "
+                   "CSV of points and optionally a 3D polyline shapefile.")
 
     def getParameterInfo(self):
         in_r  = self._param("in_raster",   "Input Raster")
@@ -1774,8 +1774,9 @@ class ClipAllLayersToPolygon(_RasterTool):
 class NormaliseGrids(_RasterTool):
     category    = "Utils"
     label       = "Normalise Grids (Batch)"
-    description = ("Normalise all GeoTIFFs in an input folder by fitting a 1st- "
-                   "or 2nd-order polynomial trend and dividing by it.")
+    description = ("Normalise all GeoTIFFs in a folder for merging: remove a 1st- or "
+                   "2nd-order regional, scale to the standard deviation of the "
+                   "alphabetically first grid, and remove the mean.")
 
     def getParameterInfo(self):
         in_d  = arcpy.Parameter(name="in_dir", displayName="Input Directory", datatype="DEFolder",

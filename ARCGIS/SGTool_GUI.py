@@ -269,10 +269,33 @@ def _help_pieces(paragraph):
 # ============================================================================
 # Main application
 # ============================================================================
+def _use_app_icon(app_id):
+    """Before the first window: give this program its own Windows taskbar
+    entry (app_id), so the taskbar shows its icon rather than python.exe's."""
+    try:
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+    except Exception:
+        pass  # not Windows, or an old Windows: the icon still shows on the window
+
+
+def _set_window_icon(win, png):
+    """The plugin's QGIS icon on this window and every window opened after it."""
+    try:
+        img = tk.PhotoImage(file=png)
+        win.iconphoto(True, img)
+        win._sgt_icon = img  # keep a reference, or Tk drops the image
+    except Exception:
+        pass
+
+
 class SGToolApp(tk.Tk):
 
     def __init__(self):
+        _use_app_icon("WAXI.SGTool")
         super().__init__()
+        _set_window_icon(self, os.path.join(_HERE, "..", "icon.png"))
         self.title("SGTool – Geophysical Processing (ArcGIS)")
         self.configure(bg=BG)
         self.geometry("760x900")

@@ -318,6 +318,7 @@ class SGToolApp(tk.Tk):
         self._preview_enforcing = False
         self._preview_ending = False    # Apply is ending the preview: keep the ticks
         self._apply_btns     = {}       # tab -> its Apply button (renamed while previewing)
+        self._window_btns    = {}       # tab -> its Apply to Window button
         self.v_preview.trace_add("write", self._preview_var_changed)
         self._active_token   = None                # cancel token of the running job
         self._apply_theme()
@@ -659,6 +660,26 @@ class SGToolApp(tk.Tk):
         on = self.v_preview.get()
         for tab, button in self._apply_btns.items():
             button.config(text="Apply Preview" if on else self.APPLY_TEXT[tab])
+        self._update_window_btns()
+
+    def _window_btn(self, parent, tab):
+        """The Apply to Window button of a tab (enabled while previewing a filter)."""
+        b = btn(parent, "Apply to Window", lambda t=tab: self._apply_to_window(t), w=16)
+        tip(b, "Clip the input grid to the area shown in the ArcGIS Pro map (as Utils > Clip to Window),\n"
+                 "then apply the previewed filter to the clip at full resolution (as Apply Preview).\n"
+                 "Available while Preview is on with a filter that can be previewed")
+        b.config(state="disabled")
+        self._window_btns[tab] = b
+        return b
+
+    def _update_window_btns(self):
+        """Apply to Window is available on the previewed tab while Preview is on with
+        a filter that can be previewed ticked."""
+        on = self.v_preview.get()
+        for tab, button in self._window_btns.items():
+            ticked = [n for n in self._ticked(tab) if n not in self.PREVIEW_NOT_POSSIBLE]
+            ok = on and self._preview_tab == tab and bool(ticked)
+            button.config(state="normal" if ok else "disabled")
 
     def _current_tab(self):
         try:
@@ -672,6 +693,7 @@ class SGToolApp(tk.Tk):
             self._preview_start()
         else:
             self._preview_stop(untick=not self._preview_ending)
+        self._update_window_btns()  # the previewed tab is known only now
 
     def _preview_start(self):
         tab = self._current_tab()
@@ -744,6 +766,7 @@ class SGToolApp(tk.Tk):
             self._preview_enforcing = False
 
     def _preview_filter_changed(self, tab, name):
+        self._update_window_btns()
         if (not self.v_preview.get() or self._preview_tab != tab or self._preview_enforcing):
             return
         if self._filter_var(name).get():
@@ -770,6 +793,7 @@ class SGToolApp(tk.Tk):
         if self._preview_tab is not None:
             self._enforce_single(self._preview_tab, None)
         self._preview_schedule(50)
+        self._update_window_btns()
 
     def _preview_event(self, event):
         """A key or click anywhere in the app: settings may have changed."""
@@ -1378,6 +1402,7 @@ class SGToolApp(tk.Tk):
         tip(entry(ba, self.v_buf, 5),
             "Maximum buffer applied to grid to reduce edge effects (vignetting)\n"
             "Increase for noisy or clipped-edge grids").pack(side="left", padx=4)
+        self._window_btn(ba, 0).pack(side="right", padx=4)
         b_fft = btn(ba, "Apply FFT Processing", self._apply_fft, w=22)
         self._apply_btns[0] = b_fft
         tip(b_fft, "Apply selected processing steps to the selected grid").pack(side="right", padx=4)
@@ -1587,6 +1612,7 @@ class SGToolApp(tk.Tk):
             "Percentage uncertainty threshold for depth estimates (0–1)").pack(side="left", padx=2)
 
         ba = tk.Frame(p, bg=BG); ba.pack(fill="x", padx=8, pady=8)
+        self._window_btn(ba, 1).pack(side="right", padx=4)
         b_conv = btn(ba, "Apply Conv + Stats", self._apply_conv_stats, w=22)
         self._apply_btns[1] = b_conv
         tip(b_conv, "Apply selected processing steps to the selected grid").pack(side="right", padx=4)
@@ -1843,6 +1869,7 @@ class SGToolApp(tk.Tk):
         picks("dens", e_dd, e_dt, e_db, e_dc)
 
         r = row(ap)
+        self._window_btn(r, 3).pack(side="right", padx=4)
         b_app = btn(r, "Apply Petrophysics", self._apply_petro, w=22)
         self._apply_btns[3] = b_app
         tip(b_app, "Calculate the chosen grid (apparent susceptibility or density) from the\n"
@@ -2417,6 +2444,7 @@ class SGToolApp(tk.Tk):
         b_thr = btn(rt1, "Apply Threshold → NaN", self._apply_threshold, w=22)
         self._apply_btns[4] = b_thr
         tip(b_thr, "Apply threshold and set matching values to NaN (no-data)").pack(side="left", padx=8)
+        self._window_btn(rt1, 4).pack(side="left", padx=4)
         tip(check(rt1, "Preview", self.v_preview),
             "Show the threshold in a separate preview window that updates as you change\n"
             "settings (zoom and pan to see detail). Apply Preview then saves it at full resolution").pack(side="left", padx=4)
@@ -3318,9 +3346,38 @@ class SGToolApp(tk.Tk):
 
     def _clip_to_window(self):
         in_r = self._resolve_input()
+        target = self._window_clip_target(in_r)
+        if target is not None:
+            self._run_in_thread(self._do_clip_to_window, in_r, *target)
+
+    def _apply_to_window(self, tab):
+        """Apply to Window: clip the input grid to the ArcGIS Pro map view (as Clip to
+        Window), make the clip the input grid, then run Apply Preview on it (the
+        previewed filter at full resolution; the preview closes)."""
+        if not (self.v_preview.get() and self._preview_tab == tab):
+            return
+        in_r = self._resolve_input()
+        target = self._window_clip_target(in_r)
+        if target is None:
+            return  # the reason has been shown
+        try:
+            # a GDAL copy of a window of the grid: quick, so done here rather than
+            # as a job, and the Apply below then runs on the finished clip
+            self._do_clip_to_window(in_r, *target)
+        except Exception as e:
+            messagebox.showerror("Apply to Window", f"Clip failed: {e}")
+            return
+        self.v_input.set(target[0])  # the clip is now the input grid
+        apply = {0: self._apply_fft, 1: self._apply_conv_stats,
+                 3: self._apply_petro, 4: self._apply_threshold}[tab]
+        apply()
+
+    def _window_clip_target(self, in_r):
+        """(output path, x0, y0, x1, y1) for clipping in_r to the ArcGIS Pro map view,
+        or None after telling the user why it cannot be done."""
         if not in_r:
             messagebox.showwarning("Missing", "Select an input raster.")
-            return
+            return None
         try:
             with open(os.path.join(tempfile.gettempdir(), "sgtool_view.json")) as f:
                 view = json.load(f)
@@ -3332,7 +3389,7 @@ class SGToolApp(tk.Tk):
                 "Clip to Window",
                 "The ArcGIS Pro map is not showing this grid (or the map view is not "
                 "available: launch SGTool from the toolbox and keep the map open).")
-            return
+            return None
         x0, y0 = int(np.floor(cells[0])), int(np.floor(cells[1]))
         x1, y1 = int(np.ceil(cells[2])), int(np.ceil(cells[3]))
         # never overwrite an earlier clip: _clip, then _clip_01, _clip_02 ...
@@ -3342,7 +3399,7 @@ class SGToolApp(tk.Tk):
             if not os.path.exists(out_r):
                 break
             n += 1
-        self._run_in_thread(self._do_clip_to_window, in_r, out_r, x0, y0, x1, y1)
+        return out_r, x0, y0, x1, y1
 
     def _do_clip_to_window(self, in_r, out_r, x0, y0, x1, y1):
         from osgeo import gdal

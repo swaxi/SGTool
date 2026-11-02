@@ -9,6 +9,7 @@ The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.
       * Preview runs one calculation at a time and Cancel stops FFT filters part-way, so quick panning or edits no longer slow it down
       * Preview: the second preview mode (Subsampled grid in QGIS, Whole grid (reduced) in ArcGIS Pro) is removed. Preview always calculates what is in view, at full resolution up to 1000 cells on the longest side and block-averaged beyond, so zoom out to see the whole grid; bilinear resampling zoomed out as well as zoomed in
       * Fix: reloading the plugin no longer adds a second toolbar icon; ArcGIS Pro: replaying a processing history works again
+      * New Apply to Window button (QGIS and ArcGIS Pro): clips the previewed grid to the map window, then applies the previewed filter to the clip
 
 ## 0.4.0
       * New Petrophys tab: apparent susceptibility and density grids by Fourier-domain layer inversion, also as Processing algorithms ([docs/petrophysics.md](petrophysics.md))

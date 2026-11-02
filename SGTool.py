@@ -1620,6 +1620,26 @@ class SGTool:
             button.setEnabled(not busy or preview)
         for button in cancels:
             button.setEnabled(busy)
+        self._update_window_buttons(job_running=busy and not preview)
+
+    def _update_window_buttons(self, job_running=None):
+        """Apply to Window is available on the previewed tab while Preview is
+        ticked with a filter that can be previewed, and no job is running."""
+        if self.dlg is None:
+            return
+        if job_running is None:
+            job_running = self._task is not None and not getattr(self._task, "is_preview", False)
+        for tab, (sfx, _combo, _apply) in self.PREVIEW_TABS.items():
+            button = getattr(self.dlg, "pushButton_apply_window" + sfx, None)
+            if button is None:
+                continue
+            on = (
+                not job_running
+                and self._preview_tab == tab
+                and self._preview_widgets(tab)[0].isChecked()
+                and self._preview_entry(tab) is not None
+            )
+            button.setEnabled(on)
 
     def start_task(self, description, work, on_success, messages=None):
         """Run work(task) in a background task. Returns False if one is already
@@ -2263,6 +2283,9 @@ class SGTool:
             getattr(d, "pushButton_cancel" + sfx).clicked.connect(
                 lambda _checked=False: self.cancel_task()
             )
+            getattr(d, "pushButton_apply_window" + sfx).clicked.connect(
+                lambda _checked=False, t=tab: self.applyToWindowClicked(t)
+            )
             # only one filter at a time while previewing: ticking one unticks
             # the others; parameter edits arrive via update_checkbox
             for _flag, _method, _clip, cb in self.PREVIEW_FILTERS[tab]:
@@ -2309,6 +2332,7 @@ class SGTool:
                     getattr(self.dlg, other).setChecked(False)
             self._untick_other_tabs(tab)
         self.schedulePreview()
+        self._update_window_buttons()
 
     def _preview_enter_mode(self, tab):
         """Single-filter selection; disable what can't be previewed."""
@@ -2372,6 +2396,7 @@ class SGTool:
                 canvas.extentsChanged.connect(self.schedulePreview)
                 self._preview_canvas_connected = True
             self.updatePreview()
+            self._update_window_buttons()
             return
         # switched off: discard, unless Keep asked for the full-res result
         self._preview_timer.stop()
@@ -2399,6 +2424,7 @@ class SGTool:
         # already holds its own copy of the settings)
         for _f, _m, _c, cb in self.PREVIEW_FILTERS[tab]:
             getattr(self.dlg, cb).setChecked(False)
+        self._update_window_buttons()
 
     def keepClicked(self, tab):
         """Apply Processing while previewing: the previewed filter at full
@@ -2414,6 +2440,29 @@ class SGTool:
             return
         self._preview_keep = (entry, self._preview_widgets(tab)[1].currentText())
         self._preview_widgets(tab)[0].setChecked(False)  # runs onPreviewToggled
+
+    def applyToWindowClicked(self, tab):
+        """Apply to Window: clip the grid being previewed to the map window
+        (as Clip to Window), then save the previewed filter of the clip at full
+        resolution as a permanent layer (as Apply Preview), and preview off."""
+        if self._preview_tab != tab:
+            return
+        entry = self._preview_entry(tab)
+        if entry is None:
+            self.iface.messageBar().pushMessage(
+                "Preview", "Tick a filter to preview first",
+                level=Qgis.MessageLevel.Info, duration=3,
+            )
+            return
+        chk, combo = self._preview_widgets(tab)
+        self._preview_timer.stop()
+        self._cancel_preview_task()
+        clip = self._clip_grid_to_window(combo.currentText())
+        if clip is None:
+            return  # the reason has been shown
+        combo.setLayer(clip)  # the clip is now the grid on this tab
+        self._preview_keep = (entry, clip.name())
+        chk.setChecked(False)  # runs onPreviewToggled, which starts the full run
 
     def discardPreview(self):
         """Switch preview off and drop the temporary layer without keeping it."""
@@ -3749,16 +3798,21 @@ class SGTool:
     def procClipToWindow(self):
         """Clip the grid selected in the Utils tab to the current map window and
         load the result as <name>_clip (saved beside the source grid)."""
-        name = self.dlg.mMapLayerComboBox_selectGrid_Conv_2.currentText()
+        self._clip_grid_to_window(self.dlg.mMapLayerComboBox_selectGrid_Conv_2.currentText())
+
+    def _clip_grid_to_window(self, name):
+        """Clip the named grid to the current map window, save it beside the
+        source as <name>_clip.tif (or _clip_01 ...) and load it. Returns the new
+        layer, or None (after telling the user why) if it could not be made."""
         layers = QgsProject.instance().mapLayersByName(name) if name else []
         if not layers or not isinstance(layers[0], QgsRasterLayer) or not layers[0].isValid():
             self._notify("Select a raster layer to clip first", Qgis.MessageLevel.Warning, 8)
-            return
+            return None
         layer = layers[0]
         src_path = layer.source().split("|")[0]
         if not os.path.isfile(src_path):
             self._notify(f"{name} is not a file on disk, so it can't be clipped", Qgis.MessageLevel.Warning, 8)
-            return
+            return None
 
         canvas = self.iface.mapCanvas()
         ext = canvas.extent()
@@ -3771,7 +3825,7 @@ class SGTool:
         ds = gdal.Open(src_path)
         if ds is None:
             self._notify(f"Could not open {name}", Qgis.MessageLevel.Warning, 8)
-            return
+            return None
         x0, dx, _, y0, _, dys = ds.GetGeoTransform()
         cols, rows = ds.RasterXSize, ds.RasterYSize
         ra = (ext.yMaximum() - y0) / dys
@@ -3783,7 +3837,7 @@ class SGTool:
         if c1 - c0 < 1 or r1 - r0 < 1:
             ds = None
             self._notify("The map window does not overlap this grid", Qgis.MessageLevel.Warning, 8)
-            return
+            return None
 
         # never overwrite an earlier clip: _clip, then _clip_01, _clip_02 ...
         n = 0
@@ -3806,7 +3860,7 @@ class SGTool:
             out = None
         except Exception as e:
             self._notify(f"Clip failed: {e}", Qgis.MessageLevel.Critical, 12)
-            return
+            return None
         finally:
             ds = None
 
@@ -3819,7 +3873,7 @@ class SGTool:
         new_layer = QgsRasterLayer(out_path, out_name)
         if not new_layer.isValid():
             self._notify("The clipped grid could not be loaded", Qgis.MessageLevel.Warning, 8)
-            return
+            return None
         self._add_output_layer(new_layer)
         try:  # keep the source layer's look
             new_layer.setRenderer(layer.renderer().clone())
@@ -3827,6 +3881,7 @@ class SGTool:
         except Exception:
             logging.getLogger(__name__).debug("Ignored: renderer copy", exc_info=True)
         self._notify(f"Clipped {name} to the map window: {out_path}", Qgis.MessageLevel.Success, 10)
+        return new_layer
 
     CLIP_TO_WINDOW = "Current map window"
 

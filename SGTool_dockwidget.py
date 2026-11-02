@@ -264,7 +264,18 @@ class SGToolDockWidget(QDockWidget):
         )
         cancel.setEnabled(False)  # only while a calculation is running
 
+        window = QPushButton(_tr("Apply to Window"))
+        window.setToolTip(
+            _tr("Clip the grid being previewed to the area shown in the map window "
+                "(as Utils > Clip to Window: saved beside it as <name>_clip.tif and "
+                "loaded), then apply the previewed filter to the clip at full "
+                "resolution, as Apply Preview does.\n"
+                "Available while Preview is ticked with a filter that can be previewed.")
+        )
+        window.setEnabled(False)  # only while previewing a filter
+
         setattr(self, "pushButton_cancel" + suffix, cancel)
+        setattr(self, "pushButton_apply_window" + suffix, window)
         setattr(self, "checkBox_preview" + suffix, chk)
 
         bar = QWidget()
@@ -272,6 +283,7 @@ class SGToolDockWidget(QDockWidget):
         bl.setContentsMargins(0, 0, 0, 0)
         bl.setSpacing(6)
         bl.addWidget(apply_button)
+        bl.addWidget(window)
         bl.addWidget(cancel)
         bl.addSpacing(10)
         bl.addWidget(chk)

@@ -445,7 +445,7 @@ def _load_toolbox():
     sys.path[:0] = [ARCGIS, os.path.dirname(ARCGIS)]
     try:
         ns = {"__file__": PYT, "__name__": "sgtool_pyt"}
-        exec(compile(open(PYT, encoding="utf-8").read(), PYT, "exec"), ns)
+        exec(compile(open(PYT, encoding="utf-8").read(), PYT, "exec"), ns)  # nosec B102 - runs SGTool's own toolbox file to read its tool definitions
         return ns["Toolbox"]()
     finally:
         for n, m in saved.items():

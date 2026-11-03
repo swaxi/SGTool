@@ -77,6 +77,16 @@ from qgis.PyQt.QtCore import (
     QTimer,
 )
 
+# QgsField types: QMetaType on QGIS 3.38 and later (QGIS 4 included), QVariant before
+try:
+    from qgis.PyQt.QtCore import QMetaType
+
+    _FIELD_INT, _FIELD_DOUBLE, _FIELD_STRING = (
+        QMetaType.Type.Int, QMetaType.Type.Double, QMetaType.Type.QString)
+    QgsField("test", _FIELD_DOUBLE)
+except (ImportError, AttributeError, TypeError):  # older QGIS
+    _FIELD_INT, _FIELD_DOUBLE, _FIELD_STRING = QVariant.Int, QVariant.Double, QVariant.String
+
 
 # Qt5/Qt6 Compatibility Layer
 RightDockWidgetArea = Qt.DockWidgetArea.RightDockWidgetArea
@@ -7365,16 +7375,16 @@ class SGTool:
         fields = QgsFields()
         for field_name in header_list:
             # Determine field type from data
-            field_type = QVariant.String  # Default to string
+            field_type = _FIELD_STRING  # Default to string
 
             for row in data:
                 if field_name in row and row[field_name] is not None:
                     value = row[field_name]
                     if isinstance(value, int):
-                        field_type = QVariant.Int
+                        field_type = _FIELD_INT
                         break
                     elif isinstance(value, float):
-                        field_type = QVariant.Double
+                        field_type = _FIELD_DOUBLE
                         break
 
             fields.append(QgsField(field_name, field_type))
@@ -7533,10 +7543,10 @@ class SGTool:
         line_provider = line_layer.dataProvider()
 
         fields = QgsFields()
-        fields.append(QgsField("LINE_ID", QVariant.Int))
+        fields.append(QgsField("LINE_ID", _FIELD_INT))
 
         for i in range(len(data_list[0]) - 3):
-            fields.append(QgsField(f"data_{i}", QVariant.Double))
+            fields.append(QgsField(f"data_{i}", _FIELD_DOUBLE))
 
         line_provider.addAttributes(fields)
         line_layer.updateFields()
@@ -7569,10 +7579,10 @@ class SGTool:
         point_provider = point_layer.dataProvider()
 
         fields = QgsFields()
-        fields.append(QgsField("LINE_ID", QVariant.Int))
+        fields.append(QgsField("LINE_ID", _FIELD_INT))
 
         for i in range(len(data_list[0]) - 3):
-            fields.append(QgsField(f"data_{i}", QVariant.Double))
+            fields.append(QgsField(f"data_{i}", _FIELD_DOUBLE))
 
         point_provider.addAttributes(fields)
         point_layer.updateFields()

@@ -28,7 +28,7 @@ Running it again on an existing environment just adds what is missing.
 import argparse
 import os
 import shutil
-import subprocess
+import subprocess  # nosec B404 - subprocess runs fixed programs (python, conda, pip), never user input
 import sys
 import tempfile
 
@@ -113,7 +113,7 @@ class _Setup:
     def run(self, cmd):
         """Run cmd, passing its output to the log line by line; returns the exit code."""
         self.log("> " + subprocess.list2cmdline(cmd))
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,  # nosec B603 - fixed program and arguments built by this code, no shell
                                 stdin=subprocess.DEVNULL, text=True, errors="replace",
                                 creationflags=_NO_WINDOW, env=self.env)
         for line in proc.stdout:
@@ -129,7 +129,7 @@ class _Setup:
                 "        importlib.import_module(m)\n"
                 "    except Exception:\n"
                 "        print(m)\n")
-        result = subprocess.run([python, "-c", code] + [m for _, m, _ in packages],
+        result = subprocess.run([python, "-c", code] + [m for _, m, _ in packages],  # nosec B603 - fixed program and arguments built by this code, no shell
                                 capture_output=True, text=True, creationflags=_NO_WINDOW,
                                 env=self.env)
         bad = set(result.stdout.split())
@@ -162,7 +162,7 @@ class _Setup:
         if not packages:
             return []
         names = {p for p, _, _ in packages}
-        frozen = subprocess.run([python, "-m", "pip", "list", "--format=freeze"],
+        frozen = subprocess.run([python, "-m", "pip", "list", "--format=freeze"],  # nosec B603 - fixed program and arguments built by this code, no shell
                                 capture_output=True, text=True, creationflags=_NO_WINDOW,
                                 env=self.env).stdout
         pins = [line for line in frozen.splitlines()

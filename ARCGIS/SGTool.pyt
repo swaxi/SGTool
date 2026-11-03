@@ -11,6 +11,7 @@ Toolsets (categories) match the QGIS dockwidget tabs:
   • Utils
 """
 
+import logging
 import arcpy
 import os
 import sys
@@ -222,7 +223,7 @@ class LaunchGUI:
         pass
 
     def execute(self, parameters, messages):
-        import subprocess, json, tempfile, time
+        import subprocess, json, tempfile, time  # nosec B404 - subprocess runs fixed programs (python, conda, pip), never user input
 
         gui_path = os.path.join(_HERE, "SGTool_GUI.py")
         if not os.path.exists(gui_path):
@@ -254,7 +255,7 @@ class LaunchGUI:
                         display = f"{lyr.name}  [{m.name}]"
                         info["layers"][display] = lyr.dataSource
         except Exception:
-            pass
+            logging.getLogger(__name__).debug("Ignored exception", exc_info=True)
 
         info_file    = os.path.join(tempfile.gettempdir(), "sgtool_info.json")
         pending_file = os.path.join(tempfile.gettempdir(), "sgtool_pending.json")
@@ -265,7 +266,7 @@ class LaunchGUI:
         with open(pending_file, "w") as f:
             json.dump([], f)
 
-        proc = subprocess.Popen([python_exe, gui_path, info_file],
+        proc = subprocess.Popen([python_exe, gui_path, info_file],  # nosec B603 - fixed program and arguments built by this code, no shell
                                 creationflags=subprocess.CREATE_NEW_CONSOLE)
         n = len(info["layers"])
         messages.addMessage(
@@ -300,7 +301,7 @@ class LaunchGUI:
                             json.dump(view, f)
                         last_view = view
             except Exception:
-                pass
+                logging.getLogger(__name__).debug("Ignored exception", exc_info=True)
 
             # --- Layer refresh (on GUI request or every ~60 s) ---
             do_refresh = os.path.exists(refresh_req) or (cycle % 30 == 0)
@@ -325,7 +326,7 @@ class LaunchGUI:
                         with open(info_file, "w") as f:
                             json.dump(cur, f)
                 except Exception:
-                    pass
+                    logging.getLogger(__name__).debug("Ignored exception", exc_info=True)
 
             # --- Auto-load new output rasters ---
             if os.path.exists(pending_file):
@@ -349,7 +350,7 @@ class LaunchGUI:
                                     messages.addMessage(
                                         f"Added to map: {os.path.basename(p)}")
                                 except Exception:
-                                    pass
+                                    logging.getLogger(__name__).debug("Ignored exception", exc_info=True)
                             # Zoom the active map view to the first new layer
                             # so it appears in the canvas immediately.
                             try:
@@ -362,11 +363,11 @@ class LaunchGUI:
                                             av.camera.setExtent(ext)
                                             break
                             except Exception:
-                                pass
+                                logging.getLogger(__name__).debug("Ignored exception", exc_info=True)
                             arcpy.RefreshActiveView()
                             arcpy.RefreshTOC()
                 except Exception:
-                    pass
+                    logging.getLogger(__name__).debug("Ignored exception", exc_info=True)
 
         messages.addMessage("SGTool GUI closed.")
 

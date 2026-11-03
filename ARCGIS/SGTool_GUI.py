@@ -277,7 +277,7 @@ def _use_app_icon(app_id):
 
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
     except Exception:
-        pass  # not Windows, or an old Windows: the icon still shows on the window
+        logging.getLogger(__name__).debug("Ignored exception", exc_info=True)  # not Windows, or an old Windows: the icon still shows on the window
 
 
 def _set_window_icon(win, png):
@@ -287,7 +287,7 @@ def _set_window_icon(win, png):
         win.iconphoto(True, img)
         win._sgt_icon = img  # keep a reference, or Tk drops the image
     except Exception:
-        pass
+        logging.getLogger(__name__).debug("Ignored exception", exc_info=True)
 
 
 class SGToolApp(tk.Tk):

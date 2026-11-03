@@ -176,6 +176,35 @@ def _style_axes(ax, x_label, y_label, x_log=False, y_log=False, grid="both"):
         ax.spines[side].set_visible(False)
 
 
+def _readable_log_ticks(axis, lims, rotate=False):
+    """Tick labels on a log axis that stay legible in small panels. Over less than
+    about a decade matplotlib labels every minor tick (4x10^-2, 5x10^-2 ...),
+    which run together: label 2, 3, 4, 5, 6, 8 x 10^n (or only 2 and 5 over a
+    wider span) as plain numbers instead. rotate: labels at 45 degrees, for the
+    narrow panels of a grid of categories."""
+    from matplotlib import ticker
+
+    lo, hi = sorted(lims)
+    if lo > 0:
+        span = hi / lo
+        if span < 4:
+            subs = (2, 3, 4, 5, 6, 8)
+        elif span < 30:
+            subs = (2, 5)
+        else:
+            subs = None  # several decades: matplotlib's decade labels are fine
+        if subs is not None:
+            axis.set_major_locator(ticker.LogLocator(base=10))
+            axis.set_major_formatter(ticker.FormatStrFormatter("%g"))
+            axis.set_minor_locator(ticker.LogLocator(base=10, subs=subs))
+            axis.set_minor_formatter(ticker.FormatStrFormatter("%g"))
+    if rotate:
+        axis.set_tick_params(which="both", labelrotation=45)
+        for label in axis.get_ticklabels(which="both"):
+            label.set_horizontalalignment("right")
+            label.set_rotation_mode("anchor")
+
+
 def _axis_range(values, log, robust):
     """Axis range: the 5-95 percentiles for grids (so FFT edge effects and
     outliers don't squash the bulk of the values), the full range for
@@ -574,6 +603,11 @@ def heatmap_by_category(x, y, cats, names, title, x_label, y_label, x_log=False,
             _frame(ax, labels[i])
     axes.flat[0].set_xlim(xlim)
     axes.flat[0].set_ylim(ylim)
+    for ax in axes.flat:
+        if x_log:
+            _readable_log_ticks(ax.xaxis, xlim, rotate=True)
+        if y_log:
+            _readable_log_ticks(ax.yaxis, ylim)
     fig.supxlabel(x_label, color=TEXT_SECONDARY)
     fig.supylabel(y_label, color=TEXT_SECONDARY)
     fig.suptitle(f"{title}\n{_count_text(x.size, what)}", fontsize=11)
@@ -718,6 +752,8 @@ def histogram(values, title, label, log=False, robust=True, what="points"):
     _add_stats(ax, values, fontsize=9, shift=shift)
     _style_axes(ax, label, "Count", x_log=log, grid="y")
     ax.set_xlim(edges[0], edges[-1])
+    if log:
+        _readable_log_ticks(ax.xaxis, (edges[0], edges[-1]))
     ax.set_ylim(0, _round_up(counts.max()))
     ax.set_title(f"{title}\n{_count_text(values.size, what)}", fontsize=11)
     fig.tight_layout()
@@ -774,6 +810,9 @@ def histogram_by_category(values, cats, names, title, label, log=False,
             _frame(ax, labels[i])
     axes.flat[0].set_xlim(edges[0], edges[-1])
     axes.flat[0].set_ylim(0, _round_up(top))  # shared by all panels
+    for ax in axes.flat:
+        if log:
+            _readable_log_ticks(ax.xaxis, (edges[0], edges[-1]), rotate=True)
     fig.supxlabel(label, color=TEXT_SECONDARY)
     fig.supylabel(f"Fraction of category's {what}", color=TEXT_SECONDARY)
     fig.suptitle(f"{title}\n{_count_text(values.size, what)}", fontsize=11)

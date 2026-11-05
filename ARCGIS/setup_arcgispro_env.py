@@ -44,7 +44,7 @@ CONDA_PACKAGES = [
     ("scikit-image", "skimage", "SGTool"),
     ("pywavelets", "pywt", "SGTool (WTMM)"),
     ("networkx", "networkx", "SGTool, GeoSubSampler"),
-    ("shapely", "shapely", "SGTool, GeoSubSampler"),
+    ("shapely>=2", "shapely", "SGTool, GeoSubSampler (needs 2.0 or newer)"),
     ("geopandas", "geopandas", "SGTool, GeoSubSampler"),
     ("pyproj", "pyproj", "SGTool, Tomofast-x"),
     ("fiona", "fiona", "GeoSubSampler"),
@@ -126,7 +126,9 @@ class _Setup:
         code = ("import importlib, sys\n"
                 "for m in sys.argv[1:]:\n"
                 "    try:\n"
-                "        importlib.import_module(m)\n"
+                "        mod = importlib.import_module(m)\n"
+                "        if m == 'shapely' and int(mod.__version__.split('.')[0]) < 2:\n"
+                "            print(m)          # too old: GeoSubSampler needs shapely 2\n"
                 "    except Exception:\n"
                 "        print(m)\n")
         result = subprocess.run([python, "-c", code] + [m for _, m, _ in packages],  # nosec B603 - fixed program and arguments built by this code, no shell

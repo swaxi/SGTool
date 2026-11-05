@@ -7,7 +7,7 @@ name=SGTool
 qgisMinimumVersion=3.24
 qgisMaximumVersion=4.99
 description=Simple Potential Field Processing
-version=0.4.1
+version=0.4.2
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
@@ -21,7 +21,9 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.4.1
+changelog=0.4.2
+      * ArcGIS Pro: the Set Up Python Environment tool now requires shapely 2.0 or newer and installs or upgrades it; before, an older shapely was accepted and only failed later
+      0.4.1
       * Lat/long grids whose CRS QGIS does not flag as geographic (e.g. ER Mapper .ers) are treated as geographic, fixing relief shading and other cell-size steps
       * Preview runs one calculation at a time and Cancel stops FFT filters part-way, so quick panning or edits no longer slow it down
       * Preview: the second preview mode (Subsampled grid in QGIS, Whole grid (reduced) in ArcGIS Pro) is removed. Preview always calculates what is in view, at full resolution up to 1000 cells on the longest side and block-averaged beyond, so zoom out to see the whole grid; bilinear resampling zoomed out as well as zoomed in

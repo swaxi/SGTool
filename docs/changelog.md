@@ -4,6 +4,9 @@
 
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
+## 0.4.2
+      * ArcGIS Pro: the Set Up Python Environment tool now requires shapely 2.0 or newer and installs or upgrades it; before, an older shapely was accepted and only failed later
+
 ## 0.4.1
       * Lat/long grids whose CRS QGIS does not flag as geographic (e.g. ER Mapper .ers) are treated as geographic, fixing relief shading and other cell-size steps
       * Preview runs one calculation at a time and Cancel stops FFT filters part-way, so quick panning or edits no longer slow it down

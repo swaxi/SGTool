@@ -148,8 +148,9 @@ def _fmt(value):
 
 
 # File-name suffix for each filter, the same as the dialog gives its outputs
-# (grid.tif -> grid_deriv.tif), worked out from the algorithm's settings. The names never contain the
-# parameter values (they are in the provenance metadata); a name already taken gets _1, _2 ... in the dialog.
+# (grid.tif -> grid_d1z.tif), worked out from the algorithm's settings. Apart from the derivative's power and
+# direction the names do not contain parameter values (they are in the provenance metadata); a name already
+# taken gets _1, _2 ... in the dialog.
 SUFFIXES = {
     "directional_line_noise": lambda p: (
         "_DirC_noise" if p["OUTPUT_TYPE"].startswith("Noise") else "_DirC"
@@ -163,7 +164,7 @@ SUFFIXES = {
     "band_pass": lambda p: "_BP",
     "high_low_pass": lambda p: "_LP" if p["TYPE"] == "Low" else "_HP",
     "automatic_gain_control": lambda p: "_AGC",
-    "derivative": lambda p: "_deriv",
+    "derivative": lambda p: "_d" + _fmt(p["POWER"]) + p["DIRECTION"],
     "tilt_angle": lambda p: "_TA",
     "analytic_signal": lambda p: "_AS",
     "total_horizontal_gradient": lambda p: "_THG",

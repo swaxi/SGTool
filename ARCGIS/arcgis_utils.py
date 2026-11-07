@@ -414,7 +414,7 @@ def step_record(spec_id, **values):
 
 def step_suffix(step):
     """The file-name suffix the QGIS plugin gives the result of a (operation, parameters)
-    step from step_record, e.g. "_RTP", "_deriv", "_UC", "_BP". None if the
+    step from step_record, e.g. "_RTP", "_d1z", "_UC", "_BP". None if the
     step is not in the shared filter table (the caller then names it)."""
     if not step:
         return None

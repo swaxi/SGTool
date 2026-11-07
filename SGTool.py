@@ -1801,7 +1801,7 @@ class SGTool:
             ), {"date": "-".join(str(v) for v in reversed(self.RTE_P_date))}
         if s == "_RR":
             return "Remove regional", {"polynomial_order": self.RemRegional_order}
-        if s == "_deriv":
+        if s.startswith("_d") and s[-1:] in ("x", "y", "z"):
             return "Derivative", {
                 "direction": self.derive_direction,
                 "power": self.derive_power,
@@ -2978,7 +2978,7 @@ class SGTool:
             order=float(self.derive_power),
             buffer_size=self.buffer,
         )
-        self.suffix = "_deriv"
+        self.suffix = "_d" + str(self.derive_power) + self.derive_direction
 
     def procTiltAngle(self):
         # the tilt angle is saved in degrees (-90 to 90), as in the ArcGIS Pro version

@@ -5,7 +5,7 @@
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
 ## 0.4.2
-      * Output names no longer contain the settings (grid_UC.tif, not grid_UC_500.tif; grid_deriv.tif, not grid_d1z.tif); the settings are in the provenance metadata, and in the dialog a name already in use gets _1, _2 ...
+      * Output names no longer contain the settings (grid_UC.tif, not grid_UC_500.tif; derivatives keep grid_d1z.tif); the settings are in the provenance metadata, and in the dialog a name already in use gets _1, _2 ...
       * The metadata viewer also shows the history of a GeoSubSampler vector result selected in the layer panel; steps made by GeoSubSampler are shown but cannot be replayed
       * ArcGIS Pro: the Set Up Python Environment tool now requires shapely 2.0 or newer and installs or upgrades it; before, an older shapely was accepted and only failed later
 

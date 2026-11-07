@@ -2692,7 +2692,7 @@ class SGToolApp(tk.Tk):
 
         def _save(result, suffix, step=None):
             self._check_cancel()
-            suffix = step_suffix(step) or suffix   # QGIS naming: grid_RTP.tif, grid_deriv.tif ...
+            suffix = step_suffix(step) or suffix   # QGIS naming: grid_RTP.tif, grid_d1z.tif ...
             out_r = f"{base}{suffix}{ext}"
             numpy_to_raster(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
             # how it was made, inside the GeoTIFF: (operation, parameters)
@@ -2911,7 +2911,7 @@ class SGToolApp(tk.Tk):
 
         def _save(result, suffix, step=None):
             self._check_cancel()
-            suffix = step_suffix(step) or suffix   # QGIS naming: grid_RTP.tif, grid_deriv.tif ...
+            suffix = step_suffix(step) or suffix   # QGIS naming: grid_RTP.tif, grid_d1z.tif ...
             out_r = f"{base}{suffix}{ext}"
             numpy_to_raster(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
             # how it was made, inside the GeoTIFF: (operation, parameters)

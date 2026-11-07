@@ -188,7 +188,7 @@ class _SGToolAlgorithm(QgsProcessingAlgorithm):
 
     OUTPUT_HELP = (
         "\n\nOutput: choose a file, or leave it empty to save next to the input "
-        "named after it plus the processing step (for example grid_deriv.tif), "
+        "named after it plus the processing step (for example grid_d1z.tif), "
         "and add it to the project, as the SGTool dialog does."
     )
 

@@ -5,7 +5,7 @@ The provenance SGTool embeds in every grid it saves lists the operation and
 parameters of each step. plan_steps() turns that history into a recipe, and
 run_replay() applies the recipe to a different grid, step by step, saving every
 intermediate grid next to the input with the usual file names
-(grid.tif -> grid_RTP.tif -> grid_RTP_deriv.tif) and its own provenance, so the
+(grid.tif -> grid_RTP.tif -> grid_RTP_d1z.tif) and its own provenance, so the
 new grid can itself be replayed or inspected.
 
 Magnetic reductions (reduction to the pole or equator, differential RTP) depend

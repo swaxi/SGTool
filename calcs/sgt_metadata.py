@@ -1,5 +1,5 @@
 """
-SGTool provenance metadata
+SGTool / GeoSubSampler provenance metadata (the same file is used by both plugins)
 
 Records, for every file the plugin saves,
   * when it was created and by which SGTool version
@@ -53,6 +53,7 @@ def parse_xml_file(path):
 
 
 SCHEMA_VERSION = "1"
+SOFTWARE_NAME = "SGTool"  # the program that writes the files; the other plugin (GeoSubSampler) uses the same format
 SIDECAR_SUFFIX = ".sgt.xml"
 GDAL_DOMAIN = "SGTOOL"
 GDAL_ITEM = "provenance_xml"
@@ -247,12 +248,12 @@ def _add_source(parent, index, source_path):
         src.remove(meta)  # nothing to record
 
 
-def _build(output_path, source_path, operation, parameters, software_version, file_stats):
+def _build(output_path, source_path, operation, parameters, software_version, file_stats, software_name=None):
     root = ET.Element("SGToolMetadata", {"schema": SCHEMA_VERSION})
     ET.SubElement(root, "created").text = (
         datetime.datetime.now().astimezone().isoformat(timespec="seconds")
     )
-    software = ET.SubElement(root, "software", {"name": "SGTool"})
+    software = ET.SubElement(root, "software", {"name": software_name or SOFTWARE_NAME})
     if software_version:
         software.set("version", str(software_version))
 
@@ -316,6 +317,7 @@ def write_sgt_metadata(
     operation=None,
     parameters=None,
     software_version=None,
+    software_name=None,
 ):
     """Record provenance for output_path; returns where it was stored (the
     output path when embedded in a GeoTIFF, else the sidecar path), or None.
@@ -332,12 +334,14 @@ def write_sgt_metadata(
         Parameters that were set to create the output (flat name -> value).
     software_version : str, optional
         SGTool version string.
+    software_name : str, optional
+        Name of the program writing the file (default: this module's SOFTWARE_NAME).
     """
     try:
         if _is_geotiff(output_path):
             root = _build(
                 output_path, source_path, operation, parameters,
-                software_version, file_stats=False,
+                software_version, file_stats=False, software_name=software_name,
             )
             if _embed_in_geotiff(output_path, root):
                 remove_sgt_metadata(output_path)  # drop any old-style sidecar
@@ -345,7 +349,7 @@ def write_sgt_metadata(
             # could not update the GeoTIFF (e.g. locked): fall through to sidecar
         root = _build(
             output_path, source_path, operation, parameters,
-            software_version, file_stats=True,
+            software_version, file_stats=True, software_name=software_name,
         )
         path = sidecar_path(output_path)
         if hasattr(ET, "indent"):
@@ -383,8 +387,9 @@ def _format_step(root, parts, depth):
     created = root.findtext("created") or "unknown time"
     sw = root.find("software")
     version = f" {sw.get('version')}" if sw is not None and sw.get("version") else ""
+    program = sw.get("name") if sw is not None and sw.get("name") else "SGTool"
     parts.append(f"<p style='margin:0'><b>Created:</b> {esc(created)} "
-                 f"&nbsp; <b>SGTool</b>{esc(version)}</p>")
+                 f"&nbsp; <b>{esc(program)}</b>{esc(version)}</p>")
     out = root.findtext("output/path")
     if out:
         parts.append(f"<p style='margin:0'><b>File:</b> {esc(out)}</p>")
@@ -426,8 +431,8 @@ def _format_step(root, parts, depth):
             for step in nested:
                 _format_step(step, parts, depth + 1)
         else:
-            parts.append("<p style='margin:0'><i>No earlier SGTool history "
-                         "(original data or made outside SGTool)</i></p>")
+            parts.append("<p style='margin:0'><i>No earlier history "
+                         "(original data or made outside SGTool / GeoSubSampler)</i></p>")
     parts.append("</div>")
 
 
@@ -443,7 +448,8 @@ def _text_step(root, lines, depth):
     pad = "    " * depth
     lines.append(f"{pad}{root.findtext('operation') or 'Unnamed step'}")
     sw = root.find("software")
-    version = f" (SGTool {sw.get('version')})" if sw is not None and sw.get("version") else ""
+    program = sw.get("name") if sw is not None and sw.get("name") else "SGTool"
+    version = f" ({program} {sw.get('version')})" if sw is not None and sw.get("version") else f" ({program})"
     lines.append(f"{pad}  Created: {root.findtext('created') or 'unknown time'}{version}")
     out = root.findtext("output/path")
     if out:
@@ -480,7 +486,7 @@ def _text_step(root, lines, depth):
                 _text_step(step, lines, depth + 1)
         else:
             lines.append(
-                f"{pad}  No earlier SGTool history (original data or made outside SGTool)"
+                f"{pad}  No earlier history (original data or made outside SGTool / GeoSubSampler)"
             )
 
 

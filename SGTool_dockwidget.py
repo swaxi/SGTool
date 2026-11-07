@@ -1894,7 +1894,9 @@ class SGToolDockWidget(QDockWidget):
                 "Show how the selected grid was made: when, from which source "
                 "file(s), and with which operation and parameters, back through "
                 "every earlier SGTool step.\n"
-                "This provenance is stored inside GeoTIFFs saved by SGTool."
+                "This provenance is stored inside GeoTIFFs saved by SGTool.\n"
+                "Also shows the history of the vector layer selected in the layer "
+                "panel when it was made by GeoSubSampler (stored in <file>.sgt.xml)."
             )
         )
         self.pushButton_save_metadata_xml = QPushButton(_tr("Save as XML"))

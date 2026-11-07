@@ -148,7 +148,8 @@ def _fmt(value):
 
 
 # File-name suffix for each filter, the same as the dialog gives its outputs
-# (grid.tif -> grid_d1z.tif), worked out from the algorithm's settings.
+# (grid.tif -> grid_deriv.tif), worked out from the algorithm's settings. The names never contain the
+# parameter values (they are in the provenance metadata); a name already taken gets _1, _2 ... in the dialog.
 SUFFIXES = {
     "directional_line_noise": lambda p: (
         "_DirC_noise" if p["OUTPUT_TYPE"].startswith("Noise") else "_DirC"
@@ -156,15 +157,13 @@ SUFFIXES = {
     "reduction_to_pole": lambda p: "_RTP",
     "reduction_to_equator": lambda p: "_RTE",
     "reduction_to_pole_low_latitude": lambda p: "_RTP_LL",
-    "continuation": lambda p: ("_UC_" if p["DIRECTION"] == "up" else "_DC_") + _fmt(p["HEIGHT"]),
+    "continuation": lambda p: "_UC" if p["DIRECTION"] == "up" else "_DC",
     "vertical_integration": lambda p: "_VI",
-    "remove_regional": lambda p: "_RR_" + p["ORDER"][0] + "o",
-    "band_pass": lambda p: (
-        "_BP_" + _fmt(p["LOW_CUT"] if p["LOW_CUT"] > 0 else 1e-10) + "_" + _fmt(p["HIGH_CUT"])
-    ),
-    "high_low_pass": lambda p: ("_LP_" if p["TYPE"] == "Low" else "_HP_") + _fmt(p["CUTOFF"]),
+    "remove_regional": lambda p: "_RR",
+    "band_pass": lambda p: "_BP",
+    "high_low_pass": lambda p: "_LP" if p["TYPE"] == "Low" else "_HP",
     "automatic_gain_control": lambda p: "_AGC",
-    "derivative": lambda p: "_d" + _fmt(p["POWER"]) + p["DIRECTION"],
+    "derivative": lambda p: "_deriv",
     "tilt_angle": lambda p: "_TA",
     "analytic_signal": lambda p: "_AS",
     "total_horizontal_gradient": lambda p: "_THG",

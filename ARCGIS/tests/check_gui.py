@@ -94,9 +94,9 @@ app._do_apply_fft(src)
 pump(0.3)
 written = sorted(f for f in os.listdir(DATA) if f.startswith("arcsrc_") and f.endswith(".tif"))
 check("outputs use the QGIS naming convention",
-      {"arcsrc_RTP.tif", "arcsrc_DirC.tif", "arcsrc_d1z.tif"} <= set(written), written)
+      {"arcsrc_RTP.tif", "arcsrc_DirC.tif", "arcsrc_deriv.tif"} <= set(written), written)
 check("the Output (auto) line shows exactly the names written",
-      all(name in preview for name in ("arcsrc_RTP.tif", "arcsrc_DirC.tif", "arcsrc_d1z.tif")), preview)
+      all(name in preview for name in ("arcsrc_RTP.tif", "arcsrc_DirC.tif", "arcsrc_deriv.tif")), preview)
 from calcs import sgt_metadata as sm
 outs = sorted(f for f in os.listdir(DATA) if f.startswith("arcsrc_") and f.endswith(".tif"))
 check("FFT filters wrote their outputs", {"arcsrc_RTP.tif", "arcsrc_DirC.tif"} <= set(outs) and any("dz" in o or "d" in o for o in outs), outs)
@@ -168,7 +168,7 @@ class T:
 res = wf.run_replay(target, items, tinfo, when=datetime.date(2021, 3, 1), task=T())
 names = [os.path.basename(p) for p in res["outputs"]]
 check("replay on the target: the unsaved step is deleted, the last kept",
-      names == ["arctarget_RTP_d1z.tif"] and not os.path.exists(os.path.join(DATA, "arctarget_RTP.tif")), names)
+      names == ["arctarget_RTP_deriv.tif"] and not os.path.exists(os.path.join(DATA, "arctarget_RTP.tif")), names)
 fin = res["final"]
 steps_t = history_steps(sm.read_sgt_metadata(fin))[1]
 check("the replayed grid has the full history", [s["operation"] for s in steps_t] == ["Reduction to pole", "Derivative"],
@@ -188,7 +188,7 @@ run_loop(lambda: app._active_token is None and "Applied" in app.v_status.get(), 
 run_loop(lambda: False, 0.3)
 check("replay through the window finished", app._active_token is None and "Applied 2 steps" in app.v_status.get(), app.v_status.get())
 check("results are queued for ArcGIS Pro", os.path.exists(app._pending_file) and
-      "arctarget_RTP_d1z.tif" in open(app._pending_file).read())
+      "arctarget_RTP_deriv.tif" in open(app._pending_file).read())
 
 # ---- cancel ends a job at once; the abandoned work saves nothing
 state = {}
@@ -383,7 +383,7 @@ app.v_deriv.set(True); app.v_deriv_dir.set("z"); app.v_deriv_pow.set("1")
 res = app._compute_preview(0, pv, (0, 0, 100, 100))
 app._do_apply_fft(pv)                      # what Apply writes
 pump(0.3)
-written = band(os.path.join(DATA, "prevsrc_d1z.tif"))
+written = band(os.path.join(DATA, "prevsrc_deriv.tif"))
 check("whole-grid preview equals the filter Apply writes", np.allclose(res["filtered"], written, equal_nan=True, atol=1e-6),
       float(np.nanmax(np.abs(res["filtered"] - written))))
 check("the preview reports the operation and the cell count", "Derivative" in res["text"] and "100 x 100" in res["text"], res["text"])

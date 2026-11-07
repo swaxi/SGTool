@@ -34,7 +34,7 @@ REPLAY_SPEC = dict(
         "grid, each step on the result of the one before. Reduction to the pole or "
         "equator and differential RTP get a new inclination and declination from the "
         "IGRF model for the input grid's location and the survey date. Every step is "
-        "saved next to the input with the usual names (grid_RTP.tif, grid_RTP_d1z.tif) "
+        "saved next to the input with the usual names (grid_RTP.tif, grid_RTP_deriv.tif) "
         "and the last one is added to the project. Steps that cannot be repeated "
         "(gridding, Euler, component analysis) are skipped."
     ),

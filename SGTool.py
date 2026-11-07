@@ -1166,12 +1166,18 @@ class SGTool:
             output_path, source, operation, parameters, self._software_version()
         )
 
-    def _selected_grid_metadata(self):
+    def _selected_grid_metadata(self, allow_vector=True):
         """(layer name, file path, provenance) for the grid selected in the
-        Utils tab, or None after telling the user why there is nothing."""
-        name = self.dlg.mMapLayerComboBox_selectGrid_Conv_2.currentText()
-        layers = QgsProject.instance().mapLayersByName(name) if name else []
-        if not layers or not isinstance(layers[0], QgsRasterLayer):
+        Utils tab, or (when allow_vector) the vector layer selected in the layer
+        panel - for example a GeoSubSampler result - or None after telling the
+        user why there is nothing."""
+        active = self.iface.activeLayer() if allow_vector else None
+        if isinstance(active, QgsVectorLayer):
+            name, layers = active.name(), [active]
+        else:
+            name = self.dlg.mMapLayerComboBox_selectGrid_Conv_2.currentText()
+            layers = QgsProject.instance().mapLayersByName(name) if name else []
+        if not layers or not isinstance(layers[0], (QgsRasterLayer, QgsVectorLayer)):
             self.iface.messageBar().pushMessage(
                 "SGTool metadata", "Select a grid first",
                 level=Qgis.MessageLevel.Info, duration=5,
@@ -1236,11 +1242,19 @@ class SGTool:
         """Apply the steps in the selected grid's history to another grid."""
         if self._busy():
             return
-        found = self._selected_grid_metadata()
+        found = self._selected_grid_metadata(allow_vector=False)
         if not found:
             return
         name, _path, root = found
         _origin, steps = history_steps(root)
+        if any(s.get("software", "SGTool") != "SGTool" for s in steps):
+            made_by = next(s["software"] for s in steps if s.get("software", "SGTool") != "SGTool")
+            self.iface.messageBar().pushMessage(
+                "SGTool",
+                f"{name} has steps made by {made_by}, which SGTool cannot repeat; the history can only be read",
+                level=Qgis.MessageLevel.Info, duration=10,
+            )
+            return
         plan = plan_steps(steps)
         if not any(p["replayable"] for p in plan):
             self.iface.messageBar().pushMessage(
@@ -1582,6 +1596,18 @@ class SGTool:
         else:
             self._results.append(item)
 
+    def _unique_suffix(self, suffix):
+        """suffix, or suffix_1, suffix_2 ... if a grid with that name is already on disk or in the project."""
+        n = 0
+        while True:
+            candidate = suffix if n == 0 else f"{suffix}_{n}"
+            path = self.insert_text_before_extension(self.diskGridPath, candidate)
+            if ".tif" not in path.lower():
+                path = os.path.splitext(path)[0] + ".tif"
+            if not os.path.exists(path) and not self.is_layer_loaded(self.base_name + candidate):
+                return candidate
+            n += 1
+
     def _progress(self, start=0.0, end=100.0):
         """A progress/cancel callback for calculation code when running as a
         background task (preview or job), else None."""
@@ -1773,7 +1799,7 @@ class SGTool:
                 + ("inclination" if s.endswith("inc") else "declination")
                 + " field"
             ), {"date": "-".join(str(v) for v in reversed(self.RTE_P_date))}
-        if s.startswith("_RR_"):
+        if s == "_RR":
             return "Remove regional", {"polynomial_order": self.RemRegional_order}
         if s.startswith("_d") and s[-1:] in ("x", "y", "z"):
             return "Derivative", {
@@ -1806,20 +1832,20 @@ class SGTool:
                 "background": self.AppDens_background,
                 "high_cut": self._petro_cut(self.AppDens_cut) or -1.0,
             }
-        if s.startswith("_UC_") or s.startswith("_DC_"):
+        if s in ("_UC", "_DC"):
             return (
-                "Upward continuation" if s.startswith("_UC_")
+                "Upward continuation" if s == "_UC"
                 else "Downward continuation"
             ), {"height": self.cont_height}
-        if s.startswith("_BP_"):
+        if s == "_BP":
             return "Band pass", {
                 "low_cut": self.band_low,
                 "high_cut": self.band_high,
                 "transition_width": self.band_width,
             }
-        if s.startswith("_LP_") or s.startswith("_HP_"):
+        if s in ("_LP", "_HP"):
             return (
-                "Low pass" if s.startswith("_LP_") else "High pass"
+                "Low pass" if s == "_LP" else "High pass"
             ), {
                 "cutoff_wavelength": self.FreqCut_cut,
                 "transition_width": self.FreqCut_width,
@@ -2943,7 +2969,7 @@ class SGTool:
         else:
             self.new_grid = self.processor.remove_2o_gradient(data, mask)
 
-        self.suffix = "_RR" + "_" + str(self.RemRegional_order) + "o"
+        self.suffix = "_RR"
 
     def procDerivative(self):
         self.new_grid = self.processor.compute_derivative(
@@ -2985,12 +3011,12 @@ class SGTool:
             self.new_grid = self.processor.upward_continuation(
                 self.raster_array, height=height, buffer_size=self.buffer
             )
-            self.suffix = "_UC" + "_" + str(self.cont_height)
+            self.suffix = "_UC"
         else:
             self.new_grid = self.processor.downward_continuation(
                 self.raster_array, height=height, buffer_size=self.buffer
             )
-            self.suffix = "_DC" + "_" + str(self.cont_height)
+            self.suffix = "_DC"
 
     def procBandPass(self):
         low_cut = float(self.band_low)
@@ -3007,7 +3033,7 @@ class SGTool:
                 low_transition_width=float(self.band_width),
                 buffer_size=self.buffer,
             )
-            self.suffix = "_BP" + "_" + str(self.band_low) + "_" + str(self.band_high)
+            self.suffix = "_BP"
 
     def procAGC(self):
         self.new_grid = self.processor.automatic_gain_control(
@@ -3104,7 +3130,7 @@ class SGTool:
                     transition_width=float(self.FreqCut_width),
                     buffer_size=self.buffer,
                 )
-                self.suffix = "_LP" + "_" + str(self.FreqCut_cut)
+                self.suffix = "_LP"
             else:
                 self.new_grid = self.processor.high_pass_filter(
                     self.raster_array,
@@ -3112,7 +3138,7 @@ class SGTool:
                     transition_width=float(self.FreqCut_width),
                     buffer_size=self.buffer,
                 )
-                self.suffix = "_HP" + "_" + str(self.FreqCut_cut)
+                self.suffix = "_HP"
 
     def procMean(self):
         self.new_grid = self.convolution.mean_filter(
@@ -4296,6 +4322,9 @@ class SGTool:
         """
 
         if self.suffix:
+            if meta is None:
+                meta = self._filter_metadata(self.suffix)      # read before the name is made unique
+            self.suffix = self._unique_suffix(self.suffix)
             if self.is_layer_loaded(self.base_name + self.suffix):
                 project = QgsProject.instance()
                 layer = project.mapLayersByName(self.base_name + self.suffix)[0]

@@ -125,6 +125,9 @@ def _plan_one(index, step):
         "replayable": False,
         "date": None,
     }
+    if step.get("software", "SGTool") != "SGTool":
+        item["note"] = f"made by {step['software']}, which SGTool cannot repeat"
+        return item
     if step["n_sources"] > 1:
         item["note"] = "made from several grids, so it cannot be replayed on one"
         return item

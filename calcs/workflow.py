@@ -21,6 +21,7 @@ def _step_from(node):
         "parameters": params,
         "created": node.findtext("created") or "",
         "version": software.get("version", "") if software is not None else "",
+        "software": software.get("name", "SGTool") if software is not None else "SGTool",
         "output": node.findtext("output/path") or "",
         "source": (sources[0].findtext("path") or "") if sources else "",
         "n_sources": len(sources),

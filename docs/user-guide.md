@@ -8,6 +8,8 @@ The steps are written for the **QGIS** plugin. The ArcGIS Pro version has the sa
 
 **Contents**
 
+- [I want to…](#i-want-to)
+
 1. [The example data](#1-the-example-data)
 2. [Getting started](#2-getting-started)
 3. [Reduce magnetic data to the pole](#3-reduce-magnetic-data-to-the-pole)
@@ -23,6 +25,31 @@ The steps are written for the **QGIS** plugin. The ArcGIS Pro version has the sa
 13. [Keep track of your processing and repeat it](#13-keep-track-of-your-processing-and-repeat-it)
 14. [Batch processing and scripts](#14-batch-processing-and-scripts)
 15. [Troubleshooting](#15-troubleshooting)
+
+---
+
+## I want to…
+
+A quick guide to which method to use for a task. The links go to each method's section in the [reference](reference.md). Methods without a link are done with QGIS's own tools rather than an SGTool filter: layer styling and transparency for the colour and grey-scale images, and the Raster Calculator for band ratios such as K/Th. Tomofast-x inversion is done with the separate tomofast_x_q tool, not SGTool.
+
+| Application | Methods | Data |
+|---|---|---|
+| **Analyse structure dips** | [Worms](reference.md#bsdworms); analyse [gradients](reference.md#gradient-filters); Tomofast-x inversion | Grav/Mag |
+| **Convert RGB image to monotonic grid** | [Convert RGB to LUT](reference.md#convert-lut-to-grayscale) | Any |
+| **Create outline polygon of grid** | [Create Clipping Polygon](reference.md#create-clipping-polygon) | Any |
+| **Discriminate lithologies** | [Analytic Signal](reference.md#analytic-signal) (Grav/Mag); RGB of radiometrics (Rad) | Grav/Mag/Rad |
+| **Enhance local contrast** | Use grey-scale images | Any |
+| **Harmonise multiple datasets** | [Normalise Grids](reference.md#normalise-grids) | Grav/Mag |
+| **Highlight alteration** | [Analytic Signal](reference.md#analytic-signal) in colour, semi-transparent over [Tilt Angle](reference.md#tilt-angle-) or [Vertical Derivative](reference.md#derivative-) + [Automatic Gain Control](reference.md#automatic-gain-control-) | Grav/Mag |
+| **Highlight deep structures** | [Upward Continuation](reference.md#continuation-); [Low Pass Filter](reference.md#highlow-pass-) | Grav/Mag |
+| **Locate surface expression of structures** | [Tilt Angle](reference.md#tilt-angle-); [Vertical Derivative](reference.md#derivative-); [Vertical Derivative](reference.md#derivative-) + [Automatic Gain Control](reference.md#automatic-gain-control-) | Grav/Mag |
+| **Multiband contrast enhancement** | [PCA; ICA](reference.md#multivariate-statistical-analysis); band ratios | Any |
+| **Noise reduction** | [Gaussian](reference.md#gaussian) (Grav/Mag); [Median](reference.md#median) (Rad); [Low Pass](reference.md#highlow-pass-) | Any |
+| **Reduce line noise** | [Direction Cosine/Butterworth Filter](reference.md#direction-cosbutterw-line-noise-removal) | Any |
+| **Regolith discrimination** | Thresholded K/Th; RGB KThU semi-transparent over a [shaded](reference.md#sun-shading) digital terrain model | Rad |
+| **Remove non-data values** | [Threshold to NaN](reference.md#threshold-to-nan) | Any |
+| **Remove regional** | [Remove Regional](reference.md#remove-regional) | Grav/Mag |
+| **Show absolute value variation in images** | Use colour images | Any |
 
 ---
 

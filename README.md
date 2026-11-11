@@ -19,6 +19,8 @@ Full steps for both, including the packages and which tools need them, are in [d
 
 SGTool works in both **QGIS** and **ArcGIS Pro**: the calculations are shared, and the two interfaces differ in a few places.
 
+- [User guide](docs/user-guide.md): step-by-step guides to each kind of processing, worked on an example magnetic grid
+- [Reference](docs/reference.md): every tab, control and filter, with screenshots, defaults, output names and before/after examples
 - [Installation](docs/installation.md)
 - [ArcGIS Pro: differences from the QGIS version](docs/arcgis-pro.md), including the preview window and the toolbox
 - [Live Preview](docs/live-preview.md) (QGIS), [Background Calculations](docs/background-calculations.md) (QGIS) and [Processing Algorithms](docs/processing-algorithms.md) (QGIS)

@@ -2,6 +2,8 @@
 
 [← Back to the README](../README.md)
 
+- [User guide](user-guide.md): step-by-step guides to each kind of processing, worked on an example magnetic grid
+- [Reference](reference.md): every tab, control and filter, with screenshots, defaults, output names and before/after examples
 - [Installation](installation.md): QGIS and ArcGIS Pro, and the extra Python packages some tools need
 - [ArcGIS Pro: differences from the QGIS version](arcgis-pro.md): what the two versions share and where they differ, the preview window, the toolbox
 - [Live Preview (QGIS)](live-preview.md)

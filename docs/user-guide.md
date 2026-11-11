@@ -30,11 +30,11 @@ The steps are written for the **QGIS** plugin. The ArcGIS Pro version has the sa
 
 ## I want to…
 
-A quick guide to which method to use for a task. The links go to each method's section in the [reference](reference.md). Methods without a link are done with QGIS's own tools rather than an SGTool filter: layer styling and transparency for the colour and grey-scale images, and the Raster Calculator for band ratios such as K/Th. Tomofast-x inversion is done with the separate tomofast_x_q tool, not SGTool.
+A quick guide to which method to use for a task. The links go to each method's section in the [reference](reference.md). Methods without a link are done with QGIS's own tools rather than an SGTool filter: layer styling and transparency for the colour and grey-scale images, and the Raster Calculator for band ratios such as K/Th. Tomofast-x inversion is done with the separate [tomofast_x_q QGIS plugin](https://plugins.qgis.org/plugins/tomofast_x_q) (code at [TOMOFAST/tomofast-x-q](https://github.com/TOMOFAST/tomofast-x-q)), not SGTool.
 
 | Application | Methods | Data |
 |---|---|---|
-| **Analyse structure dips** | [Worms](reference.md#bsdworms); analyse [gradients](reference.md#gradient-filters); Tomofast-x inversion | Grav/Mag |
+| **Analyse structure dips** | [Worms](reference.md#bsdworms); analyse [gradients](reference.md#gradient-filters); [Tomofast-x inversion](https://plugins.qgis.org/plugins/tomofast_x_q) | Grav/Mag |
 | **Convert RGB image to monotonic grid** | [Convert RGB to LUT](reference.md#convert-lut-to-grayscale) | Any |
 | **Create outline polygon of grid** | [Create Clipping Polygon](reference.md#create-clipping-polygon) | Any |
 | **Discriminate lithologies** | [Analytic Signal](reference.md#analytic-signal) (Grav/Mag); RGB of radiometrics (Rad) | Grav/Mag/Rad |

@@ -665,6 +665,10 @@ Returns two layers: `_SS_AnisoMag` (0–1 saliency; 0 = flat or isotropic, 1 = s
 
 ![Anisotropy orientation](images/examples/anisotropy_orientation.png)
 
+The same, zoomed. The strikes follow the individual linear features of the tilt angle.
+
+![Anisotropy orientation, zoomed](images/examples/anisotropy_orientation_zoom.png)
+
 #### MRVBF / MRRTF / Slope
 
 Classifies a digital terrain model by its hilltop and valley-bottom flatness and slope: multiresolution valley bottom flatness (MRVBF) and ridge top flatness (MRRTF), combined with slope as an RGB composite. Writes `_MRVBF`, `_MRRTF` and `_slope` grids and a three-band (MRRTF, MRVBF, slope) composite. Needs a DEM in a metre-based projection. Cannot be previewed.

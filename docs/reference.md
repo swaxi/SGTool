@@ -610,7 +610,7 @@ Tick any of the statistics below. Each is saved as its own grid. Standard deviat
 *Reference* (Min to Skewness): standard sample statistics, with no single primary reference.
 *In SGTool* (Min to Skewness): original code. The window is a circle whose diameter is the window size, no-data cells are left out, and a window needs at least 3 valid values. Skewness and kurtosis follow `scipy.stats` (biased estimates; kurtosis is the excess kurtosis, 0 for a normal distribution; a near-constant window gives no-data), calculated for many windows at once.
 
-The examples are of the RTP 1VD, with a window of 9 cells (15 for anisotropy).
+The examples are of the RTP 1VD, with a window of 9 cells (15 for the anisotropy magnitude and 3 for its orientation).
 
 **Standard deviation** (zoomed).
 
@@ -661,7 +661,7 @@ Returns two layers: `_SS_AnisoMag` (0–1 saliency; 0 = flat or isotropic, 1 = s
 
 ![Anisotropy magnitude](images/examples/anisotropy_magnitude.png)
 
-**Example: local anisotropy orientation**, window 15. The colour scale is cyclic, as 0° and 180° are the same strike.
+**Example: local anisotropy orientation**, window 3. The colour scale is cyclic, as 0° and 180° are the same strike.
 
 ![Anisotropy orientation](images/examples/anisotropy_orientation.png)
 

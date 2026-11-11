@@ -30,25 +30,25 @@ The steps are written for the **QGIS** plugin. The ArcGIS Pro version has the sa
 
 ## I want to…
 
-A quick guide to which method to use for a task. The links go to each method's section in the [reference](reference.md). Methods without a link are done with QGIS's own tools rather than an SGTool filter: layer styling and transparency for the colour and grey-scale images, and the Raster Calculator for band ratios such as K/Th. Tomofast-x inversion is done with the separate [tomofast_x_q QGIS plugin](https://plugins.qgis.org/plugins/tomofast_x_q) (code at [TOMOFAST/tomofast-x-q](https://github.com/TOMOFAST/tomofast-x-q)), not SGTool.
+A quick guide to which method to use for a task. The links go to the part of this guide that explains each method; the [reference](reference.md) has the full settings, equations and examples. Methods without a link are done with QGIS's own tools rather than an SGTool filter: layer styling and transparency for the colour and grey-scale images, and the Raster Calculator for band ratios such as K/Th. Tomofast-x inversion is done with the separate [tomofast_x_q QGIS plugin](https://plugins.qgis.org/plugins/tomofast_x_q) (code at [TOMOFAST/tomofast-x-q](https://github.com/TOMOFAST/tomofast-x-q)), not SGTool.
 
 | Application | Methods | Data |
 |---|---|---|
-| **Analyse structure dips** | [Worms](reference.md#bsdworms); analyse [gradients](reference.md#gradient-filters); [Tomofast-x inversion](https://plugins.qgis.org/plugins/tomofast_x_q) | Grav/Mag |
-| **Convert RGB image to monotonic grid** | [Convert RGB to LUT](reference.md#convert-lut-to-grayscale) | Any |
-| **Create outline polygon of grid** | [Create Clipping Polygon](reference.md#create-clipping-polygon) | Any |
-| **Discriminate lithologies** | [Analytic Signal](reference.md#analytic-signal) (Grav/Mag); RGB of radiometrics (Rad) | Grav/Mag/Rad |
+| **Analyse structure dips** | [Worms](#step-by-step-worms); analyse [gradients](#4-enhance-edges-and-structure-derivatives); [Tomofast-x inversion](https://plugins.qgis.org/plugins/tomofast_x_q) | Grav/Mag |
+| **Convert RGB image to monotonic grid** | [Convert RGB to LUT](#11-combine-several-grids-pca-ica-normalising-colour-images) | Any |
+| **Create outline polygon of grid** | [Create Clipping Polygon](#12-clip-grids-and-projects) | Any |
+| **Discriminate lithologies** | [Analytic Signal](#other-gradient-filters) (Grav/Mag); RGB of radiometrics (Rad) | Grav/Mag/Rad |
 | **Enhance local contrast** | Use grey-scale images | Any |
-| **Harmonise multiple datasets** | [Normalise Grids](reference.md#normalise-grids) | Grav/Mag |
-| **Highlight alteration** | [Analytic Signal](reference.md#analytic-signal) in colour, semi-transparent over [Tilt Angle](reference.md#tilt-angle-) or [Vertical Derivative](reference.md#derivative-) + [Automatic Gain Control](reference.md#automatic-gain-control-) | Grav/Mag |
-| **Highlight deep structures** | [Upward Continuation](reference.md#continuation-); [Low Pass Filter](reference.md#highlow-pass-) | Grav/Mag |
-| **Locate surface expression of structures** | [Tilt Angle](reference.md#tilt-angle-); [Vertical Derivative](reference.md#derivative-); [Vertical Derivative](reference.md#derivative-) + [Automatic Gain Control](reference.md#automatic-gain-control-) | Grav/Mag |
-| **Multiband contrast enhancement** | [PCA; ICA](reference.md#multivariate-statistical-analysis); band ratios | Any |
-| **Noise reduction** | [Gaussian](reference.md#gaussian) (Grav/Mag); [Median](reference.md#median) (Rad); [Low Pass](reference.md#highlow-pass-) | Any |
-| **Reduce line noise** | [Direction Cosine/Butterworth Filter](reference.md#direction-cosbutterw-line-noise-removal) | Any |
-| **Regolith discrimination** | Thresholded K/Th; RGB KThU semi-transparent over a [shaded](reference.md#sun-shading) digital terrain model | Rad |
-| **Remove non-data values** | [Threshold to NaN](reference.md#threshold-to-nan) | Any |
-| **Remove regional** | [Remove Regional](reference.md#remove-regional) | Grav/Mag |
+| **Harmonise multiple datasets** | [Normalise Grids](#11-combine-several-grids-pca-ica-normalising-colour-images) | Grav/Mag |
+| **Highlight alteration** | [Analytic Signal](#other-gradient-filters) in colour, semi-transparent over [Tilt Angle](#step-by-step-vertical-derivative-and-tilt-angle) or [Vertical Derivative](#step-by-step-vertical-derivative-and-tilt-angle) + [Automatic Gain Control](#automatic-gain-control) | Grav/Mag |
+| **Highlight deep structures** | [Upward Continuation](#other-ways-to-separate-wavelengths); [Low Pass Filter](#other-ways-to-separate-wavelengths) | Grav/Mag |
+| **Locate surface expression of structures** | [Tilt Angle](#step-by-step-vertical-derivative-and-tilt-angle); [Vertical Derivative](#step-by-step-vertical-derivative-and-tilt-angle); [Vertical Derivative](#step-by-step-vertical-derivative-and-tilt-angle) + [Automatic Gain Control](#automatic-gain-control) | Grav/Mag |
+| **Multiband contrast enhancement** | [PCA; ICA](#11-combine-several-grids-pca-ica-normalising-colour-images); band ratios | Any |
+| **Noise reduction** | [Gaussian](#step-by-step-smoothing) (Grav/Mag); [Median](#step-by-step-smoothing) (Rad); [Low Pass](#other-ways-to-separate-wavelengths) | Any |
+| **Reduce line noise** | [Direction Cosine/Butterworth Filter](#remove-flight-line-noise) | Any |
+| **Regolith discrimination** | Thresholded K/Th; RGB KThU semi-transparent over a [shaded](#step-by-step-sun-shading) digital terrain model | Rad |
+| **Remove non-data values** | [Threshold to NaN](#hide-unwanted-values-threshold-to-nan) | Any |
+| **Remove regional** | [Remove Regional](#other-ways-to-separate-wavelengths) | Grav/Mag |
 | **Show absolute value variation in images** | Use colour images | Any |
 
 ---

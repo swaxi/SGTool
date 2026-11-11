@@ -2,9 +2,9 @@
 
 # SGTool user guide
 
-This guide takes you through SGTool step by step, one kind of processing at a time. Every step uses the same example grid, so you can follow along and compare your results with the figures. The [reference](reference.md) describes every control and setting in detail, with a before-and-after example for each filter. The formulas are in [FFT filters](filters-fft.md) and [Convolution filters, spatial statistics, gridding and utilities](filters-convolution-and-statistics.md).
+This guide takes you through SGTool step by step, one kind of processing at a time. Every step uses the same example grid, so you can follow along and compare your results with the figures. The [reference](reference.md) describes every control and setting in detail, with the equations and published methods and a before-and-after example for each filter.
 
-The steps are written for the **QGIS** plugin. The ArcGIS Pro version has the same tabs in its own window, with a few differences listed in [ArcGIS Pro differences](arcgis-pro.md).
+The steps are written for the **QGIS** plugin. The ArcGIS Pro version has the same tabs in its own window, with a few differences listed in [ArcGIS Pro differences](reference.md#arcgis-pro).
 
 **Contents**
 
@@ -97,8 +97,8 @@ Things worth knowing:
 - **One step at a time.** If you tick several filters, each one is applied to the selected grid separately, and each gives its own output. The filters are unticked once the results are saved. To chain steps (for example RTP, then the vertical derivative of the RTP), apply the first step, select its result in **Select Grid** and then apply the next step.
 - **Dot points.** Filters marked with a **●** should be applied to magnetic data that have been reduced to the pole or equator (or to gravity data).
 - **Lengths.** Wavelengths, heights and line spacings are in the grid's units: metres for a projected grid, degrees for a latitude/longitude grid (except continuation heights, which are always in metres). Reproject latitude/longitude grids to a metre-based system before processing where you can. Some tools (vertical integration, Euler deconvolution, the petrophysics grids) require it.
-- **Background calculation.** Calculations run in the background, so QGIS stays usable. **Cancel** stops a running calculation, and nothing is saved. See [Background Calculations](background-calculations.md).
-- **Preview.** Tick **Preview** to see one filter on the area shown in the map, updated as you change its settings, without saving anything. The button then reads **Apply Preview**, which saves the previewed filter at full resolution. **Apply to Window** clips the grid to the map window first, then applies the filter to the clip. See [Live Preview](live-preview.md).
+- **Background calculation.** Calculations run in the background, so QGIS stays usable. **Cancel** stops a running calculation, and nothing is saved. See [Background Calculations](reference.md#background-calculations).
+- **Preview.** Tick **Preview** to see one filter on the area shown in the map, updated as you change its settings, without saving anything. The button then reads **Apply Preview**, which saves the previewed filter at full resolution. **Apply to Window** clips the grid to the map window first, then applies the filter to the clip. See [Live Preview](reference.md#live-preview).
 - **Max FFT Buffer (pixels)**, at the bottom of the FFT Filters tab, limits how much padding is added around a grid before an FFT filter. The default, 5000, normally means "pad by the grid's smaller dimension".
 - **History.** Every result records how it was made (see [section 13](#13-keep-track-of-your-processing-and-repeat-it)).
 
@@ -208,7 +208,7 @@ The wavenumber axis is in radians per cell, so a wavenumber *k* corresponds to a
 
 ![Band pass](images/examples/band_pass.png)
 
-As a rough guide, a source at depth *z* has most of its signal at wavelengths of 3 to 6 times *z*. A band pass from 2000 to 20000 m therefore favours sources from roughly 300 m to 7 km deep. This is only a guide: potential-field data cannot be split exactly into depth slices. See [What the cutoff values mean](filters-fft.md#frequency-filters).
+As a rough guide, a source at depth *z* has most of its signal at wavelengths of 3 to 6 times *z*. A band pass from 2000 to 20000 m therefore favours sources from roughly 300 m to 7 km deep. This is only a guide: potential-field data cannot be split exactly into depth slices. See [What the cutoff values mean](reference.md#what-the-cutoff-values-mean).
 
 ### Other ways to separate wavelengths
 
@@ -374,7 +374,7 @@ Worms need the scikit-learn and networkx packages.
 3. If the data use a dummy value for missing readings, tick **Ignore values <** and enter it.
 4. Press **BSpline Gridding**. The grid is saved as `<points>_<field>_bspline.tif`.
 
-How Auto chooses the settings is explained in [Choosing the B-spline settings](filters-convolution-and-statistics.md#gridding).
+How Auto chooses the settings is explained in [Choosing the B-spline settings](reference.md#choosing-the-b-spline-settings-auto).
 
 **IDW Gridding** opens QGIS's GRASS `v.surf.idw` tool instead.
 
@@ -382,7 +382,7 @@ How Auto chooses the settings is explained in [Choosing the B-spline settings](f
 
 ## 10. Apparent susceptibility, density and Henkel plots
 
-The **Petrophys** tab estimates rock properties from the grids and compares them with measured samples. [Petrophysics](petrophysics.md) explains the method and every setting.
+The **Petrophys** tab estimates rock properties from the grids and compares them with measured samples. [Petrophysics](reference.md#petrophys-tab) explains the method and every setting.
 
 ![The Petrophys tab](images/ui/tab_petrophys.png)
 
@@ -457,7 +457,7 @@ Every grid SGTool saves records how it was made: the date, SGTool version, the s
 3. Tick the steps to repeat (**Apply**) and which intermediate results to keep (**Save**).
 4. Choose the grid to apply them to, set the survey date (RTP, RTE and differential RTP recalculate the field for the new grid's location), and press **Apply steps**.
 
-See [Provenance metadata and replaying a processing history](provenance-and-replay.md).
+See [Provenance metadata and replaying a processing history](reference.md#sgtool-metadata-provenance).
 
 ---
 
@@ -472,9 +472,9 @@ processing.run("sgtool:derivative",
                {"INPUT": "ogrm_usgs_mag_tmi_RTP.tif", "DIRECTION": 0, "POWER": 1})
 ```
 
-Left empty, the output is named and placed as the dialog would. See [Processing Algorithms](processing-algorithms.md).
+Left empty, the output is named and placed as the dialog would. See [Processing Algorithms](reference.md#qgis-processing-algorithms).
 
-In **ArcGIS Pro** the same filters are geoprocessing tools in the `SGTool.pyt` toolbox. See [ArcGIS Pro differences](arcgis-pro.md).
+In **ArcGIS Pro** the same filters are geoprocessing tools in the `SGTool.pyt` toolbox. See [ArcGIS Pro differences](reference.md#arcgis-pro).
 
 ---
 

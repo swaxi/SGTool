@@ -17,7 +17,7 @@ The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.
       * New Apply to Window button (QGIS and ArcGIS Pro): clips the previewed grid to the map window, then applies the previewed filter to the clip
 
 ## 0.4.0
-      * New Petrophys tab: apparent susceptibility and density grids by Fourier-domain layer inversion, also as Processing algorithms ([docs/petrophysics.md](petrophysics.md))
+      * New Petrophys tab: apparent susceptibility and density grids by Fourier-domain layer inversion, also as Processing algorithms ([Petrophys tab](reference.md#petrophys-tab))
       * Petrophys plots: Henkel plots and histograms of apparent grids and measured samples, per polygon category, with similar categories grouped A, B, C ...
       * New low-latitude RTP (Hao et al. 2018) with automatic iterations and stripe suppression
       * Fix the RTE operator (RTE results will differ); RTE and low-latitude RTP use mirror padding; RTP/RTE warn again when Inc and Dec are both 0

@@ -19,13 +19,9 @@ Full steps for both, including the packages and which tools need them, are in [d
 
 SGTool works in both **QGIS** and **ArcGIS Pro**: the calculations are shared, and the two interfaces differ in a few places.
 
-- [Installation](docs/installation.md)
-- [ArcGIS Pro: differences from the QGIS version](docs/arcgis-pro.md), including the preview window and the toolbox
-- [Live Preview](docs/live-preview.md) (QGIS), [Background Calculations](docs/background-calculations.md) (QGIS) and [Processing Algorithms](docs/processing-algorithms.md) (QGIS)
-- [Provenance metadata and replaying a processing history](docs/provenance-and-replay.md): every output records how it was made, and the steps can be repeated on another grid
-- [FFT filters](docs/filters-fft.md): reduction to the pole and equator, continuation, vertical integration, band / high / low pass, line-noise removal, derivatives, tilt angle, analytic signal
-- [Convolution filters, spatial statistics, gridding and utilities](docs/filters-convolution-and-statistics.md): convolution and windowed statistics, anisotropy and MRVBF, PCA / ICA, Euler deconvolution, B-spline gridding (with automatic cell size and levels from the point spacing), worms, and utilities including clipping a grid to the map window and clipping every layer of a project to a polygon
-- [Petrophysics](docs/petrophysics.md) (QGIS and ArcGIS Pro): apparent susceptibility and density grids, Henkel plots of apparent grids for the whole area or per geology unit, plots of measured sample properties, and histograms
+- [User guide](docs/user-guide.md): step-by-step guides to each kind of processing, worked on an example magnetic grid
+- [Reference](docs/reference.md): every tab, control and filter, with screenshots, defaults, output names, equations, published references and before/after examples. It also covers the live preview, background calculations, provenance metadata and replay, the QGIS Processing algorithms and the differences in ArcGIS Pro
+- [Installation](docs/installation.md): QGIS and ArcGIS Pro, and the extra Python packages some tools need
 - [Changelog](docs/changelog.md) (also in `metadata.txt`)
 
 # Inputs   
@@ -53,7 +49,7 @@ The **Petrophys** tab (QGIS and ArcGIS Pro) estimates rock properties from poten
 - **Histograms** when only one grid or property is chosen, with the median, mean and standard deviation
 - Plots can be saved as PNG and/or PDF
 
-See [docs/petrophysics.md](docs/petrophysics.md) for the workflow, the formulas and the settings.
+See the [Petrophys tab](docs/reference.md#petrophys-tab) in the reference for the formulas and the settings, and the [user guide](docs/user-guide.md#10-apparent-susceptibility-density-and-henkel-plots) for the workflow.
 
 # Alternatives   
 There are several excellent Open Source or at least free alternatives to this plugin if you don't want to use QGIS or ArcGIS Pro, or want to do things this plugin can't:   

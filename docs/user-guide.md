@@ -55,7 +55,7 @@ A quick guide to which method to use for a task. The links go to the part of thi
 
 ## 1. The example data
 
-The examples use an aeromagnetic total magnetic intensity (TMI) grid of part of Mauritania, courtesy of the Mauritanian Government (OMRG) and the USGS. The **Help** tab of the plugin links to it, and it can be downloaded directly from <http://tectonique.net/sgtools_data/ogrm_usgs_mag_tmi.tif>.
+The examples use an aeromagnetic total magnetic intensity (TMI) grid of part of Mauritania, courtesy of the Mauritanian Government (OMRG) and the USGS. The **Help** tab of the plugin links to it, and it can be downloaded directly from <https://tectonique.net/sgtools_data/ogrm_usgs_mag_tmi.tif>.
 
 | Property | Value |
 |---|---|

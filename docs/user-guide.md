@@ -363,7 +363,7 @@ Euler deconvolution estimates the position and depth of sources from the gradien
 
 ![Euler settings](images/ui/step_euler.png)
 
-SGTool solves for four structural indices (SI): 0 (contact), 1 (dyke or sill edge), 2 (pipe) and 3 (sphere). The solutions for each are saved next to the grid as `<grid>_estimates_SI_0.txt` to `_SI_3.txt`. The columns are the northing (`y_source`), easting (`x_source`), depth (`z_source`), base level and the standard deviation of the vertical derivative in the window. Load them with **Layer > Add Layer > Add Delimited Text Layer**, with `x_source` as X and `y_source` as Y, and colour the points by `z_source`.
+SGTool solves for four structural indices (SI): 0 (contact), 1 (dyke or sill edge), 2 (pipe) and 3 (sphere). The solutions for each are saved next to the grid as `<grid>_estimates_SI_0.txt` to `_SI_3.txt`. The columns are the northing (`y_source`), easting (`x_source`), elevation (`z_source`, negative below the surface so the points sit underground in 3D views), base level and the standard deviation of the vertical derivative in the window. Load them with **Layer > Add Layer > Add Delimited Text Layer**, with `x_source` as X and `y_source` as Y, and colour the points by `z_source`.
 
 ![Euler solutions, SI 1](images/examples/euler.png)
 

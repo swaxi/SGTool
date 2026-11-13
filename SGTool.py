@@ -3300,8 +3300,12 @@ class SGTool:
                     + str(i)
                     + ".txt"
                 )
+                # z is written as elevation (negative below the surface) so the
+                # solutions plot beneath the ground in 3D viewers
+                est = np.array(output[i], dtype=float, copy=True)
+                est[:, 2] = -est[:, 2]
                 # %.17g reads back to exactly the same values, written ~2x faster
-                savetxt_fast(est_path, output[i], header=euler_header)
+                savetxt_fast(est_path, est, header=euler_header)
                 self.write_metadata(
                     est_path,
                     "Euler deconvolution",

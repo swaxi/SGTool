@@ -421,6 +421,10 @@ class EulerAlgorithm(_SGToolAlgorithm):
             auto_output_path(source_path, f"_estimates_SI_{si_index}", ".csv"),
             "", raster=False,
         )
+        # z is written as elevation (negative below the surface) so the
+        # solutions plot beneath the ground in 3D viewers
+        result = np.array(result, dtype=float, copy=True)
+        result[:, 2] = -result[:, 2]
         savetxt_fast(out_path, result, header=self.HEADER)
         write_sgt_metadata(
             out_path, source_path, "Euler deconvolution",

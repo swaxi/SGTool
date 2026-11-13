@@ -3113,9 +3113,13 @@ class SGToolApp(tk.Tk):
 
         # QGIS naming: <grid>_estimates_SI_<n>.txt, n being the structural index
         out_csv = os.path.splitext(in_r)[0] + f"_estimates_SI_{int(float(self.v_eu_si.get()))}.txt"
+        # Z is written as elevation (negative below the surface) so the
+        # solutions plot beneath the ground in 3D viewers
+        res = res[:, :5].copy()
+        res[:, 2] = -res[:, 2]
         with open(out_csv, "w") as f:
-            f.write("X,Y,Depth,B,StdDfDz\n")
-            write_rows(f, res[:, :5], "%s")  # the same text csv.writer wrote
+            f.write("X,Y,Z,B,StdDfDz\n")
+            write_rows(f, res, "%s")  # the same text csv.writer wrote
         write_provenance(out_csv, in_r, "Euler deconvolution", {
             "structural_index": self.v_eu_si.get(), "window_size": self.v_eu_win.get(),
             "fraction_kept": self.v_eu_filt.get()})

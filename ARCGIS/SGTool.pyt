@@ -1288,10 +1288,14 @@ class EulerDeconvolution(_RasterTool):
             arr, extent, SI, win, filt, callback=_check_cancel
         )
         if results is not None and len(results) > 0:
-            # results: (n_keep, 5) columns [X, Y, Depth, BaseLevel, StdDfDz]
+            # results: (n_keep, 5) columns [X, Y, Depth, BaseLevel, StdDfDz];
+            # Z is written as elevation (negative below the surface) so the
+            # solutions plot beneath the ground in 3D viewers
+            results = results[:, :5].copy()
+            results[:, 2] = -results[:, 2]
             with open(out_c, "w") as f:
-                f.write("X,Y,Depth,BaseLevel,StdDfDz\n")
-                write_rows(f, results[:, :5], "%s")  # the same text csv.writer wrote
+                f.write("X,Y,Z,BaseLevel,StdDfDz\n")
+                write_rows(f, results, "%s")  # the same text csv.writer wrote
             messages.addMessage(
                 f"Euler deconvolution (SI={SI}) → {len(results)} estimates → {out_c}")
         else:

@@ -278,7 +278,7 @@ TOOLS = {
                 "from the grid's gradients in moving windows, keeping the most reliable solutions "
                 "(Reliable Euler Deconvolution, Melo & Barbosa 2020).",
         usage=["The same solver as the QGIS plugin.",
-               "The output CSV has one row per kept solution: X, Y, Depth, B (base level) and StdDfDz "
+               "The output CSV has one row per kept solution: X, Y, Z (elevation, negative below the surface), B (base level) and StdDfDz "
                "(the standard deviation of the vertical derivative in the window, used to rank them)."],
         params={
             "out_csv": "CSV file of the kept solutions.",

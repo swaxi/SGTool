@@ -38,15 +38,15 @@ A quick guide to which method to use for a task. The links go to the part of thi
 | **Convert RGB image to monotonic grid** | [Convert RGB to LUT](#11-combine-several-grids-pca-ica-normalising-colour-images) | Any |
 | **Create outline polygon of grid** | [Create Clipping Polygon](#12-clip-grids-and-projects) | Any |
 | **Discriminate lithologies** | [Analytic Signal](#other-gradient-filters) (Grav/Mag); RGB of radiometrics (Rad) | Grav/Mag/Rad |
-| **Enhance local contrast** | Use grey-scale images | Any |
+| **Enhance local contrast** | Use grey-scale images; [High Pass Filter](#other-ways-to-separate-wavelengths) | Any |
 | **Harmonise multiple datasets** | [Normalise Grids](#11-combine-several-grids-pca-ica-normalising-colour-images) | Grav/Mag |
 | **Highlight alteration** | [Analytic Signal](#other-gradient-filters) in colour, semi-transparent over [Tilt Angle](#step-by-step-vertical-derivative-and-tilt-angle) or [Vertical Derivative](#step-by-step-vertical-derivative-and-tilt-angle) + [Automatic Gain Control](#automatic-gain-control) | Grav/Mag |
 | **Highlight deep structures** | [Upward Continuation](#other-ways-to-separate-wavelengths); [Low Pass Filter](#other-ways-to-separate-wavelengths) | Grav/Mag |
-| **Locate surface expression of structures** | [Tilt Angle](#step-by-step-vertical-derivative-and-tilt-angle); [Vertical Derivative](#step-by-step-vertical-derivative-and-tilt-angle); [Vertical Derivative](#step-by-step-vertical-derivative-and-tilt-angle) + [Automatic Gain Control](#automatic-gain-control) | Grav/Mag |
+| **Locate surface expression of structures** | [Tilt Angle](#step-by-step-vertical-derivative-and-tilt-angle); [Vertical Derivative](#step-by-step-vertical-derivative-and-tilt-angle); [Vertical Derivative](#step-by-step-vertical-derivative-and-tilt-angle) + [Automatic Gain Control](#automatic-gain-control); [High Pass Filter](#other-ways-to-separate-wavelengths) | Grav/Mag |
 | **Multiband contrast enhancement** | [PCA; ICA](#11-combine-several-grids-pca-ica-normalising-colour-images); band ratios | Any |
 | **Noise reduction** | [Gaussian](#step-by-step-smoothing) (Grav/Mag); [Median](#step-by-step-smoothing) (Rad); [Low Pass](#other-ways-to-separate-wavelengths) | Any |
 | **Reduce line noise** | [Direction Cosine/Butterworth Filter](#remove-flight-line-noise) | Any |
-| **Regolith discrimination** | Thresholded K/Th; RGB KThU semi-transparent over a [shaded](#step-by-step-sun-shading) digital terrain model | Rad |
+| **Regolith discrimination** | Thresholded K/Th; RGB KThU semi-transparent over a [shaded](#step-by-step-sun-shading) digital terrain model (Rad); [MRRTF / MRVBF / Slope](#terrain-analysis-mrvbf) semi-transparent over a [shaded](#step-by-step-sun-shading) digital terrain model (DTM) | Rad/DTM |
 | **Remove non-data values** | [Threshold to NaN](#hide-unwanted-values-threshold-to-nan) | Any |
 | **Remove regional** | [Remove Regional](#other-ways-to-separate-wavelengths) | Grav/Mag |
 | **Show absolute value variation in images** | Use colour images | Any |

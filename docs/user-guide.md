@@ -453,7 +453,7 @@ In **Measured Petrophysics**, choose a point layer of samples and the fields to 
 
 - **Principal Component Analysis** and **Independent Component Analysis** (Conv + Stats tab) work on a **multiband** grid, for example the three channels of a radiometric survey stacked into one file. Select it, tick PCA and/or ICA, set the number of components (0 = all) and press **Apply Processing**. The results are `_PCA` and `_ICA`, one band per component. Both need scikit-learn.
 - **Normalise Grids** (Utils tab) adjusts a folder of grids to have the same mean and standard deviation, after removing a 1st or 2nd order trend, so that they merge with fewer steps between them. Choose the **Input Directory** and **Output Directory** and press **Normalise Grids**.
-- **Convert LUT to Grayscale** (Utils tab) turns a coloured image of a grid (for example a scanned map) back into a single-band grid, if you know its colour table. Choose the RGB grid, enter the colours from lowest to highest (CSS colour names or RGB triplets), set the **Min** and **Max** of the values and press **Convert Grid**.
+- **Convert LUT to Grayscale** (Utils tab) turns a coloured image of a grid (for example a scanned map) back into a single-band grid, if you know its colour table. Choose the RGB grid, enter the colours from lowest to highest (CSS colour names or RGB triplets selected from image using the Pick RGB Button), set the **Min** and **Max** of the values and press **Convert Grid**.
 
 ---
 
@@ -493,10 +493,14 @@ See [Provenance metadata and replaying a processing history](reference.md#sgtool
 All the filters are also QGIS **Processing** algorithms, in the **SGTool** group of the Processing Toolbox. They can be run on many grids at once from the batch-processing dialog, chained in the graphical modeler, or called from Python:
 
 ```python
-processing.run("sgtool:reduction_to_pole",
-               {"INPUT": "ogrm_usgs_mag_tmi.tif", "INCLINATION": 29.2, "DECLINATION": -5.4})
-processing.run("sgtool:derivative",
-               {"INPUT": "ogrm_usgs_mag_tmi_RTP.tif", "DIRECTION": 0, "POWER": 1})
+processing.run(
+    "sgtool:reduction_to_pole",
+    {"INPUT": "ogrm_usgs_mag_tmi.tif", "INCLINATION": 29.2, "DECLINATION": -5.4},
+)
+processing.run(
+    "sgtool:derivative",
+    {"INPUT": "ogrm_usgs_mag_tmi_RTP.tif", "DIRECTION": 0, "POWER": 1},
+)
 ```
 
 Left empty, the output is named and placed as the dialog would. See [Processing Algorithms](reference.md#qgis-processing-algorithms).

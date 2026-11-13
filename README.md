@@ -8,7 +8,7 @@
     
 <img src="docs/images/examples/sgtool.gif">    
 
-*Example outputs viewed in Geoscience Analyst based on Airborne Magnetics of part of the Reguibat Inlier, Mauritania (Data courtesy of ANARPAM). Magnetic grid filtered with Tilt Angle and Local Anisotropy Orientation, Euler Deconvolution points below grid and wavelet transform polylines above grid.*   
+*Example outputs viewed in Geoscience Analyst based on Airborne Magnetics of part of the Reguibat Inlier, Mauritania (Data courtesy of ANARPAM). Magnetic grid filtered with Tilt Angle and Local Anisotropy Orientation, Euler Deconvolution points below grid and Wavelet Transform polylines above grid.*   
 
 # Installation
 

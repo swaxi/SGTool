@@ -6,7 +6,7 @@
 
 **<a href="https://tectonique.net/sgtools_data/SGTool%20Cheat%20Sheet.pdf">Cheat Sheet (Thanks Chops)</a>**&nbsp;**&nbsp;|&nbsp;&nbsp;&nbsp; <a href="https://tectonique.net/sgtools_data/Structural%20Geophysics%20Tools.pdf">Download Basic Help Document</a>**&nbsp;&nbsp;&nbsp; |&nbsp;&nbsp;&nbsp;  **<a href="https://tectonique.net/sgtools_data/SGTools_large.mp4">Ctrl-click on link to watch demo video</a>**
     
-<a href="docs/images/examples.png">MRT Image</a>  
+<a href="docs/images/examples/sgtool.gif">MRT Image</a>  
 *Example of outputs of SGTools viewed in Geoscience Analyst: Airborne Magnetics of part of the Reguibat Inlier, Mauritania (Data courtesy of ANARPAM). Magnetic grid filtered with Tilt Angle and Anisotropy Orientation, Euler Deconvolution points below grid and wavelet transforms shown above grid.*     
 
 # Installation

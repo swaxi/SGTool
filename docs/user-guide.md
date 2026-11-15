@@ -421,8 +421,11 @@ The **Petrophys** tab estimates rock properties from the grids and compares them
 4. Set the date and press **IGRF** to fill in the **Field (nT)**, the total strength of the Earth's field (36751 nT for the example).
 5. Set **Depth to top**: 0 puts the top of the magnetic layer at the sensor. For airborne data, use the terrain clearance.
 6. Press **Apply Processing**. The result is `_AppSus`, in SI units, as a variation about the **Background** (0.001 SI).
-
 ![Apparent susceptibility](images/examples/apparent_susceptibility.png)
+7. If a geology vector layer is available, the results are divided into histograms for each seleted category, and grouped according to similar distributions
+![Apparent susceptibility by group](images/examples/app_petro.png)
+
+
 
 ### Step by step: apparent density [Petrophys Tab]
 

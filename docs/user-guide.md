@@ -422,10 +422,6 @@ The **Petrophys** tab estimates rock properties from the grids and compares them
 5. Set **Depth to top**: 0 puts the top of the magnetic layer at the sensor. For airborne data, use the terrain clearance.
 6. Press **Apply Processing**. The result is `_AppSus`, in SI units, as a variation about the **Background** (0.001 SI).
 ![Apparent susceptibility](images/examples/apparent_susceptibility.png)
-7. If a geology vector layer is available, the results can be divided into histograms or apparent Henkel plots for a selected **Category Field**, which can be grouped according to distribution similarity.
-![Apparent susceptibility by group](images/examples/app_petro.png)
-
-
 
 ### Step by step: apparent density [Petrophys Tab]
 
@@ -444,7 +440,11 @@ The example has no gravity grid, so this is the histogram of its apparent suscep
 
 ![Histogram of apparent susceptibility](images/examples/appsus_histogram.png)
 
-The apparent susceptibility includes negative values, so the log axis is shifted to start just above the minimum, and its label says so.
+The apparent susceptibility includes negative values, so the log axis is shifted to start just above the minimum, and its label says so.   
+   
+5. If a geology vector layer is available, the results can be divided into histograms or apparent Henkel plots for a selected **Category Field**, which can be grouped according to distribution similarity.
+![Apparent susceptibility by group](images/examples/app_petro.png)
+
 
 ### Measured samples [Petrophys Tab]
 

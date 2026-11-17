@@ -1,2 +1,11 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Left out of the QGIS plugin zip built by .github/workflows/qgis-plugin-release.yml
+.github export-ignore
+.gitattributes export-ignore
+.gitignore export-ignore
+plugins.xml export-ignore
+docs export-ignore
+ARCGIS export-ignore
+repository.xml export-ignore

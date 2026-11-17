@@ -1,0 +1,49 @@
+# When a GitHub release is published:
+#  1. builds <PLUGIN_DIR>.zip (top folder = PLUGIN_DIR) and attaches it to the release;
+#  2. writes plugins.xml and commits it to the default branch.
+# Add this to QGIS (Plugins > Manage and Install Plugins > Settings > Add...):
+#   https://raw.githubusercontent.com/<owner>/<repo>/<default branch>/plugins.xml
+# The release tag must match version= in metadata.txt (e.g. v0.2.24 or 0.2.24).
+name: QGIS plugin release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+env:
+  PLUGIN_DIR: sgtool
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build plugin zip and plugins.xml
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: python .github/scripts/build_qgis_release.py --plugin-dir "$PLUGIN_DIR" --tag "$TAG" --repo "$GITHUB_REPOSITORY" --out "$RUNNER_TEMP/dist"
+
+      - name: Attach zip to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" "$RUNNER_TEMP/dist/$PLUGIN_DIR.zip" --clobber
+
+      - name: Commit plugins.xml to the default branch
+        env:
+          BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git fetch origin "$BRANCH"
+          git checkout -B "$BRANCH" "origin/$BRANCH"
+          cp "$RUNNER_TEMP/dist/plugins.xml" plugins.xml
+          git add plugins.xml
+          if git diff --cached --quiet; then echo "plugins.xml unchanged"; exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "Update plugins.xml for ${{ github.event.release.tag_name }}"
+          git push origin "$BRANCH"

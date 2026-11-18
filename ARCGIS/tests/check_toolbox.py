@@ -208,5 +208,58 @@ try:
 except OperationCancelled:
     check("mrvbf stops when its callback raises", True)
 
+def _band1(path):
+    """Band 1 of a raster, or None (the dataset kept open while the band is read)."""
+    if not os.path.exists(path):
+        return None
+    ds_ = gdal.Open(path)
+    return ds_.GetRasterBand(1).ReadAsArray().astype(float)
+
+
+# ---- edge detectors, domain detection and the multiband tools
+for cls_name, values, suffix in (
+        ("NSTDFilter", {"window_size": 5}, "_NSTD"),
+        ("NAVEdge", {"window_size": 7, "anisotropy_scale": 2.0}, "_NAV"),
+        ("KuwaharaFilter", {"window_size": 5}, "_Kuw"),
+        ("SNNFilter", {"window_size": 3}, "_SNN")):
+    out_ = os.path.join(DATA, "t" + suffix + ".tif")
+    m_ = run(getattr(mod, cls_name), dict(values, in_raster=src, out_raster=out_))
+    a_ = _band1(out_)
+    check(f"the {cls_name} tool writes a grid", a_ is not None and np.isfinite(a_).any(), m_.lines)
+
+rad = os.path.join(DATA, "kthu.tif")
+rgr = np.random.default_rng(5)
+kk = 1.5 + rgr.random((60, 80)); tt = 10 + 4 * kk + rgr.random((60, 80)); uu = 2 + 0.2 * tt
+kk[20:30, 20:30] *= 2
+ds = gdal.GetDriverByName("GTiff").Create(rad, 80, 60, 3, gdal.GDT_Float32)
+ds.SetGeoTransform([500000, 100, 0, 6900000, 0, -100]); ds.SetProjection(s.ExportToWkt())
+for i, a in enumerate((kk, tt, uu)):
+    ds.GetRasterBand(i + 1).WriteArray(a.astype("float32"))
+ds = None
+bands = {"k_raster": rad, "k_band": 1, "u_raster": rad, "u_band": 3, "th_raster": rad, "th_band": 2}
+outk = os.path.join(DATA, "kthu_Kd.tif")
+m = run(mod.ThoriumNormalisedDeviation, dict(bands, out_raster=outk, element="Kd",
+                                             background="Ratio of means"))
+kd = _band1(outk)
+check("the Kd tool finds the potassic block", kd is not None and kd[20:30, 20:30].mean() > 0.5, m.lines)
+rk = sm.read_sgt_metadata(outk)
+check("... and names the K grid as its source",
+      rk is not None and os.path.basename(rk.findtext("sources/source/path") or "") == "kthu.tif")
+for cls_name, extra, name in (("EfimovFParameter", {}, "kthu_Efimov.tif"),
+                              ("TernaryGradient", {"scaling": "CLR"}, "kthu_TernGrad.tif")):
+    out_ = os.path.join(DATA, name)
+    m_ = run(getattr(mod, cls_name), dict(bands, out_raster=out_, **extra))
+    check(f"the {cls_name} tool writes a grid", os.path.exists(out_), m_.lines)
+outc = os.path.join(DATA, "kthu_ILR.tif")
+m = run(mod.LogRatioTransform, {"in_raster": rad, "out_raster": outc, "transform": "ILR"})
+dc = gdal.Open(outc) if os.path.exists(outc) else None
+check("the log-ratio tool writes an ILR grid of 2 bands", dc is not None and dc.RasterCount == 2, m.lines)
+dc = None
+for cls_, cat in ((mod.NSTDFilter, "Edge Detectors"), (mod.KuwaharaFilter, "Domain Detection"),
+                  (mod.EfimovFParameter, "Multiband"), (mod.PCAAnalysis, "Multiband"),
+                  (mod.MRVBFTool, "Landform"), (mod.EulerDeconvolution, "FFT Filters")):
+    check(f"{cls_.__name__} is in the {cat} toolset", cls_.category == cat and cls_ in tb.tools,
+          cls_.category)
+
 print(f"\n{sum(1 for _, ok in results if ok)}/{len(results)} PYT checks passed", flush=True)
 os._exit(0 if all(ok for _, ok in results) else 1)

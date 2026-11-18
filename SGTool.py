@@ -138,6 +138,8 @@ from .calcs.ConvolutionFilter import ConvolutionFilter
 # from .calcs.ConvolutionFilter import OddPositiveIntegerValidator
 from .calcs.GridData_no_pandas import QGISGridData
 from .calcs.SpatialStats import SpatialStats
+from .calcs import EdgeFilters
+from .calcs import Radiometrics
 from .calcs.WTMM import WTMM
 from .calcs.PCAICA import PCAICA
 from .calcs.SG_Util import SG_Util
@@ -455,6 +457,11 @@ class SGTool:
         )
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setToolTip(
             self.tr("Layer selected for grid processing")
+        )
+        self.dlg.mMapLayerComboBox_selectGrid_Multi.setToolTip(
+            self.tr("Grid the results are calculated on. A grid with 3 or more bands\n"
+                    "also fills K, eU and eTh, and supplies the bands for\n"
+                    "Log-ratio, PCA and ICA")
         )
         self.dlg.pushButton_2_selectGrid.setToolTip(
             self.tr("Load new file for processing\n*.grd *.tif *.ers *.grv *.mag, for other formats use normal QGIS grid loader")
@@ -818,14 +825,14 @@ class SGTool:
         self.dlg.mFieldComboBox_data.setToolTip(self.tr("Select data field for points layer"))
 
         self.dlg.checkBox_PCA.setToolTip(
-            self.tr("Principal Component Analysis (PCA)\nOnly works on multiband grids\nReduces dimensionality of data while preserving variance\nUseful for identifying patterns and trends in large datasets")
+            self.tr("Principal Component Analysis (PCA)\nOnly works on multiband grids\nReduces dimensionality of data while preserving variance\nUseful for identifying patterns and trends in large datasets\nPreview shows components 1-3 as red/green/blue, calculated from the cells in view")
         )
         self.dlg.mQgsSpinBox_PCA.setToolTip(
             self.tr("Number of components to keep after PCA\nSet to 0 to keep all components")
         )
 
         self.dlg.checkBox_ICA.setToolTip(
-            self.tr("Independent Component Analysis (ICA)\nOnly works on multiband grids\nSeparates a multivariate signal into additive, independent components\nUseful for separating mixed signals and identifying underlying sources")
+            self.tr("Independent Component Analysis (ICA)\nOnly works on multiband grids\nSeparates a multivariate signal into additive, independent components\nUseful for separating mixed signals and identifying underlying sources\nPreview shows components 1-3 as red/green/blue, calculated from the cells in view")
         )
         self.dlg.mQgsSpinBox_ICA.setToolTip(
             self.tr("Number of components to keep after ICA\nSet to 0 to keep all components")
@@ -833,6 +840,75 @@ class SGTool:
         self.dlg.checkBox_SunShading.setToolTip(
             self.tr("Sun shading of grid\nUses azimuth and zenith angles to create a shaded relief effect\nUseful for visualizing topography and enhancing features")
         )
+        # new filters
+        d = self.dlg
+        d.checkBox_NSTD.setToolTip(self.tr(
+            "Normalised Standard Deviation (Cooper & Cowan 2008)\n"
+            "NSTD = s(dz) / (s(dx) + s(dy) + s(dz)), s = standard deviation of each\n"
+            "derivative in a moving window. Edges are maxima; balances strong and\n"
+            "weak anomalies. Use on gravity or RTP magnetic grids."))
+        d.lineEdit_NSTD_window.setToolTip(self.tr("Window size in cells (odd)"))
+        d.checkBox_Kuwahara.setToolTip(self.tr(
+            "Kuwahara edge-preserving smoother: four overlapping quadrants of the\n"
+            "window; each cell takes the mean of the quadrant with least variance.\n"
+            "Flattens noise inside domains while keeping steps sharp."))
+        d.lineEdit_Kuwahara_window.setToolTip(self.tr(
+            "Window size in cells (odd); quadrants are (size+1)/2 cells across"))
+        d.checkBox_NAVEdge.setToolTip(self.tr(
+            "NAV-Edge, normalised anisotropy variance (Zhang et al. 2014, Geophysics\n"
+            "79(3) J43-J53). Dimensionless; positive over sources, negative outside;\n"
+            "edges are the ZERO CROSSINGS. Uses no higher derivatives, so it is\n"
+            "robust to noise. Use on gravity or RTP magnetic grids."))
+        d.lineEdit_NAV_window.setToolTip(self.tr(
+            "Window size M in cells (odd). 3 for clean data, larger for noisy data\n"
+            "(Gaussian sigma = (M-1)/6)"))
+        d.lineEdit_NAV_cof.setToolTip(self.tr(
+            "Anisotropy scale (cof): 1 = isotropic; larger values smooth along strike\n"
+            "and sharpen across it, separating close parallel sources (paper used 1, 2, 5)"))
+        d.checkBox_SNN.setToolTip(self.tr(
+            "Symmetric Nearest Neighbour smoother: of each pair of cells symmetric\n"
+            "about the centre, keep the one closer to the centre value, and average.\n"
+            "Removes spikes and line noise without widening narrow dykes."))
+        d.lineEdit_SNN_window.setToolTip(self.tr("Window size in cells (odd)"))
+        d.checkBox_Efimov.setToolTip(self.tr(
+            "Efimov F-parameter F = K x eU / eTh: highlights potassic and uraniferous\n"
+            "alteration. Uses the K, eU and eTh grids chosen above.\n"
+            "Cells where K, eU or eTh is <= 0 are left blank."))
+        d.checkBox_Kd.setToolTip(self.tr(
+            "Kd = (K - Ks) / Ks, Ks = K predicted from eTh (Saunders et al.)\n"
+            "Positive = K in excess of what thorium predicts (alteration)."))
+        d.checkBox_Ud.setToolTip(self.tr(
+            "Ud = (eU - Us) / Us, Us = eU predicted from eTh (Saunders et al.)\n"
+            "Positive = U in excess of what thorium predicts."))
+        d.comboBox_KdUd_method.setToolTip(self.tr(
+            "How K and eU are predicted from eTh over the whole grid:\n"
+            "Ratio of means: Ks = (mean K / mean eTh) x eTh\n"
+            "Linear regression: Ks = a + b x eTh (least squares)\n"
+            "Cells where the predicted value is below 10% of the mean are left\n"
+            "blank, as the ratio explodes there."))
+        for key, label in self.RAD_KEYS:
+            getattr(d, f"mMapLayerComboBox_Rad_{key}").setToolTip(self.tr(
+                f"Grid with {label}: one band of a multiband radiometric grid, or a\n"
+                "separate grid (resampled onto the grid selected at the top of the tab).\n"
+                "Choosing a 3+ band grid at the top fills K, eU and eTh automatically."))
+            getattr(d, f"comboBox_Rad_{key}_band").setToolTip(self.tr(
+                f"Band holding {label} (guessed from band names where possible)"))
+        d.checkBox_TernGrad.setToolTip(self.tr(
+            "Ternary gradient: multichannel (Di Zenzo) Sobel gradient of K, eU and eTh\n"
+            "together. Highlights boundaries where any radioelement changes, even if\n"
+            "the total count stays the same."))
+        d.comboBox_TernGrad_scaling.setToolTip(self.tr(
+            "Z-score: each band standardised so K, eU, eTh weigh the same\n"
+            "CLR: centred log-ratios, so only changes in element ratios count"))
+        d.checkBox_LogRatio.setToolTip(self.tr(
+            "Log-ratio transform of compositional data before PCA/ICA, so high-count\n"
+            "units do not dominate. Uses all bands of the selected grid if it is\n"
+            "multiband, otherwise the K, eU, eTh grids. Writes a multiband grid\n"
+            "(preview shows its first band). Values <= 0 are replaced by half the\n"
+            "smallest positive value of their band."))
+        d.comboBox_LogRatio_type.setToolTip(self.tr(
+            "CLR: centred log-ratio, one band per input band (bands sum to zero)\n"
+            "ILR: isometric log-ratio (pivot coordinates), one band fewer"))
         self.dlg.lineEdit_SunSh_Az.setToolTip(
             self.tr("Azimuth angle for sun shading\n0 = North, 90 = East, 180 = South, 270 or -90 = West")
         )
@@ -1040,6 +1116,53 @@ class SGTool:
         self.PCA = self.dlg.checkBox_PCA.isChecked()
         self.ICA = self.dlg.checkBox_ICA.isChecked()
         self.ED = self.dlg.checkBox_ED.isChecked()
+
+        # Help tab: overwrite an earlier result of the same name, or number a new one
+        self.replace_existing = self.dlg.checkBox_replace_layers.isChecked()
+
+        # Edge detectors / edge-preserving smoothers
+        d = self.dlg
+        self.NSTD = d.checkBox_NSTD.isChecked()
+        self.NSTD_window = max(3, self.to_int(d.lineEdit_NSTD_window.text())) | 1
+        self.Kuwahara = d.checkBox_Kuwahara.isChecked()
+        self.Kuwahara_window = max(3, self.to_int(d.lineEdit_Kuwahara_window.text())) | 1
+        self.NAVEdge = d.checkBox_NAVEdge.isChecked()
+        self.NAV_window = max(3, self.to_int(d.lineEdit_NAV_window.text())) | 1
+        self.NAV_cof = max(1.0, self.to_float(d.lineEdit_NAV_cof.text()))
+        self.SNN = d.checkBox_SNN.isChecked()
+        self.SNN_window = max(3, self.to_int(d.lineEdit_SNN_window.text())) | 1
+
+        # Radiometrics: (path, band) of K, eU and eTh, read on this (main)
+        # thread so the background job never touches a layer
+        self.Efimov = d.checkBox_Efimov.isChecked()
+        self.Kd = d.checkBox_Kd.isChecked()
+        self.Ud = d.checkBox_Ud.isChecked()
+        self.KdUd_method = (
+            "regression" if d.comboBox_KdUd_method.currentIndex() == 1 else "ratio"
+        )
+        self.TernGrad = d.checkBox_TernGrad.isChecked()
+        self.TernGrad_scaling = (
+            "clr" if d.comboBox_TernGrad_scaling.currentIndex() == 1 else "zscore"
+        )
+        self.LogRatio = d.checkBox_LogRatio.isChecked()
+        self.LogRatio_type = d.comboBox_LogRatio_type.currentText()
+        self.rad_sources = self._radiometric_sources()
+        # log-ratio input: every band of the selected grid if it is multiband,
+        # otherwise the K / eU / eTh grids
+        conv_layer = d.mMapLayerComboBox_selectGrid_Multi.currentLayer()
+        self.conv_band_sources = None  # every band of a multiband grid (PCA/ICA preview)
+        if isinstance(conv_layer, QgsRasterLayer) and conv_layer.bandCount() > 1:
+            src = conv_layer.dataProvider().dataSourceUri()
+            self.conv_band_sources = [(src, b) for b in range(1, conv_layer.bandCount() + 1)]
+            self.LogRatio_sources = self.conv_band_sources
+            # "Band 2: K_pct" -> "K_pct" ("Band 2" if the band has no description)
+            self.LogRatio_names = [
+                conv_layer.bandName(b).split(": ", 1)[-1]
+                for b in range(1, conv_layer.bandCount() + 1)
+            ]
+        else:
+            self.LogRatio_sources = self.rad_sources
+            self.LogRatio_names = ["K", "eU", "eTh"]
 
         # Read here, on the main thread, because background calculations must
         # not touch widgets.
@@ -1423,6 +1546,7 @@ class SGTool:
             for name in (
                 "mMapLayerComboBox_selectGrid",
                 "mMapLayerComboBox_selectGrid_Conv",
+                "mMapLayerComboBox_selectGrid_Multi",
                 "mMapLayerComboBox_selectGrid_Conv_2",
                 "mMapLayerComboBox_selectGrid_Petro",
                 "mMapLayerComboBox_selectGrid_3",
@@ -1897,6 +2021,38 @@ class SGTool:
                 return "Anisotropy chain length", params
             params["max_steps"] = self.SS_max_steps
             return "Anisotropy streamline length", params
+        # operation names as in the shared filter table (sgt_filters), so that
+        # these steps can be replayed on another grid
+        if s == "_NSTD":
+            return "Normalised standard deviation (NSTD)", {
+                "window_size": self.NSTD_window,
+            }
+        if s == "_Kuw":
+            return "Kuwahara filter", {"window_size": self.Kuwahara_window}
+        if s == "_NAV":
+            return "NAV-Edge (normalised anisotropy variance)", {
+                "window_size": self.NAV_window,
+                "anisotropy_scale": self.NAV_cof,
+            }
+        if s == "_SNN":
+            return "Symmetric nearest neighbour filter", {
+                "window_size": self.SNN_window,
+            }
+        rad = {
+            "K": self.rad_sources[0], "eU": self.rad_sources[1], "eTh": self.rad_sources[2],
+        } if getattr(self, "rad_sources", None) else {}
+        rad = {k: f"{v[0]} (band {v[1]})" for k, v in rad.items() if v}
+        if s == "_Efimov":
+            return "Efimov F-parameter (K*eU/eTh)", rad
+        if s in ("_Kd", "_Ud"):
+            return (
+                "Thorium-normalised K deviation (Kd)" if s == "_Kd"
+                else "Thorium-normalised U deviation (Ud)"
+            ), dict(rad, background=self.KdUd_method)
+        if s == "_TernGrad":
+            return "Ternary (multichannel Sobel) gradient", dict(
+                rad, scaling=self.TernGrad_scaling
+            )
         if s in ("_MRVBF", "_MRRTF"):
             return (
                 "Multiresolution valley bottom flatness" if s == "_MRVBF"
@@ -2250,6 +2406,8 @@ class SGTool:
             ("AGC", "procAGC", True, "checkBox_11_1vd_agc"),
             ("VI", "procvInt", True, "checkBox_4_PGrav"),
             ("THG", "procTHG", True, "checkBox_11_tot_hz_grad"),
+            ("NSTD", "procNSTD", True, "checkBox_NSTD"),
+            ("NAVEdge", "procNAVEdge", True, "checkBox_NAVEdge"),
         ],
         1: [  # Conv + Stats tab
             ("Mean", "procMean", True, "checkBox_Mean"),
@@ -2263,12 +2421,25 @@ class SGTool:
             ("SS_Variance", "procSS_Variance", True, "checkBox_SS_Variance"),
             ("SS_Skewness", "procSS_Skewness", True, "checkBox_SS_Skewness"),
             ("SS_Kurtosis", "procSS_Kurtosis", True, "checkBox_SS_Kurtosis"),
+            # previews the orientation (its last output), styled as the result
+            ("SS_Anisotropy", "procSS_AnisotropyBoth", False, "checkBox_SS_Anisotropy"),
+            ("SNN", "procSNN", True, "checkBox_SNN"),
+            ("Kuwahara", "procKuwahara", True, "checkBox_Kuwahara"),
         ],
-        3: [  # Petrophys tab
+        2: [  # Multiband tab
+            ("Efimov", "procEfimov", True, "checkBox_Efimov"),
+            ("Kd", "procKd", True, "checkBox_Kd"),
+            ("Ud", "procUd", True, "checkBox_Ud"),
+            ("TernGrad", "procTernGrad", True, "checkBox_TernGrad"),
+            ("LogRatio", "procLogRatio", True, "checkBox_LogRatio"),
+            ("PCA", "procPCA", True, "checkBox_PCA"),
+            ("ICA", "procICA", True, "checkBox_ICA"),
+        ],
+        4: [  # Petrophys tab
             ("AppSus", "procAppSus", True, "checkBox_AppSus"),
             ("AppDens", "procAppDens", True, "checkBox_AppDens"),
         ],
-        4: [  # Utils tab
+        5: [  # Utils tab
             ("NaN", "procNaN", True, "checkBox_NaN"),
         ],
     }
@@ -2276,14 +2447,14 @@ class SGTool:
     # filters on each tab that can't be previewed: disabled (and unticked)
     # while previewing
     PREVIEW_DISABLED = {
-        0: [],
+        0: ["checkBox_ED", "checkBox_ED_Stats"],
         1: [
-            "checkBox_SS_Anisotropy", "checkBox_SS_ChainLength",
-            "checkBox_SS_Streamline", "checkBox_MRVBF", "checkBox_PCA",
-            "checkBox_ICA", "checkBox_ED", "checkBox_ED_Stats",
+            "checkBox_SS_ChainLength",
+            "checkBox_SS_Streamline", "checkBox_MRVBF",
         ],
-        3: [],
-        4: ["checkBox_polygons"],
+        2: [],
+        4: [],
+        5: ["checkBox_polygons"],
     }
 
     # per-tab widget name suffix, grid combo and Apply button
@@ -2291,9 +2462,11 @@ class SGTool:
         0: ("", "mMapLayerComboBox_selectGrid", "pushButton_3_applyProcessing"),
         1: ("_conv", "mMapLayerComboBox_selectGrid_Conv",
             "pushButton_3_applyProcessing_Conv"),
-        3: ("_petro", "mMapLayerComboBox_selectGrid_Petro",
+        2: ("_multi", "mMapLayerComboBox_selectGrid_Multi",
+            "pushButton_3_applyProcessing_Multi"),
+        4: ("_petro", "mMapLayerComboBox_selectGrid_Petro",
             "pushButton_3_applyProcessing_Petro"),
-        4: ("_utils", "mMapLayerComboBox_selectGrid_Conv_2",
+        5: ("_utils", "mMapLayerComboBox_selectGrid_Conv_2",
             "pushButton_3_applyProcessing_Conv_3"),
     }
 
@@ -2658,6 +2831,8 @@ class SGTool:
         Cancel works (zooming out can make a big calculation); the image is
         drawn when it finishes, unless a newer view or Cancel replaced it."""
         runner = self._preview_runner(arr, gt[1], -gt[5], name)
+        # the frame other grids (K / eU / eTh) are resampled onto for this preview
+        runner._preview_frame = (tuple(gt), arr.shape[1], arr.shape[0], src.crs().toWkt())
         messages = runner._pending_messages
 
         def work(task):
@@ -2686,6 +2861,8 @@ class SGTool:
                             self._write_preview(
                                 grid, gt, src, f"{name}{suffix}_preview",
                                 std_clip=entry[2],
+                                smooth=entry[0] not in self.PREVIEW_UNSMOOTHED,
+                                style=self.PREVIEW_STYLES.get(entry[0]),
                             )
                         except Exception as e:
                             self.iface.messageBar().pushMessage(
@@ -2829,18 +3006,39 @@ class SGTool:
                 "Preview", str(e), level=Qgis.MessageLevel.Warning, duration=5
             )
 
-    def _write_preview(self, grid, gt, src, layer_name, std_clip=True):
-        rows, cols = grid.shape
+    # edge detectors: thin cell-scale lines that bilinear display smoothing
+    # blurs into flat grey when zoomed out, so their preview is drawn as is
+    # (orientation too: smoothing would blend across the 0/180 degree wrap)
+    PREVIEW_UNSMOOTHED = {"NSTD", "NAVEdge", "SS_Anisotropy"}
+
+    # filters whose preview is drawn in the result's own style (method name
+    # taking the layer) instead of a grey stretch
+    PREVIEW_STYLES = {"SS_Anisotropy": "_style_aniso_orient"}
+
+    def _write_preview(self, grid, gt, src, layer_name, std_clip=True, smooth=True,
+                       style=None):
+        """Show `grid` as the preview layer: a 2D grid as grey (or in `style`,
+        the name of a method that styles the layer), or a (3, rows, cols) stack
+        (e.g. the first three PCA / ICA components) as a temporary RGB image."""
+        stack = grid if grid.ndim == 3 else grid[np.newaxis]
+        nbands, rows, cols = stack.shape
+        kind = "rgb" if nbands >= 3 else (style or "grey")
+        layer = self._preview_layer()
+        if layer is not None and layer.customProperty("sgtool_preview_kind", "grey") != kind:
+            # grey / RGB / styled: the renderer (and opacity) can't simply
+            # switch over, so start with a fresh layer
+            self.removePreviewLayer()
         self._unlink_preview_file()
         ds = gdal.GetDriverByName("GTiff").Create(
-            self.PREVIEW_PATH, cols, rows, 1, gdal.GDT_Float32
+            self.PREVIEW_PATH, cols, rows, nbands, gdal.GDT_Float32
         )
         ds.SetGeoTransform(gt)
         ds.SetProjection(src.crs().toWkt())
-        band = ds.GetRasterBand(1)
-        band.SetNoDataValue(np.nan)
-        band.WriteArray(grid.astype(np.float32))
-        band.FlushCache()
+        for i in range(nbands):
+            band = ds.GetRasterBand(i + 1)
+            band.SetNoDataValue(np.nan)
+            band.WriteArray(stack[i].astype(np.float32))
+            band.FlushCache()
         band = None
         ds = None
 
@@ -2860,12 +3058,44 @@ class SGTool:
                 self._move_preview_to_top()
         else:
             layer.setDataSource(self.PREVIEW_PATH, layer_name, "gdal")
-        self._apply_stretch(layer, std_clip)
+        layer.setCustomProperty("sgtool_preview_kind", kind)
+        if nbands >= 3:
+            self._apply_rgb_stretch(layer)
+        elif style:
+            getattr(self, style)(layer)
+        else:
+            self._apply_stretch(layer, std_clip)
         # bilinear when zoomed in (smooths a coarse preview) and zoomed out
-        # (setDataSource resets the pipe, so this is set on every update)
-        layer.resampleFilter().setZoomedInResampler(QgsBilinearRasterResampler())
-        layer.resampleFilter().setZoomedOutResampler(QgsBilinearRasterResampler())
+        # (setDataSource resets the pipe, so this is set on every update);
+        # nearest neighbour (no resampler) for the edge detectors
+        resample = layer.resampleFilter()
+        resample.setZoomedInResampler(QgsBilinearRasterResampler() if smooth else None)
+        resample.setZoomedOutResampler(QgsBilinearRasterResampler() if smooth else None)
         layer.triggerRepaint()
+
+    @staticmethod
+    def _apply_rgb_stretch(layer):
+        """Bands 1, 2, 3 as red, green, blue, each stretched to its own
+        mean +/- 2 std."""
+        from qgis.core import QgsContrastEnhancement, QgsMultiBandColorRenderer
+
+        provider = layer.dataProvider()
+        renderer = QgsMultiBandColorRenderer(provider, 1, 2, 3)
+        setters = (
+            renderer.setRedContrastEnhancement,
+            renderer.setGreenContrastEnhancement,
+            renderer.setBlueContrastEnhancement,
+        )
+        for b, set_ce in zip((1, 2, 3), setters):
+            stats = provider.bandStatistics(b)
+            ce = QgsContrastEnhancement(provider.dataType(b))
+            ce.setContrastEnhancementAlgorithm(
+                QgsContrastEnhancement.ContrastEnhancementAlgorithm.StretchToMinimumMaximum
+            )
+            ce.setMinimumValue(stats.mean - 2 * stats.stdDev)
+            ce.setMaximumValue(stats.mean + 2 * stats.stdDev)
+            set_ce(ce)
+        layer.setRenderer(renderer)
 
     @staticmethod
     def _apply_stretch(layer, std_clip=True):
@@ -3370,21 +3600,59 @@ class SGTool:
             )
             return False
 
-    def _prepare_component_analysis(self, suffix):
-        """Main thread, before the job starts: clear an earlier output of the
-        same name (layer and file) and check the input grid loads."""
-        self.delete_layer_and_file(self.localGridName + suffix)
-        raster_layer = QgsRasterLayer(self.diskGridPath, "Input Raster")
-        if not raster_layer.isValid():
-            raise ValueError(f"Failed to load raster layer: {self.diskGridPath}")
+    replace_existing = True  # Help tab "Replace existing layer" (read by parseParams)
+    _out_suffix = {}  # output suffix per multiband job, set by _prepare_jobs
+
+    def _prepare_output_suffix(self, suffix):
+        """Main thread: the suffix a multiband result is saved under. Replacing:
+        the plain suffix, with an earlier result of that name (layer and file)
+        removed now. Keeping: the next free numbered suffix (_1, _2 ...)."""
+        if self.replace_existing:
+            self.delete_layer_and_file(self.localGridName + suffix)
+            return suffix
+        return self._unique_suffix(suffix)
 
     def _load_component_layer(self, out_path, layer_name, operation, params):
         """Main thread, after the job: record provenance and add the layer."""
         self.write_metadata(out_path, operation, params)
         self._add_output_layer(QgsRasterLayer(out_path, layer_name))
 
+    def _preview_components(self, kind):
+        """Live preview of PCA / ICA of all the bands of the selected multiband
+        grid: the first three components as a temporary RGB image (PC1/IC1 as
+        grey if there are fewer than three). Calculated from the cells in view,
+        so it can differ from the whole-grid result."""
+        sources = self.conv_band_sources
+        if not sources:
+            self._notify(f"{kind} needs a multiband grid", Qgis.MessageLevel.Warning, 6)
+            return
+        try:
+            import sklearn  # noqa: F401
+        except ImportError:
+            self._notify(f"scikit-learn is needed for {kind}", Qgis.MessageLevel.Warning, 8)
+            return
+        from .calcs.PCAICA import pca_stack, ica_stack
+
+        gt, cols, rows, wkt = self._target_frame()
+        stack = np.stack([
+            Radiometrics.read_band_on_frame(path, band, gt, cols, rows, wkt)
+            for path, band in sources
+        ])
+        if self._task_ref is not None:
+            self._task_ref.check()
+        if kind == "PCA":
+            comps, _model = pca_stack(stack, self.pca_components)
+        else:
+            comps, _model = ica_stack(stack, self.ica_components)
+        self.new_grid = comps[:3] if comps.shape[0] >= 3 else comps[0]
+        self.suffix = "_" + kind
+
     def procPCA(self):
-        self.suffix = "_PCA"
+        if self._preview_frame is not None:
+            self._preview_components("PCA")
+            return
+        # "_PCA", or a numbered "_PCA_1" ... when earlier results are kept
+        self.suffix = self._out_suffix.get("PCA", "_PCA")
         self.diskNewGridPath = self.insert_text_before_extension(
             self.diskGridPath, self.suffix
         )
@@ -3466,7 +3734,11 @@ class SGTool:
         return layer_deleted, file_deleted
 
     def procICA(self):
-        self.suffix = "_ICA"
+        if self._preview_frame is not None:
+            self._preview_components("ICA")
+            return
+        # "_ICA", or a numbered "_ICA_1" ... when earlier results are kept
+        self.suffix = self._out_suffix.get("ICA", "_ICA")
         self.diskNewGridPath = self.insert_text_before_extension(
             self.diskGridPath, self.suffix
         )
@@ -3633,11 +3905,257 @@ class SGTool:
     def procSS_AnisotropyBoth(self):
         """Local anisotropy: the magnitude grid and the orientation grid."""
         self.procSS_Anisotropy()
-        self._emit(self.new_grid, "_SS_AnisoMag", std_clip=True)
+        # magnitude loaded but unticked, so the styled orientation shows first
+        self._emit(self.new_grid, "_SS_AnisoMag", std_clip=True,
+                   after=self._hide_new_layer)
         self._emit(
             self._aniso_orientation, "_SS_AnisoOrient", std_clip=False,
             after=self._applyAnisoOrientStyle,
         )
+
+    # -- edge detectors and edge-preserving smoothers --------------------
+    def procNSTD(self):
+        """Normalised standard deviation (Cooper & Cowan 2008) of the FFT x, y
+        and z derivatives."""
+        fx, fy, fz = self.processor.compute_derivatives(
+            self.raster_array, "xyz", buffer_size=self.buffer
+        )
+        self.new_grid = EdgeFilters.nstd(fx, fy, fz, self.NSTD_window)
+        self.suffix = "_NSTD"
+
+    def procKuwahara(self):
+        self.new_grid = EdgeFilters.kuwahara(
+            self.raster_array, self.Kuwahara_window, callback=self._progress()
+        )
+        self.suffix = "_Kuw"
+
+    def procNAVEdge(self):
+        self.new_grid = EdgeFilters.nav_edge(
+            self.raster_array, self.NAV_window, self.NAV_cof,
+            callback=self._progress(),
+        )
+        self.suffix = "_NAV"
+
+    def procSNN(self):
+        self.new_grid = EdgeFilters.snn(
+            self.raster_array, self.SNN_window, callback=self._progress()
+        )
+        self.suffix = "_SNN"
+
+    # -- radiometrics -------------------------------------------------------
+    _preview_frame = None  # (gt, cols, rows, wkt) of the preview being calculated
+
+    RAD_KEYS = (("K", "K"), ("U", "eU"), ("Th", "eTh"))
+
+    def _radiometric_sources(self):
+        """Main thread: [(path, band)] of the K, eU and eTh inputs (None for
+        an input with no grid selected)."""
+        out = []
+        for key, _label in self.RAD_KEYS:
+            layer = getattr(self.dlg, f"mMapLayerComboBox_Rad_{key}").currentLayer()
+            band = getattr(self.dlg, f"comboBox_Rad_{key}_band").currentIndex() + 1
+            if isinstance(layer, QgsRasterLayer) and layer.isValid() and band >= 1:
+                out.append((layer.dataProvider().dataSourceUri(), band))
+            else:
+                out.append(None)
+        return out
+
+    def _target_frame(self):
+        """The grid the radiometric outputs are calculated on: the preview's
+        window, or else the selected grid."""
+        if self._preview_frame is not None:
+            return self._preview_frame
+        return Radiometrics.north_up_frame(self.diskGridPath)
+
+    def _read_stack(self, sources, what):
+        """The given (path, band) sources on the target frame, as a
+        (bands, rows, cols) array; None (with a message) if one is missing."""
+        if not sources or any(s is None for s in sources):
+            self._notify(
+                f"{what}: choose the K, eU and eTh grids first",
+                Qgis.MessageLevel.Warning, 8,
+            )
+            return None
+        if len(set(sources)) < len(sources):
+            # e.g. a single-band grid picked for K, eU and eTh: every ratio is
+            # then constant (CLR is 0 everywhere) and the image just goes grey
+            self._notify(
+                f"{what}: K, eU and eTh point at the same band of the same grid. "
+                "Choose three different bands (or grids) in Radiometrics / Landform",
+                Qgis.MessageLevel.Warning, 10,
+            )
+            return None
+        gt, cols, rows, wkt = self._target_frame()
+        bands = []
+        for path, band in sources:
+            if self._task_ref is not None:
+                self._task_ref.check()
+            bands.append(Radiometrics.read_band_on_frame(path, band, gt, cols, rows, wkt))
+        return np.stack(bands)
+
+    def procEfimov(self):
+        st = self._read_stack(self.rad_sources, "Efimov F-parameter")
+        if st is not None:
+            self.new_grid = Radiometrics.efimov_f(st[0], st[1], st[2])
+            self.suffix = "_Efimov"
+
+    def procKd(self):
+        st = self._read_stack(self.rad_sources, "Kd")
+        if st is not None:
+            self.new_grid = Radiometrics.thorium_normalised(st[0], st[2], self.KdUd_method)
+            self.suffix = "_Kd"
+
+    def procUd(self):
+        st = self._read_stack(self.rad_sources, "Ud")
+        if st is not None:
+            self.new_grid = Radiometrics.thorium_normalised(st[1], st[2], self.KdUd_method)
+            self.suffix = "_Ud"
+
+    def procTernGrad(self):
+        st = self._read_stack(self.rad_sources, "Ternary gradient")
+        if st is not None:
+            gt = self._target_frame()[0]
+            self.new_grid = Radiometrics.ternary_gradient(
+                st, self.TernGrad_scaling, dx=abs(gt[1]), dy=abs(gt[5])
+            )
+            self.suffix = "_TernGrad"
+
+    def procLogRatio(self):
+        """CLR or ILR of the bands of the selected multiband grid (or of the
+        K / eU / eTh grids), written as a multiband grid ready for PCA/ICA.
+        The preview shows the first band of the transform."""
+        kind = self.LogRatio_type
+        st = self._read_stack(self.LogRatio_sources, "Log-ratio transform")
+        if st is None:
+            return
+        if st.shape[0] < 2:
+            self._notify("Log-ratio transform needs at least two bands",
+                         Qgis.MessageLevel.Warning, 8)
+            return
+        fn = Radiometrics.ilr if kind == "ILR" else Radiometrics.clr
+        out, replaced = fn(st)
+        if replaced:
+            self._notify(
+                f"{kind}: {replaced} values <= 0 replaced by half the smallest "
+                "positive value of their band", Qgis.MessageLevel.Info, 8,
+            )
+        self.suffix = "_" + kind
+        if self._preview_frame is not None:
+            self.new_grid = out[0]
+            return
+        names = self.LogRatio_names
+        if kind == "ILR":
+            descs = [f"ILR{i + 1} {names[i]} vs rest" for i in range(out.shape[0])]
+        else:
+            descs = [f"CLR {n}" for n in names]
+        gt, cols, rows, wkt = self._target_frame()
+        # "_CLR", or a numbered "_CLR_1" ... when earlier results are kept
+        self.suffix = self._out_suffix.get("LogRatio", self.suffix)
+        out_path = self._log_ratio_path(self.suffix)
+        drv = gdal.GetDriverByName("GTiff")
+        ds = drv.Create(out_path, cols, rows, out.shape[0], gdal.GDT_Float32,
+                        options=["COMPRESS=DEFLATE", "TILED=YES"])
+        ds.SetGeoTransform(gt)
+        ds.SetProjection(wkt)
+        for i in range(out.shape[0]):
+            band = ds.GetRasterBand(i + 1)
+            band.SetNoDataValue(np.nan)
+            band.SetDescription(descs[i])
+            band.WriteArray(out[i].astype(np.float32))
+        ds.FlushCache()
+        ds = None
+        params = {"type": kind, "bands": ", ".join(str(n) for n in names)}
+        self._call_later(
+            lambda p=out_path, name=self.localGridName + self.suffix: (
+                self._load_component_layer(
+                    p, name,
+                    "Centred log-ratio" if kind == "CLR" else "Isometric log-ratio",
+                    params,
+                )
+            )
+        )
+
+    def _log_ratio_path(self, suffix):
+        path = self.insert_text_before_extension(self.diskGridPath, suffix)
+        if not path.lower().endswith((".tif", ".tiff")):
+            path = os.path.splitext(path)[0] + ".tif"
+        return path
+
+    # -- radiometric input widgets (main thread) ------------------------------
+    _RAD_NAME_HINTS = {
+        "K": ("k", "pot", "potassium", "k_pct", "kpct"),
+        "U": ("u", "eu", "ura", "uranium", "u_ppm", "eu_ppm"),
+        "Th": ("th", "eth", "tho", "thorium", "th_ppm", "eth_ppm"),
+    }
+
+    def _init_radiometric_inputs(self):
+        d = self.dlg
+        for key, _label in self.RAD_KEYS:
+            combo = getattr(d, f"mMapLayerComboBox_Rad_{key}")
+            combo.setFilters(QgsMapLayerProxyModel.Filter.RasterLayer)
+            combo.layerChanged.connect(lambda _layer, k=key: self._fill_rad_bands(k))
+            getattr(d, f"comboBox_Rad_{key}_band").currentIndexChanged.connect(
+                self._rad_input_changed
+            )
+            self._fill_rad_bands(key)
+        d.mMapLayerComboBox_selectGrid_Multi.layerChanged.connect(
+            self._conv_grid_to_rad_inputs
+        )
+        self._conv_grid_to_rad_inputs(d.mMapLayerComboBox_selectGrid_Multi.currentLayer())
+
+    def _guess_rad_band(self, layer, key):
+        """0-based band index for K, eU or eTh: by band name if one matches,
+        else bands 1, 2, 3 of a 3+ band grid, else band 1."""
+        import re
+
+        n = layer.bandCount()
+        for b in range(1, n + 1):
+            name = layer.bandName(b)
+            name = name.split(":", 1)[1] if ":" in name else ""
+            tokens = set(re.split(r"[^a-z0-9_]+", name.lower())) | set(
+                re.split(r"[^a-z0-9]+", name.lower())
+            )
+            if tokens & set(self._RAD_NAME_HINTS[key]):
+                return b - 1
+        order = {"K": 0, "U": 1, "Th": 2}[key]
+        return order if n >= 3 else 0
+
+    def _fill_rad_bands(self, key):
+        d = self.dlg
+        layer = getattr(d, f"mMapLayerComboBox_Rad_{key}").currentLayer()
+        band_combo = getattr(d, f"comboBox_Rad_{key}_band")
+        band_combo.blockSignals(True)
+        try:
+            band_combo.clear()
+            if isinstance(layer, QgsRasterLayer) and layer.isValid():
+                band_combo.addItems([layer.bandName(b) for b in range(1, layer.bandCount() + 1)])
+                band_combo.setCurrentIndex(self._guess_rad_band(layer, key))
+        finally:
+            band_combo.blockSignals(False)
+        self._rad_input_changed()
+
+    def _conv_grid_to_rad_inputs(self, layer):
+        """A multiband grid (3+ bands) selected on the Multiband tab is
+        taken as the K / eU / eTh source, bands matched by name."""
+        if isinstance(layer, QgsRasterLayer) and layer.isValid() and layer.bandCount() >= 3:
+            for key, _label in self.RAD_KEYS:
+                combo = getattr(self.dlg, f"mMapLayerComboBox_Rad_{key}")
+                if combo.currentLayer() is layer:
+                    self._fill_rad_bands(key)
+                else:
+                    combo.setLayer(layer)  # fills its bands via layerChanged
+
+    RAD_CHECKBOXES = (
+        "checkBox_Efimov", "checkBox_Kd", "checkBox_Ud", "checkBox_TernGrad",
+        "checkBox_LogRatio",
+    )
+
+    def _rad_input_changed(self, *_args):
+        """K / eU / eTh choice changed: redraw a preview that uses them."""
+        if self.dlg is not None and any(
+            getattr(self.dlg, cb).isChecked() for cb in self.RAD_CHECKBOXES
+        ):
+            self.schedulePreview()
 
     def procMRVBF(self):
         """Multiresolution Valley Bottom Flatness / Ridge Top Flatness.
@@ -4248,9 +4766,20 @@ class SGTool:
             return True
 
     def _applyAnisoOrientStyle(self):
-        layers = QgsProject.instance().mapLayersByName(self.base_name + "_SS_AnisoOrient")
+        # runs straight after addNewGrid, whose self.suffix is the name actually
+        # used (it may have become e.g. _SS_AnisoOrient_1)
+        layers = QgsProject.instance().mapLayersByName(self.base_name + self.suffix)
         if layers:
             self._style_aniso_orient(layers[0])
+
+    def _hide_new_layer(self):
+        """Untick the layer addNewGrid just added (it stays in the project,
+        just not drawn), e.g. the anisotropy magnitude under the orientation."""
+        layers = QgsProject.instance().mapLayersByName(self.base_name + self.suffix)
+        if layers:
+            node = QgsProject.instance().layerTreeRoot().findLayer(layers[0].id())
+            if node is not None:
+                node.setItemVisibilityChecked(False)
 
     def _style_aniso_orient(self, layer):
         """The colour ramp and transparency the orientation grid is shown with."""
@@ -4328,7 +4857,11 @@ class SGTool:
         if self.suffix:
             if meta is None:
                 meta = self._filter_metadata(self.suffix)      # read before the name is made unique
-            self.suffix = self._unique_suffix(self.suffix)
+            if not getattr(self, "replace_existing", True):
+                # keep earlier results: a new, numbered name (_1, _2 ...)
+                self.suffix = self._unique_suffix(self.suffix)
+            # otherwise an earlier result of this name is replaced: its layer
+            # is removed here and its file overwritten below
             if self.is_layer_loaded(self.base_name + self.suffix):
                 project = QgsProject.instance()
                 layer = project.mapLayersByName(self.base_name + self.suffix)[0]
@@ -4419,6 +4952,13 @@ class SGTool:
             self.keepClicked(self._preview_tab)
             return
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid_Conv.currentText()
+        self.processGeophysics()
+
+    def processGeophysics_multi(self):
+        if self._previewing_here():
+            self.keepClicked(self._preview_tab)
+            return
+        self.localGridName = self.dlg.mMapLayerComboBox_selectGrid_Multi.currentText()
         self.processGeophysics()
 
     # ------------------------------------------------------------------
@@ -4896,7 +5436,12 @@ class SGTool:
             if keep_entry is not None:
                 # "keep" from the live preview: full-resolution run of the
                 # previewed filter only, regardless of any other ticked filters
-                jobs = [(keep_entry[0], keep_entry[1], keep_entry[2], True)]
+                # as a normal Apply runs it: a method that saves its own outputs
+                # (auto=False, e.g. both anisotropy grids) must not be emitted again
+                auto = next(
+                    (j[3] for j in self.PIPELINE_JOBS if j[0] == keep_entry[0]), True
+                )
+                jobs = [(keep_entry[0], keep_entry[1], keep_entry[2], auto)]
             else:
                 jobs = self._pipeline_jobs()
             jobs = self._prepare_jobs(jobs)
@@ -4937,7 +5482,16 @@ class SGTool:
         ("SS_Anisotropy", "procSS_AnisotropyBoth", True, False),
         ("SS_ChainLength", "procSS_ChainLength", True, False),
         ("SS_Streamline", "procSS_Streamline", True, False),
+        ("SNN", "procSNN", True, True),
+        ("Efimov", "procEfimov", True, True),
+        ("Kd", "procKd", True, True),
+        ("Ud", "procUd", True, True),
+        ("TernGrad", "procTernGrad", True, True),
         ("MRVBF", "procMRVBF", True, False),
+        ("NSTD", "procNSTD", True, True),
+        ("Kuwahara", "procKuwahara", True, True),
+        ("NAVEdge", "procNAVEdge", True, True),
+        ("LogRatio", "procLogRatio", True, False),
         ("PCA", "procPCA", True, False),
         ("ICA", "procICA", True, False),
         ("Polygons", "procPolygons", True, False),
@@ -4966,13 +5520,21 @@ class SGTool:
         """Main thread, before the background job starts: everything that needs
         QGIS layers or dialogs. Returns the jobs that can go ahead."""
         ready = []
+        # names of the multiband outputs, which their own code writes: chosen
+        # here, where the project can be checked
+        self._out_suffix = {}
         for job in jobs:
             flag = job[0]
             if flag in ("PCA", "ICA"):
                 what = "PCAs" if flag == "PCA" else "ICAs"
                 if not self._check_sklearn(what):
                     continue
-                self._prepare_component_analysis("_" + flag)
+                self._out_suffix[flag] = self._prepare_output_suffix("_" + flag)
+                raster_layer = QgsRasterLayer(self.diskGridPath, "Input Raster")
+                if not raster_layer.isValid():
+                    raise ValueError(f"Failed to load raster layer: {self.diskGridPath}")
+            elif flag == "LogRatio":
+                self._out_suffix[flag] = self._prepare_output_suffix("_" + self.LogRatio_type)
             elif flag == "RTE_P" and job[1] == "procVRTP":
                 # IGRF values come from the date widget and the layer
                 self._igrf = self.get_igrf_corners()
@@ -4992,6 +5554,9 @@ class SGTool:
         "SS_Skewness": "Skewness", "SS_Anisotropy": "Anisotropy", "SS_ChainLength": "Chain length",
         "SS_Streamline": "Streamline length", "MRVBF": "MRVBF", "PCA": "PCA", "ICA": "ICA",
         "Polygons": "Boundary outline", "ED": "Euler deconvolution",
+        "SNN": "SNN", "Efimov": "Efimov F", "Kd": "Kd", "Ud": "Ud",
+        "TernGrad": "Ternary gradient", "LogRatio": "Log-ratio", "NSTD": "NSTD",
+        "Kuwahara": "Kuwahara", "NAVEdge": "NAV-Edge",
     }
 
     def _start_pipeline(self, jobs, keep_entry=None):
@@ -5139,6 +5704,12 @@ class SGTool:
         self.dlg.checkBox_ICA.setChecked(False)
         self.dlg.checkBox_ED_Stats.setChecked(False)
         self.dlg.checkBox_ED.setChecked(False)
+        for name in (
+            "checkBox_SNN", "checkBox_Efimov", "checkBox_Kd", "checkBox_Ud",
+            "checkBox_TernGrad", "checkBox_LogRatio", "checkBox_NSTD",
+            "checkBox_Kuwahara", "checkBox_NAVEdge",
+        ):
+            getattr(self.dlg, name).setChecked(False)
 
         self.RTE_P = False
         self.TA = False
@@ -6421,6 +6992,7 @@ class SGTool:
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_Multi.setCurrentText(self.localGridName)
         self.dlg.lineEdit_2_loadGridPath.setText("")
         self.diskGridPath = ""
         self.base_name = self.localGridName
@@ -6521,6 +7093,7 @@ class SGTool:
         self.dlg.mMapLayerComboBox_selectGrid.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_Multi.setCurrentText(self.localGridName)
 
         self.dlg.lineEdit_2_loadGridPath.setText("")
         self.diskGridPath = ""
@@ -6532,6 +7105,25 @@ class SGTool:
             ]
             if selected_layer.isValid():
                 self._show_grid_info(selected_layer)
+
+    def update_paths_multi(self):
+        """The grid chosen on the Multiband tab becomes the choice of the other
+        tabs' grid selectors too (as update_paths_conv)."""
+        self.localGridName = self.dlg.mMapLayerComboBox_selectGrid_Multi.currentText()
+        self.dlg.mMapLayerComboBox_selectGrid.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_Multi.setCurrentText(self.localGridName)
+
+        self.dlg.lineEdit_2_loadGridPath.setText("")
+        self.diskGridPath = ""
+        self.base_name = self.localGridName
+
+        if len(self.base_name) > 0:
+            layers = QgsProject.instance().mapLayersByName(self.localGridName)
+            if layers and layers[0].isValid():
+                self._show_grid_info(layers[0])
 
     def update_paths_worms(self):
         """
@@ -6557,6 +7149,7 @@ class SGTool:
         self.dlg.mMapLayerComboBox_selectGrid.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_Conv.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_Conv_2.setCurrentText(self.localGridName)
+        self.dlg.mMapLayerComboBox_selectGrid_Multi.setCurrentText(self.localGridName)
         self.dlg.mMapLayerComboBox_selectGrid_worms.setCurrentText(self.localGridName)
 
         self.dlg.lineEdit_2_loadGridPath.setText("")
@@ -6642,6 +7235,9 @@ class SGTool:
             self.dlg.mMapLayerComboBox_selectGrid_Conv.setFilters(
                 QgsMapLayerProxyModel.Filter.RasterLayer
             )
+            self.dlg.mMapLayerComboBox_selectGrid_Multi.setFilters(
+                QgsMapLayerProxyModel.Filter.RasterLayer
+            )
             self.dlg.mMapLayerComboBox_selectGrid_worms.setFilters(
                 QgsMapLayerProxyModel.Filter.RasterLayer
             )
@@ -6718,6 +7314,9 @@ class SGTool:
             self.dlg.pushButton_3_applyProcessing_Conv.clicked.connect(
                 self.processGeophysics_conv
             )
+            self.dlg.pushButton_3_applyProcessing_Multi.clicked.connect(
+                self.processGeophysics_multi
+            )
             self.dlg.pushButton_3_applyProcessing_Conv_2.clicked.connect(
                 self.processRGB
             )
@@ -6730,6 +7329,9 @@ class SGTool:
             )
             self.dlg.mMapLayerComboBox_selectGrid_Conv.layerChanged.connect(
                 self.update_paths_conv
+            )
+            self.dlg.mMapLayerComboBox_selectGrid_Multi.layerChanged.connect(
+                self.update_paths_multi
             )
             self.dlg.mMapLayerComboBox_selectGrid_Conv_2.layerChanged.connect(
                 self.update_paths_utils
@@ -6764,6 +7366,11 @@ class SGTool:
             self.dlg.lineEdit_Median_size.setValidator(OddPositiveIntegerValidator())
             self.dlg.lineEdit_SS_Window.setValidator(OddPositiveIntegerValidator())
             self.dlg.lineEdit_ED_Window.setValidator(OddPositiveIntegerValidator())
+            for _edit in (
+                self.dlg.lineEdit_NSTD_window, self.dlg.lineEdit_Kuwahara_window,
+                self.dlg.lineEdit_SNN_window, self.dlg.lineEdit_NAV_window,
+            ):
+                _edit.setValidator(OddPositiveIntegerValidator())
 
             self.directional_list = []
             self.directional_list.append("N")
@@ -6968,10 +7575,42 @@ class SGTool:
             self.dlg.lineEdit_ED_Window.textChanged.connect(
                 lambda: self.update_checkbox(self.dlg.checkBox_ED)
             )
+            # new filters: editing a parameter ticks its filter (and previews it)
+            for _edit, _box in (
+                (self.dlg.lineEdit_NSTD_window, self.dlg.checkBox_NSTD),
+                (self.dlg.lineEdit_Kuwahara_window, self.dlg.checkBox_Kuwahara),
+                (self.dlg.lineEdit_SNN_window, self.dlg.checkBox_SNN),
+                (self.dlg.lineEdit_NAV_window, self.dlg.checkBox_NAVEdge),
+                (self.dlg.lineEdit_NAV_cof, self.dlg.checkBox_NAVEdge),
+            ):
+                _edit.textChanged.connect(lambda _t, b=_box: self.update_checkbox(b))
+            self.dlg.comboBox_TernGrad_scaling.currentIndexChanged.connect(
+                lambda _i: self.update_checkbox(self.dlg.checkBox_TernGrad)
+            )
+            self.dlg.comboBox_LogRatio_type.currentIndexChanged.connect(
+                lambda _i: self.update_checkbox(self.dlg.checkBox_LogRatio)
+            )
+            self.dlg.comboBox_SS_Anisotropy_WinType.currentIndexChanged.connect(
+                lambda _i: self.update_checkbox(self.dlg.checkBox_SS_Anisotropy)
+            )
+            # shared by Kd and Ud: redraw whichever is ticked
+            self.dlg.comboBox_KdUd_method.currentIndexChanged.connect(
+                self._rad_input_changed
+            )
+            self._init_radiometric_inputs()
+            # Help tab "Replace existing layer": remembered between sessions
+            replace = str(
+                QSettings().value("SGTool/replaceExistingLayers", True)
+            ).lower() not in ("false", "0")
+            self.dlg.checkBox_replace_layers.setChecked(replace)
+            self.dlg.checkBox_replace_layers.toggled.connect(
+                lambda on: QSettings().setValue("SGTool/replaceExistingLayers", on)
+            )
 
     SS_PREVIEW_BOXES = (
         "checkBox_SS_Min", "checkBox_SS_Max", "checkBox_SS_StdDev",
         "checkBox_SS_Variance", "checkBox_SS_Skewness", "checkBox_SS_Kurtosis",
+        "checkBox_SS_Anisotropy",
     )
 
     def _ss_window_changed(self, *_args):

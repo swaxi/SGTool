@@ -5,8 +5,9 @@
 - [User guide](user-guide.md): step-by-step guides to each kind of processing, worked on an example magnetic grid
 - [Reference](reference.md): every tab, control and filter, with screenshots, defaults, output names, equations, published references and before/after examples
   - [Live preview](reference.md#live-preview) and [background calculations](reference.md#background-calculations)
-  - [FFT filters](reference.md#fft-filters-tab): Grav/Mag, frequency and gradient filters
-  - [Convolution filters, spatial statistics, PCA/ICA and Euler deconvolution](reference.md#conv--stats-tab)
+  - [FFT filters](reference.md#fft-filters-tab): Grav/Mag, frequency and gradient filters, [edge detectors](reference.md#edge-detectors) and [Euler deconvolution](reference.md#euler-deconvolution)
+  - [Convolution filters, domain detection, spatial statistics and landform](reference.md#conv--stats-tab)
+  - [Multiband](reference.md#multiband-tab): radiometric ratios (Efimov, Kd/Ud, ternary gradient), log-ratio transforms, PCA and ICA
   - [Gridding and worms](reference.md#grid--wavelets-tab)
   - [Petrophysics](reference.md#petrophys-tab): apparent susceptibility and density grids, Henkel plots, measured sample plots and histograms
   - [Utilities](reference.md#utils-tab), including [provenance metadata](reference.md#sgtool-metadata-provenance) and [replaying a processing history](reference.md#apply-the-same-steps-to-another-grid)

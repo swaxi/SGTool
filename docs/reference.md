@@ -14,8 +14,9 @@ For each method, *Reference* gives the primary published source (listed in full 
 - [Controls common to all tabs](#controls-common-to-all-tabs)
 - [Running calculations](#running-calculations): [Live preview](#live-preview), [Background calculations](#background-calculations)
 - [Output names](#output-names)
-- [FFT Filters tab](#fft-filters-tab): [How the FFT filters are applied](#how-the-fft-filters-are-applied), [Grav/Mag](#gravmag-filters), [Frequency](#frequency-filters), [Gradient](#gradient-filters)
-- [Conv + Stats tab](#conv--stats-tab): [Convolution](#convolution-filters), [Spatial statistics](#spatial-statistics), [Multivariate](#multivariate-statistical-analysis), [Euler](#euler-deconvolution)
+- [FFT Filters+ tab](#fft-filters-tab): [How the FFT filters are applied](#how-the-fft-filters-are-applied), [Grav/Mag](#gravmag-filters), [Frequency](#frequency-filters), [Gradient](#gradient-filters), [Edge detectors](#edge-detectors), [Euler](#euler-deconvolution)
+- [Conv + Stats tab](#conv--stats-tab): [Convolution](#convolution-filters), [Domain detection](#domain-detection), [Spatial statistics](#spatial-statistics), [Landform](#landform)
+- [Multiband tab](#multiband-tab): [Radiometrics](#radiometrics) (Efimov, Kd/Ud, ternary gradient), [Multivariate](#multivariate-statistical-analysis) (log-ratios, PCA, ICA)
 - [Grid + Wavelets tab](#grid--wavelets-tab): [Import](#import-point-or-line-data), [Gridding](#gridding), [Worms](#bsdworms)
 - [Petrophys tab](#petrophys-tab)
 - [Utils tab](#utils-tab): [Provenance metadata](#sgtool-metadata-provenance), [Replaying a history](#apply-the-same-steps-to-another-grid), [Threshold to NaN](#threshold-to-nan), [Clipping](#clip-to-window), [Normalise](#normalise-grids), [LUT to grey scale](#convert-lut-to-grayscale)
@@ -35,6 +36,7 @@ The examples use `ogrm_usgs_mag_tmi.tif`, an aeromagnetic total magnetic intensi
 - Unless stated otherwise, filters are applied to the RTP grid, `ogrm_usgs_mag_tmi_RTP`, and window statistics to its first vertical derivative.
 - Figures marked *zoomed* show the 38 x 56 km area outlined below, where the effect of filters that act over a few cells can be seen.
 - Grids such as TMI and RTP are drawn with a histogram-equalised colour scale. Derivatives and other zero-centred results use a blue-white-red scale centred on zero.
+- The radiometric examples ([Multiband tab](#multiband-tab)) use `bf_rgb_kthu_clip.tif`, a three-band K (%), eTh (ppm), eU (ppm) airborne gamma-ray spectrometry grid of part of Burkina Faso, courtesy of BUMIGEB (Bureau des Mines et de la Géologie du Burkina): 823 x 1383 cells of 125 m, WGS 84 / UTM zone 30N, with a no-data background. Its input is shown as a ternary image (K red, eTh green, eU blue).
 
 ![The example grid](images/examples/example_grid.png)
 
@@ -50,19 +52,21 @@ The examples use `ogrm_usgs_mag_tmi.tif`, an aeromagnetic total magnetic intensi
 
 | Control | Where | What it does |
 |---|---|---|
-| **Select Grid** | Top of FFT Filters, Conv + Stats, Petrophys and Utils | The grid the tab's filters are applied to. Each tab has its own. Lists the raster layers in the project. |
-| **Load Grid** and **...** | FFT Filters | Loads a grid from a file: GeoTIFF, Geosoft `.grd`, ER Mapper `.ers`, Noddy `.grv` and `.mag`. A `.grd` takes its CRS from its `.xml` file, or EPSG:4326 if there is none, and is saved as a GeoTIFF. Other formats can be loaded with QGIS's own raster loader. |
+| **Select Grid** | Top of FFT Filters+, Conv + Stats, Multiband, Petrophys and Utils | The grid the tab's filters are applied to. Each tab has its own. Lists the raster layers in the project. |
+| **Load Grid** and **...** | FFT Filters+ | Loads a grid from a file: GeoTIFF, Geosoft `.grd`, ER Mapper `.ers`, Noddy `.grv` and `.mag`. A `.grd` takes its CRS from its `.xml` file, or EPSG:4326 if there is none, and is saved as a GeoTIFF. Other formats can be loaded with QGIS's own raster loader. |
 | **Apply Processing** | Top of each tab | Applies each ticked filter to the selected grid, as a [background calculation](#background-calculations). Each filter gives its own output; the filters are unticked afterwards. While **Preview** is ticked the button reads **Apply Preview** and saves the previewed filter at full resolution. |
 | **Apply to Window** | Beside Apply | While previewing: clips the grid to the map window (as [Clip to Window](#clip-to-window)), selects the clip and applies the previewed filter to it. |
 | **Cancel** | Beside Apply | Stops a running calculation. Nothing is saved. |
 | **Preview** | Beside Cancel | Shows one filter on the area in the map window in a temporary layer, updated as settings change. See [Live preview](#live-preview). |
-| **Max FFT Buffer (pixels)** | Bottom of FFT Filters | Upper limit of the padding added on each side of the grid before an FFT filter. Default 5000. The padding is the grid's smaller dimension, up to this value. |
+| **Max FFT Buffer (pixels)** | Bottom of FFT Filters+ | Upper limit of the padding added on each side of the grid before an FFT filter. Default 5000. The padding is the grid's smaller dimension, up to this value. |
 | **Version / Units / CRS / Pixels / Pixel size** | Bottom of each tab | The plugin version and, for the selected grid, its length units (m or deg), CRS, size in cells and cell size. |
 | **●** | Before some filters | Filters marked with a dot should be applied to magnetic data reduced to the pole or equator (or to gravity data). |
+| **▾ / ▸** | Before each group's title | Click a group's title to fold it away (▸) or open it again (▾), so the groups you do not use take no room. All groups start open; QGIS remembers which ones you folded. |
+| **Replace existing layer** | Top of the Help tab | Ticked (the default): running a filter again on the same grid replaces the earlier result. Unticked: each run is kept, numbered `_1`, `_2` ... See [Output names](#output-names). |
 
 **Lengths** are in the grid's units (metres for a projected grid, degrees for a latitude/longitude grid), except for continuation heights, which are always in metres. Lat/long grids whose CRS QGIS does not flag as geographic (for example ER Mapper `.ers`) are treated as geographic.
 
-**Files on disk.** An existing file with the output's name is overwritten, unless the name is taken by a layer in the project, in which case the new output gets `_1`, `_2` and so on. On Windows, QGIS plugins sometimes fail to save to drives other than C:, and no program can overwrite a grid that is open in another program.
+**Files on disk.** With **Replace existing layer** ticked (the default, on the Help tab), an earlier result with the output's name is replaced: its layer is removed from the project and its file overwritten. Untick it to keep every run: a name already taken by a file or a layer then gets `_1`, `_2` and so on. On Windows, QGIS plugins sometimes fail to save to drives other than C:, and no program can overwrite a grid that is open in another program.
 
 ---
 
@@ -72,17 +76,18 @@ The examples use `ogrm_usgs_mag_tmi.tif`, an aeromagnetic total magnetic intensi
 
 (In ArcGIS Pro the preview is in its own window: see [ArcGIS Pro](#arcgis-pro).)
 
-The **FFT Filters**, **Conv + Stats**, **Petrophys** and **Utils** (Threshold to NaN) tabs have a fixed bar at the top with **Apply Processing** (which reads **Apply Preview** while previewing) on the left and the preview controls to its right, so they stay visible while you scroll the filter list.
+The **FFT Filters+**, **Conv + Stats**, **Multiband**, **Petrophys** and **Utils** (Threshold to NaN) tabs have a fixed bar at the top with **Apply Processing** (which reads **Apply Preview** while previewing) on the left and the preview controls to its right, so they stay visible while you scroll the filter list.
 
 - **Preview**: tick it to see the selected filter without writing any files. A single temporary layer called `<grid><suffix>_preview` is added to the project and is replaced in place each time a parameter changes, so layers do not accumulate. Updates wait a fraction of a second after the last edit, so typing a value does not trigger a calculation for every digit.
-- **One filter at a time**: while previewing, ticking a second filter unticks the first, and editing a filter's parameters selects that filter. Filters that cannot be previewed (Differential RTP, local anisotropy, MRVBF, PCA, ICA, Euler deconvolution, and the clipping polygon) are disabled until Preview is switched off.
+- **One filter at a time**: while previewing, ticking a second filter unticks the first, and editing a filter's parameters selects that filter. Filters that cannot be previewed (Differential RTP, MRVBF, Euler deconvolution, and the clipping polygon) are disabled until Preview is switched off.
 - **What is calculated**: the area currently shown in the map canvas, so panning or zooming updates the preview. It is at full resolution once at most 1000 cells (on the longest side) are in view; a larger view, such as a big grid zoomed out, is block-averaged to 1000 cells. In a block-averaged preview, filters set in pixels (convolutions, window statistics, AGC) act on the coarser cells, and line noise cannot be seen if the preview cell size exceeds the line spacing: zoom in for those.
 - **Edge effects**: filters show edge effects along the edges of the view, and a zoomed-in view only contains wavelengths that fit in it. Zoom out to preview long-wavelength filters (upward continuation, regional removal, low pass, reduction to the pole on broad anomalies).
 - **Apply Preview**: while Preview is ticked the **Apply Processing** button is renamed **Apply Preview** and stays available. Pressing it calculates the previewed filter at full resolution, adds it as a normal permanent layer (with the usual name and suffix), switches preview off and unticks the filters.
 - **Apply to Window**: the button beside **Apply Preview**, available while Preview is ticked with a filter that can be previewed. It first clips the grid being previewed to the area shown in the map window, exactly as **Utils > Clip to Window** does (saved beside it as `<name>_clip.tif` and loaded), selects the clip as the tab's grid, and then applies the previewed filter to the clip at full resolution, as **Apply Preview** does.
 - **Unticking Preview** (or closing the plugin) discards the temporary layer. Unticking the last ticked filter clears the image but keeps preview mode on, so ticking a filter brings it straight back. **Changing tab** unticks the filters of the tab you leave and removes the image, and Preview is ticked on the next tab that has one (Grid + Wavelets has none, so Preview waits and returns afterwards); turning Preview off yourself ends it for good.
 - **Calculated in the background**: QGIS stays usable while a preview is calculated, and the image appears when it is ready. **Cancel** stops it (useful after zooming out over a big grid), panning, zooming or editing a setting replaces a preview still being calculated, and starting another job replaces it and redraws it afterwards.
-- The preview layer is shown with bilinear resampling, both zoomed in (to reduce the blocky look of a coarse preview) and zoomed out.
+- **What is shown**: one grey grid for most filters. **PCA** and **ICA** show their first three components as a temporary red / green / blue image (each band stretched to its mean ± 2 standard deviations; the first component alone, in grey, if there are fewer than three), calculated from the cells in view, so they can differ from the whole-grid result. **Local anisotropy** shows its orientation, in the cyclic colours and 50% transparency of the saved `_SS_AnisoOrient` layer. **Log-ratio** shows the first band of the transform.
+- The preview layer is shown with bilinear resampling, both zoomed in (to reduce the blocky look of a coarse preview) and zoomed out, except for NSTD, NAV-Edge and the anisotropy orientation, which are drawn cell by cell: their thin edge lines would otherwise blur into an even grey when zoomed out, and the orientation wraps from 180° back to 0°.
 
 ### Background calculations
 
@@ -100,7 +105,7 @@ Calculations run as QGIS background tasks, so QGIS stays usable while they work,
 
 ## Output names
 
-Each result is saved as a GeoTIFF beside the input grid, named after it with a suffix, and added to the project. Apart from the derivative's power and direction, the settings are not in the name; they are recorded in the file's [provenance metadata](#sgtool-metadata-provenance). A name already in use gets `_1`, `_2` and so on.
+Each result is saved as a GeoTIFF beside the input grid, named after it with a suffix, and added to the project. Apart from the derivative's power and direction, the settings are not in the name; they are recorded in the file's [provenance metadata](#sgtool-metadata-provenance). Running the same filter again on the same grid replaces the earlier result, or, with **Replace existing layer** unticked on the Help tab, saves it as `_1`, `_2` and so on.
 
 | Filter | Suffix | Filter | Suffix |
 |---|---|---|---|
@@ -121,16 +126,22 @@ Each result is saved as a GeoTIFF beside the input grid, named after it with a s
 | Total horizontal gradient | `_THG` | Clip to window | `_clip` |
 | Apparent susceptibility | `_AppSus` | Worms | `_worms.csv` (+ `_worms.shp`) |
 | Apparent density | `_AppDens` | LUT to grey scale | `_gray` |
+| NSTD | `_NSTD` | Symmetric nearest neighbour | `_SNN` |
+| NAV-Edge | `_NAV` | Kuwahara | `_Kuw` |
+| Efimov F-parameter | `_Efimov` | Kd / Ud | `_Kd` / `_Ud` |
+| Ternary gradient | `_TernGrad` | Log-ratio transform | `_CLR` / `_ILR` (multiband) |
 
 ---
 
-## FFT Filters tab
+## FFT Filters+ tab
 
-![The FFT Filters tab](images/ui/tab_fft_filters.png)
+![The FFT Filters+ tab](images/ui/tab_fft_filters.png)
+
+The tab is named FFT Filters**+** because, besides the Fourier-domain filters, it has the edge detectors (NSTD and NAV-Edge) and Euler deconvolution, which are used on the same reduced-to-pole or gravity grids.
 
 ### How the FFT filters are applied
 
-All the filters on this tab work in the Fourier domain, except Remove Regional and AGC.
+All the Grav/Mag, Frequency and Gradient filters on this tab work in the Fourier domain, except Remove Regional and AGC. NSTD uses Fourier-domain derivatives; NAV-Edge and Euler deconvolution work in moving windows.
 
 *In SGTool* (original code): every FFT filter subtracts the grid's median, fills no-data cells with the value of the nearest valid cell, pads the grid to a size whose only factors are 2, 3 and 5 with a linear ramp to zero, tapers the padded grid towards its edges with a Tukey (cosine) window, multiplies the spectrum by the filter, transforms back, removes the padding, restores the no-data cells and adds the median back (except for derivatives, the line-noise estimate and apparent petrophysics, which are zero-mean). The padding on each side is the grid's smaller dimension, up to the **Max FFT Buffer** setting. RTE and the low-latitude RTP pad by mirroring the edges instead (see below).
 
@@ -517,6 +528,67 @@ The total amplitude of the gradients, independent of field inclination and decli
 
 ![Analytic signal](images/examples/analytic_signal.png)
 
+### Edge Detectors
+
+| Filter | Setting | Default | Output |
+|---|---|---|---|
+| **Normalised Standard Deviation (NSTD)** ● | Window (odd number of cells) | 5 | `_NSTD` |
+| **NAV-Edge** ● | Window (odd number of cells), Aniso scale | 7, 2 | `_NAV` |
+
+Both are *balanced* edge detectors: dimensionless ratios that respond to the edges of weak and strong anomalies alike. Apply them to gravity grids or to magnetic grids reduced to the pole or equator.
+
+#### Normalised Standard Deviation (NSTD) ●
+
+$`\text{NSTD} = \dfrac{\sigma\!\left(\frac{\partial f}{\partial z}\right)}{\sigma\!\left(\frac{\partial f}{\partial x}\right) + \sigma\!\left(\frac{\partial f}{\partial y}\right) + \sigma\!\left(\frac{\partial f}{\partial z}\right)}`$
+
+where $`\sigma`$ is the standard deviation of a derivative in a moving square window. The edges are the maxima; values lie between 0 and 1. A larger window gives smoother, broader edges.
+
+*Reference*: Cooper & Cowan (2008).
+*In SGTool*: original code. The derivatives are calculated in the Fourier domain (as for the other gradient filters), and the windowed standard deviations from summed-area tables, leaving no-data cells out.
+
+**Example: NSTD, window 9, of the RTP** (zoomed).
+
+![NSTD](images/examples/nstd.png)
+
+#### NAV-Edge ●
+
+In an M x M window (M = **Window**) with Gaussian standard deviation $`\sigma = (M-1)/6`$:
+
+$`\text{NAV}(x, y) = \dfrac{\sum_{i,j}\left[f(x_i, y_j) - \bar{f}\right] Q(i, j)}{\sqrt{\sum_{i,j}\left[f(x_i, y_j) - \bar{f}\right]^2}\;\sqrt{\sum_{i,j} Q(i, j)^2}}`$
+
+where $`\bar{f}`$ is the mean of the window and $`Q`$ an anisotropic Gaussian, $`Q \propto \exp\!\left[-\left(w_1 + \text{cof}^2\, w_2\right)/2\sigma^2\right]`$, with $`w_1`$ and $`w_2`$ the squared distances along and across the local strike. The anisotropy scale **cof** narrows the Gaussian across the strike and so stretches it along it: 1 is isotropic, and larger values separate close parallel sources better (the paper uses 1, 2 and 5). NAV is dimensionless: positive over a source and negative outside it, so **the edges are the zero crossings**. Because it uses no higher derivatives it is less sensitive to noise than derivative-based detectors: use a window of 3 for clean data and larger windows for noisy data.
+
+*Reference*: Zhang, Ravat, Marangoni & Hu (2014), equations 10, 11, 14 and 15.
+*In SGTool*: original code. The local direction is found from Gaussian-derivative filters of the window (their equation 15) and rounded to 10° steps, with one kernel per step; cells beyond 3σ of the centre are left out, as in the paper. No-data cells are filled with the nearest value for the calculation and restored afterwards.
+
+**Example: NAV-Edge, window 9, anisotropy scale 2, of the RTP.** On the blue-white-red scale the edges are the white lines between red (over sources) and blue.
+
+![NAV-Edge](images/examples/nav_edge.png)
+
+The same, zoomed.
+
+![NAV-Edge, zoomed](images/examples/nav_edge_zoom.png)
+
+### Euler Deconvolution
+
+| Setting | Default | Meaning |
+|---|---|---|
+| **Euler Deconvolution** | | Tick to run |
+| **Stats** | unticked | Also save statistics of the solutions in grid windows (`_window_stats_SI_<n>.txt`, `_window_summary.txt`) |
+| **Threshold** | 0.1 | Fraction of the solutions kept (0.1 = the best 10%) |
+| **Window (odd)** | 5 | Window size, in cells |
+
+Reliable Euler deconvolution estimates the positions and depths of gravity or magnetic sources from the gradients of the field. The dialog solves for structural indices 0 (contact), 1 (dyke or sill), 2 (pipe) and 3 (sphere), and saves the solutions for each beside the grid as `<grid>_estimates_SI_0.txt` to `_SI_3.txt`, with the columns `y_source` (northing), `x_source` (easting), `z_source` (elevation of the source: negative below the surface, so the points sit underground in 3D views), `base_level` and `std_dfdz` (the standard deviation of the vertical derivative in the window). Needs a metre-based projection. Cannot be previewed.
+
+*Reference*: Euler deconvolution, Thompson (1982) and Reid et al. (1990); the selection of reliable solutions, Melo & Barbosa (2020).
+*In SGTool*: the authors' `euler_python.py` ([Euler-deconvolution-python](https://github.com/ffigura/Euler-deconvolution-python), by Felipe F. Melo and Valéria C.F. Barbosa), with the x and y axes swapped to match SGTool's grids (tested against the original code), and the standard deviation of the vertical derivative saved with each solution. The windows are solved together from moving-window sums rather than one at a time (the same solutions, much faster). The statistics of the solutions in grid windows (`window_stats`) are SGTool's addition to the authors' `estimates_statistics.py`.
+
+![Euler settings](images/ui/step_euler.png)
+
+**Example: SI 1, window 5, threshold 0.1, of the RTP.** The solutions are drawn over the RTP 1VD, coloured by depth (depths between 0 and 5000 m shown).
+
+![Euler solutions](images/examples/euler.png)
+
 ---
 
 ## Conv + Stats tab
@@ -590,6 +662,37 @@ Relief shading of a digital elevation model or any other grid, lit from the sun'
 
 ![Sun shading](images/examples/sun_shading.png)
 
+### Domain Detection
+
+| Filter | Setting | Default | Output |
+|---|---|---|---|
+| **Symmetric Nearest Neighbour (SNN)** | Window (odd number of cells) | 3 | `_SNN` |
+| **Kuwahara** | Window (odd number of cells) | 5 | `_Kuw` |
+
+Edge-preserving smoothers: they remove noise inside uniform domains without smearing the steps between them, so the result looks more like a map of domains. Use them before an edge detector, or to simplify a grid for interpretation.
+
+#### Symmetric Nearest Neighbour (SNN)
+
+For each pair of cells placed symmetrically about the centre of the window, the one closer in value to the centre cell is kept; the kept values are averaged. Removes spikes and flight-line striping without widening narrow features such as dykes or veins.
+
+*Reference*: Harwood, Subbarao, Hakalahti & Davis (1987).
+*In SGTool*: original code. The centre cell itself is not in the average; where one cell of a pair is no-data the other is kept.
+
+**Example: symmetric nearest neighbour, 5 x 5, of the RTP** (zoomed).
+
+![Symmetric nearest neighbour](images/examples/snn.png)
+
+#### Kuwahara
+
+The window (2a+1 cells across) is split into four overlapping (a+1) x (a+1) quadrants that share the centre cell, and the cell takes the mean of the quadrant with the lowest variance. Flattens the inside of domains while keeping the steps between them sharp, giving a terraced, map-like look.
+
+*Reference*: Kuwahara, Hachimura, Eiho & Kinoshita (1976).
+*In SGTool*: original code, with the quadrant means and variances from summed-area tables; no-data cells are left out of each quadrant.
+
+**Example: Kuwahara, 9 x 9, of the RTP** (zoomed).
+
+![Kuwahara](images/examples/kuwahara.png)
+
 ### Spatial Statistics
 
 | Setting | Default | Meaning |
@@ -652,7 +755,7 @@ $`\text{AnisoMag} = \text{clip}\!\left(\tfrac{\lambda_1 - \lambda_2}{p_{99}},\; 
 Dominant orientation:
 $`\theta = \tfrac{1}{2}\arctan\!\left(\tfrac{2J_{12}}{J_{11}-J_{22}}\right) \bmod 180°`$
 
-Returns two layers: `_SS_AnisoMag` (0–1 saliency; 0 = flat or isotropic, 1 = strong linear feature) and `_SS_AnisoOrient` (0–180° dominant strike). Cannot be previewed.
+Returns two layers: `_SS_AnisoMag` (0–1 saliency; 0 = flat or isotropic, 1 = strong linear feature), added to the project unticked so the orientation shows first, and `_SS_AnisoOrient` (0–180° dominant strike), drawn with a cyclic colour scale at 50% transparency. The preview shows the orientation, in the same colours.
 
 *Reference*: the structure tensor, Kass & Witkin (1987); Bigün, Granlund & Wiklund (1991).
 *In SGTool*: original code. The gradients are Sobel derivatives, and the normalisation of the saliency by its 99th percentile is SGTool's choice.
@@ -668,6 +771,8 @@ Returns two layers: `_SS_AnisoMag` (0–1 saliency; 0 = flat or isotropic, 1 = s
 The same, zoomed. The strikes follow the individual linear features of the tilt angle.
 
 ![Anisotropy orientation, zoomed](images/examples/anisotropy_orientation_zoom.png)
+
+### Landform
 
 #### MRVBF / MRRTF / Slope
 
@@ -685,14 +790,95 @@ Classifies a digital terrain model by its hilltop and valley-bottom flatness and
 *Reference*: Gallant & Dowling (2003); slope from Zevenbergen & Thorne (1987).
 *In SGTool*: a statement-by-statement Python translation of SAGA's MRVBF tool (O. Conrad, `ta_morphometry`), which agrees with SAGA to about 32-bit float precision. Combining MRRTF, MRVBF and slope into an RGB image is SGTool's addition. In ArcGIS Pro the slope is calculated in numpy (QGIS uses its own slope tool).
 
+---
+
+## Multiband tab
+
+![The Multiband tab](images/ui/tab_multiband.png)
+
+Calculations on several bands or grids at once: radiometric ratios of K, eU and eTh, log-ratio transforms of compositional data, and principal and independent component analysis. The tab has its own **Select Grid**: the grid the results are calculated on, and for log-ratios, PCA and ICA the multiband grid whose bands are used.
+
+### Radiometrics
+
+| Setting | Default | Meaning |
+|---|---|---|
+| **K**, **eU**, **eTh** | the selected grid, if it has 3 or more bands | The grid holding each radioelement: bands of one multiband grid, or separate grids (resampled onto the grid selected at the top of the tab, by block averaging if coarser, bilinear otherwise) |
+| **Band 1 or 3 Band**, **Band 2**, **Band 3** | bands 1, 2, 3, or by band name | The band of each grid. Selecting a grid with 3 or more bands at the top of the tab fills all three, matching band names such as `K_pct`, `eU_ppm` or `Thorium` where it can and taking bands 1, 2, 3 otherwise: check them, as band order varies (the example grid is K, eTh, eU) |
+
+| Filter | Setting | Default | Output |
+|---|---|---|---|
+| **Efimov F-parameter** | | | `_Efimov` |
+| **Kd**, **Ud** | Background: Ratio of means or Linear regression | Ratio of means | `_Kd`, `_Ud` |
+| **Ternary Gradient** | Scaling: Z-score or CLR | Z-score | `_TernGrad` |
+
+The three calculations refuse to run when two of K, eU and eTh are the same band of the same grid (every ratio would then be constant). No-data cells of any input stay no-data.
+
+#### Efimov F-parameter
+
+$`F = \dfrac{K \cdot eU}{eTh}`$
+
+High where potassium and uranium are enriched relative to thorium, as in potassic and uraniferous hydrothermal alteration, while ordinary changes of rock type, in which the three move together, are suppressed. Cells where K, eU or eTh is 0 or less are left blank, as a negative concentration has no meaning here.
+
+*Reference*: Efimov (1978).
+*In SGTool*: original code.
+
+**Example**.
+
+![Efimov F-parameter](images/examples/efimov.png)
+
+#### Kd and Ud
+
+$`K_s = \dfrac{\bar{K}}{\overline{eTh}}\, eTh, \qquad K_d = \dfrac{K - K_s}{K_s}`$
+
+and the same for eU (Ud). Thorium is the least mobile of the three radioelements, so it is used to predict the K and eU each rock type would ordinarily have; Kd and Ud are the departures from that prediction, positive where there is more K or U than the thorium predicts (candidate alteration) and negative where there is less. **Background**: *Ratio of means* scales eTh by the ratio of the grid means, as above; *Linear regression* fits $`K_s = a + b\, eTh`$ by least squares over the whole grid. Cells where the predicted value is below 10% of the mean are left blank, as the ratio explodes there (a regression line can approach zero at low eTh).
+
+*Reference*: Saunders, Terry & Thompson (1987); Pires (1995).
+*In SGTool*: original code. The 10% cut-off is SGTool's choice.
+
+**Example: Kd, ratio of means.** The red areas have more potassium than their thorium predicts.
+
+![Kd](images/examples/kd.png)
+
+**Example: Ud, ratio of means.**
+
+![Ud](images/examples/ud.png)
+
+#### Ternary Gradient
+
+The multichannel gradient of K, eU and eTh together: the Sobel derivatives of every band are summed into a 2 x 2 structure tensor, and the square root of its largest eigenvalue is the rate of change of the whole composition,
+
+$`G = \sqrt{\lambda_{\max}}, \quad \lambda_{\max} = \tfrac{1}{2}\left(S_{xx} + S_{yy} + \sqrt{(S_{xx} - S_{yy})^2 + 4 S_{xy}^2}\right), \quad S_{ab} = \sum_{\text{bands}} \frac{\partial c}{\partial a}\frac{\partial c}{\partial b}`$
+
+so the boundaries show where any radioelement changes, even where the total count stays the same. **Scaling**: *Z-score* standardises each band first (mean 0, standard deviation 1), so K, eU and eTh weigh the same; *CLR* takes their centred log-ratios first, so only changes in the element ratios count.
+
+*Reference*: Di Zenzo (1986).
+*In SGTool*: original code. Gradients are per unit distance of the grid.
+
+**Example: ternary gradient, Z-score.**
+
+![Ternary gradient](images/examples/ternary_gradient.png)
+
 ### Multivariate Statistical Analysis
 
 | Filter | Setting | Default | Output |
 |---|---|---|---|
+| **Log-ratio transform** | Type: CLR or ILR | CLR | `_CLR` / `_ILR` (multiband) |
 | **Principal Component Analysis** | Number of Components (0 = all) | 0 | `_PCA` |
 | **Independent Component Analysis** | Number of Components (0 = all) | 0 | `_ICA` |
 
-Both work on the bands of a **multiband** grid (for example K, Th and U radiometrics stacked into one file); each component is one band of the output. Need scikit-learn. Cannot be previewed.
+PCA and ICA work on the bands of the **multiband** grid selected at the top of the tab (for example K, eTh and eU radiometrics stacked into one file); each component is one band of the output. Cells that are no-data in any band, by the band's no-data value (such as a -999999 background) or its mask, are left out of the calculation and left blank in the output. Need scikit-learn. The preview shows the first three components as red, green and blue, calculated from the cells in view.
+
+**Log-ratio transform**: radioelement concentrations (and other compositional data) are positive and skewed, and their values are not independent of one another, so a PCA or ICA of the raw values is dominated by the high-count units. The log-ratio transforms put them on an unbounded scale first:
+
+$`\text{clr}(x)_i = \ln x_i - \frac{1}{D}\sum_{j=1}^{D} \ln x_j`$, &nbsp; $`\text{ilr}(x)_i = \sqrt{\tfrac{D-i}{D-i+1}}\,\ln\dfrac{x_i}{\left(\prod_{j=i+1}^{D} x_j\right)^{1/(D-i)}}`$
+
+for D bands. CLR gives one band per input band (the bands sum to zero); ILR (pivot coordinates) gives D - 1 bands, the first contrasting band 1 with all the others. The transform uses every band of the selected grid if it is multiband, otherwise the K, eU and eTh grids chosen in [Radiometrics](#radiometrics). Values of 0 or less (such as negative eU from noisy data) are replaced by half the smallest positive value of their band, and a message says how many. The result is a multiband grid, ready to select as the input of PCA or ICA; the preview shows its first band.
+*Reference*: Aitchison (1986) for CLR; Egozcue et al. (2003) for ILR, in the pivot coordinates of Fišerová & Hron (2011).
+*In SGTool*: original code.
+
+**Example: PCA of the CLR of K, eU and eTh**, components 1 to 3 as red, green and blue. Run the log-ratio transform, select the `_CLR` grid at the top of the tab and run PCA.
+
+![PCA of the CLR](images/examples/pca_clr.png)
 
 **Principal Component Analysis** transforms correlated variables into orthogonal components that maximise variance, creating a new coordinate system where the first component captures the most variance.
 *Reference*: Pearson (1901); Hotelling (1933).
@@ -702,25 +888,9 @@ Both work on the bands of a **multiband** grid (for example K, Th and U radiomet
 *Reference*: the FastICA algorithm, Hyvärinen (1999).
 *In SGTool*: original code calling scikit-learn's `FastICA`, with the same standardisation and no-data handling as PCA.
 
-### Euler Deconvolution
+**Example: CLR of K** (the first band of the transform).
 
-| Setting | Default | Meaning |
-|---|---|---|
-| **Euler Deconvolution** | | Tick to run |
-| **Stats** | unticked | Also save statistics of the solutions in grid windows (`_window_stats_SI_<n>.txt`, `_window_summary.txt`) |
-| **Threshold** | 0.1 | Fraction of the solutions kept (0.1 = the best 10%) |
-| **Window (odd)** | 5 | Window size, in cells |
-
-Reliable Euler deconvolution estimates the positions and depths of gravity or magnetic sources from the gradients of the field. The dialog solves for structural indices 0 (contact), 1 (dyke or sill), 2 (pipe) and 3 (sphere), and saves the solutions for each beside the grid as `<grid>_estimates_SI_0.txt` to `_SI_3.txt`, with the columns `y_source` (northing), `x_source` (easting), `z_source` (elevation of the source: negative below the surface, so the points sit underground in 3D views), `base_level` and `std_dfdz` (the standard deviation of the vertical derivative in the window). Needs a metre-based projection. Cannot be previewed.
-
-*Reference*: Euler deconvolution, Thompson (1982) and Reid et al. (1990); the selection of reliable solutions, Melo & Barbosa (2020).
-*In SGTool*: the authors' `euler_python.py` ([Euler-deconvolution-python](https://github.com/ffigura/Euler-deconvolution-python), by Felipe F. Melo and Valéria C.F. Barbosa), with the x and y axes swapped to match SGTool's grids (tested against the original code), and the standard deviation of the vertical derivative saved with each solution. The windows are solved together from moving-window sums rather than one at a time (the same solutions, much faster). The statistics of the solutions in grid windows (`window_stats`) are SGTool's addition to the authors' `estimates_statistics.py`.
-
-![Euler settings](images/ui/step_euler.png)
-
-**Example: SI 1, window 5, threshold 0.1, of the RTP.** The solutions are drawn over the RTP 1VD, coloured by depth (depths between 0 and 5000 m shown).
-
-![Euler solutions](images/examples/euler.png)
+![CLR of K](images/examples/clr.png)
 
 ---
 
@@ -1047,7 +1217,9 @@ Converts a 3-band RGB image into a monotonically increasing grey-scale grid, if 
 
 ## Help tab
 
-Links to the example grid, Noddy models (the Atlas of Structural Geophysics and the Noddy installer), the code repository, the help file, and the people and projects whose code SGTool uses.
+**Replace existing layer** at the top: ticked (the default), running the same filter again on the same grid replaces the earlier result (its layer and file); unticked, each run is kept as a new layer and file numbered `_1`, `_2` ... QGIS remembers the setting.
+
+Below it, links to the example grid, Noddy models (the Atlas of Structural Geophysics and the Noddy installer), the code repository, the help file, and the people and projects whose code SGTool uses.
 
 ![The Help tab](images/ui/tab_help.png)
 
@@ -1061,7 +1233,7 @@ The filters are also available as QGIS **Processing** algorithms in the **SGTool
 
 **Output files**: the output is optional. Choose a file and it is used as given. Leave it empty and the result is saved **next to the input grid, named after it plus the processing step**, exactly as the dialog does (`grid.tif` gives `grid_d1z.tif`, `grid_UC.tif`, `grid_BP.tif`, `grid_DirC.tif` and so on; apart from the derivative's power and direction, the settings are in the provenance metadata, not the name), and is added to the project under the same name. Euler solutions go to `<grid>_estimates_SI_<n>.csv` and B-spline gridding to `<points>_<field>_bspline.tif`, both next to their input. In a batch run each input's result is therefore written beside that input. If a result with that name is already open in QGIS the old layer is removed first and the file replaced, as in the dialog. (In the toolbox the empty output may be labelled "Skip output": for these algorithms that means "use the automatic name".)
 
-**Available**: remove line noise (directional Cosine/Butterworth, with the option to output the noise estimate instead of the corrected grid), reduction to the pole and to the equator, low-latitude reduction to the pole, continuation, vertical integration, remove regional, band pass, high/low pass, AGC, derivative, tilt angle, analytic signal, total horizontal gradient, apparent susceptibility and apparent density (Petrophysics group), mean, median, Gaussian and directional filters, sun shading, windowed statistics, local anisotropy (magnitude or orientation), threshold to NaN, Euler deconvolution (one structural index per run, written as a CSV including the std of df/dz), PCA, ICA, BSDWorms (a points CSV, with the padded grid and an optional 3D polyline shapefile beside the input) and multilevel B-spline gridding (with an option to choose its cell size and number of levels automatically, see [Choosing the B-spline settings](#choosing-the-b-spline-settings-auto)). FFT-based algorithms have an optional FFT buffer size (0 = automatic). Also **Apply the steps of a processing history to a grid** (see [above](#apply-the-same-steps-to-another-grid)). Differential RTP, MRVBF and the live preview are only in the dialog for now.
+**Available**: remove line noise (directional Cosine/Butterworth, with the option to output the noise estimate instead of the corrected grid), reduction to the pole and to the equator, low-latitude reduction to the pole, continuation, vertical integration, remove regional, band pass, high/low pass, AGC, derivative, tilt angle, analytic signal, total horizontal gradient, apparent susceptibility and apparent density (Petrophysics group), mean, median, Gaussian and directional filters, sun shading, windowed statistics, local anisotropy (magnitude or orientation), NSTD and NAV-Edge (Edge detectors group), symmetric nearest neighbour and Kuwahara (Domain detection group), Efimov F-parameter, Kd, Ud and ternary gradient (Radiometrics group: K, eU and eTh each a raster and a band), the log-ratio transform (CLR or ILR), threshold to NaN, Euler deconvolution (one structural index per run, written as a CSV including the std of df/dz), PCA, ICA, BSDWorms (a points CSV, with the padded grid and an optional 3D polyline shapefile beside the input) and multilevel B-spline gridding (with an option to choose its cell size and number of levels automatically, see [Choosing the B-spline settings](#choosing-the-b-spline-settings-auto)). FFT-based algorithms have an optional FFT buffer size (0 = automatic). Also **Apply the steps of a processing history to a grid** (see [above](#apply-the-same-steps-to-another-grid)). Differential RTP, MRVBF and the live preview are only in the dialog for now.
 
 Algorithms can be cancelled from the Processing dialog; as in the dialog, a single FFT step cannot be interrupted part-way.
 
@@ -1081,6 +1253,10 @@ The names to use with `processing.run("sgtool:<name>", ...)`:
 | Band pass filter | `band_pass` | Tilt angle | `tilt_angle` |
 | High / low pass filter | `high_low_pass` | Analytic signal | `analytic_signal` |
 | Automatic gain control | `automatic_gain_control` | Total horizontal gradient | `total_horizontal_gradient` |
+| NSTD | `nstd` | Symmetric nearest neighbour | `snn` |
+| NAV-Edge | `nav_edge` | Kuwahara filter | `kuwahara` |
+| Efimov F-parameter | `efimov` | Kd / Ud | `kd` / `ud` |
+| Ternary gradient | `ternary_gradient` | Log-ratio transform | `log_ratio` |
 
 ---
 
@@ -1091,12 +1267,13 @@ Installing the ArcGIS Pro version is described in [Installation](installation.md
 The two versions share the calculation code and most features: the **Wedge** setting for line-noise removal, MRVBF / MRRTF / slope, multilevel B-spline gridding, tilt angle in degrees, provenance metadata and **Apply same steps to another grid** (a history made in one version can be read and replayed in the other, with IGRF recalculated for RTP, RTE and differential RTP), a line showing the grid's units, CRS, pixel counts and pixel size, and the same output file names (`grid_RTP.tif`, `grid_DirC.tif`, `grid_d1z.tif`, `grid_UC.tif`, `grid_Mn.tif`, `grid_SS_StdDev.tif`, `grid_PCA.tif`, `grid_Clean.tif`, Euler solutions as `grid_estimates_SI_<n>.txt`). The **Output (auto)** line at the top of the ArcGIS Pro GUI shows the names that will be written. What differs:
 
 - **Window and layers**: the ArcGIS Pro GUI is a separate window launched from the toolbox (**Launch**), not a dock. Its layer list is refreshed with **Refresh** (it does not follow the Layers panel), and results are queued and added to the map by the toolbox tool that launched it (or by **Load SGTool Outputs**).
-- **Preview** (FFT Filters, Conv + Stats, Petrophys and Utils tabs, the last for Threshold to NaN) is in its own window, as ArcGIS Pro gives a Python window no hooks into its map. Tick **Preview** next to the Apply button, tick one filter, and the window shows the result with the usual grey stretch. It opens on the part of the grid the ArcGIS Pro map is showing, in a window with the same shape as the map canvas (**Match map view** goes back to it after you have moved around). Cells that are not square are drawn true. Zoom with the wheel, pan by dragging, double-click for the whole grid. The filter is recalculated for what is in view whenever you zoom, pan or change a setting: at full detail once at most 1000 cells (on the longest side) are in view, block-averaged to 1000 cells for a larger view, as in QGIS. Zoom out to preview long-wavelength filters, as a zoomed-in view shows edge effects and only the wavelengths that fit in it. **Show original** compares with the input. The preview runs the same code as Apply, and the button reads **Apply Preview**: it saves the ticked filter at full resolution. **Apply to Window**, beside it, first clips the input grid to the area the ArcGIS Pro map shows (as **Clip to Window** on the Utils tab), makes the clip the input grid and then runs Apply Preview on it. Preview follows you between the tabs, and unticking it or closing the window ends it. Differential RTP, anisotropy, MRVBF, PCA, ICA and Euler cannot be previewed.
+- **Preview** (FFT Filters+, Conv + Stats, Multiband, Petrophys and Utils tabs, the last for Threshold to NaN) is in its own window, as ArcGIS Pro gives a Python window no hooks into its map. Tick **Preview** next to the Apply button, tick one filter, and the window shows the result with the usual grey stretch. It opens on the part of the grid the ArcGIS Pro map is showing, in a window with the same shape as the map canvas (**Match map view** goes back to it after you have moved around). Cells that are not square are drawn true. Zoom with the wheel, pan by dragging, double-click for the whole grid. The filter is recalculated for what is in view whenever you zoom, pan or change a setting: at full detail once at most 1000 cells (on the longest side) are in view, block-averaged to 1000 cells for a larger view, as in QGIS. Zoom out to preview long-wavelength filters, as a zoomed-in view shows edge effects and only the wavelengths that fit in it. **Show original** compares with the input. The preview runs the same code as Apply, and the button reads **Apply Preview**: it saves the ticked filter at full resolution. **Apply to Window**, beside it, first clips the input grid to the area the ArcGIS Pro map shows (as **Clip to Window** on the Utils tab), makes the clip the input grid and then runs Apply Preview on it. Preview follows you between the tabs, and unticking it or closing the window ends it. As in QGIS, PCA and ICA show components 1 to 3 as an RGB image and local anisotropy its orientation in cyclic colours (drawn half-transparent over the input), and NSTD, NAV-Edge and the orientation are drawn without smoothing. Differential RTP, MRVBF and Euler cannot be previewed.
 - **Cancel** is a button in the status bar that ends the running job at once (a step part-way through an FFT finishes in the background and is discarded). The toolbox tools stop when you press **Cancel** in the Geoprocessing pane: they check for it between steps and inside the long calculations (MRVBF, B-spline gridding, worms, normalisation), and a result calculated after Cancel is discarded, not saved.
 - **Utils tab**: **Clip to Window** (clips the input grid to the part of the ArcGIS Pro map you are looking at, as in QGIS; it needs the map view the toolbox tool writes, so launch the GUI from the toolbox and keep the map open), **Read metadata of input grid** (history as text, raw XML on a second tab), **Save as XML** and **Apply same steps to another grid...** (tick which steps to **Apply** and which results to **Save**, set the survey date).
 - **Petrophys tab**: the same apparent susceptibility and density calculations, Henkel plots and histograms as in QGIS (see [Petrophys tab](#petrophys-tab)). The apparent grids for plotting are chosen from the map's raster layers (or a file), and the polygons and sample points are chosen as files (shapefile, GeoPackage and other formats GDAL reads), with all their features used (QGIS uses only the selected features when some are selected). Each plot opens in its own window with a toolbar to zoom and save it. The toolbox has **Apparent Susceptibility** (leave the field strength blank to use the IGRF at the raster's centre) and **Apparent Density** tools in a Petrophysics category.
 - **Gridding**: multilevel B-spline (Grid + Wavelets tab) reads a point shapefile or GeoPackage, offered automatically after **Import Data**, and writes `<points>_<field>_bspline.tif`; its **Auto** box (and a matching option in the toolbox tool) chooses the cell size and Max levels from the points. IDW and Esri's Spline are in the toolbox only and need the Spatial Analyst extension.
-- **Toolbox** (`SGTool.pyt`, 39 tools) stands in for the QGIS Processing algorithms: you name each output, high and low pass are separate tools, and there is no tool for replaying a history. The MRVBF tool writes the other three results beside the one you name.
+- **Toolbox** (`SGTool.pyt`, 48 tools) stands in for the QGIS Processing algorithms: you name each output, high and low pass are separate tools, Kd and Ud are one tool (**Kd / Ud**), and there is no tool for replaying a history. The MRVBF tool writes the other three results beside the one you name. Its toolsets follow the QGIS tabs and groups: FFT Filters (with Euler deconvolution), Gradient Filters and Edge Detectors; Convolution + Statistics, Domain Detection and Landform; Multiband; Petrophysics; Grid + Wavelets; Utils.
+- **Groups and settings**: the groups on each tab fold away with a click on their title, and **Replace existing layer** is at the top of the Help tab, as in QGIS; the GUI remembers both (in `.sgtool_arcgis_gui.json` in your home folder). When the toolbox adds a local anisotropy result to the map, the magnitude layer is unticked and the orientation coloured with a spectrum colour ramp at 50% transparency.
 - **MRVBF slope** is calculated in numpy (QGIS uses its own slope tool); the DTM curvature classifier is gone from both versions.
 - **Only in QGIS**: the dockable layout, the Layers panel and dropdown syncing, the preview layer, Processing algorithms and task manager integration.
 
@@ -1104,16 +1281,23 @@ The two versions share the calculation code and most features: the **Wedge** set
 
 ## References
 
+- Aitchison, J., 1986. *The Statistical Analysis of Compositional Data*. Chapman and Hall, London. https://doi.org/10.1007/978-94-009-4109-0
 - Baranov, V., 1957. A new method for interpretation of aeromagnetic maps: pseudo-gravimetric anomalies. *Geophysics* 22, 359–382. https://doi.org/10.1190/1.1438369
 - Baranov, V., Naudy, H., 1964. Numerical calculation of the formula of reduction to the magnetic pole. *Geophysics* 29, 67–79. https://doi.org/10.1190/1.1439334
 - Bhattacharyya, B.K., 1965. Two-dimensional harmonic analysis as a tool for magnetic interpretation. *Geophysics* 30, 829–857. https://doi.org/10.1190/1.1439658
 - Bigün, J., Granlund, G.H., Wiklund, J., 1991. Multidimensional orientation estimation with applications to texture analysis and optical flow. *IEEE Transactions on Pattern Analysis and Machine Intelligence* 13, 775–790. https://doi.org/10.1109/34.85668
+- Cooper, G.R.J., Cowan, D.R., 2008. Edge enhancement of potential-field data using normalized statistics. *Geophysics* 73(3), H1–H4. https://doi.org/10.1190/1.2837309
 - Butterworth, S., 1930. On the theory of filter amplifiers. *Wireless Engineer* 7, 536–541.
 - Cooper, G.R.J., Cowan, D.R., 2005. Differential reduction to the pole. *Computers & Geosciences* 31, 989–999. https://doi.org/10.1016/j.cageo.2005.02.005
+- Di Zenzo, S., 1986. A note on the gradient of a multi-image. *Computer Vision, Graphics, and Image Processing* 33, 116–125. https://doi.org/10.1016/0734-189X(86)90223-9
+- Efimov, A.V., 1978. Multiplikativnyi pokazatel' dlya vydeleniya endogennykh rud po aerogamma-spektrometricheskim dannym [A multiplicative index for recognising endogenous ores from airborne gamma-ray spectrometric data]. In: *Metody Rudnoi Geofiziki*. Nauchno-Proizvodstvennoe Ob'edinenie Geofizika, Leningrad, 59–68 (in Russian).
+- Egozcue, J.J., Pawlowsky-Glahn, V., Mateu-Figueras, G., Barceló-Vidal, C., 2003. Isometric logratio transformations for compositional data analysis. *Mathematical Geology* 35, 279–300. https://doi.org/10.1023/A:1023818214614
+- Fišerová, E., Hron, K., 2011. On the interpretation of orthonormal coordinates for compositional data. *Mathematical Geosciences* 43, 455–468. https://doi.org/10.1007/s11004-011-9333-x
 - Cordell, L., Grauch, V.J.S., 1985. Mapping basement magnetization zones from aeromagnetic data in the San Juan basin, New Mexico. In: Hinze, W.J. (Ed.), *The Utility of Regional Gravity and Magnetic Anomaly Maps*. Society of Exploration Geophysicists, 181–197.
 - Gallant, J.C., Dowling, T.I., 2003. A multiresolution index of valley bottom flatness for mapping depositional areas. *Water Resources Research* 39(12), 1347. https://doi.org/10.1029/2002WR001426
 - Granser, H., Meurers, B., Steinhauser, P., 1989. Apparent density mapping and 3D gravity inversion in the eastern Alps. *Geophysical Prospecting* 37, 279–292. https://doi.org/10.1111/j.1365-2478.1989.tb02207.x
 - Gunn, P.J., 1975. Linear transformations of gravity and magnetic fields. *Geophysical Prospecting* 23, 300–312. https://doi.org/10.1111/j.1365-2478.1975.tb01530.x
+- Harwood, D., Subbarao, M., Hakalahti, H., Davis, L.S., 1987. A new class of edge-preserving smoothing filters. *Pattern Recognition Letters* 6, 155–162. https://doi.org/10.1016/0167-8655(87)90002-X
 - Hao, M., Zhang, F., Tai, Z., Du, W., Ren, L., Li, Y., 2018. Reduction to the pole at low latitudes by using the Taylor series iterative method. *Journal of Applied Geophysics* 159, 127–134. https://doi.org/10.1016/j.jappgeo.2018.08.004
 - Henderson, R.G., Zietz, I., 1949. The upward continuation of anomalies in total magnetic intensity fields. *Geophysics* 14, 517–534. https://doi.org/10.1190/1.1437560
 - Henkel, H., 1991. Petrophysical properties (density and magnetization) of rocks from the northern part of the Baltic Shield. *Tectonophysics* 192, 1–19. https://doi.org/10.1016/0040-1951(91)90242-K
@@ -1124,6 +1308,7 @@ The two versions share the calculation code and most features: the **Wedge** set
 - Jacobsen, B.H., 1987. A case for upward continuation as a standard separation filter for potential-field maps. *Geophysics* 52, 1138–1148. https://doi.org/10.1190/1.1442378
 - Kass, M., Witkin, A., 1987. Analyzing oriented patterns. *Computer Vision, Graphics, and Image Processing* 37, 362–385. https://doi.org/10.1016/0734-189X(87)90043-0
 - Kis, K.I., 1990. Transfer properties of the reduction of magnetic anomalies to the pole and to the equator. *Geophysics* 55, 1141–1147. https://doi.org/10.1190/1.1442930
+- Kuwahara, M., Hachimura, K., Eiho, S., Kinoshita, M., 1976. Processing of RI-angiocardiographic images. In: Preston, K., Onoe, M. (Eds.), *Digital Processing of Biomedical Images*. Plenum Press, New York, 187–202. https://doi.org/10.1007/978-1-4684-0769-3_13
 - Lee, S., Wolberg, G., Shin, S.Y., 1997. Scattered data interpolation with multilevel B-splines. *IEEE Transactions on Visualization and Computer Graphics* 3, 228–244. https://doi.org/10.1109/2945.620490
 - Lin, J., 1991. Divergence measures based on the Shannon entropy. *IEEE Transactions on Information Theory* 37, 145–151. https://doi.org/10.1109/18.61115
 - Melo, F.F., Barbosa, V.C.F., 2020. Reliable Euler deconvolution estimates throughout the vertical derivatives of the total-field anomaly. *Computers & Geosciences* 138, 104436. https://doi.org/10.1016/j.cageo.2020.104436
@@ -1132,13 +1317,16 @@ The two versions share the calculation code and most features: the **Wedge** set
 - Nabighian, M.N., 1972. The analytic signal of two-dimensional magnetic bodies with polygonal cross-section: its properties and use for automated anomaly interpretation. *Geophysics* 37, 507–517. https://doi.org/10.1190/1.1440276
 - Parker, R.L., 1973. The rapid calculation of potential anomalies. *Geophysical Journal of the Royal Astronomical Society* 31, 447–455. https://doi.org/10.1111/j.1365-246X.1973.tb06513.x
 - Pearson, K., 1901. On lines and planes of closest fit to systems of points in space. *Philosophical Magazine* 2, 559–572. https://doi.org/10.1080/14786440109462720
+- Pires, A.C.B., 1995. Identificação geofísica de áreas de alteração hidrotermal, Crixás-Guarinos, Goiás. *Revista Brasileira de Geociências* 25, 61–68.
 - Prewitt, J.M.S., 1970. Object enhancement and extraction. In: Lipkin, B.S., Rosenfeld, A. (Eds.), *Picture Processing and Psychopictorics*. Academic Press, New York, 75–149.
 - Rajagopalan, S., Milligan, P., 1994. Image enhancement of aeromagnetic data using automatic gain control. *Exploration Geophysics* 25, 173–178. https://doi.org/10.1071/EG994173
 - Reid, A.B., Allsop, J.M., Granser, H., Millett, A.J., Somerton, I.W., 1990. Magnetic interpretation in three dimensions using Euler deconvolution. *Geophysics* 55, 80–91. https://doi.org/10.1190/1.1442774
 - Roest, W.R., Verhoef, J., Pilkington, M., 1992. Magnetic interpretation using the 3-D analytic signal. *Geophysics* 57, 116–125. https://doi.org/10.1190/1.1443174
+- Saunders, D.F., Terry, S.A., Thompson, C.K., 1987. Test of National Uranium Resource Evaluation gamma-ray spectral data in petroleum reconnaissance. *Geophysics* 52, 1547–1556. https://doi.org/10.1190/1.1442270
 - Shepard, D., 1968. A two-dimensional interpolation function for irregularly-spaced data. *Proceedings of the 1968 23rd ACM National Conference*, 517–524. https://doi.org/10.1145/800186.810616
 - Sokal, R.R., Michener, C.D., 1958. A statistical method for evaluating systematic relationships. *University of Kansas Science Bulletin* 38, 1409–1438.
 - Spector, A., Grant, F.S., 1970. Statistical models for interpreting aeromagnetic data. *Geophysics* 35, 293–302. https://doi.org/10.1190/1.1440092
 - Thompson, D.T., 1982. EULDPH: a new technique for making computer-assisted depth estimates from magnetic data. *Geophysics* 47, 31–37. https://doi.org/10.1190/1.1441278
 - Tukey, J.W., 1977. *Exploratory Data Analysis*. Addison-Wesley, Reading, MA.
 - Zevenbergen, L.W., Thorne, C.R., 1987. Quantitative analysis of land surface topography. *Earth Surface Processes and Landforms* 12, 47–56. https://doi.org/10.1002/esp.3290120107
+- Zhang, H.L., Ravat, D., Marangoni, Y.R., Hu, X.Y., 2014. NAV-Edge: edge detection of potential-field sources using normalized anisotropy variance. *Geophysics* 79(3), J43–J53. https://doi.org/10.1190/geo2013-0218.1

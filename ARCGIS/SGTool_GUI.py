@@ -152,9 +152,81 @@ def btn(p, text, cmd, w=18, **kw):
                      activeforeground=FG, relief="raised", bd=1,
                      font=FONT, width=w, **kw)
 
+# GUI settings remembered between sessions (folded sections, Replace existing layer)
+_SETTINGS_FILE = os.path.join(os.path.expanduser("~"), ".sgtool_arcgis_gui.json")
+
+
+def _load_settings():
+    try:
+        with open(_SETTINGS_FILE) as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_setting(key, value):
+    data = _load_settings()
+    data[key] = value
+    try:
+        with open(_SETTINGS_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception:
+        logging.getLogger(__name__).debug("Ignored exception", exc_info=True)
+
+
+class CollapsibleSection(tk.LabelFrame):
+    """A titled group that folds away with a click on its title, so unused groups
+    take no room (as the QGIS dock's group boxes). Open by default; the folded
+    state of each one is remembered between sessions."""
+
+    def __init__(self, parent, text):
+        self._text = text
+        self._title = tk.Label(parent, bg=BG, fg=SECTION_FG, font=FONT_BOLD, cursor="hand2")
+        super().__init__(parent, labelwidget=self._title, bg=BG, relief="groove", bd=1)
+        self._title.bind("<Button-1>", lambda _e: self.toggle())
+        self._hidden = []  # (child, geometry manager, its settings) while folded
+        self._open = True
+        self._show_title()
+        if not _load_settings().get("sections", {}).get(text, True):
+            self.after_idle(self.toggle)  # once the rows have been added
+
+    def _show_title(self):
+        self._title.config(text=("▾ " if self._open else "▸ ") + self._text)
+
+    def is_open(self):
+        return self._open
+
+    def toggle(self):
+        if self._open:
+            for child in self.winfo_children():
+                manager = child.winfo_manager()
+                if manager == "pack":
+                    self._hidden.append((child, "pack", child.pack_info()))
+                    child.pack_forget()
+                elif manager == "grid":
+                    self._hidden.append((child, "grid", child.grid_info()))
+                    child.grid_forget()
+            # keep a sliver of frame so the folded group still shows its title
+            self._stub = tk.Frame(self, bg=BG, height=2)
+            self._stub.pack(fill="x")
+        else:
+            if getattr(self, "_stub", None) is not None:
+                self._stub.destroy()
+                self._stub = None
+            for child, manager, info in self._hidden:
+                info = {k: v for k, v in info.items() if k != "in"}
+                (child.pack if manager == "pack" else child.grid)(**info)
+            self._hidden = []
+        self._open = not self._open
+        self._show_title()
+        sections = _load_settings().get("sections", {})
+        sections[self._text] = self._open
+        _save_setting("sections", sections)
+
+
 def section(p, text):
-    return tk.LabelFrame(p, text=text, bg=BG, fg=SECTION_FG,
-                         font=FONT_BOLD, relief="groove", bd=1)
+    return CollapsibleSection(p, text)
 
 def _browse_file(var, filetypes=None, save=False):
     ft = filetypes or [("Raster files", "*.tif *.tiff *.img *.grd *.ers *.mag *.grv"),
@@ -241,6 +313,8 @@ HELP_TEXT = [
     "(no external plugin required)",
     "- Differential (Variable) RTP — G.R.J. Cooper & D.R. Cowan (2005) Taylor-series method",
     "- Low-latitude RTP — M. Hao et al. (2018) Taylor series iterative method",
+    "- NSTD — G.R.J. Cooper & D.R. Cowan (2008); NAV-Edge — H.L. Zhang, D. Ravat, Y.R. Marangoni & X.Y. Hu (2014)",
+    "- Example radiometric data in the documentation courtesy of BUMIGEB (Burkina Faso)",
     "- MRVBF/MRRTF (Multiresolution Valley Bottom/Ridge Top Flatness) — J.C. Gallant & T.I. Dowling (2003)",
     "- Euler Deconvolution uses Felipe F. Melo and Valéria C.F. Barbosa's Reliable Euler method "
     "[https://github.com/ffigura/Euler-deconvolution-python](https://github.com/ffigura/Euler-deconvolution-python)",
@@ -320,6 +394,11 @@ class SGToolApp(tk.Tk):
         self._apply_btns     = {}       # tab -> its Apply button (renamed while previewing)
         self._window_btns    = {}       # tab -> its Apply to Window button
         self.v_preview.trace_add("write", self._preview_var_changed)
+        # Help tab "Replace existing layer": overwrite an earlier result of the same name,
+        # or keep it and number the new one (_1, _2 ...); remembered between sessions
+        self.v_replace = tk.BooleanVar(value=bool(_load_settings().get("replace_existing", True)))
+        self.v_replace.trace_add("write", lambda *_: _save_setting(
+            "replace_existing", bool(self.v_replace.get())))
         self._active_token   = None                # cancel token of the running job
         self._apply_theme()
         self._build_top_bar()
@@ -448,6 +527,8 @@ class SGToolApp(tk.Tk):
         self._layer_map = layer_map
         self._layer_combo["values"] = names
         self._petro_refresh_rasters()
+        for c in getattr(self, "_rad_combos", {}).values():  # Multiband tab K / eU / eTh
+            c["values"] = names
         if names and not self.v_input.get():
             self._layer_combo.set(names[0])
             self.v_input.set(self._layer_map[names[0]])
@@ -620,20 +701,25 @@ class SGToolApp(tk.Tk):
     # instead of writing it. Preview follows you between the FFT Filters and Conv + Stats
     # tabs; Apply Preview saves the ticked filter at full resolution.
     # ------------------------------------------------------------------
+    # tabs: 0 FFT Filters+, 1 Conv + Stats, 2 Multiband, 3 Grid + Wavelets,
+    # 4 Petrophys, 5 Utils, 6 Help
     PREVIEW_FILTERS = {
         0: ("v_rtp", "v_vint", "v_cont", "v_dirclean", "v_regrem", "v_bp", "v_hlp", "v_agc",
-            "v_deriv", "v_thg", "v_ta", "v_as_"),
-        1: ("v_mean", "v_med", "v_gauss", "v_dconv", "v_sun", "v_ss_min", "v_ss_max", "v_ss_var",
-            "v_ss_std", "v_ss_skew", "v_ss_kurt", "v_ss_aniso", "v_ss_chain", "v_ss_stream",
-            "v_mrvbf", "v_pca", "v_ica", "v_euler"),
-        3: ("v_app_sus", "v_app_dens"),  # Petrophys tab: at most one ticked
-        4: ("v_thresh_en",),  # Utils tab: Threshold to NaN
+            "v_deriv", "v_thg", "v_ta", "v_as_", "v_nstd", "v_nav", "v_euler"),
+        1: ("v_mean", "v_med", "v_gauss", "v_dconv", "v_sun", "v_snn", "v_kuw",
+            "v_ss_min", "v_ss_max", "v_ss_var", "v_ss_std", "v_ss_skew", "v_ss_kurt",
+            "v_ss_aniso", "v_ss_chain", "v_ss_stream", "v_mrvbf"),
+        2: ("v_efimov", "v_kd", "v_ud", "v_terngrad", "v_logratio", "v_pca", "v_ica"),
+        4: ("v_app_sus", "v_app_dens"),  # Petrophys tab: at most one ticked
+        5: ("v_thresh_en",),  # Utils tab: Threshold to NaN
     }
-    PREVIEW_NOT_POSSIBLE = ("v_ss_aniso", "v_ss_chain", "v_ss_stream", "v_mrvbf",
-                            "v_pca", "v_ica", "v_euler")
+    PREVIEW_NOT_POSSIBLE = ("v_ss_chain", "v_ss_stream", "v_mrvbf", "v_euler")
+    # previews drawn cell by cell (no bilinear smoothing): thin edge lines, and the
+    # orientation, which wraps from 180 back to 0 degrees
+    PREVIEW_UNSMOOTHED = ("v_nstd", "v_nav", "v_ss_aniso")
     PREVIEW_SIDE = 1000    # most cells (longest side) calculated for the view, as QGIS
-    APPLY_TEXT = {0: "Apply FFT Processing", 1: "Apply Conv + Stats", 3: "Apply Petrophysics",
-                  4: "Apply Threshold \u2192 NaN"}
+    APPLY_TEXT = {0: "Apply FFT Processing", 1: "Apply Conv + Stats", 2: "Apply Multiband",
+                  4: "Apply Petrophysics", 5: "Apply Threshold \u2192 NaN"}
 
     def _filter_var(self, name):
         return getattr(self, name, None)
@@ -858,8 +944,8 @@ class SGToolApp(tk.Tk):
             return
         tab = self._preview_tab
         if tab is None:
-            win.clear("The preview is on the FFT Filters, Conv + Stats, Petrophys and Utils "
-                      "(threshold) tabs")
+            win.clear("The preview is on the FFT Filters+, Conv + Stats, Multiband, Petrophys "
+                      "and Utils (threshold) tabs")
             win.set_status("")
             return
         path = self._resolve_input()
@@ -910,7 +996,8 @@ class SGToolApp(tk.Tk):
             win.clear(error)
             win.set_status("")
             return
-        win.show_result(result["filtered"], result["original"], result["box"], result["std_clip"])
+        win.show_result(result["filtered"], result["original"], result["box"], result["std_clip"],
+                        mode=result.get("mode", "grey"), smooth=result.get("smooth", True))
         win.set_status(result["text"])
 
     def _preview_source(self, path):
@@ -961,17 +1048,24 @@ class SGToolApp(tk.Tk):
         got = {}
 
         def keep(result, suffix, step=None):
+            if suffix == "_SS_AnisoMag":
+                return  # local anisotropy: the preview shows the orientation, saved next
             got["result"] = np.asarray(result, dtype=float)
             got["step"] = step
+            got["suffix"] = suffix
             raise _Done()
 
         count = [0]
         try:
             if tab == 0:
                 self._fft_steps(path, sub, ecx, ecy, buf, proc, count, keep)
-            elif tab == 3:
-                self._petro_steps(sub, ecx, ecy, buf, proc, keep)
+            elif tab == 2:
+                # K / eU / eTh or the grid's bands, cut and averaged as `sub` was
+                stack = self._multi_preview_stack(path, (x0, y0, x1, y1), k)
+                self._multi_steps(path, stack, ecx, ecy, keep, preview=True)
             elif tab == 4:
+                self._petro_steps(sub, ecx, ecy, buf, proc, keep)
+            elif tab == 5:
                 self._threshold_step(sub, keep)
             else:
                 self._conv_steps(path, sub, NODATA, 0.0, 0.0, ecx, ecy, None,
@@ -981,6 +1075,17 @@ class SGToolApp(tk.Tk):
         if "result" not in got:
             raise RuntimeError("Nothing to preview for these settings")
         operation = got["step"][0] if got["step"] else "Result"
+        result = got["result"]
+        if result.ndim == 3:
+            mode = "rgb"  # components 1-3 as red, green, blue
+            operation += ": components 1-3 as red / green / blue"
+        elif got["suffix"] == "_SS_AnisoOrient":
+            mode = "cyclic"  # the orientation, coloured as the saved result
+            operation += " (orientation)"
+        else:
+            mode = "grey"
+        ticked = self._ticked(tab)
+        smooth = not (ticked and ticked[0] in self.PREVIEW_UNSMOOTHED)
         text = f"{operation}:  {sub.shape[1]} x {sub.shape[0]} cells"
         if k > 1:
             text += f", block-averaged {k} x ({ecx:g} map units per cell)"
@@ -990,8 +1095,9 @@ class SGToolApp(tk.Tk):
                 text += "   - cell size exceeds the line spacing: zoom in"
         except (AttributeError, ValueError):
             pass
-        return {"filtered": got["result"], "original": sub, "box": (x0, y0, x1, y1),
-                "std_clip": operation != "Sun shading", "text": text}
+        return {"filtered": result, "original": sub, "box": (x0, y0, x1, y1),
+                "std_clip": operation != "Sun shading", "text": text,
+                "mode": mode, "smooth": smooth}
 
     def _planned_suffixes(self):
         """File-name suffixes (QGIS naming) of the results the ticked operations will
@@ -1042,6 +1148,16 @@ class SGToolApp(tk.Tk):
                 add("tilt_angle")
             if val("v_as_"):
                 add("analytic_signal")
+            if val("v_nstd"):
+                add("nstd")
+            if val("v_nav"):
+                add("nav_edge")
+            if val("v_euler"):
+                out.append(f"_estimates_SI_{int(num('v_eu_si', 1.0))}")
+            if val("v_snn"):
+                add("snn")
+            if val("v_kuw"):
+                add("kuwahara")
             if val("v_mean"):
                 add("mean_filter")
             if val("v_med"):
@@ -1065,13 +1181,18 @@ class SGToolApp(tk.Tk):
                 out.append("_SS_StreamLen")
             if val("v_mrvbf"):
                 out += ["_MRVBF", "_MRRTF", "_slope", "_MRVBF_RGB"]
+            from calcs.Radiometrics import RADIOMETRIC_OPERATIONS, LOG_RATIO_OPERATIONS
+            for attr, kind in (("v_efimov", "efimov"), ("v_kd", "kd"), ("v_ud", "ud"),
+                               ("v_terngrad", "ternary_gradient")):
+                if val(attr):
+                    out.append(RADIOMETRIC_OPERATIONS[kind][1])
+            if val("v_logratio"):
+                out.append(LOG_RATIO_OPERATIONS[val("v_logratio_type", "CLR")][1])
             if val("v_pca"):
                 out.append("_PCA")
             if val("v_ica"):
                 out.append("_ICA")
-            if val("v_euler"):
-                out.append(f"_estimates_SI_{int(num('v_eu_si', 1.0))}")
-            if self._current_tab() == 3:  # Petrophys: at most one ticked
+            if self._current_tab() == 4:  # Petrophys: at most one ticked
                 if val("v_app_sus"):
                     out.append("_AppSus")
                 elif val("v_app_dens"):
@@ -1114,8 +1235,9 @@ class SGToolApp(tk.Tk):
         self.nb.pack(fill="both", expand=True, padx=4, pady=4)
 
         self._tab_specs = [
-            ("FFT Filters",     self._tab_fft),
+            ("FFT Filters+",    self._tab_fft),
             ("Conv + Stats",    self._tab_conv_stats),
+            ("Multiband",       self._tab_multiband),
             ("Grid + Wavelets", self._tab_grid_wavelets),
             ("Petrophys",       self._tab_petro),
             ("Utils",           self._tab_utils),
@@ -1394,6 +1516,62 @@ class SGToolApp(tk.Tk):
             "Analytic Signal (AS)\nCombines horizontal and vertical derivatives to highlight\n"
             "anomaly edges and amplitude variations, independent of direction").pack(side="left")
 
+        # ---- Edge Detectors ----
+        ed = section(p, "Edge Detectors")
+        ed.pack(fill="x", padx=8, pady=4)
+        r13 = tk.Frame(ed, bg=BG); r13.pack(fill="x", padx=4, pady=2)
+        self.v_nstd, self.v_nstd_win = tk.BooleanVar(), tk.StringVar(value="5")
+        self._setup_odd_trace(self.v_nstd_win)
+        tip(check(r13, "Normalised Standard Deviation (NSTD)", self.v_nstd),
+            "Normalised Standard Deviation (Cooper & Cowan 2008)\n"
+            "NSTD = s(dz) / (s(dx) + s(dy) + s(dz)), s = standard deviation of each\n"
+            "derivative in a moving window. Edges are maxima; balances strong and\n"
+            "weak anomalies. Use on gravity or RTP magnetic grids.").pack(side="left")
+        lbl(r13, "Window (px, odd):").pack(side="left", padx=(8, 0))
+        tip(entry(r13, self.v_nstd_win, 4, chk_var=self.v_nstd),
+            "Window size in cells (odd)").pack(side="left", padx=2)
+
+        r14 = tk.Frame(ed, bg=BG); r14.pack(fill="x", padx=4, pady=2)
+        self.v_nav, self.v_nav_win = tk.BooleanVar(), tk.StringVar(value="7")
+        self.v_nav_cof = tk.StringVar(value="2")
+        self._setup_odd_trace(self.v_nav_win)
+        tip(check(r14, "NAV-Edge", self.v_nav),
+            "NAV-Edge, normalised anisotropy variance (Zhang et al. 2014, Geophysics\n"
+            "79(3) J43-J53). Dimensionless; positive over sources, negative outside;\n"
+            "edges are the ZERO CROSSINGS. Uses no higher derivatives, so it is\n"
+            "robust to noise. Use on gravity or RTP magnetic grids.").pack(side="left")
+        lbl(r14, "Window (px, odd):").pack(side="left", padx=(8, 0))
+        tip(entry(r14, self.v_nav_win, 4, chk_var=self.v_nav),
+            "Window size M in cells (odd). 3 for clean data, larger for noisy data\n"
+            "(Gaussian sigma = (M-1)/6)").pack(side="left", padx=2)
+        lbl(r14, "Aniso scale:").pack(side="left", padx=(8, 0))
+        tip(entry(r14, self.v_nav_cof, 4, chk_var=self.v_nav),
+            "Anisotropy scale (cof): 1 = isotropic; larger values smooth along strike\n"
+            "and sharpen across it, separating close parallel sources (paper used 1, 2, 5)"
+            ).pack(side="left", padx=2)
+
+        # ---- Euler Deconvolution ----
+        eu = section(p, "Euler Deconvolution")
+        eu.pack(fill="x", padx=8, pady=4)
+
+        re1 = tk.Frame(eu, bg=BG); re1.pack(fill="x", padx=4, pady=2)
+        self.v_euler   = tk.BooleanVar()
+        self.v_eu_si   = tk.StringVar(value="1.0")
+        self.v_eu_win  = tk.StringVar(value="5")
+        self.v_eu_filt = tk.StringVar(value="0.1")
+        tip(check(re1, "Euler Deconvolution", self.v_euler),
+            "Euler deconvolution depth estimation\nEstimates source depths from potential field data\n"
+            "(cannot be previewed)").pack(side="left")
+        lbl(re1, "SI:").pack(side="left", padx=(8,0))
+        tip(combo(re1, ["0.0","1.0","2.0","3.0"], self.v_eu_si, w=5, chk_var=self.v_euler),
+            "Structural Index (0=sphere, 1=pipe, 2=dyke, 3=fault)").pack(side="left", padx=2)
+        lbl(re1, "Win:").pack(side="left", padx=(6,0))
+        tip(entry(re1, self.v_eu_win, 4, chk_var=self.v_euler),
+            "Window size in pixels for Euler deconvolution").pack(side="left", padx=2)
+        lbl(re1, "Thresh:").pack(side="left")
+        tip(entry(re1, self.v_eu_filt, 5, chk_var=self.v_euler),
+            "Percentage uncertainty threshold for depth estimates (0–1)").pack(side="left", padx=2)
+
         # ---- Buffer + Apply ----
         ba = tk.Frame(p, bg=BG)
         ba.pack(fill="x", padx=8, pady=8)
@@ -1462,6 +1640,26 @@ class SGToolApp(tk.Tk):
         tip(check(rs, "relief", self.v_sun_relief),
             "Uses Grass-like shading algorithm for softer shading").pack(side="left", padx=(8,0))
 
+        # ---- Domain Detection (edge-preserving smoothers) ----
+        dd = section(p, "Domain Detection")
+        dd.pack(fill="x", padx=8, pady=4)
+        self.v_snn, self.v_snn_win = tk.BooleanVar(), tk.StringVar(value="3")
+        self.v_kuw, self.v_kuw_win = tk.BooleanVar(), tk.StringVar(value="5")
+        for var, win, text, help_text in (
+                (self.v_snn, self.v_snn_win, "Symmetric Nearest Neighbour (SNN)",
+                 "Symmetric Nearest Neighbour smoother: of each pair of cells symmetric\n"
+                 "about the centre, keep the one closer to the centre value, and average.\n"
+                 "Removes spikes and line noise without widening narrow dykes."),
+                (self.v_kuw, self.v_kuw_win, "Kuwahara",
+                 "Kuwahara edge-preserving smoother: four overlapping quadrants of the\n"
+                 "window; each cell takes the mean of the quadrant with least variance.\n"
+                 "Flattens noise inside domains while keeping steps sharp.")):
+            self._setup_odd_trace(win)
+            r = tk.Frame(dd, bg=BG); r.pack(fill="x", padx=4, pady=2)
+            tip(check(r, text, var), help_text).pack(side="left")
+            lbl(r, "Window (px, odd):").pack(side="left", padx=(8, 0))
+            tip(entry(r, win, 4, chk_var=var), "Window size in cells (odd)").pack(side="left", padx=2)
+
         ss = section(p, "Spatial Statistics")
         ss.pack(fill="x", padx=8, pady=4)
 
@@ -1492,9 +1690,13 @@ class SGToolApp(tk.Tk):
                                        ("Skewness", self.v_ss_skew), ("Kurtosis", self.v_ss_kurt)]):
             tip(check(ra if i < 3 else rb, txt, v), _ss_tips[txt]).pack(side="left", padx=(0,10))
 
-        # ---- MRVBF / MRRTF / slope (needs a projected DEM, cell size in metres) ----
-        rmv1 = tk.Frame(ss, bg=BG); rmv1.pack(fill="x", padx=4, pady=2)
-        rmv2 = tk.Frame(ss, bg=BG); rmv2.pack(fill="x", padx=4, pady=(0, 2))
+        self._tab_conv_anisotropy(ss)
+
+        # ---- Landform: MRVBF / MRRTF / slope (needs a projected DEM, cell size in metres) ----
+        lf = section(p, "Landform")
+        lf.pack(fill="x", padx=8, pady=4)
+        rmv1 = tk.Frame(lf, bg=BG); rmv1.pack(fill="x", padx=4, pady=2)
+        rmv2 = tk.Frame(lf, bg=BG); rmv2.pack(fill="x", padx=4, pady=(0, 2))
         self.v_mrvbf = tk.BooleanVar()
         d_ = MRVBF_DEFAULTS
         self.v_mrvbf_ts = tk.StringVar(value=f"{d_['t_slope']:g}")
@@ -1518,6 +1720,363 @@ class SGToolApp(tk.Tk):
             lbl(frame, label).pack(side="left", padx=(8, 0))
             tip(entry(frame, var, 6, chk_var=self.v_mrvbf), text).pack(side="left", padx=2)
 
+        ba = tk.Frame(p, bg=BG); ba.pack(fill="x", padx=8, pady=8)
+        self._window_btn(ba, 1).pack(side="right", padx=4)
+        b_conv = btn(ba, "Apply Conv + Stats", self._apply_conv_stats, w=22)
+        self._apply_btns[1] = b_conv
+        tip(b_conv, "Apply selected processing steps to the selected grid").pack(side="right", padx=4)
+        tip(check(ba, "Preview", self.v_preview),
+            "Show the selected filter in a separate preview window that updates as you change\n"
+            "settings (zoom and pan to see detail). Only one filter can be ticked while\n"
+            "previewing. Apply Preview then saves the previewed filter at full resolution").pack(side="right", padx=10)
+        self._update_apply_text()
+
+    # ======================================================================
+    # TAB 3 – MULTIBAND: radiometric ratios, log-ratios, PCA / ICA
+    # ======================================================================
+    RAD_ROWS = (("K", "K", "Band 1 or 3 Band"), ("U", "eU", "Band 2"), ("Th", "eTh", "Band 3"))
+
+    def _tab_multiband(self, p):
+        rg = section(p, "Radiometrics")
+        rg.pack(fill="x", padx=8, pady=4)
+        lbl(rg, "Radiometric grids (Efimov, Kd/Ud, Ternary gradient, Log-ratio):").pack(
+            anchor="w", padx=4, pady=(2, 0))
+        self._rad_combos = {}
+        for key, label, band_text in self.RAD_ROWS:
+            r = tk.Frame(rg, bg=BG); r.pack(fill="x", padx=4, pady=1)
+            lbl(r, label, width=4, anchor="e").pack(side="left")
+            var, band = tk.StringVar(), tk.StringVar()
+            setattr(self, f"v_rad_{key}", var)
+            setattr(self, f"v_rad_{key}_band", band)
+            c = ttk.Combobox(r, textvariable=var, values=list(self._layer_map), width=30, font=FONT)
+            c.pack(side="left", padx=2)
+            c.bind("<<ComboboxSelected>>", lambda _e, k=key: self._rad_fill_bands(k))
+            c.bind("<FocusOut>", lambda _e, k=key: self._rad_fill_bands(k))
+            tip(c, f"Grid with {label}: one band of a multiband radiometric grid, or a separate\n"
+                   "grid (resampled onto the input grid). An input grid with 3 or more bands\n"
+                   "fills K, eU and eTh automatically.")
+            self._rad_combos[key] = c
+            tip(btn(r, "…", lambda v=var, k=key: (_browse_file(v), self._rad_fill_bands(k)), w=2),
+                "Browse for a grid").pack(side="left", padx=2)
+            lbl(r, band_text).pack(side="left", padx=(8, 2))
+            bc = ttk.Combobox(r, textvariable=band, values=[], width=16, state="readonly", font=FONT)
+            bc.pack(side="left", padx=2)
+            bc._sgt_key = key
+            setattr(self, f"_rad_band_combo_{key}", bc)
+            tip(bc, f"Band holding {label} (guessed from band names where possible)")
+        self.v_input.trace_add("write", lambda *_: self._input_to_rad())
+
+        r = tk.Frame(rg, bg=BG); r.pack(fill="x", padx=4, pady=(6, 2))
+        self.v_efimov = tk.BooleanVar()
+        tip(check(r, "Efimov F-parameter (K·eU/eTh)", self.v_efimov),
+            "Efimov F-parameter F = K x eU / eTh: highlights potassic and uraniferous\n"
+            "alteration. Cells where K, eU or eTh is <= 0 are left blank.").pack(side="left")
+
+        r = tk.Frame(rg, bg=BG); r.pack(fill="x", padx=4, pady=2)
+        self.v_kd, self.v_ud = tk.BooleanVar(), tk.BooleanVar()
+        self.v_kdud_method = tk.StringVar(value="Ratio of means")
+        tip(check(r, "Kd", self.v_kd),
+            "Kd = (K - Ks) / Ks, Ks = K predicted from eTh (Saunders et al.)\n"
+            "Positive = K in excess of what thorium predicts (alteration).").pack(side="left")
+        tip(check(r, "Ud", self.v_ud),
+            "Ud = (eU - Us) / Us, Us = eU predicted from eTh (Saunders et al.)\n"
+            "Positive = U in excess of what thorium predicts.").pack(side="left", padx=(6, 0))
+        lbl(r, "Background:").pack(side="left", padx=(10, 2))
+        tip(combo(r, ["Ratio of means", "Linear regression"], self.v_kdud_method, w=16),
+            "How K and eU are predicted from eTh over the whole grid:\n"
+            "Ratio of means: Ks = (mean K / mean eTh) x eTh\n"
+            "Linear regression: Ks = a + b x eTh (least squares)\n"
+            "Cells where the predicted value is below 10% of the mean are left blank.").pack(side="left")
+
+        r = tk.Frame(rg, bg=BG); r.pack(fill="x", padx=4, pady=2)
+        self.v_terngrad = tk.BooleanVar()
+        self.v_terngrad_scaling = tk.StringVar(value="Z-score")
+        tip(check(r, "Ternary Gradient (vector Sobel)", self.v_terngrad),
+            "Ternary gradient: multichannel (Di Zenzo) Sobel gradient of K, eU and eTh\n"
+            "together. Highlights boundaries where any radioelement changes, even if\n"
+            "the total count stays the same.").pack(side="left")
+        lbl(r, "Scaling:").pack(side="left", padx=(10, 2))
+        tip(combo(r, ["Z-score", "CLR"], self.v_terngrad_scaling, w=8, chk_var=self.v_terngrad),
+            "Z-score: each band standardised so K, eU, eTh weigh the same\n"
+            "CLR: centred log-ratios, so only changes in element ratios count").pack(side="left")
+
+        mv = section(p, "Multivariate Analysis")
+        mv.pack(fill="x", padx=8, pady=4)
+
+        rl = tk.Frame(mv, bg=BG); rl.pack(fill="x", padx=4, pady=2)
+        self.v_logratio = tk.BooleanVar()
+        self.v_logratio_type = tk.StringVar(value="CLR")
+        tip(check(rl, "Log-ratio transform", self.v_logratio),
+            "Log-ratio transform of compositional data before PCA/ICA, so high-count\n"
+            "units do not dominate. Uses all bands of the input grid if it is multiband,\n"
+            "otherwise the K, eU, eTh grids. Writes a multiband grid (the preview shows\n"
+            "its first band). Values <= 0 are replaced by half the smallest positive\n"
+            "value of their band.").pack(side="left")
+        lbl(rl, "Type:").pack(side="left", padx=(8, 2))
+        tip(combo(rl, ["CLR", "ILR"], self.v_logratio_type, w=5, chk_var=self.v_logratio),
+            "CLR: centred log-ratio, one band per input band (bands sum to zero)\n"
+            "ILR: isometric log-ratio (pivot coordinates), one band fewer").pack(side="left")
+
+        rp = tk.Frame(mv, bg=BG); rp.pack(fill="x", padx=4, pady=2)
+        self.v_pca   = tk.BooleanVar()
+        self.v_pca_n = tk.StringVar(value="0")
+        tip(check(rp, "PCA", self.v_pca),
+            "Principal Component Analysis (PCA)\nOnly works on multiband grids\n"
+            "Reduces dimensionality while preserving variance\n"
+            "Preview shows components 1-3 as red/green/blue, calculated from the cells in view"
+            ).pack(side="left")
+        lbl(rp, "Components (0=all):").pack(side="left", padx=(8,0))
+        tip(entry(rp, self.v_pca_n, 4, chk_var=self.v_pca),
+            "Number of components to keep after PCA\nSet to 0 to keep all components").pack(side="left", padx=2)
+
+        ri = tk.Frame(mv, bg=BG); ri.pack(fill="x", padx=4, pady=2)
+        self.v_ica   = tk.BooleanVar()
+        self.v_ica_n = tk.StringVar(value="0")
+        tip(check(ri, "ICA", self.v_ica),
+            "Independent Component Analysis (ICA)\nOnly works on multiband grids\n"
+            "Separates a multivariate signal into additive, independent components\n"
+            "Preview shows components 1-3 as red/green/blue, calculated from the cells in view"
+            ).pack(side="left")
+        lbl(ri, "Components (0=all):").pack(side="left", padx=(8,0))
+        tip(entry(ri, self.v_ica_n, 4, chk_var=self.v_ica),
+            "Number of components to keep after ICA\nSet to 0 to keep all components").pack(side="left", padx=2)
+
+        ba = tk.Frame(p, bg=BG); ba.pack(fill="x", padx=8, pady=8)
+        self._window_btn(ba, 2).pack(side="right", padx=4)
+        b_multi = btn(ba, "Apply Multiband", self._apply_multi, w=22)
+        self._apply_btns[2] = b_multi
+        tip(b_multi, "Apply selected processing steps to the selected grid").pack(side="right", padx=4)
+        tip(check(ba, "Preview", self.v_preview),
+            "Show the selected filter in a separate preview window that updates as you change\n"
+            "settings (zoom and pan to see detail). Only one filter can be ticked while\n"
+            "previewing. Apply Preview then saves the previewed filter at full resolution").pack(side="right", padx=10)
+        self._input_to_rad()
+        self._update_apply_text()
+
+    # -- K / eU / eTh inputs ---------------------------------------------------
+    @staticmethod
+    def _band_names(path):
+        from calcs.Radiometrics import band_names
+        try:
+            return band_names(path)
+        except Exception:
+            return []
+
+    def _rad_path(self, key):
+        name = getattr(self, f"v_rad_{key}").get()
+        return self._layer_map.get(name, name)
+
+    def _rad_fill_bands(self, key, band=None):
+        """List the bands of the grid chosen for K, eU or eTh, and pick one."""
+        from calcs.Radiometrics import guess_band
+        path = self._rad_path(key)
+        names = self._band_names(path) if path and os.path.exists(path) else []
+        values = [f"{i + 1}: {n}" if n else f"Band {i + 1}" for i, n in enumerate(names)]
+        getattr(self, f"_rad_band_combo_{key}")["values"] = values
+        if values:
+            b = band or guess_band(names, key)
+            getattr(self, f"v_rad_{key}_band").set(values[min(b, len(values)) - 1])
+        else:
+            getattr(self, f"v_rad_{key}_band").set("")
+
+    def _input_to_rad(self):
+        """An input grid of 3 or more bands is taken as the K / eU / eTh source."""
+        if not hasattr(self, "_rad_combos"):
+            return
+        path = self._resolve_input()
+        if not path or not os.path.exists(path) or len(self._band_names(path)) < 3:
+            return
+        for key, _label, _text in self.RAD_ROWS:
+            getattr(self, f"v_rad_{key}").set(self.v_input.get())
+            self._rad_fill_bands(key)
+
+    def _rad_sources(self):
+        """[(path, band)] for K, eU, eTh; ValueError if one is missing."""
+        out = []
+        for key, label, _text in self.RAD_ROWS:
+            path = self._rad_path(key)
+            band_text = getattr(self, f"v_rad_{key}_band").get()
+            if not path or not os.path.exists(path) or not band_text:
+                raise ValueError(f"Choose the {label} grid and band on the Multiband tab")
+            num = band_text.split(":")[0].replace("Band", "").strip()
+            out.append((path, int(num)))
+        return out
+
+    def _band_sources(self, in_r):
+        """Every band of the input grid if it is multiband (log-ratio, PCA, ICA),
+        else the K / eU / eTh grids; with names for the result's bands."""
+        names = self._band_names(in_r)
+        if len(names) > 1:
+            return ([(in_r, b) for b in range(1, len(names) + 1)],
+                    [n or f"Band {i + 1}" for i, n in enumerate(names)])
+        return self._rad_sources(), ["K", "eU", "eTh"]
+
+    def _multi_ticked(self):
+        return [n for n in self.PREVIEW_FILTERS[2] if self._filter_var(n) is not None
+                and self._filter_var(n).get()]
+
+    def _multi_preview_stack(self, path, box, k):
+        """The stacks the ticked Multiband filter needs, cut to box (cells of the input
+        grid) and block-averaged k-fold, as the preview cuts the input grid."""
+        from calcs.Radiometrics import north_up_frame, read_stack
+        x0, y0, x1, y1 = box
+        gt, cols, rows, wkt = north_up_frame(path)
+        ticked = self._multi_ticked()
+        want_bands = any(n in ("v_logratio", "v_pca", "v_ica") for n in ticked)
+        sources, names = (self._band_sources(path) if want_bands
+                          else (self._rad_sources(), ["K", "eU", "eTh"]))
+        key = (tuple(sources), tuple(os.path.getmtime(p) for p, _b in sources), path)
+        cache = getattr(self, "_multi_src", None)
+        if cache is None or cache[0] != key:
+            cache = (key, read_stack(sources, gt, cols, rows, wkt))
+            self._multi_src = cache
+        full = cache[1]
+        stack = np.stack([block_mean(b[y0:y1, x0:x1], k) for b in full])
+        return {"stack": stack, "names": names, "rad": not want_bands}
+
+    def _multi_steps(self, in_r, data, cx, cy, _save, preview=False):
+        """The ticked Multiband operations; each result goes to _save(result, suffix, step).
+        data: {"stack": (bands, rows, cols), "names": band names, "rad": the stack is K, eU,
+        eTh} for the preview, or None to read the full grids here."""
+        from calcs import Radiometrics as R
+        from calcs.Radiometrics import RADIOMETRIC_OPERATIONS, LOG_RATIO_OPERATIONS
+
+        def rad_stack():
+            if data is not None:
+                return data["stack"]
+            gt, cols, rows, wkt = R.north_up_frame(in_r)
+            return R.read_stack(self._rad_sources(), gt, cols, rows, wkt)
+
+        def band_stack():
+            if data is not None:
+                return data["stack"], data["names"]
+            gt, cols, rows, wkt = R.north_up_frame(in_r)
+            sources, names = self._band_sources(in_r)
+            return R.read_stack(sources, gt, cols, rows, wkt), names
+
+        background = "regression" if self.v_kdud_method.get().startswith("Linear") else "ratio"
+        scaling = "clr" if self.v_terngrad_scaling.get() == "CLR" else "zscore"
+        sources_text = {}
+        try:
+            for (k_, label, _t), (p_, b_) in zip(self.RAD_ROWS, self._rad_sources()):
+                sources_text[label] = f"{p_} (band {b_})"
+        except ValueError:
+            pass
+        for attr, kind in (("v_efimov", "efimov"), ("v_kd", "kd"), ("v_ud", "ud"),
+                           ("v_terngrad", "ternary_gradient")):
+            if not getattr(self, attr).get():
+                continue
+            self._check_cancel()
+            operation, suffix = RADIOMETRIC_OPERATIONS[kind]
+            self.after(0, lambda o=operation: self._status(f"{o}…"))
+            params = dict(sources_text)
+            if kind in ("kd", "ud"):
+                params["background"] = background
+            if kind == "ternary_gradient":
+                params["scaling"] = scaling
+            _save(R.compute_radiometric(kind, rad_stack(), background, scaling, dx=cx, dy=cy),
+                  suffix, (operation, params))
+
+        if self.v_logratio.get():
+            self._check_cancel()
+            kind = self.v_logratio_type.get()
+            operation, suffix = LOG_RATIO_OPERATIONS[kind]
+            self.after(0, lambda o=operation: self._status(f"{o}…"))
+            stack, names = band_stack()
+            out, replaced = R.log_ratio(kind, stack)
+            if replaced and not preview:
+                self.after(0, lambda n=replaced: self._status(
+                    f"{kind}: {n} values <= 0 replaced by half the smallest positive value"))
+            step = (operation, {"type": kind, "bands": ", ".join(names)})
+            if preview:
+                _save(out[0], suffix, step)  # the preview shows the first band
+            else:
+                _save(out, suffix, step, R.log_ratio_band_names(kind, names))
+
+        for attr, n_attr, kind in (("v_pca", "v_pca_n", "PCA"), ("v_ica", "v_ica_n", "ICA")):
+            if not getattr(self, attr).get():
+                continue
+            self._check_cancel()
+            n = int(getattr(self, n_attr).get() or 0)
+            operation = ("Principal component analysis" if kind == "PCA"
+                         else "Independent component analysis")
+            self.after(0, lambda k_=kind: self._status(f"{k_}…"))
+            if preview:
+                try:
+                    import sklearn  # noqa: F401
+                except ImportError:
+                    raise RuntimeError(f"{kind} needs scikit-learn: run the toolbox's "
+                                       "Set Up Python Environment tool")
+                from calcs.PCAICA import pca_stack, ica_stack
+                stack, _names = band_stack()
+                if stack.shape[0] < 2:
+                    raise RuntimeError(f"{kind} needs a multiband grid")
+                comps, _model = (pca_stack if kind == "PCA" else ica_stack)(stack, n or None)
+                _save(comps[:3] if comps.shape[0] >= 3 else comps[0], "_" + kind,
+                      (operation, {"n_components": n}))
+            else:
+                _save(None, "_" + kind, (operation, {"n_components": n}))
+
+    def _apply_multi(self):
+        in_r = self._compute_output_path()
+        if not in_r:
+            messagebox.showwarning("No Input", "Select an input raster.")
+            return
+        self._end_preview_for_apply()
+        self._status("Starting processing…")
+        self._run_in_thread(self._do_apply_multi, in_r)
+
+    def _do_apply_multi(self, in_r):
+        from calcs import Radiometrics as R
+        from calcs.PCAICA import PCAICA
+        gt, cols, rows, wkt = R.north_up_frame(in_r)
+        ll_x, ll_y = gt[0], gt[3] + rows * gt[5]
+        cx, cy = abs(gt[1]), abs(gt[5])
+        base, _ext = os.path.splitext(in_r)
+        count = [0]
+
+        def _save(result, suffix, step, descriptions=None):
+            self._check_cancel()
+            out_r = self._output_path(base, suffix, ".tif")
+            if result is None:  # PCA / ICA: worked out from the input file
+                analysis = PCAICA(np.zeros((2, 2)))
+                n = step[1]["n_components"]
+                run = analysis.pca_with_nans if suffix == "_PCA" else analysis.ica_with_nans
+                if run(in_r, out_r, n_components=n if n > 0 else None)[0] is None:
+                    raise RuntimeError(f"{suffix[1:]} needs a multiband grid")
+            elif result.ndim == 3:
+                R.write_multiband(out_r, result, gt, wkt, descriptions)
+            else:
+                numpy_to_raster(result, out_r, ll_x, ll_y, cx, cy, wkt, NODATA)
+            write_provenance(out_r, in_r, *step)
+            self._record_pending(out_r)
+            count[0] += 1
+            self.after(0, self._on_output_written, out_r)
+
+        self._multi_steps(in_r, None, cx, cy, _save)
+        self.after(0, lambda: self._status(f"Done — {count[0]} output(s) written."))
+        self.after(0, self._uncheck_multi)
+
+    def _uncheck_multi(self):
+        for v in (self.v_efimov, self.v_kd, self.v_ud, self.v_terngrad, self.v_logratio,
+                  self.v_pca, self.v_ica):
+            v.set(False)
+
+    def _output_path(self, base, suffix, ext):
+        """<base><suffix><ext>, replacing an earlier result of that name, or (Help tab:
+        Replace existing layer unticked) the next free <base><suffix>_1, _2 ..."""
+        path = f"{base}{suffix}{ext}"
+        if self.v_replace.get():
+            return path
+        n = 0
+        while os.path.exists(path):
+            n += 1
+            path = f"{base}{suffix}_{n}{ext}"
+        return path
+
+    def _tab_conv_anisotropy(self, ss):
+        """Local anisotropy rows of the Spatial Statistics group (Chain Length and
+        Streamline Length built but hidden, as in the QGIS dialog)."""
         # ---- Local Anisotropy (Chain Length / Streamline Length hidden) ----
         ra1 = tk.Frame(ss, bg=BG); ra1.pack(fill="x", padx=4, pady=2)
         self.v_ss_aniso          = tk.BooleanVar()
@@ -1525,7 +2084,8 @@ class SGToolApp(tk.Tk):
         tip(check(ra1, "Local Anisotropy", self.v_ss_aniso),
             "Compute anisotropy magnitude (0–1) and dominant orientation (0–180°)\n"
             "via the structure tensor of Sobel gradients averaged over the window.\n"
-            "Returns two layers: _SS_AnisoMag and _SS_AnisoOrient").pack(side="left")
+            "Returns two layers: _SS_AnisoMag and _SS_AnisoOrient\n"
+            "Preview shows the orientation, in the cyclic colours of the saved result").pack(side="left")
         tip(combo(ra1, ["Gaussian", "Box"], self.v_ss_aniso_win_type, w=9, chk_var=self.v_ss_aniso),
             "Window type for smoothing the structure tensor\n"
             "Gaussian: weighted by distance (recommended)\n"
@@ -1567,60 +2127,6 @@ class SGToolApp(tk.Tk):
         tip(entry(ra3, self.v_ss_max_steps, 5),
             "Maximum trace steps for Streamline Length\n"
             "Each step is 0.5 px; 200 steps ≈ 100 px maximum path length").pack(side="left", padx=2)
-
-        mv = section(p, "Multivariate Analysis")
-        mv.pack(fill="x", padx=8, pady=4)
-
-        rp = tk.Frame(mv, bg=BG); rp.pack(fill="x", padx=4, pady=2)
-        self.v_pca   = tk.BooleanVar()
-        self.v_pca_n = tk.StringVar(value="0")
-        tip(check(rp, "PCA", self.v_pca),
-            "Principal Component Analysis (PCA)\nOnly works on multiband grids\n"
-            "Reduces dimensionality while preserving variance").pack(side="left")
-        lbl(rp, "Components (0=all):").pack(side="left", padx=(8,0))
-        tip(entry(rp, self.v_pca_n, 4, chk_var=self.v_pca),
-            "Number of components to keep after PCA\nSet to 0 to keep all components").pack(side="left", padx=2)
-
-        ri = tk.Frame(mv, bg=BG); ri.pack(fill="x", padx=4, pady=2)
-        self.v_ica   = tk.BooleanVar()
-        self.v_ica_n = tk.StringVar(value="0")
-        tip(check(ri, "ICA", self.v_ica),
-            "Independent Component Analysis (ICA)\nOnly works on multiband grids\n"
-            "Separates a multivariate signal into additive, independent components").pack(side="left")
-        lbl(ri, "Components (0=all):").pack(side="left", padx=(8,0))
-        tip(entry(ri, self.v_ica_n, 4, chk_var=self.v_ica),
-            "Number of components to keep after ICA\nSet to 0 to keep all components").pack(side="left", padx=2)
-
-        eu = section(p, "Euler Deconvolution")
-        eu.pack(fill="x", padx=8, pady=4)
-
-        re1 = tk.Frame(eu, bg=BG); re1.pack(fill="x", padx=4, pady=2)
-        self.v_euler   = tk.BooleanVar()
-        self.v_eu_si   = tk.StringVar(value="1.0")
-        self.v_eu_win  = tk.StringVar(value="5")
-        self.v_eu_filt = tk.StringVar(value="0.1")
-        tip(check(re1, "Euler Deconvolution", self.v_euler),
-            "Euler deconvolution depth estimation\nEstimates source depths from potential field data").pack(side="left")
-        lbl(re1, "SI:").pack(side="left", padx=(8,0))
-        tip(combo(re1, ["0.0","1.0","2.0","3.0"], self.v_eu_si, w=5, chk_var=self.v_euler),
-            "Structural Index (0=sphere, 1=pipe, 2=dyke, 3=fault)").pack(side="left", padx=2)
-        lbl(re1, "Win:").pack(side="left", padx=(6,0))
-        tip(entry(re1, self.v_eu_win, 4, chk_var=self.v_euler),
-            "Window size in pixels for Euler deconvolution").pack(side="left", padx=2)
-        lbl(re1, "Thresh:").pack(side="left")
-        tip(entry(re1, self.v_eu_filt, 5, chk_var=self.v_euler),
-            "Percentage uncertainty threshold for depth estimates (0–1)").pack(side="left", padx=2)
-
-        ba = tk.Frame(p, bg=BG); ba.pack(fill="x", padx=8, pady=8)
-        self._window_btn(ba, 1).pack(side="right", padx=4)
-        b_conv = btn(ba, "Apply Conv + Stats", self._apply_conv_stats, w=22)
-        self._apply_btns[1] = b_conv
-        tip(b_conv, "Apply selected processing steps to the selected grid").pack(side="right", padx=4)
-        tip(check(ba, "Preview", self.v_preview),
-            "Show the selected filter in a separate preview window that updates as you change\n"
-            "settings (zoom and pan to see detail). Only one filter can be ticked while\n"
-            "previewing. Apply Preview then saves the previewed filter at full resolution").pack(side="right", padx=10)
-        self._update_apply_text()
 
     # ======================================================================
     # TAB 3 – GRID + WAVELETS
@@ -1869,9 +2375,9 @@ class SGToolApp(tk.Tk):
         picks("dens", e_dd, e_dt, e_db, e_dc)
 
         r = row(ap)
-        self._window_btn(r, 3).pack(side="right", padx=4)
+        self._window_btn(r, 4).pack(side="right", padx=4)
         b_app = btn(r, "Apply Petrophysics", self._apply_petro, w=22)
-        self._apply_btns[3] = b_app
+        self._apply_btns[4] = b_app
         tip(b_app, "Calculate the chosen grid (apparent susceptibility or density) from the\n"
                    "input grid, using the FFT buffer set on the FFT Filters tab").pack(side="right", padx=4)
         tip(check(r, "Preview", self.v_preview),
@@ -2221,7 +2727,7 @@ class SGToolApp(tk.Tk):
 
         def _save(result, suffix, step=None):
             self._check_cancel()
-            out_r = f"{base}{step_suffix(step) or suffix}{ext}"
+            out_r = self._output_path(base, step_suffix(step) or suffix, ext)
             numpy_to_raster(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
             write_provenance(out_r, in_r, *(step or (suffix, {})))
             self._record_pending(out_r)
@@ -2442,9 +2948,9 @@ class SGToolApp(tk.Tk):
         tip(entry(rt1, self.v_thresh_below, 10, chk_var=self.v_thresh_en),
             "Lower threshold value").pack(side="left", padx=2)
         b_thr = btn(rt1, "Apply Threshold → NaN", self._apply_threshold, w=22)
-        self._apply_btns[4] = b_thr
+        self._apply_btns[5] = b_thr
         tip(b_thr, "Apply threshold and set matching values to NaN (no-data)").pack(side="left", padx=8)
-        self._window_btn(rt1, 4).pack(side="left", padx=4)
+        self._window_btn(rt1, 5).pack(side="left", padx=4)
         tip(check(rt1, "Preview", self.v_preview),
             "Show the threshold in a separate preview window that updates as you change\n"
             "settings (zoom and pan to see detail). Apply Preview then saves it at full resolution").pack(side="left", padx=4)
@@ -2571,6 +3077,13 @@ class SGToolApp(tk.Tk):
     # ======================================================================
     def _tab_help(self, p):
         """The same text as the QGIS plugin's Help tab; the links open in the web browser."""
+        top = tk.Frame(p, bg=BG)
+        top.pack(side="top", fill="x", padx=8, pady=(6, 0))
+        tip(check(top, "Replace existing layer", self.v_replace),
+            "Ticked: running the same filter again on the same grid overwrites the\n"
+            "earlier result (its file).\n"
+            "Unticked: each run is kept as a new file, numbered <name>_1, <name>_2 ...").pack(
+            side="left")
         txt = tk.Text(p, bg=BG, fg=FG, font=FONT, wrap="word",
                       relief="flat", padx=12, pady=8)
         vsb = ttk.Scrollbar(p, orient="vertical", command=txt.yview)
@@ -2693,7 +3206,7 @@ class SGToolApp(tk.Tk):
         def _save(result, suffix, step=None):
             self._check_cancel()
             suffix = step_suffix(step) or suffix   # QGIS naming: grid_RTP.tif, grid_d1z.tif ...
-            out_r = f"{base}{suffix}{ext}"
+            out_r = self._output_path(base, suffix, ext)
             numpy_to_raster(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
             # how it was made, inside the GeoTIFF: (operation, parameters)
             write_provenance(out_r, in_r, *(step or (suffix, {})))
@@ -2702,6 +3215,12 @@ class SGToolApp(tk.Tk):
             self.after(0, self._on_output_written, out_r)
 
         self._fft_steps(in_r, arr, cx, cy, buf, proc, count, _save)
+
+        if self.v_euler.get():  # (not a filter: no preview, so not in _fft_steps)
+            self._check_cancel()
+            self.after(0, lambda: self._status("Euler deconvolution…"))
+            self._do_euler(arr, nodata, ll_x, ll_y, cx, cy, in_r)
+            count[0] += 1
 
         self.after(0, lambda: self._status(f"Done — {count[0]} output(s) written."))
         self.after(0, self._uncheck_fft)
@@ -2875,6 +3394,23 @@ class SGToolApp(tk.Tk):
             _save(proc.analytic_signal(arr, buffer_size=buf), "as",
                   step_record("analytic_signal"))
 
+        if self.v_nstd.get():
+            self._check_cancel()
+            self.after(0, lambda: self._status("NSTD…"))
+            from calcs.EdgeFilters import nstd
+            n = self._ensure_odd(self.v_nstd_win.get() or 5)
+            fx, fy, fz = proc.compute_derivatives(arr, "xyz", buffer_size=buf)
+            _save(nstd(fx, fy, fz, n), "nstd", step_record("nstd", WINDOW=n))
+
+        if self.v_nav.get():
+            self._check_cancel()
+            self.after(0, lambda: self._status("NAV-Edge…"))
+            from calcs.EdgeFilters import nav_edge
+            n = self._ensure_odd(self.v_nav_win.get() or 7)
+            cof = max(1.0, float(self.v_nav_cof.get() or 2))
+            _save(nav_edge(arr, n, cof, callback=lambda fraction=None: self._check_cancel()),
+                  "nav", step_record("nav_edge", WINDOW=n, ANISOTROPY_SCALE=cof))
+
     @staticmethod
     def _regional_input(proc, arr):
         """(data, mask) for remove_gradient / remove_2o_gradient, prepared as the
@@ -2886,7 +3422,8 @@ class SGToolApp(tk.Tk):
     def _uncheck_fft(self):
         for v in (self.v_rtp, self.v_vint, self.v_cont, self.v_dirclean,
                   self.v_regrem, self.v_bp, self.v_hlp, self.v_agc,
-                  self.v_deriv, self.v_thg, self.v_ta, self.v_as_):
+                  self.v_deriv, self.v_thg, self.v_ta, self.v_as_,
+                  self.v_nstd, self.v_nav, self.v_euler):
             v.set(False)
 
     # ======================================================================
@@ -2912,7 +3449,7 @@ class SGToolApp(tk.Tk):
         def _save(result, suffix, step=None):
             self._check_cancel()
             suffix = step_suffix(step) or suffix   # QGIS naming: grid_RTP.tif, grid_d1z.tif ...
-            out_r = f"{base}{suffix}{ext}"
+            out_r = self._output_path(base, suffix, ext)
             numpy_to_raster(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
             # how it was made, inside the GeoTIFF: (operation, parameters)
             write_provenance(out_r, in_r, *(step or (suffix, {})))
@@ -2971,6 +3508,22 @@ class SGToolApp(tk.Tk):
             _save(result, "shade",
                   step_record("sun_shading", AZIMUTH=az, ZENITH=alt,
                               RELIEF=bool(self.v_sun_relief.get())))
+
+        if self.v_snn.get():
+            self._check_cancel()
+            self.after(0, lambda: self._status("Symmetric nearest neighbour…"))
+            from calcs.EdgeFilters import snn
+            n = self._ensure_odd(self.v_snn_win.get() or 3)
+            _save(snn(arr, n, callback=lambda fraction=None: self._check_cancel()), "snn",
+                  step_record("snn", WINDOW=n))
+
+        if self.v_kuw.get():
+            self._check_cancel()
+            self.after(0, lambda: self._status("Kuwahara…"))
+            from calcs.EdgeFilters import kuwahara
+            n = self._ensure_odd(self.v_kuw_win.get() or 5)
+            _save(kuwahara(arr, n, callback=lambda fraction=None: self._check_cancel()), "kuw",
+                  step_record("kuwahara", WINDOW=n))
 
         win = self._ensure_odd(self.v_ss_win.get() or 5)
         for v_chk, stat, sfx in [
@@ -3052,45 +3605,13 @@ class SGToolApp(tk.Tk):
                     "window_size": win, "anisotropy_threshold": a_thresh,
                     "angle_tolerance": ang_tol, "max_steps": max_steps}))
 
-        if self.v_pca.get():
-            self._check_cancel()
-            self.after(0, lambda: self._status("PCA…"))
-            from calcs.PCAICA import PCAICA
-            n = int(self.v_pca_n.get() or 0)
-            PCAICA(np.zeros((2, 2))).pca_with_nans(
-                in_r, f"{base}_PCA.tif", n_components=n if n > 0 else None)
-            write_provenance(f"{base}_PCA.tif", in_r, "Principal component analysis",
-                             {"n_components": n})
-            self._record_pending(f"{base}_PCA.tif")
-            self.after(0, self._on_output_written, f"{base}_PCA.tif")
-            count[0] += 1
-
-        if self.v_ica.get():
-            self._check_cancel()
-            self.after(0, lambda: self._status("ICA…"))
-            from calcs.PCAICA import PCAICA
-            n = int(self.v_ica_n.get() or 0)
-            PCAICA(np.zeros((2, 2))).ica_with_nans(
-                in_r, f"{base}_ICA.tif", n_components=n if n > 0 else None)
-            write_provenance(f"{base}_ICA.tif", in_r, "Independent component analysis",
-                             {"n_components": n})
-            self._record_pending(f"{base}_ICA.tif")
-            self.after(0, self._on_output_written, f"{base}_ICA.tif")
-            count[0] += 1
-
-        if self.v_euler.get():
-            self._check_cancel()
-            self.after(0, lambda: self._status("Euler deconvolution…"))
-            self._do_euler(arr, nodata, ll_x, ll_y, cx, cy, in_r)
-            count[0] += 1
-
     def _uncheck_conv(self):
         for v in (self.v_mean, self.v_med, self.v_gauss, self.v_dconv,
                   self.v_sun, self.v_sun_relief,
                   self.v_ss_min, self.v_ss_max, self.v_ss_var, self.v_ss_std,
                   self.v_ss_skew, self.v_ss_kurt,
                   self.v_ss_aniso, self.v_ss_chain, self.v_ss_stream,
-                  self.v_mrvbf, self.v_pca, self.v_ica, self.v_euler):
+                  self.v_mrvbf, self.v_snn, self.v_kuw):
             v.set(False)
 
     def _do_euler(self, arr, nodata, ll_x, ll_y, cx, cy, in_r):
@@ -3372,8 +3893,8 @@ class SGToolApp(tk.Tk):
             messagebox.showerror("Apply to Window", f"Clip failed: {e}")
             return
         self.v_input.set(target[0])  # the clip is now the input grid
-        apply = {0: self._apply_fft, 1: self._apply_conv_stats,
-                 3: self._apply_petro, 4: self._apply_threshold}[tab]
+        apply = {0: self._apply_fft, 1: self._apply_conv_stats, 2: self._apply_multi,
+                 4: self._apply_petro, 5: self._apply_threshold}[tab]
         apply()
 
     def _window_clip_target(self, in_r):

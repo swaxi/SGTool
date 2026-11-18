@@ -3,6 +3,67 @@ from osgeo import gdal
 import os
 
 
+def read_bands_with_nan(ds):
+    """All bands of a GDAL dataset as a float (bands, rows, cols) array with
+    NaN wherever a band has no data: its NoData value, or cells its mask
+    (nodata / alpha / per-dataset mask) marks invalid. Without this the
+    background (e.g. -999999) is treated as data and swamps the statistics."""
+    bands = ds.RasterCount
+    out = np.empty((bands, ds.RasterYSize, ds.RasterXSize))
+    for b in range(bands):
+        band = ds.GetRasterBand(b + 1)
+        arr = band.ReadAsArray().astype(float)
+        nodata = band.GetNoDataValue()
+        if nodata is not None:
+            if np.isnan(nodata):
+                pass  # already NaN
+            else:
+                arr[arr == nodata] = np.nan
+        if band.GetMaskFlags() != gdal.GMF_ALL_VALID:
+            mask = band.GetMaskBand().ReadAsArray()
+            arr[mask == 0] = np.nan
+        out[b] = arr
+    return out
+
+
+def _components_of_stack(stack, model):
+    """Fit `model` (a scikit-learn PCA / FastICA) to the standardised valid
+    cells of a (bands, rows, cols) stack - cells with NaN in any band are
+    left out - and return the components as a (n, rows, cols) array with
+    NaN where the input had no data. Same steps as pca_with_nans /
+    ica_with_nans, for an array already in memory (the live preview)."""
+    from sklearn.preprocessing import StandardScaler
+
+    bands, rows, cols = stack.shape
+    X = stack.reshape(bands, -1).T
+    valid = ~np.isnan(X).any(axis=1)
+    if valid.sum() < bands + 1:
+        raise ValueError("Not enough cells with data in every band")
+    result = model.fit_transform(StandardScaler().fit_transform(X[valid]))
+    out = np.full((result.shape[1], rows * cols), np.nan)
+    out[:, valid] = result.T
+    return out.reshape(result.shape[1], rows, cols)
+
+
+def pca_stack(stack, n_components=None):
+    """PCA of a band stack in memory; returns (components, PCA object)."""
+    from sklearn.decomposition import PCA
+
+    n = stack.shape[0] if not n_components else min(n_components, stack.shape[0])
+    pca = PCA(n_components=n)
+    return _components_of_stack(stack, pca), pca
+
+
+def ica_stack(stack, n_components=None, random_state=42):
+    """ICA of a band stack in memory, as ica_with_nans; returns (components,
+    FastICA object)."""
+    from sklearn.decomposition import FastICA
+
+    n = stack.shape[0] if not n_components else min(n_components, stack.shape[0])
+    ica = FastICA(n_components=n, random_state=random_state, max_iter=1000, tol=0.0001)
+    return _components_of_stack(stack, ica), ica
+
+
 class PCAICA:
     def __init__(self, grid):
         """
@@ -54,13 +115,8 @@ class PCAICA:
                 f"Warning: Requested {n_components} components but only {bands} bands available. Using {bands} components."
             )
 
-        # Create a 3D numpy array to hold all band data
-        data_array = np.zeros((bands, height, width))
-
-        # Read all bands into the array
-        for b in range(bands):
-            band = ds.GetRasterBand(b + 1)
-            data_array[b] = band.ReadAsArray()
+        # All bands, NoData / masked cells as NaN (left out of the PCA)
+        data_array = read_bands_with_nan(ds)
 
         # Reshape for PCA (bands as features, pixels as samples)
         # Transpose from (bands, height, width) to (height*width, bands)
@@ -205,13 +261,8 @@ class PCAICA:
                 f"Warning: Requested {n_components} components but only {bands} bands available. Using {bands} components."
             )
 
-        # Create a 3D numpy array to hold all band data
-        data_array = np.zeros((bands, height, width))
-
-        # Read all bands into the array
-        for b in range(bands):
-            band = ds.GetRasterBand(b + 1)
-            data_array[b] = band.ReadAsArray()
+        # All bands, NoData / masked cells as NaN (left out of the ICA)
+        data_array = read_bands_with_nan(ds)
 
         # Reshape for ICA (bands as features, pixels as samples)
         # Transpose from (bands, height, width) to (height*width, bands)

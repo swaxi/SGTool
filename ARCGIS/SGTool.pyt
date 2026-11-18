@@ -3,12 +3,11 @@
 SGTool.pyt  –  ArcGIS Pro Python Toolbox
 Full-feature geophysical processing toolbox mirroring the SGTool QGIS plugin.
 
-Toolsets (categories) match the QGIS dockwidget tabs:
-  • FFT Filters
-  • Gradient Filters
-  • Convolution + Statistics
-  • Grid + Wavelets
-  • Utils
+Toolsets (categories) follow the QGIS dock's tabs and groups:
+  • FFT Filters, Gradient Filters, Edge Detectors   (FFT Filters+ tab)
+  • Convolution + Statistics, Domain Detection, Landform   (Conv + Stats tab)
+  • Multiband   (Multiband tab)
+  • Petrophysics, Grid + Wavelets, Utils
 """
 
 import logging
@@ -61,11 +60,15 @@ class Toolbox:
             RemoveRegional,
             DirectionalButterworthFilter,
             RemoveLineNoise,
+            EulerDeconvolution,
             # ---- Gradient Filters ----
             ComputeDerivative,
             TotalHorizontalGradient,
             TiltAngle,
             AnalyticSignal,
+            # ---- Edge Detectors ----
+            NSTDFilter,
+            NAVEdge,
             # ---- Convolution + Statistics ----
             MeanFilter,
             MedianFilter,
@@ -73,10 +76,18 @@ class Toolbox:
             DirectionalConvFilter,
             SunShading,
             SpatialStatistics,
+            # ---- Domain Detection ----
+            SNNFilter,
+            KuwaharaFilter,
+            # ---- Landform ----
             MRVBFTool,
+            # ---- Multiband ----
+            EfimovFParameter,
+            ThoriumNormalisedDeviation,
+            TernaryGradient,
+            LogRatioTransform,
             PCAAnalysis,
             ICAAnalysis,
-            EulerDeconvolution,
             # ---- Petrophysics ----
             ApparentSusceptibility,
             ApparentDensity,
@@ -93,6 +104,34 @@ class Toolbox:
             NormaliseGrids,
             ConvertRGBToGrayscale,
         ]
+
+
+# ============================================================================
+# Adding GUI results to the map
+# ============================================================================
+def _add_output_to_map(m, path):
+    """Add a result to map m, as QGIS loads it: a local anisotropy magnitude grid is
+    added unticked (so the orientation shows first), and an orientation grid gets a
+    full colour wheel at 50% transparency over the layers below."""
+    added = m.addDataFromPath(path)
+    name = os.path.splitext(os.path.basename(path))[0]
+    try:
+        if "_SS_AnisoMag" in name:
+            added.visible = False
+        elif "_SS_AnisoOrient" in name:
+            proj = arcpy.mp.ArcGISProject("CURRENT")
+            ramps = (proj.listColorRamps("Spectrum-Full Bright")
+                     or proj.listColorRamps("Spectrum By Wavelength-Full Bright")
+                     or proj.listColorRamps("*Spectrum*"))
+            sym = added.symbology
+            if ramps and hasattr(sym, "updateColorizer"):
+                sym.updateColorizer("RasterStretchColorizer")
+                sym.colorizer.colorRamp = ramps[0]
+                added.symbology = sym
+            added.transparency = 50
+    except Exception:
+        logging.getLogger(__name__).debug("Ignored exception", exc_info=True)
+    return added
 
 
 # ============================================================================
@@ -343,7 +382,7 @@ class LaunchGUI:
                             added_names = []
                             for p in new_paths:
                                 try:
-                                    m.addDataFromPath(p)
+                                    _add_output_to_map(m, p)
                                     seen.add(p)
                                     added_names.append(
                                         os.path.splitext(os.path.basename(p))[0])
@@ -423,7 +462,7 @@ class LoadSGToolOutputs:
         for path in paths:
             if os.path.exists(path):
                 try:
-                    m.addDataFromPath(path)
+                    _add_output_to_map(m, path)
                     messages.addMessage(f"Added: {os.path.basename(path)}")
                     added += 1
                 except Exception as e:
@@ -930,6 +969,62 @@ class TiltAngle(_RasterTool):
         messages.addMessage(f"Tilt angle (degrees) complete → {out_r}")
 
 
+class NSTDFilter(_RasterTool):
+    category    = "Edge Detectors"
+    label       = "Normalised Standard Deviation (NSTD)"
+    description = ("Edge detector of Cooper & Cowan (2008): the windowed standard deviation of "
+                   "the vertical derivative divided by the sum of those of the x, y and z "
+                   "derivatives. Edges are the maxima.")
+
+    def getParameterInfo(self):
+        return [
+            self._param("in_raster",   "Input Raster"),
+            self._out ("out_raster",   "Output Raster"),
+            self._param("window_size", "Window Size (pixels, odd)", "GPLong", default=5),
+            self._param("buffer_size", "FFT Buffer (pixels, 0 = automatic)", "GPLong",
+                        required=False, default=0),
+        ]
+
+    def execute(self, parameters, messages):
+        in_r  = parameters[0].valueAsText
+        out_r = parameters[1].valueAsText
+        n     = int(parameters[2].value) | 1
+        arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        buf = self._buffer(parameters[3].value, arr)
+        from calcs.EdgeFilters import nstd
+        fx, fy, fz = self._proc(cx, cy, buf).compute_derivatives(arr, "xyz", buffer_size=buf)
+        self._write(nstd(fx, fy, fz, n), out_r, ll_x, ll_y, cx, cy, sr, nodata)
+        messages.addMessage(f"NSTD (window={n}) complete → {out_r}")
+
+
+class NAVEdge(_RasterTool):
+    category    = "Edge Detectors"
+    label       = "NAV-Edge (Normalised Anisotropy Variance)"
+    description = ("Edge detector of Zhang et al. (2014): a normalised, Gaussian-weighted "
+                   "variance in a moving window, stretched along strike by the anisotropy "
+                   "scale. Positive over sources, negative outside: edges are the zero crossings.")
+
+    def getParameterInfo(self):
+        return [
+            self._param("in_raster",   "Input Raster"),
+            self._out ("out_raster",   "Output Raster"),
+            self._param("window_size", "Window Size M (pixels, odd)", "GPLong", default=7),
+            self._param("anisotropy_scale", "Anisotropy Scale (1 = isotropic)", "GPDouble",
+                        default=2.0),
+        ]
+
+    def execute(self, parameters, messages):
+        in_r  = parameters[0].valueAsText
+        out_r = parameters[1].valueAsText
+        n     = int(parameters[2].value) | 1
+        cof   = max(1.0, float(parameters[3].value))
+        arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        from calcs.EdgeFilters import nav_edge
+        result = nav_edge(arr, n, cof, callback=_check_cancel)
+        self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
+        messages.addMessage(f"NAV-Edge (window={n}, anisotropy scale={cof:g}) complete → {out_r}")
+
+
 class AnalyticSignal(_RasterTool):
     category    = "Gradient Filters"
     label       = "Analytic Signal"
@@ -1007,6 +1102,54 @@ class MedianFilter(_RasterTool):
         result = ConvolutionFilter(arr).median_filter(n, callback=_check_cancel)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Median filter (kernel={n}) complete → {out_r}")
+
+
+class KuwaharaFilter(_RasterTool):
+    category    = "Domain Detection"
+    label       = "Kuwahara Filter"
+    description = ("Edge-preserving smoother: each cell takes the mean of the least-variance "
+                   "of the four overlapping quadrants of its window. Flattens the inside of "
+                   "domains while keeping steps sharp.")
+
+    def getParameterInfo(self):
+        return [
+            self._param("in_raster",   "Input Raster"),
+            self._out ("out_raster",   "Output Raster"),
+            self._param("window_size", "Window Size (pixels, odd)", "GPLong", default=5),
+        ]
+
+    def execute(self, parameters, messages):
+        in_r  = parameters[0].valueAsText
+        out_r = parameters[1].valueAsText
+        n     = int(parameters[2].value) | 1
+        arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        from calcs.EdgeFilters import kuwahara
+        self._write(kuwahara(arr, n, callback=_check_cancel), out_r, ll_x, ll_y, cx, cy, sr, nodata)
+        messages.addMessage(f"Kuwahara filter (window={n}) complete → {out_r}")
+
+
+class SNNFilter(_RasterTool):
+    category    = "Domain Detection"
+    label       = "Symmetric Nearest Neighbour Filter"
+    description = ("Edge-preserving smoother: of each pair of cells symmetric about the centre "
+                   "of the window, the one closer to the centre value is kept, and the kept "
+                   "values are averaged. Removes spikes and line noise without widening dykes.")
+
+    def getParameterInfo(self):
+        return [
+            self._param("in_raster",   "Input Raster"),
+            self._out ("out_raster",   "Output Raster"),
+            self._param("window_size", "Window Size (pixels, odd)", "GPLong", default=3),
+        ]
+
+    def execute(self, parameters, messages):
+        in_r  = parameters[0].valueAsText
+        out_r = parameters[1].valueAsText
+        n     = int(parameters[2].value) | 1
+        arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        from calcs.EdgeFilters import snn
+        self._write(snn(arr, n, callback=_check_cancel), out_r, ll_x, ll_y, cx, cy, sr, nodata)
+        messages.addMessage(f"Symmetric nearest neighbour (window={n}) complete → {out_r}")
 
 
 class GaussianFilter(_RasterTool):
@@ -1142,7 +1285,7 @@ class SpatialStatistics(_RasterTool):
 
 
 class MRVBFTool(_RasterTool):
-    category    = "Convolution + Statistics"
+    category    = "Landform"
     label       = "MRVBF / MRRTF / Slope"
     description = ("Multiresolution Valley Bottom Flatness (MRVBF) and Ridge Top Flatness (MRRTF) "
                    "after Gallant & Dowling (2003), from a projected DEM with cell size in metres. "
@@ -1188,8 +1331,159 @@ class MRVBFTool(_RasterTool):
         messages.addMessage("MRVBF / MRRTF / slope complete → " + ", ".join([out_r] + paths[1:]))
 
 
+class _RadiometricTool(_RasterTool):
+    """K, eU and eTh as three (raster, band) pairs: bands of one multiband grid or separate
+    grids, resampled onto the K grid, which the result is written on."""
+
+    category = "Multiband"
+    kind = None  # a key of calcs.Radiometrics.RADIOMETRIC_OPERATIONS
+
+    def _inputs(self):
+        out = []
+        for key, label, band in (("k", "K", 1), ("u", "eU", 2), ("th", "eTh", 3)):
+            out.append(self._param(f"{key}_raster", f"{label} Raster"))
+            out.append(self._param(f"{key}_band", f"{label} Band", "GPLong", default=band))
+        return out
+
+    def _extra(self):
+        return []
+
+    def getParameterInfo(self):
+        return (self._inputs()[:1] + [self._out("out_raster", "Output Raster")]
+                + self._inputs()[1:] + self._extra())
+
+    # parameters: 0 K raster, 1 output, 2 K band, 3 eU raster, 4 eU band,
+    # 5 eTh raster, 6 eTh band, 7+ the tool's own options (_extra)
+    OPTIONS = 7
+
+    def _stack(self, parameters):
+        from calcs import Radiometrics as R
+        sources = [(_describe_path(parameters[r].valueAsText), int(parameters[b].value or 1))
+                   for r, b in ((0, 2), (3, 4), (5, 6))]
+        gt, cols, rows, wkt = R.north_up_frame(sources[0][0])
+        return sources, R.read_stack(sources, gt, cols, rows, wkt), (gt, cols, rows, wkt)
+
+    def execute(self, parameters, messages):
+        from calcs import Radiometrics as R
+        out_r = parameters[1].valueAsText
+        sources, stack, (gt, cols, rows, wkt) = self._stack(parameters)
+        self._prov_source = sources[0][0]  # the provenance names the K grid as the source
+        _check_cancel()
+        options = self._options(parameters)
+        result = R.compute_radiometric(self.kind, stack, options.get("background", "ratio"),
+                                       options.get("scaling", "zscore"),
+                                       dx=abs(gt[1]), dy=abs(gt[5]))
+        ll_x, ll_y = gt[0], gt[3] + rows * gt[5]
+        self._write(result, out_r, ll_x, ll_y, abs(gt[1]), abs(gt[5]), wkt)
+        messages.addMessage(f"{self.label} complete → {out_r}")
+
+    def _options(self, parameters):
+        return {}
+
+
+def _describe_path(value):
+    """The file behind a raster layer or path given to a tool."""
+    try:
+        return arcpy.Describe(value).catalogPath
+    except Exception:
+        return value
+
+
+class EfimovFParameter(_RadiometricTool):
+    label       = "Efimov F-Parameter (K x eU / eTh)"
+    description = ("Efimov F-parameter F = K x eU / eTh: high where K and U are enriched relative "
+                   "to Th, as in potassic and uraniferous alteration. Cells where K, eU or eTh "
+                   "is <= 0 are left blank.")
+    kind = "efimov"
+
+
+class ThoriumNormalisedDeviation(_RadiometricTool):
+    label       = "Kd / Ud (Thorium-Normalised Deviation)"
+    description = ("Kd = (K - Ks) / Ks or Ud = (eU - Us) / Us, with Ks / Us predicted from eTh over "
+                   "the whole grid (Saunders et al.): positive where there is more K or U than "
+                   "the thorium predicts. Cells where the predicted value is below 10% of the "
+                   "mean are left blank.")
+
+    def _extra(self):
+        element = arcpy.Parameter(name="element", displayName="Element", datatype="GPString",
+                                  parameterType="Required", direction="Input")
+        element.filter.type = "ValueList"
+        element.filter.list = ["Kd", "Ud"]
+        element.value = "Kd"
+        background = arcpy.Parameter(name="background", displayName="Background predicted from eTh by",
+                                     datatype="GPString", parameterType="Required", direction="Input")
+        background.filter.type = "ValueList"
+        background.filter.list = ["Ratio of means", "Linear regression"]
+        background.value = "Ratio of means"
+        return [element, background]
+
+    def _options(self, parameters):
+        self.kind = "kd" if parameters[self.OPTIONS].valueAsText == "Kd" else "ud"
+        return {"background": "regression"
+                if parameters[self.OPTIONS + 1].valueAsText.startswith("Linear") else "ratio"}
+
+
+class TernaryGradient(_RadiometricTool):
+    label       = "Ternary Gradient (Vector Sobel)"
+    description = ("Multichannel (Di Zenzo) Sobel gradient of K, eU and eTh together: high where any "
+                   "radioelement changes, even if the total count does not.")
+    kind = "ternary_gradient"
+
+    def _extra(self):
+        scaling = arcpy.Parameter(name="scaling", displayName="Band scaling", datatype="GPString",
+                                  parameterType="Required", direction="Input")
+        scaling.filter.type = "ValueList"
+        scaling.filter.list = ["Z-score", "CLR"]
+        scaling.value = "Z-score"
+        return [scaling]
+
+    def _options(self, parameters):
+        return {"scaling": "clr" if parameters[self.OPTIONS].valueAsText == "CLR" else "zscore"}
+
+
+class LogRatioTransform(_RasterTool):
+    category    = "Multiband"
+    label       = "Log-Ratio Transform (CLR / ILR)"
+    description = ("Centred (CLR) or isometric (ILR) log-ratio of every band of a multiband grid of "
+                   "compositional data such as K, eU, eTh, so that high-count units do not dominate "
+                   "a later PCA or ICA. Output is a multi-band GeoTIFF.")
+
+    def getParameterInfo(self):
+        in_r  = arcpy.Parameter(name="in_raster", displayName="Input Multi-band Raster",
+                                datatype="GPRasterLayer", parameterType="Required", direction="Input")
+        out_r = arcpy.Parameter(name="out_raster", displayName="Output Multi-band Raster",
+                                datatype="DERasterDataset", parameterType="Required", direction="Output")
+        kind  = arcpy.Parameter(name="transform", displayName="Transform", datatype="GPString",
+                                parameterType="Required", direction="Input")
+        kind.filter.type = "ValueList"
+        kind.filter.list = ["CLR", "ILR"]
+        kind.value = "CLR"
+        return [in_r, out_r, kind]
+
+    def execute(self, parameters, messages):
+        from calcs import Radiometrics as R
+        in_r  = _describe_path(parameters[0].valueAsText)
+        out_r = str(parameters[1].valueAsText)
+        kind  = parameters[2].valueAsText
+        names = R.band_names(in_r)
+        if len(names) < 2:
+            raise ValueError("The log-ratio transform needs a multi-band raster")
+        gt, cols, rows, wkt = R.north_up_frame(in_r)
+        stack = R.read_stack([(in_r, b) for b in range(1, len(names) + 1)], gt, cols, rows, wkt)
+        _check_cancel()
+        out, replaced = R.log_ratio(kind, stack)
+        names = [n or f"Band {i + 1}" for i, n in enumerate(names)]
+        R.write_multiband(out_r, out, gt, wkt, R.log_ratio_band_names(kind, names))
+        write_provenance(out_r, in_r, R.LOG_RATIO_OPERATIONS[kind][0],
+                         {"type": kind, "bands": ", ".join(names)})
+        if replaced:
+            messages.addMessage(f"{replaced} values <= 0 replaced by half the smallest "
+                                "positive value of their band")
+        messages.addMessage(f"{kind} complete → {out_r}")
+
+
 class PCAAnalysis(_RasterTool):
-    category    = "Convolution + Statistics"
+    category    = "Multiband"
     label       = "Principal Component Analysis (PCA)"
     description = ("Perform PCA on a multi-band raster. "
                    "Requires scikit-learn. Output is a multi-band GeoTIFF.")
@@ -1218,7 +1512,7 @@ class PCAAnalysis(_RasterTool):
 
 
 class ICAAnalysis(_RasterTool):
-    category    = "Convolution + Statistics"
+    category    = "Multiband"
     label       = "Independent Component Analysis (ICA)"
     description = ("Perform ICA on a multi-band raster. "
                    "Requires scikit-learn. Output is a multi-band GeoTIFF.")
@@ -1247,7 +1541,7 @@ class ICAAnalysis(_RasterTool):
 
 
 class EulerDeconvolution(_RasterTool):
-    category    = "Convolution + Statistics"
+    category    = "FFT Filters"
     label       = "Euler Deconvolution"
     description = ("Estimate source depths from a potential-field grid using "
                    "the Euler deconvolution method. Outputs source location CSV.")

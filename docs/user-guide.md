@@ -20,7 +20,7 @@ The steps are written for the **QGIS** plugin. The ArcGIS Pro version has the sa
 8. [Estimate source depths (Euler deconvolution and worms)](#8-estimate-source-depths-euler-deconvolution-and-worms)
 9. [Grid point and line data](#9-grid-point-and-line-data)
 10. [Apparent susceptibility, density and Henkel plots](#10-apparent-susceptibility-density-and-henkel-plots)
-11. [Combine several grids (PCA, ICA, normalising, colour images)](#11-combine-several-grids-pca-ica-normalising-colour-images-conv--stats-and-utils-tabs)
+11. [Combine several grids (radiometrics, log-ratios, PCA, ICA, normalising, colour images)](#11-combine-several-grids-radiometrics-log-ratios-pca-ica-normalising-colour-images-multiband-and-utils-tabs)
 12. [Clip grids and projects](#12-clip-grids-and-projects-utils-tab)
 13. [Keep track of your processing and repeat it](#13-keep-track-of-your-processing-and-repeat-it)
 14. [Batch processing and scripts](#14-batch-processing-and-scripts)
@@ -35,21 +35,23 @@ A quick guide to which method to use for a task. The links go to the part of thi
 | Application | Methods | Data |
 |---|---|---|
 | **Analyse structure dips** | [Worms](#step-by-step-worms-grid--wavelets-tab); analyse [gradients](#4-enhance-edges-and-structure-derivatives); [Tomofast-x inversion](https://plugins.qgis.org/plugins/tomofast_x_q) | Grav/Mag |
-| **Convert RGB image to monotonic grid** | [Convert RGB to LUT](#11-combine-several-grids-pca-ica-normalising-colour-images-conv--stats-and-utils-tabs) | Any |
+| **Convert RGB image to monotonic grid** | [Convert RGB to LUT](#11-combine-several-grids-radiometrics-log-ratios-pca-ica-normalising-colour-images-multiband-and-utils-tabs) | Any |
 | **Create outline polygon of grid** | [Create Clipping Polygon](#12-clip-grids-and-projects-utils-tab) | Any |
-| **Discriminate lithologies** | [Analytic Signal](#other-gradient-filters-fft-filters-tab) (Grav/Mag); RGB of radiometrics (Rad) | Grav/Mag/Rad |
+| **Discriminate lithologies** | [Analytic Signal](#other-gradient-filters-fft-filters-tab) (Grav/Mag); RGB of radiometrics, [Ternary Gradient](#step-by-step-radiometric-ratios-multiband-tab) for their boundaries, [PCA of the log-ratios](#step-by-step-log-ratios-and-pca-multiband-tab) (Rad) | Grav/Mag/Rad |
 | **Enhance local contrast** | Use grey-scale images; [High Pass Filter](#other-ways-to-separate-wavelengths-fft-filters-tab) | Any |
-| **Harmonise multiple datasets** | [Normalise Grids](#11-combine-several-grids-pca-ica-normalising-colour-images-conv--stats-and-utils-tabs) | Grav/Mag |
-| **Highlight alteration** | [Analytic Signal](#other-gradient-filters-fft-filters-tab) in colour, semi-transparent over [Tilt Angle](#step-by-step-vertical-derivative-and-tilt-angle-fft-filters-tab) or [Vertical Derivative](#step-by-step-vertical-derivative-and-tilt-angle-fft-filters-tab) + [Automatic Gain Control](#automatic-gain-control-fft-filters-tab) | Grav/Mag |
+| **Find the edges of sources** | [NSTD; NAV-Edge](#edge-detectors-fft-filters-tab) | Grav/Mag |
+| **Harmonise multiple datasets** | [Normalise Grids](#11-combine-several-grids-radiometrics-log-ratios-pca-ica-normalising-colour-images-multiband-and-utils-tabs) | Grav/Mag |
+| **Highlight alteration** | [Analytic Signal](#other-gradient-filters-fft-filters-tab) in colour, semi-transparent over [Tilt Angle](#step-by-step-vertical-derivative-and-tilt-angle-fft-filters-tab) or [Vertical Derivative](#step-by-step-vertical-derivative-and-tilt-angle-fft-filters-tab) + [Automatic Gain Control](#automatic-gain-control-fft-filters-tab) (Grav/Mag); [Efimov F-parameter; Kd; Ud](#step-by-step-radiometric-ratios-multiband-tab) (Rad) | Grav/Mag/Rad |
 | **Highlight deep structures** | [Upward Continuation](#other-ways-to-separate-wavelengths-fft-filters-tab); [Low Pass Filter](#other-ways-to-separate-wavelengths-fft-filters-tab) | Grav/Mag |
 | **Locate surface expression of structures** | [Tilt Angle](#step-by-step-vertical-derivative-and-tilt-angle-fft-filters-tab); [Vertical Derivative](#step-by-step-vertical-derivative-and-tilt-angle-fft-filters-tab); [Vertical Derivative](#step-by-step-vertical-derivative-and-tilt-angle-fft-filters-tab) + [Automatic Gain Control](#automatic-gain-control-fft-filters-tab); [High Pass Filter](#other-ways-to-separate-wavelengths-fft-filters-tab) | Grav/Mag |
-| **Multiband contrast enhancement** | [PCA; ICA](#11-combine-several-grids-pca-ica-normalising-colour-images-conv--stats-and-utils-tabs); band ratios | Any |
-| **Noise reduction** | [Gaussian](#step-by-step-smoothing-conv--stats-tab) (Grav/Mag); [Median](#step-by-step-smoothing-conv--stats-tab) (Rad); [Low Pass](#other-ways-to-separate-wavelengths-fft-filters-tab) | Any |
+| **Multiband contrast enhancement** | [PCA; ICA](#step-by-step-log-ratios-and-pca-multiband-tab), after a log-ratio transform for compositional data such as radiometrics; band ratios | Any |
+| **Noise reduction** | [Gaussian](#step-by-step-smoothing-conv--stats-tab) (Grav/Mag); [Median](#step-by-step-smoothing-conv--stats-tab) (Rad); [Symmetric Nearest Neighbour](#simplify-a-grid-into-domains-conv--stats-tab) (spikes and line noise, keeps dykes); [Low Pass](#other-ways-to-separate-wavelengths-fft-filters-tab) | Any |
 | **Reduce line noise** | [Direction Cosine/Butterworth Filter](#remove-flight-line-noise-fft-filters-tab) | Any |
 | **Regolith discrimination** | Thresholded K/Th; RGB KThU semi-transparent over a [shaded](#step-by-step-sun-shading-conv--stats-tab) digital terrain model (Rad); [MRRTF / MRVBF / Slope](#terrain-analysis-mrvbf-conv--stats-tab) semi-transparent over a [shaded](#step-by-step-sun-shading-conv--stats-tab) digital terrain model (DTM) | Rad/DTM |
 | **Remove non-data values** | [Threshold to NaN](#hide-unwanted-values-threshold-to-nan-utils-tab) | Any |
 | **Remove regional** | [Remove Regional](#other-ways-to-separate-wavelengths-fft-filters-tab) | Grav/Mag |
 | **Show absolute value variation in images** | Use colour images | Any |
+| **Simplify a grid into domains** | [Kuwahara; Symmetric Nearest Neighbour](#simplify-a-grid-into-domains-conv--stats-tab) | Any |
 
 ---
 
@@ -86,25 +88,28 @@ The dashed box marks the 38 x 56 km area that the zoomed examples show. Filters 
 
 ### 2.2 The SGTool panel
 
-The panel has six tabs:
+The panel has seven tabs:
 
 | Tab | What it is for |
 |---|---|
-| **FFT Filters** | Reduction to the pole or equator, continuation, vertical integration, line-noise removal, regional removal, band/high/low pass, AGC, derivatives, tilt angle, analytic signal, radial power spectrum |
-| **Conv + Stats** | Mean, median, Gaussian and directional filters, sun shading, window statistics, local anisotropy, MRVBF, PCA, ICA, Euler deconvolution |
+| **FFT Filters+** | Reduction to the pole or equator, continuation, vertical integration, line-noise removal, regional removal, band/high/low pass, AGC, derivatives, tilt angle, analytic signal, radial power spectrum, edge detectors (NSTD, NAV-Edge), Euler deconvolution |
+| **Conv + Stats** | Mean, median, Gaussian and directional filters, sun shading, edge-preserving smoothers (SNN, Kuwahara), window statistics, local anisotropy, MRVBF |
+| **Multiband** | Radiometric ratios (Efimov F-parameter, Kd, Ud, ternary gradient), log-ratio transforms, PCA, ICA |
 | **Grid + Wavelets** | Importing point and line data, IDW and B-spline gridding, worms |
 | **Petrophys** | Apparent susceptibility and density grids, Henkel plots and histograms |
 | **Utils** | Provenance metadata and replay, Threshold to NaN, clipping, normalising grids, converting colour images to grey scale |
-| **Help** | Links to the example data, Noddy models, the code and the help file |
+| **Help** | **Replace existing layer**, and links to the example data, Noddy models, the code and the help file |
 
-![The FFT Filters tab](images/ui/tab_fft_filters.png)
+![The FFT Filters+ tab](images/ui/tab_fft_filters.png)
 
 The line at the bottom of each tab shows the plugin version and, once a grid is selected, its units, coordinate system, size in cells and cell size.
 
-### 2.3 Load the example grid [FFT Filters Tab]
+Each group of filters can be folded away by clicking its title (▾ / ▸), which helps on smaller screens. All groups start open, and QGIS remembers which ones you folded.
+
+### 2.3 Load the example grid [FFT Filters+ Tab]
 
 1. Download `ogrm_usgs_mag_tmi.tif` (see [The example data](#1-the-example-data)).
-2. On the **FFT Filters** tab, click **...** beside **Load Grid** and choose the file. The plugin reads GeoTIFF (`.tif`), Geosoft (`.grd`), ER Mapper (`.ers`) and Noddy (`.grv`, `.mag`) grids. You can also load the grid with QGIS's own **Layer > Add Layer > Add Raster Layer**, which reads any format QGIS supports.
+2. On the **FFT Filters+** tab, click **...** beside **Load Grid** and choose the file. The plugin reads GeoTIFF (`.tif`), Geosoft (`.grd`), ER Mapper (`.ers`) and Noddy (`.grv`, `.mag`) grids. You can also load the grid with QGIS's own **Layer > Add Layer > Add Raster Layer**, which reads any format QGIS supports.
 3. Check that **Select Grid** shows `ogrm_usgs_mag_tmi`. The line at the bottom of the tab should read *Units: m, CRS: EPSG:32629, Pixels: 924 x 629, Pixel size: 175.076 m*.
 
 The grid shown in **Select Grid** is the one every filter on that tab is applied to.
@@ -117,7 +122,7 @@ Every filter follows the same pattern:
 2. Tick the filter and set its parameters.
 3. Press **Apply Processing**.
 
-The result is saved as a GeoTIFF **next to the input grid**, named after it with a suffix for the processing step, and added to the project. For example, `ogrm_usgs_mag_tmi.tif` reduced to the pole becomes `ogrm_usgs_mag_tmi_RTP.tif`. If that name is already used, the new grid gets `_1`, `_2` and so on. The suffixes are listed in the [reference](reference.md#output-names).
+The result is saved as a GeoTIFF **next to the input grid**, named after it with a suffix for the processing step, and added to the project. For example, `ogrm_usgs_mag_tmi.tif` reduced to the pole becomes `ogrm_usgs_mag_tmi_RTP.tif`. If you apply the same filter to the same grid again, the new result replaces the earlier one; to keep every run instead (as `_1`, `_2` and so on), untick **Replace existing layer** at the top of the **Help** tab. The suffixes are listed in the [reference](reference.md#output-names).
 
 Things worth knowing:
 
@@ -126,7 +131,7 @@ Things worth knowing:
 - **Lengths.** Wavelengths, heights and line spacings are in the grid's units: metres for a projected grid, degrees for a latitude/longitude grid (except continuation heights, which are always in metres). Reproject latitude/longitude grids to a metre-based system before processing where you can. Some tools (vertical integration, Euler deconvolution, the petrophysics grids) require it.
 - **Background calculation.** Calculations run in the background, so QGIS stays usable. **Cancel** stops a running calculation, and nothing is saved. See [Background Calculations](reference.md#background-calculations).
 - **Preview.** Tick **Preview** to see one filter on the area shown in the map, updated as you change its settings, without saving anything. The button then reads **Apply Preview**, which saves the previewed filter at full resolution. **Apply to Window** clips the grid to the map window first, then applies the filter to the clip. See [Live Preview](reference.md#live-preview).
-- **Max FFT Buffer (pixels)**, at the bottom of the FFT Filters tab, limits how much padding is added around a grid before an FFT filter. The default, 5000, normally means "pad by the grid's smaller dimension".
+- **Max FFT Buffer (pixels)**, at the bottom of the FFT Filters+ tab, limits how much padding is added around a grid before an FFT filter. The default, 5000, normally means "pad by the grid's smaller dimension".
 - **History.** Every result records how it was made (see [section 13](#13-keep-track-of-your-processing-and-repeat-it)).
 
 ---
@@ -144,7 +149,7 @@ SGTool has four options in the **RTE/P** list:
 | **Diff. RTP** | The survey is large enough (several degrees) for the field direction to change across it |
 | **RTE** | Reduction to the equator, an alternative at low latitudes |
 
-### Step by step: RTP of the example grid [FFT Filters Tab]
+### Step by step: RTP of the example grid [FFT Filters+ Tab]
 
 1. On **FFT Filters**, select `ogrm_usgs_mag_tmi` in **Select Grid**.
 2. Tick **RTE/P** and choose **RTP** in the list.
@@ -159,7 +164,7 @@ SGTool has four options in the **RTE/P** list:
 
 **Check the result.** In the RTP, the dipolar anomalies of the TMI (for example the circular intrusions in the north) become single positive or negative anomalies over their sources. The north-south streaks in the south of the RTP come from the low inclination: RTP amplifies anything that runs along the declination. If such streaks spoil the result, try the low-latitude RTP.
 
-### Variations [FFT Filters Tab]
+### Variations [FFT Filters+ Tab]
 
 - **Low-latitude RTP.** Choose **Low-lat. RTP** in the list. Two more settings appear. Leave **Iterations** blank to choose the number automatically. **Stripe suppression (°)** fades out the operator within that angle of the direction perpendicular to the declination: 10° (the default) helps at any low inclination, 10 to 20° suits data within a few degrees of the equator. The output is `_RTP_LL`.
 
@@ -179,7 +184,7 @@ SGTool has four options in the **RTE/P** list:
 
 Derivatives sharpen anomalies and show the edges of magnetic or dense bodies, faults, dykes and contacts. Apply them to the RTP grid.
 
-### Step by step: vertical derivative and tilt angle [FFT Filters Tab]
+### Step by step: vertical derivative and tilt angle [FFT Filters+ Tab]
 
 1. Select `ogrm_usgs_mag_tmi_RTP` in **Select Grid**.
 2. Tick **Derivative**, set **Direction** to **z** and **Power** to **1**.
@@ -197,7 +202,7 @@ Derivatives sharpen anomalies and show the edges of magnetic or dense bodies, fa
 - The **1VD** emphasises near-surface sources: dykes and faults stand out as thin lines. It also amplifies noise.
 - The **tilt angle** (-90° to 90°) balances strong and weak anomalies, so faint shallow features show as clearly as strong ones. The 0° contour lies roughly over the edges of vertical-sided sources.
 
-### Other gradient filters [FFT Filters Tab]
+### Other gradient filters [FFT Filters+ Tab]
 
 | Filter | Output | What it shows |
 |---|---|---|
@@ -210,22 +215,35 @@ Derivatives sharpen anomalies and show the edges of magnetic or dense bodies, fa
 
 **Tip.** Tick **Preview** to try a power or direction and see the effect before saving.
 
+### Edge detectors [FFT Filters+ Tab]
+
+The **Edge Detectors** group maps the edges of sources with balanced, dimensionless filters, so weak anomalies show as clearly as strong ones. Apply them to the RTP (or a gravity grid).
+
+| Filter | Output | What it shows |
+|---|---|---|
+| **Normalised Standard Deviation (NSTD)** | `_NSTD` | Maxima over the edges (0 to 1). A larger **Window** gives smoother, broader edges |
+| **NAV-Edge** | `_NAV` | Positive over sources and negative outside them: **the edges are the zero crossings**. Robust to noise; raise **Aniso scale** (1 = isotropic) to separate close parallel sources |
+
+![NAV-Edge of the RTP, zoomed](images/examples/nav_edge_zoom.png)
+
+Both show fine, cell-scale texture: zoomed out over a whole grid they can look grey on screen, so zoom in, or use a larger window, to see the edges.
+
 ---
 
 ## 5. Separate shallow and deep sources (wavelength filters)
 
 Deep sources produce only long-wavelength (broad) anomalies, while shallow sources produce both short and long wavelengths. Filtering by wavelength therefore separates near-surface and deeper features, approximately.
 
-### Step by step: choose the cutoffs from the power spectrum [FFT Filters Tab]
+### Step by step: choose the cutoffs from the power spectrum [FFT Filters+ Tab]
 
-1. Select the grid (here the TMI, or the RTP) and press **Radial Power Spectrum** on the FFT Filters tab. A window shows the grid and its radially averaged power spectrum.
+1. Select the grid (here the TMI, or the RTP) and press **Radial Power Spectrum** on the FFT Filters+ tab. A window shows the grid and its radially averaged power spectrum.
 2. Look for changes of slope in the curve of ln(power) against wavenumber. Each straight segment corresponds roughly to a group of sources at one depth, and the breaks between segments suggest cutoff wavelengths.
 
 ![Radial power spectrum](images/examples/power_spectrum.png)
 
 The wavenumber axis is in radians per cell, so a wavenumber *k* corresponds to a wavelength of 2π/*k* cells. For example, at the example's 175 m cells, *k* = 0.5 is a wavelength of about 2.2 km.
 
-### Step by step: band pass [FFT Filters Tab]
+### Step by step: band pass [FFT Filters+ Tab]
 
 1. Select `ogrm_usgs_mag_tmi_RTP`.
 2. Tick **Band Pass**. Enter **Low** = 20000, **High** = 2000 and **Width** = 1000 (all in metres). **Low** is the *longest* wavelength kept and **High** the *shortest*, so Low is the larger number.
@@ -237,7 +255,7 @@ The wavenumber axis is in radians per cell, so a wavenumber *k* corresponds to a
 
 As a rough guide, a source at depth *z* has most of its signal at wavelengths of 3 to 6 times *z*. A band pass from 2000 to 20000 m therefore favours sources from roughly 300 m to 7 km deep. This is only a guide: potential-field data cannot be split exactly into depth slices. See [What the cutoff values mean](reference.md#what-the-cutoff-values-mean).
 
-### Other ways to separate wavelengths [FFT Filters Tab]
+### Other ways to separate wavelengths [FFT Filters+ Tab]
 
 | Filter | Settings | Result |
 |---|---|---|
@@ -257,7 +275,7 @@ As a rough guide, a source at depth *z* has most of its signal at wavelengths of
 
 ## 6. Clean up the data
 
-### Remove flight-line noise [FFT Filters Tab]
+### Remove flight-line noise [FFT Filters+ Tab]
 
 Levelling errors between flight lines show as stripes parallel to the lines, especially in derivatives. The **Direction Cos/Butterw.** filter estimates that noise and subtracts it.
 
@@ -288,7 +306,7 @@ Reprojected or merged grids often have a border of zeros or a spike of bad value
 
 ### Smooth noisy grids [Conv + Stats Tab]
 
-A **Median** filter (Conv + Stats tab) removes spikes while keeping edges. **Mean** and **Gaussian** filters smooth everything. See [section 7](#7-smooth-shade-and-measure-texture).
+A **Median** filter (Conv + Stats tab) removes spikes while keeping edges. **Mean** and **Gaussian** filters smooth everything. **Symmetric Nearest Neighbour** (Domain Detection group) removes spikes and flight-line striping without widening narrow dykes. See [section 7](#7-smooth-shade-and-measure-texture).
 
 ---
 
@@ -319,6 +337,18 @@ Sun shading lights the grid as if it were a landscape, which shows subtle trends
 
 **Tip.** Display the shaded grid in grey, then put the coloured RTP above it with a *Multiply* or *Overlay* blending mode (in the layer's Symbology properties) to get a coloured, shaded image.
 
+### Simplify a grid into domains [Conv + Stats Tab]
+
+The **Domain Detection** group has two edge-preserving smoothers. They flatten the noise inside uniform areas but keep the steps between them sharp, so the result reads like a map of domains.
+
+1. Select the grid (here the RTP).
+2. Tick **Kuwahara** (window 5 by default) or **Symmetric Nearest Neighbour (SNN)** (window 3), and set its **Window**.
+3. Press **Apply Processing**. The results are `_Kuw` and `_SNN`.
+
+![Kuwahara, 9 x 9](images/examples/kuwahara.png)
+
+Kuwahara gives the strongest, terraced simplification; SNN is gentler and is best for removing spikes and line noise while keeping narrow features.
+
 ### Step by step: window statistics and anisotropy [Conv + Stats Tab]
 
 Window statistics map the texture of a grid: for example, the standard deviation of the 1VD in a moving window is high where the magnetic rocks are strongly layered or faulted.
@@ -330,32 +360,32 @@ Window statistics map the texture of a grid: for example, the standard deviation
 
 ![Standard deviation in a 9-cell window](images/examples/stats_stddev.png)
 
-**Local Anisotropy** measures how linear the grid is around each cell. It gives two grids: `_SS_AnisoMag` (0 = no preferred direction, 1 = strongly linear) and `_SS_AnisoOrient` (the strike of the linear features, 0 to 180°).
+**Local Anisotropy** measures how linear the grid is around each cell. It gives two grids: `_SS_AnisoMag` (0 = no preferred direction, 1 = strongly linear), added unticked, and `_SS_AnisoOrient` (the strike of the linear features, 0 to 180°), shown in cyclic colours over the grid. Its preview shows the orientation in the same colours.
 
 ![Anisotropy orientation](images/examples/anisotropy_orientation.png)
 
 Standard deviation, variance, skewness and kurtosis are slow on large grids and large windows. Try them on a small window or a clip first.
 
-### Automatic gain control [FFT Filters Tab]
+### Automatic gain control [FFT Filters+ Tab]
 
-**Automatic Gain Control** (FFT Filters tab) divides the grid by its local amplitude, so weak anomalies in quiet areas show as clearly as strong ones. It is useful for structural mapping, but the values no longer mean anything physically.
+**Automatic Gain Control** (FFT Filters+ tab) divides the grid by its local amplitude, so weak anomalies in quiet areas show as clearly as strong ones. It is useful for structural mapping, but the values no longer mean anything physically.
 
 ![AGC](images/examples/agc.png)
 
 ### Terrain analysis (MRVBF) [Conv + Stats Tab]
 
-For a digital elevation model, **MRVBF / MRRTF / Slope** maps flat valley bottoms (MRVBF) and flat ridge tops (MRRTF) at several scales. It writes `_MRVBF`, `_MRRTF` and `_slope` grids and a three-band composite. The DEM must be in a metre-based projection. The default settings come from Gallant and Dowling (2003); see the [reference](reference.md#mrvbf--mrrtf--slope).
+For a digital elevation model, **MRVBF / MRRTF / Slope** (Landform group) maps flat valley bottoms (MRVBF) and flat ridge tops (MRRTF) at several scales. It writes `_MRVBF`, `_MRRTF` and `_slope` grids and a three-band composite. The DEM must be in a metre-based projection. The default settings come from Gallant and Dowling (2003); see the [reference](reference.md#mrvbf--mrrtf--slope).
 
 ---
 
 ## 8. Estimate source depths (Euler deconvolution and worms)
 
-### Step by step: Euler deconvolution [Conv + Stats Tab]
+### Step by step: Euler deconvolution [FFT Filters+ Tab]
 
 Euler deconvolution estimates the position and depth of sources from the gradients of the field in moving windows.
 
-1. On **Conv + Stats**, select the RTP grid. The grid must be in a metre-based projection.
-2. Tick **Euler Deconvolution**.
+1. On **FFT Filters+**, select the RTP grid. The grid must be in a metre-based projection.
+2. Tick **Euler Deconvolution** (near the bottom of the tab).
 3. Set **Window (odd)**, the window size in cells (5 by default). Larger windows see deeper sources.
 4. Set **Threshold**, the fraction of solutions kept (0.1 keeps the best 10%).
 5. Tick **Stats** to also save statistics of the solutions in grid windows.
@@ -452,9 +482,37 @@ In **Measured Petrophysics**, choose a point layer of samples and the fields to 
 
 ---
 
-## 11. Combine several grids (PCA, ICA, normalising, colour images) [Conv + Stats and Utils Tabs]
+## 11. Combine several grids (radiometrics, log-ratios, PCA, ICA, normalising, colour images) [Multiband and Utils Tabs]
 
-- **Principal Component Analysis** and **Independent Component Analysis** (Conv + Stats tab) work on a **multiband** grid, for example the three channels of a radiometric survey stacked into one file. Select it, tick PCA and/or ICA, set the number of components (0 = all) and press **Apply Processing**. The results are `_PCA` and `_ICA`, one band per component. Both need scikit-learn.
+The **Multiband** tab works on several bands or grids at once. The examples use `bf_rgb_kthu_clip.tif`, an airborne gamma-ray spectrometry grid of part of Burkina Faso (courtesy of BUMIGEB) with three bands: K (%), eTh (ppm) and eU (ppm), in that order, and a no-data background.
+
+![The Multiband tab](images/ui/tab_multiband.png)
+
+### Step by step: radiometric ratios [Multiband Tab]
+
+1. On the **Multiband** tab, select the radiometric grid in **Select Grid**. A grid with three or more bands fills the **K**, **eU** and **eTh** rows of the **Radiometrics** group, matching band names where it can and taking bands 1, 2 and 3 otherwise.
+2. **Check the bands.** The example grid's bands are K, eTh, eU, so set **Band 2** (eU) to band 3 and **Band 3** (eTh) to band 2. K, eU and eTh can also come from three separate grids: choose each grid in its row (they are resampled onto the grid selected at the top of the tab).
+3. Tick one or more of:
+   - **Efimov F-parameter** (`_Efimov`): K x eU / eTh, high where potassium and uranium are enriched relative to thorium, as in potassic and uraniferous alteration.
+   - **Kd** and **Ud** (`_Kd`, `_Ud`): how much more (positive) or less (negative) K or eU there is than the thorium predicts for the rock type. **Background** chooses how the prediction is made: **Ratio of means** (the usual form) or **Linear regression**.
+   - **Ternary Gradient** (`_TernGrad`): the boundaries where any of the three radioelements changes, even where the total count does not. **Scaling**: **Z-score** weighs the three equally; **CLR** follows changes in their ratios only.
+4. Press **Apply Processing**. Tick **Preview** first to try them on the area in the map.
+
+![Kd, ratio of means](images/examples/kd.png)
+
+### Step by step: log-ratios and PCA [Multiband Tab]
+
+Radioelement concentrations are compositional data: positive, skewed, and not independent of one another, so a PCA of the raw values is dominated by the high-count units. Transform them first.
+
+1. Select the multiband grid at the top of the tab.
+2. Tick **Log-ratio transform**, choose **CLR** (one band per input band) or **ILR** (one band fewer) and press **Apply Processing**. The result is a multiband grid, `_CLR` or `_ILR`. Values of 0 or less, such as negative eU, are replaced by half the smallest positive value of their band, and a message says how many.
+3. Select the `_CLR` grid at the top of the tab, tick **Principal Component Analysis** and/or **Independent Component Analysis**, set the number of components (0 = all) and press **Apply Processing**. The results are `_PCA` and `_ICA`, one band per component. Both need scikit-learn. No-data cells (such as the example's background) are left out of the calculation.
+4. Display the first three components as a red / green / blue image (layer Symbology: Multiband color). The **Preview** of PCA and ICA shows exactly that, calculated from the cells in view.
+
+![PCA of the CLR, components 1 to 3 as red, green and blue](images/examples/pca_clr.png)
+
+### Other ways to combine grids [Utils Tab]
+
 - **Normalise Grids** (Utils tab) adjusts a folder of grids to have the same mean and standard deviation, after removing a 1st or 2nd order trend, so that they merge with fewer steps between them. Choose the **Input Directory** and **Output Directory** and press **Normalise Grids**.
 - **Convert LUT to Grayscale** (Utils tab) turns a coloured image of a grid (for example a scanned map) back into a single-band grid, if you know its colour table. Choose the RGB grid, enter the colours from lowest to highest (CSS colour names or RGB triplets selected from image using the Pick RGB Button), set the **Min** and **Max** of the values and press **Convert Grid**.
 

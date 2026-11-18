@@ -111,9 +111,9 @@ for name in ("showwarning", "showerror", "showinfo"):
 app = G.SGToolApp()
 app.v_input.set(mag_tif)
 app.v_preview.set(True)          # Preview on, then arrive on the Petrophys tab
-app.nb.select(3); app.update()
-check("the Petrophys tab is the fourth tab and is built", app.nb.tab(3, "text") == "Petrophys"
-      and hasattr(app, "v_app_sus") and app.nb.tab(4, "text") == "Utils")
+app.nb.select(4); app.update()
+check("the Petrophys tab is the fifth tab and is built", app.nb.tab(4, "text") == "Petrophys"
+      and hasattr(app, "v_app_sus") and app.nb.tab(5, "text") == "Utils")
 check("both calculations start unticked", not app.v_app_sus.get() and not app.v_app_dens.get())
 run_loop(lambda: False, 2)  # long enough for a preview calculation to show
 win = app._preview_win
@@ -130,14 +130,14 @@ app.v_app_sus.set(True)
 app.nb.select(0); app.update()
 app.v_preview.set(True); app.update()
 check("turning Preview on elsewhere unticks the Petrophys calculation", not app.v_app_sus.get())
-app.nb.select(3); app.update()
+app.nb.select(4); app.update()
 app.v_app_dens.set(True); app.update()
 app.nb.select(0); app.update()
 app.v_thg.set(True); app.update()
 check("choosing a filter on another tab while previewing unticks it",
       not app.v_app_dens.get() and app.v_thg.get())
 app.v_preview.set(False); app.v_thg.set(False); app.update()
-app.nb.select(3); app.update()
+app.nb.select(4); app.update()
 
 app.v_input.set(mag_tif)
 app._petro_igrf()
@@ -178,7 +178,7 @@ check("Apply unticks the calculation", not app.v_app_sus.get() and not app.v_app
 
 # ---- preview of the ticked calculation
 app.v_app_dens.set(True)
-res = app._compute_preview(3, grav_tif, None)
+res = app._compute_preview(4, grav_tif, None)
 check("the preview runs the chosen calculation", "Apparent density" in res["text"], res["text"])
 
 # ---- plots, saved as PNG beside the inputs

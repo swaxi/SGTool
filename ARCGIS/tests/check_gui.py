@@ -456,7 +456,7 @@ check("double-click / reset shows the whole grid", win.view_box() == (0.0, 0.0, 
 app.nb.select(1); app.update()
 check("changing to Conv + Stats unticks the FFT filter and moves the preview there",
       not app.v_deriv.get() and app.v_preview.get() and app._preview_tab == 1)
-app.nb.select(2); app.update()
+app.nb.select(3); app.update()
 check("tabs without a preview just wait", app.v_preview.get() and app._preview_tab is None and app._preview_win is not None)
 app.nb.select(0); app.update()
 check("back on an FFT tab the preview is there again", app._preview_tab == 0 and app.v_preview.get())
@@ -544,11 +544,11 @@ tempfile.tempdir = _real_tmp
 # ---- Threshold to NaN preview, and the shape of the preview
 for v in (app.v_deriv, app.v_rtp, app.v_mean, app.v_thresh_en):
     v.set(False)
-app.nb.select(4); app.update()
+app.nb.select(5); app.update()
 app.v_input.set(pv)
 app.v_thresh_cond.set("above"); app.v_thresh_above.set("40"); app.v_thresh_below.set("-9e9")
 app.v_thresh_en.set(True)
-res = app._compute_preview(4, pv, (0, 0, 100, 100))
+res = app._compute_preview(5, pv, (0, 0, 100, 100))
 check("the threshold preview marks the values above the threshold as no data",
       "Threshold to NaN" in res["text"] and np.array_equal(np.isnan(res["filtered"]), res["original"] > 40)
       and np.isnan(res["filtered"]).any(), res["text"])
@@ -565,9 +565,9 @@ app.v_thresh_en.set(False)
 app.nb.select(0); app.update()
 app.v_preview.set(True)
 run_loop(lambda: app._preview_win is not None, 5)
-app.nb.select(4); app.update()
-check("Preview follows onto the Utils tab", app.v_preview.get() and app._preview_tab == 4
-      and app._apply_btns[4].cget("text") == "Apply Preview", app._apply_btns[4].cget("text"))
+app.nb.select(5); app.update()
+check("Preview follows onto the Utils tab", app.v_preview.get() and app._preview_tab == 5
+      and app._apply_btns[5].cget("text") == "Apply Preview", app._apply_btns[5].cget("text"))
 app.v_thresh_en.set(True)
 win = app._preview_win
 run_loop(lambda: win._result is not None and "Threshold" in win.v_status.get(), 40)
@@ -579,7 +579,7 @@ run_loop(lambda: app._active_token is None and os.path.exists(out_thr), 60)
 run_loop(lambda: not app.v_thresh_en.get(), 5)
 check("Apply Preview on the Utils tab writes the result, unticks the threshold and ends the preview",
       os.path.exists(out_thr) and not app.v_thresh_en.get() and not app.v_preview.get() and app._preview_win is None)
-check("the button reads Apply Threshold again", app._apply_btns[4].cget("text") == "Apply Threshold \u2192 NaN", app._apply_btns[4].cget("text"))
+check("the button reads Apply Threshold again", app._apply_btns[5].cget("text") == "Apply Threshold \u2192 NaN", app._apply_btns[5].cget("text"))
 
 # the preview window takes the shape of the ArcGIS Pro map canvas
 _real_tmp = tempfile.tempdir
@@ -653,10 +653,144 @@ try:
 finally:
     G.webbrowser.open = _open
 check("clicking a link opens its address in the browser", opened[:1] == ["https://waxi4.org"], (box, opened))
-tab_h = htxt.master.winfo_height()
+tab_h = htxt.master.winfo_height() - htxt.master.winfo_children()[0].winfo_height()
 check("the help text box fills its tab (no separate outer scroll area)",
-      tab_h > 100 and htxt.winfo_height() >= tab_h - 12 and not hasattr(htxt.master, "_canvas"),
+      tab_h > 100 and htxt.winfo_height() >= tab_h - 20 and not hasattr(htxt.master, "_canvas"),
       (htxt.winfo_height(), tab_h))
+
+# ---- new filters, the Multiband tab, collapsible groups and Replace existing layer
+check("tabs in the new order",
+      [app.nb.tab(i, "text") for i in range(app.nb.index("end"))] ==
+      ["FFT Filters+", "Conv + Stats", "Multiband", "Grid + Wavelets", "Petrophys", "Utils", "Help"],
+      [app.nb.tab(i, "text") for i in range(app.nb.index("end"))])
+
+# edge detectors (FFT Filters+ tab), drawn without smoothing
+app.nb.select(0); app.update()
+app.v_input.set(pv)
+for name in ("v_nstd", "v_nav"):
+    getattr(app, name).set(True)
+    res = app._compute_preview(0, pv, (0, 0, 100, 100))
+    check(f"{name[2:]} previews, unsmoothed",
+          np.isfinite(res["filtered"]).any() and res["smooth"] is False and res["mode"] == "grey",
+          res["text"])
+    getattr(app, name).set(False)
+from calcs.EdgeFilters import nstd as _nstd, nav_edge as _nav
+app.v_nav.set(True); app.v_nav_win.set("7"); app.v_nav_cof.set("2")
+app._do_apply_fft(pv)
+pump(0.3)
+out_nav = os.path.join(DATA, "prevsrc_NAV.tif")
+check("NAV-Edge Apply writes <grid>_NAV.tif matching the calculation",
+      os.path.exists(out_nav) and np.allclose(band(out_nav), _nav(band(pv), 7, 2.0), equal_nan=True, atol=1e-5))
+from calcs.sgt_metadata import read_sgt_metadata
+meta = read_sgt_metadata(out_nav)
+check("its provenance is the shared table's (replayable)",
+      meta is not None and "NAV-Edge" in str(meta.findtext(".//operation") or ""))
+
+# domain detection (Conv + Stats) and the local anisotropy preview
+app.nb.select(1); app.update()
+for name in ("v_snn", "v_kuw"):
+    getattr(app, name).set(True)
+    res = app._compute_preview(1, pv, (0, 0, 100, 100))
+    check(f"{name[2:]} previews", np.isfinite(res["filtered"]).any() and res["mode"] == "grey", res["text"])
+    getattr(app, name).set(False)
+app.v_ss_aniso.set(True)
+res = app._compute_preview(1, pv, (0, 0, 100, 100))
+f = res["filtered"]
+check("local anisotropy previews the orientation, in cyclic colours, unsmoothed",
+      res["mode"] == "cyclic" and res["smooth"] is False and np.nanmin(f) >= 0 and np.nanmax(f) <= 180,
+      res["text"])
+app.v_ss_aniso.set(False)
+from sgt_preview_window import cyclic_colours, stretch_to_rgb
+cc = cyclic_colours(np.array([[0.0, 90.0], [180.0, np.nan]]))
+check("the colour wheel is cyclic (0 and 180 degrees the same colour)",
+      np.array_equal(cc[0, 0], cc[1, 0]) and not np.array_equal(cc[0, 0], cc[0, 1]))
+
+# a 3-band K / Th / U grid with no band names (as many radiometric grids are)
+rad3 = os.path.join(DATA, "kthu.tif")
+rng3 = np.random.default_rng(7)
+kk = 1.5 + rng3.random((60, 80)); tt = 10 + 4 * kk + rng3.random((60, 80)); uu = 2 + 0.2 * tt
+kk[20:30, 20:30] *= 2   # potassic alteration
+ds = gdal.GetDriverByName("GTiff").Create(rad3, 80, 60, 3, gdal.GDT_Float32)
+ds.SetGeoTransform([500000, 100, 0, 6900000, 0, -100])
+srs = osr.SpatialReference(); srs.ImportFromEPSG(28350); ds.SetProjection(srs.ExportToWkt())
+for i, a in enumerate((kk, tt, uu)):
+    b_ = ds.GetRasterBand(i + 1); b_.SetNoDataValue(-9999.0); b_.WriteArray(a.astype("float32"))
+ds = None
+app.nb.select(2); app.update()
+app.v_input.set(rad3); app.update()
+check("a 3-band input fills K, eU and eTh (bands 1, 2, 3)",
+      [app._rad_sources()[i][1] for i in range(3)] == [1, 2, 3])
+app.v_rad_U_band.set("Band 3"); app.v_rad_Th_band.set("Band 2")   # this grid is K, Th, U
+for name, suffix in (("v_efimov", "_Efimov"), ("v_kd", "_Kd"), ("v_ud", "_Ud"),
+                     ("v_terngrad", "_TernGrad"), ("v_logratio", "_CLR")):
+    getattr(app, name).set(True)
+    res = app._compute_preview(2, rad3, (0, 0, 80, 60))
+    check(f"{suffix[1:]} previews on the Multiband tab", np.isfinite(res["filtered"]).any(), res["text"])
+    getattr(app, name).set(False)
+app.v_pca.set(True)
+try:
+    import sklearn  # noqa: F401  (installed by the toolbox's Set Up Python Environment)
+    res = app._compute_preview(2, rad3, (0, 0, 80, 60))
+    check("PCA previews components 1-3 as an RGB image",
+          res["mode"] == "rgb" and res["filtered"].shape == (3, 60, 80), res["text"])
+    check("the RGB stretch gives an 8-bit image", stretch_to_rgb(res["filtered"]).shape == (60, 80, 3))
+except ImportError:
+    try:
+        app._compute_preview(2, rad3, (0, 0, 80, 60)); msg = ""
+    except RuntimeError as e:
+        msg = str(e)
+    check("without scikit-learn the PCA preview says how to get it", "Set Up Python Environment" in msg, msg)
+app.v_pca.set(False)
+app.v_kd.set(True); app.v_logratio.set(True); app.v_logratio_type.set("ILR")
+app._do_apply_multi(rad3)
+pump(0.3)
+kd_out, ilr_out = os.path.join(DATA, "kthu_Kd.tif"), os.path.join(DATA, "kthu_ILR.tif")
+kd_arr = band(kd_out) if os.path.exists(kd_out) else None
+check("Apply Multiband writes Kd, high over the potassic block",
+      kd_arr is not None and np.nanmean(kd_arr[20:30, 20:30]) > 0.5 > abs(np.nanmedian(kd_arr)),
+      None if kd_arr is None else (np.nanmean(kd_arr[20:30, 20:30]), np.nanmedian(kd_arr)))
+ilr_ds = gdal.Open(ilr_out) if os.path.exists(ilr_out) else None
+check("... and the ILR as a 2-band grid", ilr_ds is not None and ilr_ds.RasterCount == 2)
+ilr_ds = None
+app.v_rad_U_band.set("Band 1")
+app.v_rad_Th_band.set("Band 2"); app.v_rad_K_band.set("Band 1")
+try:
+    app._rad_sources(); same = None
+    from calcs.Radiometrics import north_up_frame, read_stack
+    gt_, c_, r_, w_ = north_up_frame(rad3)
+    read_stack(app._rad_sources(), gt_, c_, r_, w_)
+except ValueError as e:
+    same = str(e)
+check("K and eU on the same band is refused", same is not None and "same band" in same, same)
+
+# Replace existing layer: off keeps the earlier result and numbers the new one
+app.v_input.set(pv)
+app.v_replace.set(False)
+app.v_nstd.set(True)
+app._do_apply_fft(pv); pump(0.3)
+app.v_nstd.set(True)
+app._do_apply_fft(pv); pump(0.3)
+check("Replace existing layer off: a second run is saved as _NSTD_1",
+      os.path.exists(os.path.join(DATA, "prevsrc_NSTD.tif"))
+      and os.path.exists(os.path.join(DATA, "prevsrc_NSTD_1.tif")))
+app.v_replace.set(True)
+app.v_nstd.set(True)
+app._do_apply_fft(pv); pump(0.3)
+check("Replace existing layer on: no _NSTD_2", not os.path.exists(os.path.join(DATA, "prevsrc_NSTD_2.tif")))
+check("Replace existing layer is remembered", G._load_settings().get("replace_existing") is True)
+
+# collapsible groups
+sec = next(w for w in app._tab_frames[0].inner.winfo_children()
+           if isinstance(w, G.CollapsibleSection) and w._text == "Edge Detectors")
+rows_before = [c for c in sec.winfo_children() if c.winfo_manager()]
+sec.toggle(); app.update()
+folded = [c for c in sec.winfo_children() if c.winfo_manager() and c is not getattr(sec, "_stub", None)]
+sec.toggle(); app.update()
+rows_after = [c for c in sec.winfo_children() if c.winfo_manager()]
+check("a group folds away and opens again with all its rows",
+      len(rows_before) >= 2 and not folded and rows_after == rows_before,
+      (len(rows_before), len(folded), len(rows_after)))
+check("its folded state is remembered (open again)", G._load_settings()["sections"]["Edge Detectors"] is True)
 
 passed = sum(1 for _, ok in results if ok)
 print(f"\n{passed}/{len(results)} ARC checks passed", flush=True)

@@ -28,6 +28,7 @@ from qgis.core import (
     QgsProcessingAlgorithm,
     QgsProcessingContext,
     QgsProcessingException,
+    QgsProcessingParameterBand,
     QgsProcessingParameterBoolean,
     QgsProcessingParameterEnum,
     QgsProcessingParameterFeatureSource,
@@ -41,6 +42,7 @@ from qgis.core import (
 )
 
 from .calcs.PCAICA import PCAICA
+from .calcs import Radiometrics
 from .calcs.euler.euler_python import euler_deconv
 from .calcs.layer_shim import LayerShim
 from .calcs.mba_suggest import describe as describe_mba_suggestion, suggest_mba_parameters
@@ -508,6 +510,146 @@ class ComponentAnalysisAlgorithm(_SGToolAlgorithm):
         return {self.OUTPUT: out_path}
 
 
+class RadiometricAlgorithm(_SGToolAlgorithm):
+    """Efimov F, Kd, Ud or the ternary gradient from K, eU and eTh, each a band
+    of one multiband grid or of separate grids (resampled onto the K grid)."""
+
+    OUTPUT = "OUTPUT"
+    INPUTS = (("K", "K grid"), ("U", "eU grid"), ("TH", "eTh grid"))
+
+    def initAlgorithm(self, config=None):
+        for key, label in self.INPUTS:
+            self.addParameter(QgsProcessingParameterRasterLayer(key, label))
+            default = {"K": 1, "U": 2, "TH": 3}[key]
+            self.addParameter(QgsProcessingParameterBand(
+                key + "_BAND", label.replace("grid", "band"), default, key))
+        if self.spec["id"] in ("kd", "ud"):
+            self.addParameter(QgsProcessingParameterEnum(
+                "BACKGROUND", "Background predicted from eTh by",
+                ["Ratio of means", "Linear regression"], False, 0))
+        if self.spec["id"] == "ternary_gradient":
+            self.addParameter(QgsProcessingParameterEnum(
+                "SCALING", "Band scaling", ["Z-score", "CLR"], False, 0))
+        self.addParameter(
+            QgsProcessingParameterRasterDestination(
+                self.OUTPUT, "Output grid (optional: default is standard SGTool file naming convention in same directory as the K grid)",
+                None, True, False,
+            )
+        )
+
+    def _sources(self, parameters, context):
+        out = []
+        for key, label in self.INPUTS:
+            layer = self.parameterAsRasterLayer(parameters, key, context)
+            if layer is None:
+                raise QgsProcessingException(f"Select the {label}")
+            band = self.parameterAsInt(parameters, key + "_BAND", context) or 1
+            out.append((layer, band))
+        return out
+
+    def _auto_target(self, parameters, context):
+        layer = self.parameterAsRasterLayer(parameters, "K", context)
+        if layer is None:
+            return None
+        return auto_output_path(
+            layer.source().split("|")[0],
+            Radiometrics.RADIOMETRIC_OPERATIONS[self.spec["id"]][1],
+        )
+
+    def processAlgorithm(self, parameters, context, feedback):
+        sources = self._sources(parameters, context)
+        k_layer = sources[0][0]
+        k_path = k_layer.source().split("|")[0]
+        operation, suffix = Radiometrics.RADIOMETRIC_OPERATIONS[self.spec["id"]]
+        values = {}
+        background = scaling = None
+        if self.spec["id"] in ("kd", "ud"):
+            background = ("ratio", "regression")[
+                self.parameterAsEnum(parameters, "BACKGROUND", context)]
+            values["background"] = background
+        if self.spec["id"] == "ternary_gradient":
+            scaling = ("zscore", "clr")[self.parameterAsEnum(parameters, "SCALING", context)]
+            values["scaling"] = scaling
+        for name, (layer, band) in zip(("K", "eU", "eTh"), sources):
+            values[name] = f"{layer.source().split('|')[0]} (band {band})"
+        gt, cols, rows, wkt = Radiometrics.north_up_frame(k_path)
+        try:
+            stack = Radiometrics.read_stack(
+                [(l.source().split("|")[0], b) for l, b in sources], gt, cols, rows, wkt)
+        except ValueError as e:
+            raise QgsProcessingException(str(e))
+        if feedback.isCanceled():
+            return {}
+        feedback.setProgress(40)
+        result = Radiometrics.compute_radiometric(
+            self.spec["id"], stack, background or "ratio", scaling or "zscore",
+            dx=abs(gt[1]), dy=abs(gt[5]))
+        out_path, _auto = self._resolve_output(
+            parameters, context, auto_output_path(k_path, suffix), k_layer.name() + suffix)
+        write_grid(out_path, result, gt, wkt)
+        write_sgt_metadata(out_path, k_path, operation, values, _plugin_version())
+        feedback.setProgress(100)
+        return {self.OUTPUT: out_path}
+
+
+class LogRatioAlgorithm(_SGToolAlgorithm):
+    """CLR or ILR of every band of a multiband grid (e.g. before PCA / ICA)."""
+
+    INPUT = "INPUT"
+    TYPE = "TYPE"
+    OUTPUT = "OUTPUT"
+
+    def initAlgorithm(self, config=None):
+        self.addParameter(
+            QgsProcessingParameterRasterLayer(self.INPUT, "Input multiband grid"))
+        self.addParameter(QgsProcessingParameterEnum(
+            self.TYPE, "Transform", ["CLR", "ILR"], False, 0))
+        self.addParameter(
+            QgsProcessingParameterRasterDestination(
+                self.OUTPUT, "Output grid (optional: default is standard SGTool file naming convention in same directory as input file)",
+                None, True, False,
+            )
+        )
+
+    def _kind(self, parameters, context):
+        return ("CLR", "ILR")[self.parameterAsEnum(parameters, self.TYPE, context)]
+
+    def _auto_target(self, parameters, context):
+        layer = self.parameterAsRasterLayer(parameters, self.INPUT, context)
+        if layer is None:
+            return None
+        return auto_output_path(
+            layer.source().split("|")[0],
+            Radiometrics.LOG_RATIO_OPERATIONS[self._kind(parameters, context)][1],
+        )
+
+    def processAlgorithm(self, parameters, context, feedback):
+        layer = self.parameterAsRasterLayer(parameters, self.INPUT, context)
+        if layer is None:
+            raise QgsProcessingException("Select an input grid")
+        if layer.bandCount() < 2:
+            raise QgsProcessingException("The log-ratio transform needs a multiband grid")
+        kind = self._kind(parameters, context)
+        operation, suffix = Radiometrics.LOG_RATIO_OPERATIONS[kind]
+        source_path = layer.source().split("|")[0]
+        gt, cols, rows, wkt = Radiometrics.north_up_frame(source_path)
+        stack = Radiometrics.read_stack(
+            [(source_path, b) for b in range(1, layer.bandCount() + 1)], gt, cols, rows, wkt)
+        out, replaced = Radiometrics.log_ratio(kind, stack)
+        if replaced:
+            feedback.pushInfo(f"{replaced} values <= 0 replaced by half the smallest "
+                              "positive value of their band")
+        names = [layer.bandName(b).split(": ", 1)[-1] for b in range(1, layer.bandCount() + 1)]
+        out_path, _auto = self._resolve_output(
+            parameters, context, auto_output_path(source_path, suffix), layer.name() + suffix)
+        Radiometrics.write_multiband(
+            out_path, out, gt, wkt, Radiometrics.log_ratio_band_names(kind, names))
+        write_sgt_metadata(out_path, source_path, operation,
+                           {"type": kind, "bands": ", ".join(names)}, _plugin_version())
+        feedback.setProgress(100)
+        return {self.OUTPUT: out_path}
+
+
 class BSplineGriddingAlgorithm(_SGToolAlgorithm):
     """Multilevel B-spline gridding of scattered points."""
 
@@ -831,6 +973,36 @@ COMPONENT_SPECS = [
          help="Independent components of a multiband grid (needs scikit-learn)."),
 ]
 
+GROUP_RAD = ("radiometrics", "Radiometrics")
+
+RADIOMETRIC_SPECS = [
+    dict(id="efimov", name="Efimov F-parameter (K x eU / eTh)", group=GROUP_RAD,
+         help=("Efimov F-parameter F = K x eU / eTh: high where K and U are enriched "
+               "relative to Th, as in potassic and uraniferous alteration. Cells where K, eU "
+               "or eTh is <= 0 are left blank. K, eU and eTh can be bands of one multiband "
+               "grid or separate grids; the result is on the K grid.")),
+    dict(id="kd", name="Kd (thorium-normalised K deviation)", group=GROUP_RAD,
+         help=("Kd = (K - Ks) / Ks, with Ks the K predicted from eTh over the whole grid "
+               "(Saunders et al.): positive where there is more K than the thorium predicts. "
+               "Cells where Ks is below 10% of the mean K are left blank.")),
+    dict(id="ud", name="Ud (thorium-normalised U deviation)", group=GROUP_RAD,
+         help=("Ud = (eU - Us) / Us, with Us the eU predicted from eTh over the whole grid "
+               "(Saunders et al.): positive where there is more U than the thorium predicts. "
+               "Cells where Us is below 10% of the mean eU are left blank.")),
+    dict(id="ternary_gradient", name="Ternary gradient (vector Sobel)", group=GROUP_RAD,
+         help=("Multichannel (Di Zenzo) Sobel gradient of K, eU and eTh together: high "
+               "where any radioelement changes, even if the total count does not. Z-score "
+               "scaling weighs the three equally; CLR follows changes in their ratios only.")),
+]
+
+LOG_RATIO_SPEC = dict(
+    id="log_ratio", name="Log-ratio transform (CLR / ILR)", group=GROUP_MULTI,
+    help=("Centred (CLR) or isometric (ILR, pivot coordinates) log-ratio of every band of a "
+          "multiband grid of compositional data such as K, eU, eTh, so that high-count units "
+          "do not dominate a later PCA or ICA. CLR gives one band per input band, ILR one "
+          "fewer. Values <= 0 are replaced by half the smallest positive value of their band."),
+)
+
 EULER_SPEC = dict(
     id="euler_deconvolution", name="Euler deconvolution", group=GROUP_EULER,
     help=(
@@ -881,6 +1053,9 @@ class SGToolProvider(QgsProcessingProvider):
         self.addAlgorithm(EulerAlgorithm(EULER_SPEC))
         for spec in COMPONENT_SPECS:
             self.addAlgorithm(ComponentAnalysisAlgorithm(spec))
+        for spec in RADIOMETRIC_SPECS:
+            self.addAlgorithm(RadiometricAlgorithm(spec))
+        self.addAlgorithm(LogRatioAlgorithm(LOG_RATIO_SPEC))
         self.addAlgorithm(BSplineGriddingAlgorithm(BSPLINE_SPEC))
         self.addAlgorithm(WormsAlgorithm(WORMS_SPEC))
         # imported here: the replay module itself builds on this one

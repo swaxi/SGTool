@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import re
 import sys
 
 from qgis.PyQt import QtWidgets
@@ -12,7 +13,7 @@ from qgis.PyQt.QtWidgets import (
 )
 from qgis.gui import (
     QgsMapLayerComboBox, QgsProjectionSelectionWidget,
-    QgsFieldComboBox, QgsSpinBox, QgsDoubleSpinBox,
+    QgsFieldComboBox, QgsSpinBox, QgsDoubleSpinBox, QgsCollapsibleGroupBox,
 )
 
 # PyQt6 removed flat enum aliases; restore them so call sites need no changes.
@@ -66,6 +67,16 @@ TAB_BG = "background-color: rgb(240,240,240);"
 def _tr(text):
     """Translate text using the SGTool Qt translation context."""
     return QCoreApplication.translate("SGTool", text)
+
+
+def _group_box(title):
+    """A group box that folds away with a click on its title, so unused groups
+    take no room. Open by default; QGIS remembers the folded state of each one
+    between sessions (keyed by its object name, made from the title)."""
+    gb = QgsCollapsibleGroupBox(title)
+    gb.setObjectName("sgtGroup_" + re.sub(r"\W+", "_", title).strip("_"))
+    gb.setCollapsed(False)
+    return gb
 
 
 class SGToolDockWidget(QDockWidget):
@@ -134,8 +145,9 @@ class SGToolDockWidget(QDockWidget):
         self.tabWidget.setStyleSheet(TAB_STYLE)
         self.tabWidget.setUsesScrollButtons(False)
 
-        self.tabWidget.addTab(self._tab_fft_filters(),   _tr("FFT Filters"))
+        self.tabWidget.addTab(self._tab_fft_filters(),   _tr("FFT Filters+"))
         self.tabWidget.addTab(self._tab_conv_stats(),    _tr("Conv + Stats"))
+        self.tabWidget.addTab(self._tab_multiband(),     _tr("Multiband"))
         self.tabWidget.addTab(self._tab_grid_wavelets(), _tr("Grid + Wavelets"))
         self.tabWidget.addTab(self._tab_petrophysics(),  _tr("Petrophys"))
         self.tabWidget.addTab(self._tab_utils(),         _tr("Utils"))
@@ -343,6 +355,8 @@ class SGToolDockWidget(QDockWidget):
         sl.addWidget(self._group_grav_mag())
         sl.addWidget(self._group_freq_filters())
         sl.addWidget(self._group_gradient())
+        sl.addWidget(self._group_edge_detectors())
+        sl.addWidget(self._group_euler())
         sl.addStretch()
 
         outer.addWidget(self._scroll_wrap(scroll_content), 1)
@@ -417,7 +431,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Grav/Mag Filters
     # ------------------------------------------------------------------
     def _group_grav_mag(self):
-        gb = QGroupBox(_tr("Grav/Mag Filters"))
+        gb = _group_box(_tr("Grav/Mag Filters"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
@@ -531,7 +545,7 @@ class SGToolDockWidget(QDockWidget):
     def _group_freq_filters(self):
         """One filter per block, its settings on indented rows beneath it, so the
         group stays narrow (the tab has plenty of vertical room)."""
-        gb = QGroupBox(_tr("Frequency Filters"))
+        gb = _group_box(_tr("Frequency Filters"))
         v = QVBoxLayout(gb)
         v.setSpacing(4)
 
@@ -670,7 +684,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Gradient Filters
     # ------------------------------------------------------------------
     def _group_gradient(self):
-        gb = QGroupBox(_tr("Gradient Filters"))
+        gb = _group_box(_tr("Gradient Filters"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
@@ -754,9 +768,53 @@ class SGToolDockWidget(QDockWidget):
         sl.setContentsMargins(2, 2, 2, 2)
         sl.setSpacing(6)
         sl.addWidget(self._group_conv_filters())
+        sl.addWidget(self._group_domain_detection())
         sl.addWidget(self._group_spatial_stats())
+        sl.addWidget(self._group_landform())
+        sl.addStretch()
+        outer.addWidget(self._scroll_wrap(sc), 1)
+        outer.addWidget(self._grid_info_bar())
+        return tab
+
+    # ------------------------------------------------------------------
+    # TAB 3 – Multiband: radiometric ratios, log-ratios, PCA / ICA
+    # ------------------------------------------------------------------
+    def _tab_multiband(self):
+        tab = QWidget()
+        tab.setObjectName("Multiband_tab")
+        tab.setStyleSheet("#Multiband_tab { " + TAB_BG + " }")
+
+        outer = QVBoxLayout(tab)
+        outer.setContentsMargins(6, 6, 6, 6)
+        outer.setSpacing(4)
+
+        # ── Fixed top: Select Grid ───────────────────────────────────
+        top = QWidget()
+        tl = QHBoxLayout(top)
+        tl.setContentsMargins(0, 0, 0, 0)
+        lbl = QLabel(_tr("Select Grid"))
+        lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.mMapLayerComboBox_selectGrid_Multi = QgsMapLayerComboBox()
+        tl.addWidget(lbl)
+        tl.addWidget(self.mMapLayerComboBox_selectGrid_Multi, 1)
+        outer.addWidget(top)
+
+        # ── Fixed: Apply Processing + live preview controls ─────────
+        self.pushButton_3_applyProcessing_Multi = QPushButton(_tr("Apply Processing"))
+        self.pushButton_3_applyProcessing_Multi.setStyleSheet("font-weight: bold;")
+        outer.addWidget(
+            self._apply_preview_bar(
+                self.pushButton_3_applyProcessing_Multi, suffix="_multi"
+            )
+        )
+
+        # ── Scrollable middle ────────────────────────────────────────
+        sc = QWidget()
+        sl = QVBoxLayout(sc)
+        sl.setContentsMargins(2, 2, 2, 2)
+        sl.setSpacing(6)
+        sl.addWidget(self._group_radiometrics())
         sl.addWidget(self._group_multivar_stats())
-        sl.addWidget(self._group_euler())
         sl.addStretch()
         outer.addWidget(self._scroll_wrap(sc), 1)
         outer.addWidget(self._grid_info_bar())
@@ -766,7 +824,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Convolution Filters
     # ------------------------------------------------------------------
     def _group_conv_filters(self):
-        gb = QGroupBox(_tr("Convolution Filters"))
+        gb = _group_box(_tr("Convolution Filters"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
@@ -838,7 +896,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Spatial Statistics
     # ------------------------------------------------------------------
     def _group_spatial_stats(self):
-        gb = QGroupBox(_tr("Spatial Statistics"))
+        gb = _group_box(_tr("Spatial Statistics"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
@@ -918,6 +976,77 @@ class SGToolDockWidget(QDockWidget):
             w.setParent(gb)
             w.hide()
 
+        g.setColumnStretch(8, 1)
+        return gb
+
+    # ------------------------------------------------------------------
+    # Group: Radiometrics
+    # ------------------------------------------------------------------
+    def _group_radiometrics(self):
+        gb = _group_box(_tr("Radiometrics"))
+        g = QGridLayout(gb)
+        g.setSpacing(4)
+
+        # K / eU / eTh inputs (bands of one multiband grid or separate grids),
+        # above the three radiometric filters that use them
+        lbl_rad = QLabel(_tr("Radiometric grids (Efimov, Kd/Ud, Ternary gradient, Log-ratio):"))
+        g.addWidget(lbl_rad, 0, 0, 1, 6)
+        # the band labels hint that one 3-band grid can feed all three rows
+        for row, key, text, band_text in (
+            (1, "K", "K", "Band 1 or 3 Band"),
+            (2, "U", "eU", "Band 2"),
+            (3, "Th", "eTh", "Band 3"),
+        ):
+            lbl = QLabel(_tr(text))
+            lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            combo = QgsMapLayerComboBox()
+            lbl_band = QLabel(_tr(band_text))
+            lbl_band.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            band = QComboBox()
+            band.setMinimumWidth(90)
+            setattr(self, f"mMapLayerComboBox_Rad_{key}", combo)
+            setattr(self, f"comboBox_Rad_{key}_band", band)
+            g.addWidget(lbl,      row, 0)
+            g.addWidget(combo,    row, 1, 1, 3)
+            g.addWidget(lbl_band, row, 4)
+            g.addWidget(band,     row, 5)
+
+        # Radiometric ratios
+        self.checkBox_Efimov = QCheckBox(_tr("Efimov F-parameter (K·eU/eTh)"))
+        g.addWidget(self.checkBox_Efimov, 4, 0, 1, 4)
+
+        self.checkBox_Kd = QCheckBox(_tr("Kd"))
+        self.checkBox_Ud = QCheckBox(_tr("Ud"))
+        lbl_kdud = QLabel(_tr("Background"))
+        lbl_kdud.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.comboBox_KdUd_method = QComboBox()
+        self.comboBox_KdUd_method.addItems([_tr("Ratio of means"), _tr("Linear regression")])
+        g.addWidget(self.checkBox_Kd,          5, 0)
+        g.addWidget(self.checkBox_Ud,          5, 1)
+        g.addWidget(lbl_kdud,                  5, 2)
+        g.addWidget(self.comboBox_KdUd_method, 5, 3, 1, 3)
+
+        # Ternary (multichannel) gradient of K, eU, eTh
+        self.checkBox_TernGrad = QCheckBox(_tr("Ternary Gradient (vector Sobel)"))
+        lbl_tg = QLabel(_tr("Scaling"))
+        lbl_tg.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.comboBox_TernGrad_scaling = QComboBox()
+        self.comboBox_TernGrad_scaling.addItems([_tr("Z-score"), _tr("CLR")])
+        g.addWidget(self.checkBox_TernGrad,         6, 0, 1, 2)
+        g.addWidget(lbl_tg,                         6, 2)
+        g.addWidget(self.comboBox_TernGrad_scaling, 6, 3, 1, 3)
+
+        g.setColumnStretch(8, 1)
+        return gb
+
+    # ------------------------------------------------------------------
+    # Group: Landform
+    # ------------------------------------------------------------------
+    def _group_landform(self):
+        gb = _group_box(_tr("Landform"))
+        g = QGridLayout(gb)
+        g.setSpacing(4)
+
         # MRVBF / MRRTF (Multiresolution Valley Bottom / Ridge Top Flatness)
         self.checkBox_MRVBF = QCheckBox(_tr("MRVBF / MRRTF / Slope"))
 
@@ -951,19 +1080,19 @@ class SGToolDockWidget(QDockWidget):
         self.lineEdit_MRVBF_maxres = QLineEdit("100")
         self.lineEdit_MRVBF_maxres.setFixedWidth(55)
 
-        g.addWidget(self.checkBox_MRVBF,        7, 0, 1, 2)
-        g.addWidget(self.label_mrvbf_tslope,    7, 2)
-        g.addWidget(self.lineEdit_MRVBF_tslope, 7, 3)
-        g.addWidget(self.label_mrvbf_tpctlv,    7, 4)
-        g.addWidget(self.lineEdit_MRVBF_tpctlv, 7, 5)
-        g.addWidget(self.label_mrvbf_tpctlr,    8, 2)
-        g.addWidget(self.lineEdit_MRVBF_tpctlr, 8, 3)
-        g.addWidget(self.label_mrvbf_pslope,    8, 4)
-        g.addWidget(self.lineEdit_MRVBF_pslope, 8, 5)
-        g.addWidget(self.label_mrvbf_ppctl,     9, 2)
-        g.addWidget(self.lineEdit_MRVBF_ppctl,  9, 3)
-        g.addWidget(self.label_mrvbf_maxres,    9, 4)
-        g.addWidget(self.lineEdit_MRVBF_maxres, 9, 5)
+        g.addWidget(self.checkBox_MRVBF,        0, 0, 1, 2)
+        g.addWidget(self.label_mrvbf_tslope,    0, 2)
+        g.addWidget(self.lineEdit_MRVBF_tslope, 0, 3)
+        g.addWidget(self.label_mrvbf_tpctlv,    0, 4)
+        g.addWidget(self.lineEdit_MRVBF_tpctlv, 0, 5)
+        g.addWidget(self.label_mrvbf_tpctlr,    1, 2)
+        g.addWidget(self.lineEdit_MRVBF_tpctlr, 1, 3)
+        g.addWidget(self.label_mrvbf_pslope,    1, 4)
+        g.addWidget(self.lineEdit_MRVBF_pslope, 1, 5)
+        g.addWidget(self.label_mrvbf_ppctl,     2, 2)
+        g.addWidget(self.lineEdit_MRVBF_ppctl,  2, 3)
+        g.addWidget(self.label_mrvbf_maxres,    2, 4)
+        g.addWidget(self.lineEdit_MRVBF_maxres, 2, 5)
 
         g.setColumnStretch(8, 1)
         return gb
@@ -972,7 +1101,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Multivariate Statistical Analysis
     # ------------------------------------------------------------------
     def _group_multivar_stats(self):
-        gb = QGroupBox(_tr("Multivariate Statistical Analysis"))
+        gb = _group_box(_tr("Multivariate Statistical Analysis"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
@@ -989,21 +1118,87 @@ class SGToolDockWidget(QDockWidget):
         self.mQgsSpinBox_ICA = QgsSpinBox()
         self.label_2 = lbl_comp2
 
-        g.addWidget(self.checkBox_PCA,     0, 0)
-        g.addWidget(lbl_comp,              0, 1)
-        g.addWidget(self.mQgsSpinBox_PCA,  0, 2)
-        g.addWidget(self.checkBox_ICA,     1, 0)
-        g.addWidget(lbl_comp2,             1, 1)
-        g.addWidget(self.mQgsSpinBox_ICA,  1, 2)
+        # Log-ratio transform (compositional data) before PCA/ICA
+        self.checkBox_LogRatio = QCheckBox(_tr("Log-ratio transform"))
+        lbl_lr = QLabel(_tr("Type"))
+        lbl_lr.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.comboBox_LogRatio_type = QComboBox()
+        self.comboBox_LogRatio_type.addItems(["CLR", "ILR"])
+        self.comboBox_LogRatio_type.setFixedWidth(70)
+
+        g.addWidget(self.checkBox_LogRatio,       0, 0)
+        g.addWidget(lbl_lr,                       0, 1)
+        g.addWidget(self.comboBox_LogRatio_type,  0, 2)
+        g.addWidget(self.checkBox_PCA,     1, 0)
+        g.addWidget(lbl_comp,              1, 1)
+        g.addWidget(self.mQgsSpinBox_PCA,  1, 2)
+        g.addWidget(self.checkBox_ICA,     2, 0)
+        g.addWidget(lbl_comp2,             2, 1)
+        g.addWidget(self.mQgsSpinBox_ICA,  2, 2)
 
         g.setColumnStretch(3, 1)
         return gb
 
     # ------------------------------------------------------------------
+    # Group: Edge Detectors
+    # ------------------------------------------------------------------
+    def _group_edge_detectors(self):
+        gb = _group_box(_tr("Edge Detectors"))
+        g = QGridLayout(gb)
+        g.setSpacing(4)
+
+        self._window_row(g, 0, "checkBox_NSTD", "Normalised Standard Deviation (NSTD)",
+                         "lineEdit_NSTD_window", "5", bullet=True)
+        self._window_row(g, 1, "checkBox_NAVEdge", "NAV-Edge",
+                         "lineEdit_NAV_window", "7", bullet=True)
+        lbl_cof = QLabel(_tr("Aniso scale"))
+        lbl_cof.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.lineEdit_NAV_cof = QLineEdit("2")
+        self.lineEdit_NAV_cof.setFixedWidth(50)
+        g.addWidget(lbl_cof,               1, 3)
+        g.addWidget(self.lineEdit_NAV_cof, 1, 4)
+
+        g.setColumnStretch(5, 1)
+        return gb
+
+    # ------------------------------------------------------------------
+    # Group: Domain Detection (edge-preserving smoothers)
+    # ------------------------------------------------------------------
+    def _group_domain_detection(self):
+        gb = _group_box(_tr("Domain Detection"))
+        g = QGridLayout(gb)
+        g.setSpacing(4)
+        self._window_row(g, 0, "checkBox_SNN", "Symmetric Nearest Neighbour (SNN)",
+                         "lineEdit_SNN_window", "3")
+        self._window_row(g, 1, "checkBox_Kuwahara", "Kuwahara",
+                         "lineEdit_Kuwahara_window", "5")
+        g.setColumnStretch(3, 1)
+        return gb
+
+    def _window_row(self, g, row, attr_cb, text, attr_le, default, bullet=False):
+        """Checkbox + 'Window' + size box on one row of a grid layout; bullet=True
+        adds the ● marker of filters meant for RTP/RTE magnetic or gravity data."""
+        cb = QCheckBox(_tr(text))
+        lbl = QLabel(_tr("Window"))
+        lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        le = QLineEdit(default)
+        le.setFixedWidth(50)
+        setattr(self, attr_cb, cb)
+        setattr(self, attr_le, le)
+        if bullet:
+            dot = QLabel("●")
+            dot.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            g.addLayout(self._bullet_check(dot, cb), row, 0)
+        else:
+            g.addWidget(cb, row, 0)
+        g.addWidget(lbl, row, 1)
+        g.addWidget(le,  row, 2)
+
+    # ------------------------------------------------------------------
     # Group: Euler Deconvolution
     # ------------------------------------------------------------------
     def _group_euler(self):
-        gb = QGroupBox(_tr("Euler Deconvolution"))
+        gb = _group_box(_tr("Euler Deconvolution"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
@@ -1082,7 +1277,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Import point or line data
     # ------------------------------------------------------------------
     def _group_import_points(self):
-        gb = QGroupBox(_tr("Import point or line data"))
+        gb = _group_box(_tr("Import point or line data"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
@@ -1134,7 +1329,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Gridding
     # ------------------------------------------------------------------
     def _group_gridding(self):
-        gb = QGroupBox(_tr("Gridding"))
+        gb = _group_box(_tr("Gridding"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
@@ -1258,7 +1453,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: BSDWorms
     # ------------------------------------------------------------------
     def _group_worms(self):
-        gb = QGroupBox("BSDWorms")
+        gb = _group_box("BSDWorms")
         self.groupBox_8 = gb
         g = QGridLayout(gb)
         g.setSpacing(4)
@@ -1307,7 +1502,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Wavelet Transform Modulus Maxima
     # ------------------------------------------------------------------
     def _group_wtmm(self):
-        gb = QGroupBox(_tr("Wavelet Transform Modulus Maxima"))
+        gb = _group_box(_tr("Wavelet Transform Modulus Maxima"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
@@ -1460,7 +1655,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Apparent Petrophysics
     # ------------------------------------------------------------------
     def _group_apparent_petro(self):
-        gb = QGroupBox(_tr("Apparent Petrophysics"))
+        gb = _group_box(_tr("Apparent Petrophysics"))
         v = QVBoxLayout(gb)
         v.setSpacing(4)
         row = lambda *items, indent=True: self._petro_row(v, *items, indent=indent)
@@ -1593,7 +1788,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Apparent Plots (Henkel plot, or histogram of one grid)
     # ------------------------------------------------------------------
     def _group_apparent_henkel(self):
-        gb = QGroupBox(_tr("Apparent Henkel Plot / Histogram"))
+        gb = _group_box(_tr("Apparent Henkel Plot / Histogram"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
@@ -1695,7 +1890,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Measured Petrophysics
     # ------------------------------------------------------------------
     def _group_measured_petro(self):
-        gb = QGroupBox(_tr("Measured Petrophysics"))
+        gb = _group_box(_tr("Measured Petrophysics"))
         g = QGridLayout(gb)
         g.setSpacing(4)
         field_tip = _tr(
@@ -1800,7 +1995,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Save Plots
     # ------------------------------------------------------------------
     def _group_save_plots(self):
-        gb = QGroupBox(_tr("Save Plots"))
+        gb = _group_box(_tr("Save Plots"))
         h = QHBoxLayout(gb)
         h.setSpacing(4)
         self.checkBox_plot_png = QCheckBox("PNG")
@@ -1882,7 +2077,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: SGTool provenance metadata reader
     # ------------------------------------------------------------------
     def _group_metadata(self):
-        gb = QGroupBox(_tr("SGTool Metadata"))
+        gb = _group_box(_tr("SGTool Metadata"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
@@ -1928,7 +2123,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Threshold to NaN
     # ------------------------------------------------------------------
     def _group_nan_threshold(self):
-        gb = QGroupBox(_tr("Threshold to NaN"))
+        gb = _group_box(_tr("Threshold to NaN"))
         g = QGridLayout(gb)
         g.setSpacing(4)
 
@@ -1970,7 +2165,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Create Clipping Polygon
     # ------------------------------------------------------------------
     def _group_clip_polygon(self):
-        gb = QGroupBox(_tr("Create Clipping Polygon"))
+        gb = _group_box(_tr("Create Clipping Polygon"))
         g = QGridLayout(gb)
         g.setSpacing(4)
         self.checkBox_polygons = QCheckBox(_tr("Create polygon based on grid"))
@@ -1982,7 +2177,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Clip to Window
     # ------------------------------------------------------------------
     def _group_clip_to_window(self):
-        gb = QGroupBox(_tr("Clip to Window"))
+        gb = _group_box(_tr("Clip to Window"))
         g = QGridLayout(gb)
         g.setSpacing(4)
         self.pushButton_clip_to_window = QPushButton(_tr("Clip to Window"))
@@ -2000,7 +2195,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Clip All Layers
     # ------------------------------------------------------------------
     def _group_clip_all_layers(self):
-        gb = QGroupBox(_tr("Clip All Layers"))
+        gb = _group_box(_tr("Clip All Layers"))
         g = QGridLayout(gb)
         g.setSpacing(4)
         self.label_clip_polygon = QLabel(_tr("Clip polygon"))
@@ -2030,7 +2225,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Normalise Grids
     # ------------------------------------------------------------------
     def _group_normalise(self):
-        gb = QGroupBox(_tr("Normalise Grids"))
+        gb = _group_box(_tr("Normalise Grids"))
         self.groupBox_10 = gb
         g = QGridLayout(gb)
         g.setSpacing(4)
@@ -2072,7 +2267,7 @@ class SGToolDockWidget(QDockWidget):
     # Group: Convert LUT to Grayscale
     # ------------------------------------------------------------------
     def _group_lut_convert(self):
-        gb = QGroupBox(_tr("Convert LUT to Grayscale"))
+        gb = _group_box(_tr("Convert LUT to Grayscale"))
         gb.setObjectName("groupBox_7")
         self.groupBox_7 = gb
         g = QGridLayout(gb)
@@ -2155,6 +2350,16 @@ class SGToolDockWidget(QDockWidget):
         outer = QVBoxLayout(tab)
         outer.setContentsMargins(6, 6, 6, 6)
 
+        # how results are saved when a grid of the same name already exists
+        self.checkBox_replace_layers = QCheckBox(_tr("Replace existing layer"))
+        self.checkBox_replace_layers.setChecked(True)
+        self.checkBox_replace_layers.setToolTip(_tr(
+            "Ticked: running the same filter again on the same grid overwrites the\n"
+            "earlier result (its layer and file).\n"
+            "Unticked: each run is kept as a new layer and file, numbered\n"
+            "<name>_1, <name>_2 ..."))
+        outer.addWidget(self.checkBox_replace_layers)
+
         self.textBrowser = QTextBrowser()
         self.textBrowser.setOpenExternalLinks(True)
         # the same point size reads much smaller on macOS
@@ -2200,6 +2405,8 @@ you are using, go to Code Repository for latest version</p>
 <p>- Multilevel B-Spline (MBA) Gridding — native Python translation of SAGA's grid_spline algorithm (no external plugin required)</p>
 <p>- Differential (Variable) RTP — G.R.J. Cooper & D.R. Cowan (2005) Taylor-series method</p>
 <p>- Low-latitude RTP — M. Hao et al. (2018) Taylor series iterative method</p>
+<p>- NSTD — G.R.J. Cooper &amp; D.R. Cowan (2008); NAV-Edge — H.L. Zhang, D. Ravat, Y.R. Marangoni &amp; X.Y. Hu (2014)</p>
+<p>- Example radiometric data in the documentation courtesy of BUMIGEB (Burkina Faso)</p>
 <p>- MRVBF/MRRTF (Multiresolution Valley Bottom/Ridge Top Flatness) — J.C. Gallant & T.I. Dowling (2003)</p>
 <p>- Euler Deconvolution uses Felipe F. Melo and Valéria C.F. Barbosa's Reliable Euler method https://github.com/ffigura/Euler-deconvolution-python</p>
 </body></html>"""

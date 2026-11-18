@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.4.2
+# Structural Geophysics Tool v0.4.3
  [![Mentioned in Awesome mineral exploration](https://awesome.re/mentioned-badge.svg)](https://github.com/XploraHub/awesome-mineral-exploration)   
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    
@@ -40,9 +40,16 @@ SGTool works in both **QGIS** and **ArcGIS Pro**: the calculations are shared, a
 2) Whatever layer is shown in the layer selector will be the one processed by whatever combination of filters are selected by check boxes. Scratch/temporary grids (e.g. "memory" outputs from other processing tools) can be processed directly, since QGIS/ArcGIS still backs them with a readable file even though they aren't permanently saved.
 - All processed files will be saved as geotiffs, and will be saved in the same directory as the original file, and will have a suffix added describing the processing step.
 - If a RTP or RTE calculation is performed, it is possible to define the magnetic field manually or the IGRF mag field parameters can be assigned based on the centroid of grid, plus survey date, or embedded geotiff metadata if the source of the tif was a Noddy grid file..
-- If a file exists on disk it will be overwritten, although QGIS plugins don't always like saving to disks other than C: on Windows, and can't overwrite a file if the grid is open in another program.
+- If the same filter is run again on the same grid the earlier result is replaced (untick **Replace existing layer** on the Help tab to keep each run as _1, _2 ...), although QGIS plugins don't always like saving to disks other than C: on Windows, and can't overwrite a file if the grid is open in another program.
 - Length units are defined by grid properties except for Up/Down Continuation (so Lat/Long wavelengths should be defined in degrees!)
 3) If multiple processing steps are required, first apply one process, select the result and then apply subsequent steps.
+
+# Edge detection, domains and radiometrics
+- **Edge detectors** (FFT Filters+ tab): normalised standard deviation (NSTD) and NAV-Edge, balanced edge detectors for gravity and RTP magnetic grids
+- **Domain detection** (Conv + Stats tab): symmetric nearest neighbour and Kuwahara edge-preserving smoothers, which flatten noise inside domains while keeping the steps between them
+- **Multiband** tab: Efimov F-parameter, Kd / Ud (thorium-normalised K and U) and ternary gradient from K, eU and eTh, CLR / ILR log-ratio transforms, and PCA / ICA, with live preview (PCA and ICA as an RGB of components 1 to 3)
+
+See the [Multiband tab](docs/reference.md#multiband-tab) and [Edge Detectors](docs/reference.md#edge-detectors) in the reference.
 
 # Petrophysics
 The **Petrophys** tab (QGIS and ArcGIS Pro) estimates rock properties from potential field grids and compares them with measured samples:
@@ -79,6 +86,8 @@ There are several excellent Open Source or at least free alternatives to this pl
 - Euler Deconvolution uses Felipe F. Melo and Valéria C.F. Barbosa's Reliable Euler method https://github.com/ffigura/Euler-deconvolution-python   
 - Variable RTP modified from code kindly supplied by Gordon Cooper, Uni Witwatersrand, see Cooper & Cowan, Computers & Geosciences 31 (2005) 989–999   https://doi.org/10.1016/j.cageo.2005.02.005
 - Low-latitude RTP (Taylor series iterative method) from Hao et al., Journal of Applied Geophysics 159 (2018) 127–134   https://doi.org/10.1016/j.jappgeo.2018.08.004
+- NSTD from Cooper & Cowan, Geophysics 73 (2008) H1–H4 https://doi.org/10.1190/1.2837309; NAV-Edge from Zhang, Ravat, Marangoni & Hu, Geophysics 79 (2014) J43–J53 https://doi.org/10.1190/geo2013-0218.1
+- Example radiometric data in the documentation courtesy of BUMIGEB (Bureau des Mines et de la Géologie du Burkina)
 
 
 

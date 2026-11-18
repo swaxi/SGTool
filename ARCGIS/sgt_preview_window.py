@@ -57,6 +57,34 @@ def stretch_to_grey(a, std_clip=True):
     return rgb
 
 
+def stretch_to_rgb(stack):
+    """8-bit RGB array from the first three bands of a (bands, rows, cols) stack (e.g.
+    PCA / ICA components 1-3 as red, green, blue), each stretched to its own
+    mean +/- 2 std; no data light grey."""
+    channels = [stretch_to_grey(stack[i], True)[..., 0] for i in range(3)]
+    rgb = np.dstack(channels)
+    rgb[~np.all(np.isfinite(stack[:3]), axis=0)] = NODATA_GREY
+    return rgb
+
+
+def cyclic_colours(orientation, under=None, opacity=0.5):
+    """8-bit RGB array of an orientation grid (degrees, 0-180, where 0 and 180 are the
+    same direction) on a full-saturation colour wheel, as QGIS styles the anisotropy
+    orientation result, drawn `opacity` over the grey of `under` (the input grid)."""
+    import colorsys
+
+    finite = np.isfinite(orientation)
+    hue = np.where(finite, np.mod(orientation, 180.0) / 180.0, 0.0)
+    wheel = np.array([colorsys.hsv_to_rgb(h, 1.0, 1.0) for h in np.linspace(0, 1, 256)])
+    rgb = (wheel[np.clip((hue * 255).astype(int), 0, 255)] * 255.0)
+    if under is not None and under.shape == orientation.shape:
+        base = stretch_to_grey(under, True).astype(float)
+        rgb = opacity * rgb + (1.0 - opacity) * base
+    rgb = rgb.astype(np.uint8)
+    rgb[~finite] = NODATA_GREY
+    return rgb
+
+
 class PreviewWindow(tk.Toplevel):
     """The window. Callbacks: on_view_changed() after the view moved, on_close() when
     the user closes the window."""
@@ -242,15 +270,25 @@ class PreviewWindow(tk.Toplevel):
         self._message = message
         self._redraw()
 
-    def show_result(self, filtered, original, box, std_clip=True):
+    def show_result(self, filtered, original, box, std_clip=True, mode="grey", smooth=True):
         """Show a filtered grid (and the input it came from) covering box = (x0, y0, x1, y1)
-        in cells of the full grid."""
+        in cells of the full grid. mode: "grey" (a grid), "rgb" (a stack of 3 bands, e.g.
+        PCA components 1-3) or "cyclic" (an orientation in degrees). smooth=False draws the
+        cells as they are (nearest neighbour) rather than bilinear, for thin edge lines and
+        for orientations, which wrap from 180 back to 0."""
         from PIL import Image
 
+        if mode == "rgb":
+            image = stretch_to_rgb(filtered)
+        elif mode == "cyclic":
+            image = cyclic_colours(filtered, original)
+        else:
+            image = stretch_to_grey(filtered, std_clip)
         self._result = {
             "box": box,
-            "filtered": Image.fromarray(stretch_to_grey(filtered, std_clip)),
+            "filtered": Image.fromarray(image),
             "original": Image.fromarray(stretch_to_grey(original, True)) if original is not None else None,
+            "smooth": smooth,
         }
         self._redraw()
 
@@ -282,6 +320,6 @@ class PreviewWindow(tk.Toplevel):
         piece = img.crop((int(sx0), int(sy0), max(int(sx0) + 1, int(round(sx1))),
                           max(int(sy0) + 1, int(round(sy1)))))
         piece = piece.resize((max(1, int(round(ix1 - ix0))), max(1, int(round(iy1 - iy0)))),
-                             Image.BILINEAR)
+                             Image.BILINEAR if res.get("smooth", True) else Image.NEAREST)
         self._photo = ImageTk.PhotoImage(piece)  # keep a reference
         c.create_image(ix0, iy0, anchor="nw", image=self._photo)

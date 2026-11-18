@@ -257,6 +257,87 @@ TOOLS = {
             "p_pctl": "Shape parameter for the elevation percentile transformation.",
             "max_res": "Coarsest resolution used, as a percentage of the grid diagonal.",
         }),
+    "NSTDFilter": dict(
+        summary="Normalised standard deviation (Cooper & Cowan 2008): the standard deviation of the "
+                "vertical derivative in a moving window divided by the sum of the standard deviations of "
+                "the x, y and z derivatives. Edges are the maxima; the ratio balances strong and weak "
+                "anomalies.",
+        usage=[MAG_NOTE + " Also works on gravity grids.",
+               "Values lie between 0 and 1. A larger window gives smoother, broader edges."],
+        params={"window_size": "Width of the square window in pixels (odd)."}),
+    "NAVEdge": dict(
+        summary="NAV-Edge, normalised anisotropy variance (Zhang, Ravat, Marangoni & Hu 2014, "
+                "Geophysics 79(3), J43-J53): a normalised, Gaussian-weighted variance in a moving window, "
+                "with the Gaussian stretched along strike. Positive over sources and negative outside "
+                "them, so the edges are the zero crossings.",
+        usage=[MAG_NOTE + " Also works on gravity grids.",
+               "Uses no higher derivatives, so it is less sensitive to noise than derivative-based edge "
+               "detectors: use a window of 3 for clean data and larger windows for noisy data.",
+               "The local strike is taken from Gaussian-derivative filters and rounded to 10 degrees."],
+        params={"window_size": "Window size M in pixels (odd). The Gaussian's standard deviation is "
+                               "(M - 1) / 6.",
+                "anisotropy_scale": "Anisotropy scale (cof): 1 is isotropic; larger values smooth along "
+                                    "strike and sharpen across it, separating close parallel sources "
+                                    "(the paper uses 1, 2 and 5)."}),
+    "KuwaharaFilter": dict(
+        summary="Kuwahara filter: an edge-preserving smoother. The window is split into four "
+                "overlapping quadrants that share the centre cell, and the cell takes the mean of the "
+                "quadrant with the least variance, so domains are flattened while their edges stay sharp.",
+        usage=["No-data cells are left out of each quadrant."],
+        params={"window_size": "Width of the window in pixels (odd); the quadrants are (size + 1) / 2 "
+                               "pixels across."}),
+    "SNNFilter": dict(
+        summary="Symmetric nearest neighbour filter (Harwood et al. 1987): of each pair of cells placed "
+                "symmetrically about the centre of the window, the one closer in value to the centre is "
+                "kept, and the kept values are averaged. Removes spikes and line noise without widening "
+                "narrow features such as dykes.",
+        usage=["No-data cells are left out of each pair."],
+        params={"window_size": "Width of the window in pixels (odd)."}),
+    "EfimovFParameter": dict(
+        summary="Efimov F-parameter, F = K x eU / eTh: high where potassium and uranium are enriched "
+                "relative to thorium, as in potassic and uraniferous hydrothermal alteration.",
+        usage=["K, eU and eTh can be bands of one multi-band radiometric raster or separate rasters; "
+               "eU and eTh are resampled onto the K raster, which the result is written on.",
+               "Cells where K, eU or eTh is 0 or less are left as no-data."],
+        params={"k_raster": "Raster holding K.", "k_band": "Band of the K raster holding K.",
+                "u_raster": "Raster holding eU.", "u_band": "Band of the eU raster holding eU.",
+                "th_raster": "Raster holding eTh.", "th_band": "Band of the eTh raster holding eTh.",
+                "out_raster": "Output raster, on the K raster's grid."}),
+    "ThoriumNormalisedDeviation": dict(
+        summary="Kd or Ud, the thorium-normalised deviation of K or eU (Saunders et al. 1987; Pires 1995): "
+                "Kd = (K - Ks) / Ks, with Ks the K predicted from eTh over the whole grid. Positive "
+                "where there is more K (or U) than the thorium predicts for the rock type.",
+        usage=["K, eU and eTh can be bands of one multi-band raster or separate rasters; the result "
+               "is written on the K raster's grid.",
+               "Cells where the predicted value is below 10% of the mean are left as no-data, as the "
+               "ratio explodes there."],
+        params={"k_raster": "Raster holding K.", "k_band": "Band of the K raster holding K.",
+                "u_raster": "Raster holding eU.", "u_band": "Band of the eU raster holding eU.",
+                "th_raster": "Raster holding eTh.", "th_band": "Band of the eTh raster holding eTh.",
+                "out_raster": "Output raster, on the K raster's grid.",
+                "element": "Kd (anomalous potassium) or Ud (anomalous uranium).",
+                "background": "Ratio of means: Ks = (mean K / mean eTh) x eTh. Linear regression: "
+                              "Ks = a + b x eTh, fitted by least squares."}),
+    "TernaryGradient": dict(
+        summary="Ternary gradient: the multichannel (Di Zenzo 1986) Sobel gradient of K, eU and eTh "
+                "together, high where any radioelement changes, even where the total count does not.",
+        usage=["K, eU and eTh can be bands of one multi-band raster or separate rasters; the result "
+               "is written on the K raster's grid."],
+        params={"k_raster": "Raster holding K.", "k_band": "Band of the K raster holding K.",
+                "u_raster": "Raster holding eU.", "u_band": "Band of the eU raster holding eU.",
+                "th_raster": "Raster holding eTh.", "th_band": "Band of the eTh raster holding eTh.",
+                "out_raster": "Output raster, on the K raster's grid.",
+                "scaling": "Z-score: each band standardised first, so the three weigh the same. CLR: "
+                           "centred log-ratios first, so only changes in the element ratios count."}),
+    "LogRatioTransform": dict(
+        summary="Log-ratio transform of compositional data (Aitchison 1986): the centred (CLR) or "
+                "isometric (ILR, pivot coordinates; Egozcue et al. 2003) log-ratios of every band of a "
+                "multi-band raster, so that high-count units do not dominate a later PCA or ICA.",
+        usage=["CLR gives one band per input band (they sum to zero); ILR gives one band fewer.",
+               "Values of 0 or less are replaced by half the smallest positive value of their band."],
+        params={"in_raster": "Multi-band raster, such as K, eU, eTh.",
+                "out_raster": "Multi-band GeoTIFF of the log-ratios.",
+                "transform": "CLR (centred log-ratio) or ILR (isometric log-ratio)."}),
     "PCAAnalysis": dict(
         summary="Principal component analysis of a multi-band raster: reduces the bands to the "
                 "components that hold most of the variance, for identifying patterns in large datasets.",

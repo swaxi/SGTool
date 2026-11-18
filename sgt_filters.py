@@ -182,6 +182,10 @@ SUFFIXES = {
     ),
     "anisotropy_chain_length": lambda p: "_SS_ChainLen",
     "anisotropy_streamline_length": lambda p: "_SS_StreamLen",
+    "nstd": lambda p: "_NSTD",
+    "nav_edge": lambda p: "_NAV",
+    "kuwahara": lambda p: "_Kuw",
+    "snn": lambda p: "_SNN",
     "threshold_to_nan": lambda p: "_Clean",
     "pca": lambda p: "_PCA",
     "ica": lambda p: "_ICA",
@@ -416,6 +420,25 @@ def _c_streamline_length(g, p):
     )
 
 
+def _c_nstd(g, p):
+    fx, fy, fz = g.processor.compute_derivatives(g.arr, "xyz", buffer_size=g.buffer)
+    return _calc_class("EdgeFilters", "nstd")(fx, fy, fz, int(p["WINDOW"]))
+
+
+def _c_nav_edge(g, p):
+    return _calc_class("EdgeFilters", "nav_edge")(
+        g.arr, int(p["WINDOW"]), p["ANISOTROPY_SCALE"]
+    )
+
+
+def _c_kuwahara(g, p):
+    return _calc_class("EdgeFilters", "kuwahara")(g.arr, int(p["WINDOW"]))
+
+
+def _c_snn(g, p):
+    return _calc_class("EdgeFilters", "snn")(g.arr, int(p["WINDOW"]))
+
+
 def _dbl(name, label, default, minimum=None, maximum=None, optional=False):
     return dict(name=name, kind="double", label=label, default=default,
                 minimum=minimum, maximum=maximum, optional=optional)
@@ -444,6 +467,8 @@ GROUP_GRID = ("gridding", "Gridding")
 GROUP_EULER = ("euler", "Euler deconvolution")
 GROUP_MULTI = ("multivariate", "Multivariate analysis")
 GROUP_PETRO = ("petrophysics", "Petrophysics")
+GROUP_EDGE = ("edge_detectors", "Edge detectors")
+GROUP_DOMAIN = ("domain_detection", "Domain detection")
 
 _DIRECTIONS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
 
@@ -654,6 +679,54 @@ FILTER_SPECS = [
     ),
     # Anisotropy chain length and streamline length (_c_chain_length,
     # _c_streamline_length) are left out until they work well, as in the dialog
+    dict(
+        id="nstd", name="Normalised standard deviation (NSTD)",
+        group=GROUP_EDGE, fft=True, compute=_c_nstd,
+        operation="Normalised standard deviation (NSTD)",
+        help=(
+            "Edge detector of Cooper & Cowan (2008): the standard deviation of the vertical "
+            "derivative in a moving window, divided by the sum of the standard deviations of "
+            "the x, y and z derivatives. Edges are the maxima; the ratio balances strong and "
+            "weak anomalies. Use on gravity or reduced-to-pole magnetic grids."
+        ),
+        params=[_int("WINDOW", "Window size (pixels, odd)", 5, minimum=3)],
+    ),
+    dict(
+        id="nav_edge", name="NAV-Edge (normalised anisotropy variance)",
+        group=GROUP_EDGE, fft=False, compute=_c_nav_edge,
+        operation="NAV-Edge (normalised anisotropy variance)",
+        help=(
+            "Edge detector of Zhang et al. (2014): a normalised, Gaussian-weighted variance in "
+            "a moving window, with the Gaussian stretched along strike by the anisotropy scale. "
+            "Dimensionless: positive over sources and negative outside them, so the edges are "
+            "the zero crossings. Uses no higher derivatives, so it is robust to noise. Use on "
+            "gravity or reduced-to-pole magnetic grids."
+        ),
+        params=[_int("WINDOW", "Window size M (pixels, odd; sigma = (M-1)/6)", 7, minimum=3),
+                _dbl("ANISOTROPY_SCALE", "Anisotropy scale (1 = isotropic)", 2.0, minimum=1.0)],
+    ),
+    dict(
+        id="kuwahara", name="Kuwahara filter",
+        group=GROUP_DOMAIN, fft=False, compute=_c_kuwahara, operation="Kuwahara filter",
+        help=(
+            "Edge-preserving smoother: the window is split into four overlapping quadrants "
+            "that share the centre cell, and the cell takes the mean of the quadrant with the "
+            "least variance. Flattens the inside of domains while keeping steps sharp."
+        ),
+        params=[_int("WINDOW", "Window size (pixels, odd)", 5, minimum=3)],
+    ),
+    dict(
+        id="snn", name="Symmetric nearest neighbour filter",
+        group=GROUP_DOMAIN, fft=False, compute=_c_snn,
+        operation="Symmetric nearest neighbour filter",
+        help=(
+            "Edge-preserving smoother (Harwood et al. 1987): of each pair of cells placed "
+            "symmetrically about the centre of the window, the one closer in value to the "
+            "centre is kept, and the kept values are averaged. Removes spikes and line noise "
+            "without widening narrow features such as dykes."
+        ),
+        params=[_int("WINDOW", "Window size (pixels, odd)", 3, minimum=3)],
+    ),
     dict(
         id="threshold_to_nan", name="Threshold to NaN",
         group=GROUP_UTIL, fft=False, compute=_c_nan, operation="Threshold to NaN",

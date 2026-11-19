@@ -920,6 +920,9 @@ class SGToolDockWidget(QDockWidget):
         self.comboBox_SS_Anisotropy_WinType = QComboBox()
         self.comboBox_SS_Anisotropy_WinType.addItems([_tr("Gaussian"), _tr("Square")])
         self.comboBox_SS_Anisotropy_WinType.setFixedWidth(90)
+        # orientation from the gradient (edges) or the curvature (thin lines)
+        self.comboBox_SS_Anisotropy_Method = QComboBox()
+        self.comboBox_SS_Anisotropy_Method.addItems([_tr("Gradient (edges)"), _tr("Curvature (lines)")])
 
         g.addWidget(self.checkBox_SS_Min,     1, 0)
         g.addWidget(self.checkBox_SS_Max,     1, 2)
@@ -929,6 +932,7 @@ class SGToolDockWidget(QDockWidget):
         g.addWidget(self.checkBox_SS_Kurtosis, 3, 2)
         g.addWidget(self.checkBox_SS_Anisotropy,         4, 0, 1, 2)
         g.addWidget(self.comboBox_SS_Anisotropy_WinType, 4, 2, 1, 2)
+        g.addWidget(self.comboBox_SS_Anisotropy_Method,  4, 4, 1, 3)
 
         # Anisotropy connectivity analysis
         self.checkBox_SS_ChainLength  = QCheckBox(_tr("Chain Length"))

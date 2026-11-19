@@ -699,6 +699,7 @@ The window (2a+1 cells across) is split into four overlapping (a+1) x (a+1) quad
 |---|---|---|
 | **Window size for all filters** | 3 | Diameter of the circular window, in cells (odd) |
 | Window type (beside Local Anisotropy) | Gaussian | Gaussian or box smoothing of the gradient products |
+| Orientation from (beside Local Anisotropy) | Gradient (edges) | *Gradient (edges)* for grids of field values, where features are steps; *Curvature (lines)* for grids where features are thin ridges and valleys (NAV-Edge, NSTD, vertical derivatives, worms) |
 
 Tick any of the statistics below. Each is saved as its own grid. Standard deviation and variance are slow on large grids and windows, skewness and kurtosis very slow.
 
@@ -757,8 +758,14 @@ $`\theta = \tfrac{1}{2}\arctan\!\left(\tfrac{2J_{12}}{J_{11}-J_{22}}\right) \bmo
 
 Returns two layers: `_SS_AnisoMag` (0–1 saliency; 0 = flat or isotropic, 1 = strong linear feature), added to the project unticked so the orientation shows first, and `_SS_AnisoOrient` (0–180° dominant strike), drawn with a cyclic colour scale at 50% transparency. The preview shows the orientation, in the same colours.
 
-*Reference*: the structure tensor, Kass & Witkin (1987); Bigün, Granlund & Wiklund (1991).
-*In SGTool*: original code. The gradients are Sobel derivatives, and the normalisation of the saliency by its 99th percentile is SGTool's choice.
+**Orientation from curvature.** On a grid where a linear feature is a thin ridge or valley, such as a NAV-Edge, NSTD or vertical-derivative grid, the gradient is near zero on the crest of the line itself, so with a small window the strike along the line is pulled about by the texture on either side of it. *Curvature (lines)* uses the Hessian (second derivatives of the grid, Gaussian-smoothed over 1 cell) instead of the gradient, and smooths its square, whose principal axis is the direction of strongest curvature, across the line, for ridges and valleys alike:
+
+$`J_{11} = \text{smooth}(H_{xx}^2 + H_{xy}^2), \quad J_{12} = \text{smooth}\!\left(H_{xy}(H_{xx}+H_{yy})\right), \quad J_{22} = \text{smooth}(H_{yy}^2 + H_{xy}^2)`$
+
+The eigenvalues, magnitude and orientation then follow as above, with the same 0–180° strike convention. Along a 120° lineament of a NAV-Edge grid, with a window of 5, the share of cells more than 15° off the lineament's strike fell from 25% (gradient) to 12% (curvature), without the blurring of a larger window.
+
+*Reference*: the structure tensor, Kass & Witkin (1987); Bigün, Granlund & Wiklund (1991); the Hessian as the orientation of curvilinear (line) features, Steger (1998).
+*In SGTool*: original code. The gradients are Sobel derivatives, and the normalisation of the saliency by its 99th percentile is SGTool's choice, as is smoothing the squared Hessian in the curvature option.
 
 **Example: local anisotropy magnitude**, window 15.
 
@@ -1326,6 +1333,7 @@ The two versions share the calculation code and most features: the **Wedge** set
 - Shepard, D., 1968. A two-dimensional interpolation function for irregularly-spaced data. *Proceedings of the 1968 23rd ACM National Conference*, 517–524. https://doi.org/10.1145/800186.810616
 - Sokal, R.R., Michener, C.D., 1958. A statistical method for evaluating systematic relationships. *University of Kansas Science Bulletin* 38, 1409–1438.
 - Spector, A., Grant, F.S., 1970. Statistical models for interpreting aeromagnetic data. *Geophysics* 35, 293–302. https://doi.org/10.1190/1.1440092
+- Steger, C., 1998. An unbiased detector of curvilinear structures. *IEEE Transactions on Pattern Analysis and Machine Intelligence* 20(2), 113–125. https://doi.org/10.1109/34.659930
 - Thompson, D.T., 1982. EULDPH: a new technique for making computer-assisted depth estimates from magnetic data. *Geophysics* 47, 31–37. https://doi.org/10.1190/1.1441278
 - Tukey, J.W., 1977. *Exploratory Data Analysis*. Addison-Wesley, Reading, MA.
 - Zevenbergen, L.W., Thorne, C.R., 1987. Quantitative analysis of land surface topography. *Earth Surface Processes and Landforms* 12, 47–56. https://doi.org/10.1002/esp.3290120107

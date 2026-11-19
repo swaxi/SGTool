@@ -750,6 +750,16 @@ class SGTool:
         self.dlg.checkBox_SS_Anisotropy.setToolTip(
             self.tr("Calculate local anisotropy magnitude (0–1) and dominant orientation (degrees)\nReturns two layers: _SS_AnisoMag and _SS_AnisoOrient")
         )
+        self.dlg.comboBox_SS_Anisotropy_Method.setToolTip(
+            self.tr(
+                "Where the orientation comes from:\n"
+                "Gradient (edges): the direction of steepest change; suits steps such as\n"
+                "contacts in a grid of field values.\n"
+                "Curvature (lines): the direction of strongest curvature; suits thin ridges\n"
+                "and valleys, such as NAV-Edge, NSTD, vertical-derivative or worm grids,\n"
+                "where the gradient is near zero on the crest of the line itself."
+            )
+        )
         self.dlg.checkBox_SS_ChainLength.setToolTip(
             self.tr("Score each pixel by the length of the oriented chain it belongs to\n(discrete 8-connected, fast)")
         )
@@ -1096,6 +1106,9 @@ class SGTool:
         self.SS_Anisotropy = self.dlg.checkBox_SS_Anisotropy.isChecked()
         win_type_text = self.dlg.comboBox_SS_Anisotropy_WinType.currentText()
         self.SS_anisotropy_window_type = 'gaussian' if win_type_text == self.tr("Gaussian") else 'box'
+        self.SS_anisotropy_method = (
+            'curvature' if self.dlg.comboBox_SS_Anisotropy_Method.currentIndex() == 1 else 'gradient'
+        )
         self.SS_ChainLength = self.dlg.checkBox_SS_ChainLength.isChecked()
         self.SS_Streamline  = self.dlg.checkBox_SS_Streamline.isChecked()
         self.SS_aniso_threshold = float(self.dlg.doubleSpinBox_SS_AnisoThresh.value())
@@ -2010,10 +2023,12 @@ class SGTool:
             return "Local anisotropy", {
                 "window_size": self.SS_window_size,
                 "window_type": self.SS_anisotropy_window_type,
+                "method": self.SS_anisotropy_method,
             }
         if s in ("_SS_ChainLen", "_SS_StreamLen"):
             params = {
                 "window_size": self.SS_window_size,
+                "method": self.SS_anisotropy_method,
                 "anisotropy_threshold": self.SS_aniso_threshold,
                 "angle_tolerance": self.SS_angle_tolerance,
             }
@@ -3866,11 +3881,7 @@ class SGTool:
         self.suffix = "_SS_Kurt"
 
     def procSS_Anisotropy(self):
-        anisotropy_map, orientation_deg = self.SpatialStats.calculate_local_anisotropy(
-            self.SpatialStats.grid,
-            window_size=self.SS_window_size,
-            window_type=self.SS_anisotropy_window_type,
-        )
+        anisotropy_map, orientation_deg = self._get_anisotropy_maps()
         self._aniso_orientation = orientation_deg  # stashed for main loop
         self.new_grid = anisotropy_map
         self.suffix = "_SS_AnisoMag"
@@ -3881,6 +3892,7 @@ class SGTool:
             self.SpatialStats.grid,
             window_size=self.SS_window_size,
             window_type=self.SS_anisotropy_window_type,
+            method=self.SS_anisotropy_method,
         )
 
     def procSS_ChainLength(self):
@@ -7591,9 +7603,11 @@ class SGTool:
             self.dlg.comboBox_LogRatio_type.currentIndexChanged.connect(
                 lambda _i: self.update_checkbox(self.dlg.checkBox_LogRatio)
             )
-            self.dlg.comboBox_SS_Anisotropy_WinType.currentIndexChanged.connect(
-                lambda _i: self.update_checkbox(self.dlg.checkBox_SS_Anisotropy)
-            )
+            for _combo in (self.dlg.comboBox_SS_Anisotropy_WinType,
+                           self.dlg.comboBox_SS_Anisotropy_Method):
+                _combo.currentIndexChanged.connect(
+                    lambda _i: self.update_checkbox(self.dlg.checkBox_SS_Anisotropy)
+                )
             # shared by Kd and Ud: redraw whichever is ticked
             self.dlg.comboBox_KdUd_method.currentIndexChanged.connect(
                 self._rad_input_changed

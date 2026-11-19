@@ -391,17 +391,16 @@ def _c_window_stat(g, p):
     )
 
 
-def _c_anisotropy(g, p):
-    magnitude, orientation = g.spatial.calculate_local_anisotropy(
-        g.spatial.grid, window_size=int(p["WINDOW"]), window_type=p["WINDOW_TYPE"]
-    )
-    return magnitude if p["OUTPUT_TYPE"] == "Magnitude" else orientation
-
-
 def _anisotropy_maps(g, p):
     return g.spatial.calculate_local_anisotropy(
-        g.spatial.grid, window_size=int(p["WINDOW"]), window_type=p["WINDOW_TYPE"]
+        g.spatial.grid, window_size=int(p["WINDOW"]), window_type=p["WINDOW_TYPE"],
+        method=p.get("METHOD", "gradient"),
     )
+
+
+def _c_anisotropy(g, p):
+    magnitude, orientation = _anisotropy_maps(g, p)
+    return magnitude if p["OUTPUT_TYPE"] == "Magnitude" else orientation
 
 
 def _c_chain_length(g, p):
@@ -672,10 +671,13 @@ FILTER_SPECS = [
         id="local_anisotropy", name="Local anisotropy",
         group=GROUP_STATS, fft=False, compute=_c_anisotropy, operation="Local anisotropy",
         help="How directional the grid is in a moving window: the magnitude (0 = no preferred "
-             "direction, 1 = strongly linear) or the dominant orientation (degrees, -90 to 90).",
+             "direction, 1 = strongly linear) or the dominant orientation (degrees, 0 to 180). "
+             "Orientation from 'gradient' suits edges (steps); 'curvature' suits thin ridges "
+             "and valleys, such as NAV-Edge, NSTD, vertical-derivative or worm grids.",
         params=[_int("WINDOW", "Window size (pixels)", 7, minimum=3),
                 _opt("WINDOW_TYPE", "Window", ["gaussian", "box"]),
-                _opt("OUTPUT_TYPE", "Output", ["Magnitude", "Orientation"])],
+                _opt("OUTPUT_TYPE", "Output", ["Magnitude", "Orientation"]),
+                _opt("METHOD", "Orientation from", ["gradient", "curvature"])],
     ),
     # Anisotropy chain length and streamline length (_c_chain_length,
     # _c_streamline_length) are left out until they work well, as in the dialog

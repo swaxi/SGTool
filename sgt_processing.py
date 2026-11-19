@@ -520,7 +520,7 @@ class RadiometricAlgorithm(_SGToolAlgorithm):
     def initAlgorithm(self, config=None):
         for key, label in self.INPUTS:
             self.addParameter(QgsProcessingParameterRasterLayer(key, label))
-            default = {"K": 1, "U": 2, "TH": 3}[key]
+            default = {"K": 1, "TH": 2, "U": 3}[key]  # ternary order K, Th, U
             self.addParameter(QgsProcessingParameterBand(
                 key + "_BAND", label.replace("grid", "band"), default, key))
         if self.spec["id"] in ("kd", "ud"):

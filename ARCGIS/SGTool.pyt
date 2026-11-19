@@ -1340,7 +1340,8 @@ class _RadiometricTool(_RasterTool):
 
     def _inputs(self):
         out = []
-        for key, label, band in (("k", "K", 1), ("u", "eU", 2), ("th", "eTh", 3)):
+        # default bands follow the ternary order K, Th, U
+        for key, label, band in (("k", "K", 1), ("u", "eU", 3), ("th", "eTh", 2)):
             out.append(self._param(f"{key}_raster", f"{label} Raster"))
             out.append(self._param(f"{key}_band", f"{label} Band", "GPLong", default=band))
         return out

@@ -987,15 +987,16 @@ class SGToolDockWidget(QDockWidget):
         g = QGridLayout(gb)
         g.setSpacing(4)
 
-        # K / eU / eTh inputs (bands of one multiband grid or separate grids),
+        # K / eTh / eU inputs (bands of one multiband grid or separate grids),
         # above the three radiometric filters that use them
         lbl_rad = QLabel(_tr("Radiometric grids (Efimov, Kd/Ud, Ternary gradient, Log-ratio):"))
         g.addWidget(lbl_rad, 0, 0, 1, 6)
-        # the band labels hint that one 3-band grid can feed all three rows
+        # the band labels hint that one 3-band grid (ternary order K, Th, U)
+        # can feed all three rows
         for row, key, text, band_text in (
             (1, "K", "K", "Band 1 or 3 Band"),
-            (2, "U", "eU", "Band 2"),
-            (3, "Th", "eTh", "Band 3"),
+            (2, "Th", "eTh", "Band 2"),
+            (3, "U", "eU", "Band 3"),
         ):
             lbl = QLabel(_tr(text))
             lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)

@@ -7,7 +7,7 @@ name=SGTool
 qgisMinimumVersion=3.24
 qgisMaximumVersion=4.99
 description=Simple Potential Field Processing
-version=0.4.3
+version=0.4.4
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
@@ -21,17 +21,20 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.4.3
-      * New Edge Detectors on the FFT Filters+ tab (renamed from FFT Filters): normalised standard deviation (NSTD, Cooper & Cowan 2008) and NAV-Edge (Zhang et al. 2014), whose edges are its zero crossings
-      * New Domain Detection group on the Conv + Stats tab: symmetric nearest neighbour (SNN) and Kuwahara edge-preserving smoothers
-      * New Multiband tab: Efimov F-parameter, Kd / Ud (thorium-normalised K and U) and ternary gradient from K, eU and eTh (bands of one grid or separate grids), a CLR / ILR log-ratio transform to run before PCA / ICA, and PCA and ICA (moved from Conv + Stats); example radiometric data courtesy of BUMIGEB
-      * The new filters are also QGIS Processing algorithms and ArcGIS Pro toolbox tools, and NSTD, NAV-Edge, SNN and Kuwahara steps can be replayed on another grid
-      * Fix: PCA and ICA now leave out no-data cells (e.g. a -999999 background), which before were treated as data and biased the components: re-run earlier PCA / ICA results of grids with a no-data background
-      * Preview: PCA and ICA show components 1-3 as a temporary RGB image; local anisotropy shows the orientation in the result's colours; NSTD, NAV-Edge and the orientation are drawn without smoothing
-      * Layout: Euler deconvolution moves to the FFT Filters+ tab, MRVBF to a Landform group, and every group can be folded away with a click on its title (remembered between sessions)
-      * Local anisotropy: the magnitude grid is loaded unticked, so the orientation shows first; a re-run's orientation grid is now styled itself (before, the older one was)
-      * Help tab: new Replace existing layer setting (on by default), so running a filter again on the same grid replaces the earlier result; untick it to keep each run as _1, _2 ... (before, single-grid filters always made a new name and PCA / ICA always replaced)
-      * ArcGIS Pro: all of the above in the GUI (same tabs, folding groups, previews in the preview window, Replace existing layer) and toolbox (new Edge Detectors, Domain Detection, Landform and Multiband toolsets); the anisotropy magnitude is added to the map unticked and the orientation coloured
+changelog=0.4.4
+      * [GUI Modification] Multiband tab: the radiometric rows are now K, eTh, eU, the usual ternary band order, and a 3-band grid whose band names do not identify the elements fills band 2 as eTh and band 3 as eU (before, eU and eTh); the same default applies to the Processing algorithms and ArcGIS Pro toolbox tools
+      0.4.3
+      * [New Feature] Edge Detectors on the FFT Filters+ tab (renamed from FFT Filters): normalised standard deviation (NSTD, Cooper & Cowan 2008) and NAV-Edge (Zhang et al. 2014), whose edges are its zero crossings
+      * [New Feature] Domain Detection group on the Conv + Stats tab: symmetric nearest neighbour (SNN) and Kuwahara edge-preserving smoothers
+      * [New Feature] Multiband tab: Efimov F-parameter, Kd / Ud (thorium-normalised K and U) and ternary gradient from K, eU and eTh (bands of one grid or separate grids), a CLR / ILR log-ratio transform to run before PCA / ICA, and PCA and ICA (moved from Conv + Stats); example radiometric data courtesy of BUMIGEB
+      * [New Feature] The new filters are also QGIS Processing algorithms and ArcGIS Pro toolbox tools, and NSTD, NAV-Edge, SNN and Kuwahara steps can be replayed on another grid
+      * [Bug Fix] PCA and ICA now leave out no-data cells (e.g. a -999999 background), which before were treated as data and biased the components: re-run earlier PCA / ICA results of grids with a no-data background
+      * [New Feature] Preview: PCA and ICA show components 1-3 as a temporary RGB image; local anisotropy shows the orientation in the result's colours; NSTD, NAV-Edge and the orientation are drawn without smoothing
+      * [GUI Modification] Layout: Euler deconvolution moves to the FFT Filters+ tab, MRVBF to a Landform group, and every group can be folded away with a click on its title (remembered between sessions)
+      * [GUI Modification] Local anisotropy: the magnitude grid is loaded unticked, so the orientation shows first
+      * [Bug Fix] Local anisotropy: a re-run's orientation grid is now styled itself (before, the older one was)
+      * [New Feature] Help tab: new Replace existing layer setting (on by default), so running a filter again on the same grid replaces the earlier result; untick it to keep each run as _1, _2 ... (before, single-grid filters always made a new name and PCA / ICA always replaced)
+      * [New Feature] ArcGIS Pro: all of the above in the GUI (same tabs, folding groups, previews in the preview window, Replace existing layer) and toolbox (new Edge Detectors, Domain Detection, Landform and Multiband toolsets); the anisotropy magnitude is added to the map unticked and the orientation coloured
       0.4.2
       * Output names no longer contain the settings (grid_UC.tif, not grid_UC_500.tif; derivatives keep grid_d1z.tif); the settings are in the provenance metadata, and in the dialog a name already in use gets _1, _2 ...
       * The metadata viewer also shows the history of a GeoSubSampler vector result selected in the layer panel; steps made by GeoSubSampler are shown but cannot be replayed

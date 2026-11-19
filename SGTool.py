@@ -890,7 +890,8 @@ class SGTool:
             getattr(d, f"mMapLayerComboBox_Rad_{key}").setToolTip(self.tr(
                 f"Grid with {label}: one band of a multiband radiometric grid, or a\n"
                 "separate grid (resampled onto the grid selected at the top of the tab).\n"
-                "Choosing a 3+ band grid at the top fills K, eU and eTh automatically."))
+                "Choosing a 3+ band grid at the top fills K, eTh and eU automatically\n"
+                "(bands 1, 2, 3, unless the band names say otherwise)."))
             getattr(d, f"comboBox_Rad_{key}_band").setToolTip(self.tr(
                 f"Band holding {label} (guessed from band names where possible)"))
         d.checkBox_TernGrad.setToolTip(self.tr(
@@ -4117,7 +4118,7 @@ class SGTool:
             )
             if tokens & set(self._RAD_NAME_HINTS[key]):
                 return b - 1
-        order = {"K": 0, "U": 1, "Th": 2}[key]
+        order = {"K": 0, "Th": 1, "U": 2}[key]  # ternary order K, Th, U
         return order if n >= 3 else 0
 
     def _fill_rad_bands(self, key):

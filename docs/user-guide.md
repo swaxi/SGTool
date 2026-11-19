@@ -490,8 +490,8 @@ The **Multiband** tab works on several bands or grids at once. The examples use 
 
 ### Step by step: radiometric ratios [Multiband Tab]
 
-1. On the **Multiband** tab, select the radiometric grid in **Select Grid**. A grid with three or more bands fills the **K**, **eU** and **eTh** rows of the **Radiometrics** group, matching band names where it can and taking bands 1, 2 and 3 otherwise.
-2. **Check the bands.** The example grid's bands are K, eTh, eU, so set **Band 2** (eU) to band 3 and **Band 3** (eTh) to band 2. K, eU and eTh can also come from three separate grids: choose each grid in its row (they are resampled onto the grid selected at the top of the tab).
+1. On the **Multiband** tab, select the radiometric grid in **Select Grid**. A grid with three or more bands fills the **K**, **eTh** and **eU** rows of the **Radiometrics** group, matching band names where it can and taking bands 1, 2 and 3 (the usual ternary order K, eTh, eU) otherwise.
+2. **Check the bands.** The example grid's bands are K, eTh, eU, which matches the defaults; a grid in another order needs its bands set by hand. K, eTh and eU can also come from three separate grids: choose each grid in its row (they are resampled onto the grid selected at the top of the tab).
 3. Tick one or more of:
    - **Efimov F-parameter** (`_Efimov`): K x eU / eTh, high where potassium and uranium are enriched relative to thorium, as in potassic and uraniferous alteration.
    - **Kd** and **Ud** (`_Kd`, `_Ud`): how much more (positive) or less (negative) K or eU there is than the thorium predicts for the rock type. **Background** chooses how the prediction is made: **Ratio of means** (the usual form) or **Linear regression**.

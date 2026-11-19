@@ -1734,7 +1734,10 @@ class SGToolApp(tk.Tk):
     # ======================================================================
     # TAB 3 – MULTIBAND: radiometric ratios, log-ratios, PCA / ICA
     # ======================================================================
-    RAD_ROWS = (("K", "K", "Band 1 or 3 Band"), ("U", "eU", "Band 2"), ("Th", "eTh", "Band 3"))
+    # K, eU, eTh: the order the calculations read the sources in
+    RAD_ROWS = (("K", "K", "Band 1 or 3 Band"), ("U", "eU", "Band 3"), ("Th", "eTh", "Band 2"))
+    # the order the rows are shown in (ternary order K, Th, U)
+    RAD_DISPLAY = (RAD_ROWS[0], RAD_ROWS[2], RAD_ROWS[1])
 
     def _tab_multiband(self, p):
         rg = section(p, "Radiometrics")
@@ -1742,7 +1745,7 @@ class SGToolApp(tk.Tk):
         lbl(rg, "Radiometric grids (Efimov, Kd/Ud, Ternary gradient, Log-ratio):").pack(
             anchor="w", padx=4, pady=(2, 0))
         self._rad_combos = {}
-        for key, label, band_text in self.RAD_ROWS:
+        for key, label, band_text in self.RAD_DISPLAY:
             r = tk.Frame(rg, bg=BG); r.pack(fill="x", padx=4, pady=1)
             lbl(r, label, width=4, anchor="e").pack(side="left")
             var, band = tk.StringVar(), tk.StringVar()
@@ -1754,7 +1757,7 @@ class SGToolApp(tk.Tk):
             c.bind("<FocusOut>", lambda _e, k=key: self._rad_fill_bands(k))
             tip(c, f"Grid with {label}: one band of a multiband radiometric grid, or a separate\n"
                    "grid (resampled onto the input grid). An input grid with 3 or more bands\n"
-                   "fills K, eU and eTh automatically.")
+                   "fills K, eTh and eU automatically (bands 1, 2, 3).")
             self._rad_combos[key] = c
             tip(btn(r, "…", lambda v=var, k=key: (_browse_file(v), self._rad_fill_bands(k)), w=2),
                 "Browse for a grid").pack(side="left", padx=2)

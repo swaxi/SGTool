@@ -718,9 +718,8 @@ for i, a in enumerate((kk, tt, uu)):
 ds = None
 app.nb.select(2); app.update()
 app.v_input.set(rad3); app.update()
-check("a 3-band input fills K, eU and eTh (bands 1, 2, 3)",
-      [app._rad_sources()[i][1] for i in range(3)] == [1, 2, 3])
-app.v_rad_U_band.set("Band 3"); app.v_rad_Th_band.set("Band 2")   # this grid is K, Th, U
+check("a 3-band input fills K, eTh and eU (bands 1, 2, 3)",
+      [app._rad_sources()[i][1] for i in range(3)] == [1, 3, 2])   # sources are K, eU, eTh
 for name, suffix in (("v_efimov", "_Efimov"), ("v_kd", "_Kd"), ("v_ud", "_Ud"),
                      ("v_terngrad", "_TernGrad"), ("v_logratio", "_CLR")):
     getattr(app, name).set(True)

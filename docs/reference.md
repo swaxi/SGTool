@@ -802,8 +802,8 @@ Calculations on several bands or grids at once: radiometric ratios of K, eU and 
 
 | Setting | Default | Meaning |
 |---|---|---|
-| **K**, **eU**, **eTh** | the selected grid, if it has 3 or more bands | The grid holding each radioelement: bands of one multiband grid, or separate grids (resampled onto the grid selected at the top of the tab, by block averaging if coarser, bilinear otherwise) |
-| **Band 1 or 3 Band**, **Band 2**, **Band 3** | bands 1, 2, 3, or by band name | The band of each grid. Selecting a grid with 3 or more bands at the top of the tab fills all three, matching band names such as `K_pct`, `eU_ppm` or `Thorium` where it can and taking bands 1, 2, 3 otherwise: check them, as band order varies (the example grid is K, eTh, eU) |
+| **K**, **eTh**, **eU** | the selected grid, if it has 3 or more bands | The grid holding each radioelement: bands of one multiband grid, or separate grids (resampled onto the grid selected at the top of the tab, by block averaging if coarser, bilinear otherwise) |
+| **Band 1 or 3 Band**, **Band 2**, **Band 3** | bands 1, 2, 3, or by band name | The band of each grid. Selecting a grid with 3 or more bands at the top of the tab fills all three, matching band names such as `K_pct`, `eU_ppm` or `Thorium` where it can and taking bands 1, 2, 3 as K, eTh, eU (the usual ternary order, as in the example grid) otherwise: check them, as band order varies |
 
 | Filter | Setting | Default | Output |
 |---|---|---|---|

@@ -284,7 +284,7 @@ def guess_band(names, key):
         tokens = set(re.split(r"[^a-z0-9_]+", low)) | set(re.split(r"[^a-z0-9]+", low))
         if tokens & set(_BAND_HINTS[key]):
             return i + 1
-    order = {"K": 1, "U": 2, "Th": 3}[key]
+    order = {"K": 1, "Th": 2, "U": 3}[key]  # ternary order K, Th, U
     return order if len(names) >= 3 else 1
 
 

@@ -904,7 +904,7 @@ class SGToolDockWidget(QDockWidget):
         lbl_ws = QLabel(_tr("Window size for all filters (odd numbers)"))
         lbl_ws.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.label_78 = lbl_ws
-        self.lineEdit_SS_Window = QLineEdit("3")
+        self.lineEdit_SS_Window = QLineEdit("5")
         self.lineEdit_SS_Window.setFixedWidth(50)
         g.addWidget(lbl_ws,                   0, 0, 1, 3)
         g.addWidget(self.lineEdit_SS_Window,  0, 3)

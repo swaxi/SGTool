@@ -354,7 +354,7 @@ Kuwahara gives the strongest, terraced simplification; SNN is gentler and is bes
 Window statistics map the texture of a grid: for example, the standard deviation of the 1VD in a moving window is high where the magnetic rocks are strongly layered or faulted.
 
 1. Select the grid (here the RTP 1VD).
-2. Set **Window size for all filters** (an odd number of cells; 9 in the examples).
+2. Set **Window size for all filters** (an odd number of cells; 5 by default, which suits skewness and kurtosis; 9 in the examples).
 3. Tick one or more of **Min**, **Max**, **Variance**, **Standard Deviation**, **Skewness**, **Kurtosis**.
 4. Press **Apply Processing**. Each statistic is saved separately (`_SS_StdDev` and so on).
 

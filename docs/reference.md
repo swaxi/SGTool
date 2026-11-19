@@ -697,7 +697,7 @@ The window (2a+1 cells across) is split into four overlapping (a+1) x (a+1) quad
 
 | Setting | Default | Meaning |
 |---|---|---|
-| **Window size for all filters** | 3 | Diameter of the circular window, in cells (odd) |
+| **Window size for all filters** | 5 | Diameter of the circular window, in cells (odd) |
 | Window type (beside Local Anisotropy) | Gaussian | Gaussian or box smoothing of the gradient products |
 | Orientation from (beside Local Anisotropy) | Gradient (edges) | *Gradient (edges)* for grids of field values, where features are steps; *Curvature (lines)* for grids where features are thin ridges and valleys (NAV-Edge, NSTD, vertical derivatives, worms) |
 
@@ -714,7 +714,7 @@ Tick any of the statistics below. Each is saved as its own grid. Standard deviat
 *Reference* (Min to Skewness): standard sample statistics, with no single primary reference.
 *In SGTool* (Min to Skewness): original code. The window is a circle whose diameter is the window size, no-data cells are left out, and a window needs at least 3 valid values. Skewness and kurtosis follow `scipy.stats` (biased estimates; kurtosis is the excess kurtosis, 0 for a normal distribution; a near-constant window gives no-data), calculated for many windows at once.
 
-The examples are of the RTP 1VD, with a window of 9 cells (15 for the anisotropy magnitude). The anisotropy orientation example is of the RTP tilt angle (`_TA`), with a window of 3.
+The examples are of the RTP 1VD, with a window of 9 cells (15 for the anisotropy magnitude). The anisotropy orientation example is of the RTP tilt angle (`_TA`), with a window of 5.
 
 **Standard deviation** (zoomed).
 
@@ -771,7 +771,7 @@ The eigenvalues, magnitude and orientation then follow as above, with the same 0
 
 ![Anisotropy magnitude](images/examples/anisotropy_magnitude.png)
 
-**Example: local anisotropy orientation of the RTP tilt angle**, window 3. The colour scale is cyclic, as 0° and 180° are the same strike.
+**Example: local anisotropy orientation of the RTP tilt angle**, window 5. Left, the tilt angle in greyscale (the input); right, the orientation drawn as SGTool shows it, in the cyclic *Full_saturation_spectrum_CCW* colour ramp at 50% opacity over the greyscale tilt angle. The colour scale is cyclic, as 0° and 180° are the same strike.
 
 ![Anisotropy orientation](images/examples/anisotropy_orientation.png)
 

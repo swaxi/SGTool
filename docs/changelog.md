@@ -7,6 +7,7 @@ The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.
 ## 0.4.4
       * [GUI Modification] Multiband tab: the radiometric rows are now K, eTh, eU, the usual ternary band order, and a 3-band grid whose band names do not identify the elements fills band 2 as eTh and band 3 as eU (before, eU and eTh); the same default applies to the Processing algorithms and ArcGIS Pro toolbox tools
       * [New Feature] Local anisotropy: new Orientation from setting; Curvature (lines) takes the orientation from the Hessian instead of the gradient, so the strike stays steady along thin lines such as NAV-Edge, NSTD or vertical-derivative lineaments (also in the Processing algorithm, replay and the ArcGIS Pro GUI)
+      * [GUI Modification] Spatial Statistics: the window size now starts at 5 (was 3), which suits skewness and kurtosis better, as in the ArcGIS Pro GUI
 
 ## 0.4.3
       * [New Feature] Edge Detectors on the FFT Filters+ tab (renamed from FFT Filters): normalised standard deviation (NSTD, Cooper & Cowan 2008) and NAV-Edge (Zhang et al. 2014), whose edges are its zero crossings

@@ -2077,6 +2077,12 @@ class SGToolApp(tk.Tk):
             path = f"{base}{suffix}_{n}{ext}"
         return path
 
+    ANISO_METHODS = ("Gradient (edges)", "Curvature (lines)")
+
+    def _aniso_method(self):
+        """'gradient' or 'curvature', from the Local Anisotropy method box."""
+        return "curvature" if self.v_ss_aniso_method.get() == self.ANISO_METHODS[1] else "gradient"
+
     def _tab_conv_anisotropy(self, ss):
         """Local anisotropy rows of the Spatial Statistics group (Chain Length and
         Streamline Length built but hidden, as in the QGIS dialog)."""
@@ -2093,6 +2099,16 @@ class SGToolApp(tk.Tk):
             "Window type for smoothing the structure tensor\n"
             "Gaussian: weighted by distance (recommended)\n"
             "Box: uniform mean").pack(side="left", padx=6)
+        self.v_ss_aniso_method = tk.StringVar(value=self.ANISO_METHODS[0])
+        tip(combo(ra1, list(self.ANISO_METHODS), self.v_ss_aniso_method, w=16,
+                  chk_var=self.v_ss_aniso),
+            "Where the orientation comes from:\n"
+            "Gradient (edges): the direction of steepest change; suits steps such as\n"
+            "contacts in a grid of field values.\n"
+            "Curvature (lines): the direction of strongest curvature; suits thin ridges\n"
+            "and valleys, such as NAV-Edge, NSTD, vertical-derivative or worm grids,\n"
+            "where the gradient is near zero on the crest of the line itself.").pack(
+            side="left", padx=(0, 6))
 
         # Chain Length and Streamline Length don't work well yet: their rows are
         # built but not shown (as in the QGIS dialog), so they stay unticked
@@ -3569,6 +3585,7 @@ class SGToolApp(tk.Tk):
             self._check_cancel()
             from calcs.SpatialStats import SpatialStats as _SS
             win_type  = 'gaussian' if self.v_ss_aniso_win_type.get() == 'Gaussian' else 'box'
+            method    = self._aniso_method()
             a_thresh  = float(self.v_ss_aniso_thresh.get() or "0.3")
             ang_tol   = float(self.v_ss_angle_tol.get()    or "22.5")
             search_r  = int(float(self.v_ss_search_r.get() or "2"))
@@ -3576,11 +3593,12 @@ class SGToolApp(tk.Tk):
             self.after(0, lambda: self._status("Computing local anisotropy…"))
             ss_inst = _SS(arr)
             aniso_map, orient_map = ss_inst.calculate_local_anisotropy(
-                arr, window_size=win, window_type=win_type)
+                arr, window_size=win, window_type=win_type, method=method)
             if self.v_ss_aniso.get():
                 self._check_cancel()
                 aniso_step = ("Local anisotropy", {"window_size": win,
-                                                   "window_type": win_type})
+                                                   "window_type": win_type,
+                                                   "method": method})
                 _save(aniso_map,  "_SS_AnisoMag", aniso_step)
                 _save(orient_map, "_SS_AnisoOrient", aniso_step)
             if self.v_ss_chain.get():
@@ -3593,7 +3611,7 @@ class SGToolApp(tk.Tk):
                     search_radius=search_r,
                 ), "_SS_ChainLen",
                 ("Anisotropy chain length", {
-                    "window_size": win, "anisotropy_threshold": a_thresh,
+                    "window_size": win, "method": method, "anisotropy_threshold": a_thresh,
                     "angle_tolerance": ang_tol, "search_radius": search_r}))
             if self.v_ss_stream.get():
                 self._check_cancel()
@@ -3605,7 +3623,7 @@ class SGToolApp(tk.Tk):
                     max_steps=max_steps,
                 ), "_SS_StreamLen",
                 ("Anisotropy streamline length", {
-                    "window_size": win, "anisotropy_threshold": a_thresh,
+                    "window_size": win, "method": method, "anisotropy_threshold": a_thresh,
                     "angle_tolerance": ang_tol, "max_steps": max_steps}))
 
     def _uncheck_conv(self):

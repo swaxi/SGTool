@@ -360,7 +360,7 @@ Window statistics map the texture of a grid: for example, the standard deviation
 
 ![Standard deviation in a 9-cell window](images/examples/stats_stddev.png)
 
-**Local Anisotropy** measures how linear the grid is around each cell. It gives two grids: `_SS_AnisoMag` (0 = no preferred direction, 1 = strongly linear), added unticked, and `_SS_AnisoOrient` (the strike of the linear features, 0 to 180°), shown in cyclic colours over the grid. Its preview shows the orientation in the same colours.
+**Local Anisotropy** measures how linear the grid is around each cell. It gives two grids: `_SS_AnisoMag` (0 = no preferred direction, 1 = strongly linear), added unticked, and `_SS_AnisoOrient` (the strike of the linear features, 0 to 180°), shown in cyclic colours over the grid. Its preview shows the orientation in the same colours. Leave **Orientation from** at *Gradient (edges)* for a grid of field values; choose *Curvature (lines)* for a grid whose features are thin lines, such as a NAV-Edge, NSTD or vertical-derivative grid, so the strike stays steady along each line.
 
 ![Anisotropy orientation](images/examples/anisotropy_orientation.png)
 

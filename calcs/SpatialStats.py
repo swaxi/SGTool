@@ -456,10 +456,11 @@ class SpatialStats:
             return (slope_array >= slope_threshold).astype(np.int8)
 
 
-    def calculate_local_anisotropy(self, image, window_size=7, window_type='gaussian'):
+    def calculate_local_anisotropy(self, image, window_size=7, window_type='gaussian',
+                                   method='gradient'):
         """
         Calculates the local anisotropy magnitude and dominant orientation map.
-        
+
         Parameters:
         -----------
         image : ndarray
@@ -468,7 +469,14 @@ class SpatialStats:
             The diameter/width of the local neighborhood in pixels (e.g., 5, 7, 15).
         window_type : str
             'box' for a uniform square window, or 'gaussian' for a weighted window.
-            
+        method : str
+            'gradient': structure tensor of the Sobel gradient, suited to edges
+            (steps). 'curvature': tensor of the Hessian (second derivatives,
+            Gaussian scale 1 cell), suited to thin ridges and valleys such as
+            NAV-Edge, NSTD, vertical-derivative or worm grids, where the
+            gradient is near zero on the crest itself. Both give the same
+            orientation convention (0-180).
+
         Returns:
         --------
         anisotropy_map : ndarray
@@ -481,15 +489,30 @@ class SpatialStats:
         if nan_mask.any():
             image = np.where(nan_mask, 0.0, image)
 
-        # 1. Compute local image gradients
-        Ix = sobel(image, axis=1)
-        Iy = sobel(image, axis=0)
-        
-        # 2. Compute raw tensor components
-        Ixx = Ix ** 2
-        Ixy = Ix * Iy
-        Iyy = Iy ** 2
-        
+        method = (method or 'gradient').lower()
+        if method == 'gradient':
+            # 1. Compute local image gradients
+            Ix = sobel(image, axis=1)
+            Iy = sobel(image, axis=0)
+
+            # 2. Compute raw tensor components
+            Ixx = Ix ** 2
+            Ixy = Ix * Iy
+            Iyy = Iy ** 2
+        elif method == 'curvature':
+            # 1. Hessian at a 1-cell Gaussian scale
+            Hxx = gaussian_filter(image, 1.0, order=(0, 2))
+            Hyy = gaussian_filter(image, 1.0, order=(2, 0))
+            Hxy = gaussian_filter(image, 1.0, order=(1, 1))
+            # 2. H·H: same eigenvectors as H, eigenvalues squared, so the axis of
+            # strongest curvature (across a ridge or a valley alike) dominates
+            # and is averaged like the gradient tensor
+            Ixx = Hxx ** 2 + Hxy ** 2
+            Ixy = Hxy * (Hxx + Hyy)
+            Iyy = Hyy ** 2 + Hxy ** 2
+        else:
+            raise ValueError("method must be either 'gradient' or 'curvature'")
+
         # 3. Integrate over the specified local window size
         if window_type.lower() == 'box':
             J11 = uniform_filter(Ixx, size=window_size)

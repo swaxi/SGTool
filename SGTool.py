@@ -140,6 +140,7 @@ from .calcs.GridData_no_pandas import QGISGridData
 from .calcs.SpatialStats import SpatialStats
 from .calcs import EdgeFilters
 from .calcs import Radiometrics
+from .calcs import TaylorContinuation
 from .calcs.WTMM import WTMM
 from .calcs.PCAICA import PCAICA
 from .calcs.SG_Util import SG_Util
@@ -524,8 +525,36 @@ class SGTool:
         )
 
         self.dlg.comboBox_2_continuationDirection.setToolTip(
-            self.tr("Select direction of continuation")
+            self.tr("Select direction of continuation\n"
+                    "up / down: by a constant height\n"
+                    "variable: from the surface the data were measured on (a constant height, a height\n"
+                    "grid, or a DEM + clearance) to another such surface (Cordell &\n"
+                    "Grauch 1985), e.g. a draped survey to a constant height above sea level, or a\n"
+                    "barometric survey to a constant clearance above the topography")
         )
+        d = self.dlg
+        surface_tip = self.tr(
+            "Height: a constant height (m above sea level), e.g. a barometric survey's altitude\n"
+            "Height grid: a grid of heights (m above sea level), e.g. the GPS altitude of a draped survey\n"
+            "Clearance over DEM: a DEM (m above sea level) plus the clearance given (m)"
+        )
+        for key, what in (("obs", "the data were measured on"), ("out", "to continue the data onto")):
+            getattr(d, f"comboBox_VC_{key}_mode").setToolTip(
+                self.tr(f"The surface {what}.\n") + surface_tip)
+            getattr(d, f"mMapLayerComboBox_VC_{key}").setToolTip(self.tr(
+                "Height grid or DEM (m above sea level), resampled onto the grid"))
+            getattr(d, f"lineEdit_VC_{key}_value").setToolTip(self.tr(
+                "Height above sea level (m), or the clearance above the DEM (m)"))
+        d.lineEdit_VC_smoothing.setToolTip(self.tr(
+            "Wavelength (m) below which downward continuation is damped: continuing below the\n"
+            "observations, or draping onto an uneven output surface by Taylor series.\n"
+            "Blank = automatic (pi x the output surface's relief, and enough to keep the gain\n"
+            "of downward continuation below about 20). Shorter keeps more detail but is noisier.\n"
+            "Not used when the output is above all the observations: flattening uneven data\n"
+            "and upward continuation are never damped."))
+        d.lineEdit_VC_order.setToolTip(self.tr(
+            "Number of terms (vertical derivatives) in the Taylor series that drapes the\n"
+            "result onto an uneven output surface (1-12)"))
         self.dlg.lineEdit_10_continuationHeight.setToolTip(
             self.tr("Select amount of continuation [m only]")
         )
@@ -1033,6 +1062,17 @@ class SGTool:
         self.Continuation = self.dlg.checkBox_9_continuation.isChecked()
         self.cont_direction = self.dlg.comboBox_2_continuationDirection.currentText()
         self.cont_height = self.dlg.lineEdit_10_continuationHeight.text()
+        if self.cont_direction == "variable":
+            self.VC_obs = self._vc_surface("obs")
+            self.VC_out = self._vc_surface("out")
+            try:
+                self.VC_smoothing = max(self.to_float(self.dlg.lineEdit_VC_smoothing.text()), 0.0)
+            except ValueError:
+                self.VC_smoothing = 0.0  # blank: automatic
+            try:
+                self.VC_order = min(max(int(float(self.dlg.lineEdit_VC_order.text())), 1), 12)
+            except ValueError:
+                self.VC_order = 6
 
         self.BandPass = self.dlg.checkBox_10_bandPass.isChecked()
         self.band_low = self.dlg.lineEdit_12_bandPassLow.text()
@@ -1969,6 +2009,13 @@ class SGTool:
                 "thickness": self.AppDens_thickness,
                 "background": self.AppDens_background,
                 "high_cut": self._petro_cut(self.AppDens_cut) or -1.0,
+            }
+        if s == "_VC":
+            return "Variable continuation (Taylor series)", {
+                "observed": self._vc_describe(self.VC_obs),
+                "output": self._vc_describe(self.VC_out),
+                "smoothing": self.VC_smoothing or "auto",
+                "terms": self.VC_order,
             }
         if s in ("_UC", "_DC"):
             return (
@@ -3240,6 +3287,9 @@ class SGTool:
         self.suffix = "_AS"
 
     def procContinuation(self):
+        if self.cont_direction == "variable":
+            self.procVarContinuation()
+            return
         if self._is_geographic():
             long, lat = self._grid_centroid()
             dx, dy = self.SG_Util.arc_degree_to_meters(lat)
@@ -3263,6 +3313,140 @@ class SGTool:
                 self.raster_array, height=height, buffer_size=self.buffer
             )
             self.suffix = "_DC"
+
+    # -- variable continuation (Taylor series, Cordell & Grauch 1985) ----------
+    VC_MODES = ("height", "grid", "clearance")
+
+    def _vc_surface(self, key):
+        """Main thread: (mode, raster path or None, value) of the observation
+        ("obs") or output ("out") surface set in the dialog."""
+        d = self.dlg
+        mode = self.VC_MODES[getattr(d, f"comboBox_VC_{key}_mode").currentIndex()]
+        path = None
+        if mode != "height":
+            layer = getattr(d, f"mMapLayerComboBox_VC_{key}").currentLayer()
+            if isinstance(layer, QgsRasterLayer) and layer.isValid():
+                path = layer.dataProvider().dataSourceUri()
+        try:
+            value = self.to_float(getattr(d, f"lineEdit_VC_{key}_value").text())
+        except ValueError:
+            value = 0.0
+        return mode, path, value
+
+    @staticmethod
+    def _vc_describe(surface):
+        mode, path, value = surface
+        name = os.path.basename(path) if path else ""
+        if mode == "height":
+            return f"{value:g} m"
+        if mode == "grid":
+            return name
+        return f"{name} + {value:g} m"
+
+    def _vc_heights(self, surface, what):
+        """(heights, DEM) of a surface on the grid being processed: the
+        heights are a number for a constant height, the DEM is None unless the
+        surface is a clearance over one. None (with a message) if its grid is
+        missing."""
+        mode, path, value = surface
+        if mode == "height":
+            return value, None
+        if path is None:
+            self._notify(
+                f"Variable continuation: choose the {what} "
+                + ("height grid" if mode == "grid" else "DEM"),
+                Qgis.MessageLevel.Warning, 10,
+            )
+            return None
+        z = Radiometrics.read_band_on_frame(path, 1, *self._target_frame())
+        return (z, None) if mode == "grid" else (z + value, z)
+
+    def _vc_check_topography(self, z_obs, z_out, dem, valid):
+        """Warn if the output surface, or a constant observation height, is
+        below the topography (the DEM chosen for either surface) anywhere on
+        the grid: the field there would be inside the ground, among the
+        sources, where continuation is meaningless."""
+        if dem is None:
+            return
+        for z, what in ((z_out, "output"), (z_obs, "observed")):
+            if what == "observed" and not np.isscalar(z):
+                continue  # a height grid or clearance: as measured
+            below = valid & np.isfinite(dem) & (z < dem)
+            n = int(below.sum())
+            if not n:
+                continue
+            depth = float(np.max((dem - z)[below]))
+            top = float(np.nanmax(dem[valid]))
+            self._notify(
+                f"Variable continuation: the {what} surface is below the topography "
+                f"in {n} cells ({100.0 * n / max(int(valid.sum()), 1):.1f}% of the grid, "
+                f"up to {depth:.0f} m below). The highest ground is {top:.0f} m: "
+                f"use a height above it, or a clearance over the DEM",
+                Qgis.MessageLevel.Warning, 20,
+            )
+
+    def procVarContinuation(self):
+        """Continuation from the observed surface to the output surface, either
+        of them uneven (a height grid, or a DEM plus a clearance), by Taylor
+        series: e.g. a draped survey to a constant height, or a barometric
+        survey to a constant clearance above the topography."""
+        obs = self._vc_heights(self.VC_obs, "observed")
+        out = self._vc_heights(self.VC_out, "output")
+        if obs is None or out is None:
+            return
+        (z_obs, dem_obs), (z_out, dem_out) = obs, out
+        data = self.raster_array
+        for z in (z_obs, z_out):
+            if not np.isscalar(z) and z.shape != data.shape:
+                self._notify(
+                    "Variable continuation: the height grid could not be matched to the grid",
+                    Qgis.MessageLevel.Warning, 10,
+                )
+                return
+        for (mode, _path, value), what in ((self.VC_obs, "observed"), (self.VC_out, "output")):
+            if mode == "clearance" and value < 0:
+                self._notify(
+                    f"Variable continuation: the {what} clearance is negative ({value:g} m), "
+                    "below the ground",
+                    Qgis.MessageLevel.Warning, 15,
+                )
+        self._vc_check_topography(
+            z_obs, z_out, dem_out if dem_out is not None else dem_obs, np.isfinite(data),
+        )
+        dx, dy = abs(self.dx), abs(self.dy)
+        if self._is_geographic():
+            _long, lat = self._grid_centroid()
+            mx, my = self.SG_Util.arc_degree_to_meters(lat)
+            dx, dy = dx * mx, dy * my
+        check = self._task_ref.check if self._task_ref is not None else None
+        try:
+            grid, info = TaylorContinuation.variable_continuation(
+                data, z_obs, z_out, dx, dy,
+                order=self.VC_order, smoothing=self.VC_smoothing,
+                cancel_check=check,
+            )
+        except TaylorContinuation.TaylorContinuationError as e:
+            self._notify(f"Variable continuation: {e}", Qgis.MessageLevel.Warning, 10)
+            return
+        parts = []
+        if info["iterations"]:
+            parts.append(
+                f"flattened in {info['iterations']} iterations, misfit "
+                f"{100 * info['relative_misfit']:.2f}% of the data"
+            )
+        if info["smoothing"]:
+            parts.append(f"downward continuation damped below {info['smoothing']:.0f} m")
+        if info["diverged"]:
+            self._notify(
+                "Variable continuation: the flattening stopped improving at a misfit of "
+                f"{100 * info['relative_misfit']:.1f}% of the data; check the observed "
+                "heights match the data",
+                Qgis.MessageLevel.Warning, 15,
+            )
+        elif parts:
+            self._notify("Variable continuation: " + "; ".join(parts), duration=8)
+        self.new_grid = grid
+        self.suffix = "_VC"
 
     def procBandPass(self):
         low_cut = float(self.band_low)
@@ -4100,6 +4284,19 @@ class SGTool:
         "U": ("u", "eu", "ura", "uranium", "u_ppm", "eu_ppm"),
         "Th": ("th", "eth", "tho", "thorium", "th_ppm", "eth_ppm"),
     }
+
+    def _init_var_continuation(self):
+        """Layer filters and signals of the variable continuation settings."""
+        d = self.dlg
+        tick = lambda *_a: self.update_checkbox(d.checkBox_9_continuation)
+        for key in ("obs", "out"):
+            combo = getattr(d, f"mMapLayerComboBox_VC_{key}")
+            combo.setFilters(QgsMapLayerProxyModel.Filter.RasterLayer)
+            combo.layerChanged.connect(tick)
+            getattr(d, f"comboBox_VC_{key}_mode").currentIndexChanged.connect(tick)
+            getattr(d, f"lineEdit_VC_{key}_value").textChanged.connect(tick)
+        d.lineEdit_VC_smoothing.textChanged.connect(tick)
+        d.lineEdit_VC_order.textChanged.connect(tick)
 
     def _init_radiometric_inputs(self):
         d = self.dlg
@@ -7290,6 +7487,7 @@ class SGTool:
             self.contin_dir_list = []
             self.contin_dir_list.append("up")
             self.contin_dir_list.append("down")
+            self.contin_dir_list.append("variable")
             self.dlg.comboBox_2_continuationDirection.addItems(self.contin_dir_list)
 
             self.dlg.comboBox_3_rte_p_list.clear()
@@ -7613,6 +7811,7 @@ class SGTool:
                 self._rad_input_changed
             )
             self._init_radiometric_inputs()
+            self._init_var_continuation()
             # Help tab "Replace existing layer": remembered between sessions
             replace = str(
                 QSettings().value("SGTool/replaceExistingLayers", True)

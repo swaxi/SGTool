@@ -22,6 +22,7 @@ from .worms.Utility import (
     fill_nan,
 )
 from .text_io import write_rows
+from .detrend import robust_plane
 from .sgt_cancel import OperationCancelled
 
 
@@ -450,7 +451,8 @@ class GeophysicalProcessor:
             return np.exp(-k * height)
 
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
+            data, filter_function, buffer_size, buffer_method,
+            plane=self.PLANE_KEEP,
         )
 
     def downward_continuation(
@@ -465,7 +467,8 @@ class GeophysicalProcessor:
             return np.exp(k * height)
 
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
+            data, filter_function, buffer_size, buffer_method,
+            plane=self.PLANE_KEEP,
         )
 
     def total_hz_grad(self, data, buffer_size=10, buffer_method="mirror"):
@@ -500,6 +503,7 @@ class GeophysicalProcessor:
             buffer_size,
             buffer_method,
             preserve_dc=False,
+            plane=[self.PLANE_DX, self.PLANE_DY],
         )
 
         print("dx range:", np.nanmin(dx), np.nanmax(dx))
@@ -562,7 +566,8 @@ class GeophysicalProcessor:
             return rtp_filter
 
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
+            data, filter_function, buffer_size, buffer_method,
+            plane=self.PLANE_KEEP,
         )
 
     def reduction_to_equator(
@@ -577,7 +582,8 @@ class GeophysicalProcessor:
         # perpendicular to the declination and would smear the streaks that
         # ramp padding makes along the declination into the grid
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method, mirror_pad=True
+            data, filter_function, buffer_size, buffer_method, mirror_pad=True,
+            plane=self.PLANE_KEEP,
         )
 
     @staticmethod
@@ -669,8 +675,9 @@ class GeophysicalProcessor:
         # ramp to zero extends each column (or row) straight out from the edge,
         # and where those streaks run along the declination this operator
         # amplifies them into stripes across the whole grid
-        median = np.nanmedian(data)
+        # a plane fitted to the gap-filled grid is removed, and passes unchanged
         filled_data, nan_mask = self.fill_nan(data)
+        median, _sx, _sy = self._plane_fit(filled_data)
         buffered_data, padding_info = self._mirror_buffer(filled_data - median, buffer_size)
         self._check()
         data_fft = fft2(buffered_data, workers=-1)
@@ -750,6 +757,15 @@ class GeophysicalProcessor:
             data, [direction], order, buffer_size, buffer_method
         )[0]
 
+    def _derivative_plane(self, direction, order):
+        """What a derivative makes of a plane: a first horizontal derivative
+        its slope, anything else (vertical, higher order) nothing."""
+        if order == 1 and direction == "x":
+            return self.PLANE_DX
+        if order == 1 and direction == "y":
+            return self.PLANE_DY
+        return self.PLANE_ZERO
+
     def compute_derivatives(
         self, data, directions, order=1, buffer_size=10, buffer_method="mirror"
     ):
@@ -778,6 +794,7 @@ class GeophysicalProcessor:
             buffer_size,
             buffer_method,
             preserve_dc=False,
+            plane=[self._derivative_plane(d, order) for d in directions],
         )
 
     def tilt_angle(self, data, buffer_size=10, buffer_method="mirror"):
@@ -906,7 +923,8 @@ class GeophysicalProcessor:
             return filter_values
 
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
+            data, filter_function, buffer_size, buffer_method,
+            plane=self.PLANE_KEEP,
         )
 
     def low_pass_filterx(
@@ -922,7 +940,8 @@ class GeophysicalProcessor:
             return k < cutoff_k  # Low-pass filter mask
 
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
+            data, filter_function, buffer_size, buffer_method,
+            plane=self.PLANE_KEEP,
         )
 
     def high_pass_filter(
@@ -990,7 +1009,8 @@ class GeophysicalProcessor:
             return filter_values
 
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
+            data, filter_function, buffer_size, buffer_method,
+            plane=self.PLANE_LEVEL,
         )
 
     def high_pass_filterx(
@@ -1006,7 +1026,8 @@ class GeophysicalProcessor:
             return k > cutoff_k  # High-pass filter mask
 
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
+            data, filter_function, buffer_size, buffer_method,
+            plane=self.PLANE_LEVEL,
         )
 
     def band_pass_filterx(
@@ -1027,7 +1048,8 @@ class GeophysicalProcessor:
             return filter_mask  # Band-pass filter mask
 
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
+            data, filter_function, buffer_size, buffer_method,
+            plane=self.PLANE_LEVEL,
         )
 
     def band_pass_filter(
@@ -1147,7 +1169,8 @@ class GeophysicalProcessor:
             return filter_values
 
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
+            data, filter_function, buffer_size, buffer_method,
+            plane=self.PLANE_LEVEL,
         )
 
     def butterworth_band_pass(
@@ -1200,7 +1223,8 @@ class GeophysicalProcessor:
             return band_pass
 
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
+            data, filter_function, buffer_size, buffer_method,
+            plane=self.PLANE_LEVEL,
         )
 
     def directional_butterworth_band_pass(
@@ -1402,6 +1426,7 @@ class GeophysicalProcessor:
         buffer_method="mirror",
         preserve_dc=True,
         mirror_pad=False,
+        plane=None,
     ):
         """
         Apply a Fourier-domain filter with buffering and NaN handling.
@@ -1414,8 +1439,25 @@ class GeophysicalProcessor:
         """
         return self._apply_fourier_filters(
             data, [filter_function], buffer_size, buffer_method, preserve_dc,
-            mirror_pad,
+            mirror_pad, None if plane is None else [plane],
         )[0]
+
+    # What a filter makes of the plane removed before it (see _plane_fit), as
+    # weights of (the plane, its x slope, its y slope, the data's median):
+    PLANE_KEEP = (1, 0, 0, 0)  # passes unchanged: continuation, RTP, low pass
+    PLANE_LEVEL = (0, 0, 0, 1)  # removed, level kept: high pass, band pass
+    PLANE_ZERO = (0, 0, 0, 0)  # removed: vertical and higher derivatives
+    PLANE_DX = (0, 1, 0, 0)  # first x derivative: the x slope
+    PLANE_DY = (0, 0, 1, 0)  # first y derivative: the y slope
+
+    def _plane_fit(self, filled):
+        """The regional plane through a gap-filled grid (detrend.robust_plane:
+        robust, over the whole rectangle). Returns (plane grid, x slope,
+        y slope), the slopes per unit length east and north, as the derivative
+        filters take them (rows run south, and create_wavenumber_grids makes
+        y positive north)."""
+        plane, (_a, b_row, c_col) = robust_plane(filled)
+        return plane, c_col / self.dx, -b_row / self.dy
 
     def _apply_fourier_filters(
         self,
@@ -1425,11 +1467,17 @@ class GeophysicalProcessor:
         buffer_method="mirror",
         preserve_dc=True,
         mirror_pad=False,
+        plane=None,
     ):
         """
         Apply several Fourier-domain filters to the same grid, sharing the NaN
         fill, buffering and forward transform; returns one grid per filter,
         each as _apply_fourier_filter would give it.
+
+        plane: None to remove the median before filtering (and add it back if
+        preserve_dc); otherwise a plane fitted to the gap-filled grid is
+        removed, and plane[i] (one of the PLANE_* weights) says what filter i
+        makes of it, to add to its result.
         """
         from scipy.fft import fft2, ifft2
 
@@ -1439,8 +1487,12 @@ class GeophysicalProcessor:
         filled_data, nan_mask = self.fill_nan(data)
         self._check()
 
-        # remove median to reduce ringing artifacts from windowing
-        centered_data = filled_data - median
+        if plane is None:
+            # remove median to reduce ringing artifacts from windowing
+            centered_data = filled_data - median
+        else:
+            trend, slope_x, slope_y = self._plane_fit(filled_data)
+            centered_data = filled_data - trend
 
         # Add buffer
         if mirror_pad:
@@ -1458,7 +1510,7 @@ class GeophysicalProcessor:
         kx, ky = self.create_wavenumber_grids(nx, ny)
 
         results = []
-        for filter_function in filter_functions:
+        for i, filter_function in enumerate(filter_functions):
             self._check()
             # Compute filter
             filter_array = filter_function(kx, ky)
@@ -1474,9 +1526,15 @@ class GeophysicalProcessor:
                 filtered_data, buffer_size, padding_info
             )
 
-            # Restore DC level only for non-derivative operations
-            if preserve_dc:
-                unbuffered_data = unbuffered_data + median
+            if plane is None:
+                # Restore DC level only for non-derivative operations
+                if preserve_dc:
+                    unbuffered_data = unbuffered_data + median
+            else:
+                w_plane, w_x, w_y, w_level = plane[i]
+                unbuffered_data = unbuffered_data + (
+                    w_plane * trend + w_x * slope_x + w_y * slope_y + w_level * median
+                )
 
             results.append(self.restore_nan(unbuffered_data, nan_mask))
         return results

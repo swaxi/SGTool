@@ -519,7 +519,10 @@ class SGToolDockWidget(QDockWidget):
         self.label_20 = QLabel(_tr("Direction"))
         self.label_20.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.comboBox_2_continuationDirection = QComboBox()
-        self.comboBox_2_continuationDirection.setFixedWidth(70)
+        # wide enough for the longest choice ("variable")
+        self.comboBox_2_continuationDirection.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToContents
+        )
 
         self.label_21 = QLabel(_tr("Height (m)"))
         self.label_21.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -535,6 +538,86 @@ class SGToolDockWidget(QDockWidget):
         row3.addWidget(self.lineEdit_10_continuationHeight)
         row3.addStretch()
         g.addLayout(row3, 4, 0, 1, 5)
+
+        # Row 5: variable continuation, shown only while Continuation is ticked
+        # with the direction "variable": the observed and output surfaces, each
+        # a constant height, a height grid, or a clearance above a DEM. Each
+        # row is packed to the left and closes up when its layer selector is
+        # not needed, so the panel takes no more room than its contents.
+        self.widget_VarCont = QWidget()
+        vc = QVBoxLayout(self.widget_VarCont)
+        vc.setContentsMargins(22, 0, 0, 0)
+        vc.setSpacing(2)
+        labels = []
+        for key, label, value in (
+            ("obs", _tr("Observed"), "100"),
+            ("out", _tr("Output"), "100"),
+        ):
+            lbl = QLabel(label)
+            labels.append(lbl)
+            mode = QComboBox()
+            mode.addItems([_tr("Height"), _tr("Height grid"), _tr("Clearance over DEM")])
+            mode.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+            mode.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+            layer = QgsMapLayerComboBox()
+            layer.setMinimumWidth(100)
+            value_edit = QLineEdit(value)
+            value_edit.setFixedWidth(50)
+            unit = QLabel(_tr("m"))
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(4)
+            row.addWidget(lbl)
+            row.addWidget(mode)
+            row.addWidget(layer, 1)  # takes the spare width while shown
+            row.addWidget(value_edit)
+            row.addWidget(unit)
+            row.addStretch()  # otherwise the row packs to the left
+            vc.addLayout(row)
+            setattr(self, f"comboBox_VC_{key}_mode", mode)
+            setattr(self, f"mMapLayerComboBox_VC_{key}", layer)
+            setattr(self, f"lineEdit_VC_{key}_value", value_edit)
+            setattr(self, f"label_VC_{key}_unit", unit)
+
+            def show(index, layer=layer, value_edit=value_edit, unit=unit):
+                layer.setVisible(index != 0)  # a grid for "Height grid" and "Clearance"
+                value_edit.setVisible(index != 1)  # a height, or the clearance
+                unit.setVisible(index != 1)
+
+            mode.currentIndexChanged.connect(show)
+            show(0)
+        width = max(lbl.sizeHint().width() for lbl in labels)
+        for lbl in labels:  # line the combos up
+            lbl.setFixedWidth(width)
+        self.label_VC_smoothing = QLabel(_tr("Smoothing (m)"))
+        self.lineEdit_VC_smoothing = QLineEdit("")
+        self.lineEdit_VC_smoothing.setPlaceholderText(_tr("auto"))
+        self.lineEdit_VC_smoothing.setFixedWidth(50)
+        self.label_VC_order = QLabel(_tr("Terms"))
+        self.lineEdit_VC_order = QLineEdit("6")
+        self.lineEdit_VC_order.setFixedWidth(30)
+        row_sm = QHBoxLayout()
+        row_sm.setContentsMargins(0, 0, 0, 0)
+        row_sm.setSpacing(4)
+        row_sm.addWidget(self.label_VC_smoothing)
+        row_sm.addWidget(self.lineEdit_VC_smoothing)
+        row_sm.addSpacing(6)
+        row_sm.addWidget(self.label_VC_order)
+        row_sm.addWidget(self.lineEdit_VC_order)
+        row_sm.addStretch()
+        vc.addLayout(row_sm)
+        self.widget_VarCont.setVisible(False)
+
+        def update_variable(*_args):
+            variable = self.comboBox_2_continuationDirection.currentText() == "variable"
+            self.widget_VarCont.setVisible(variable and self.checkBox_9_continuation.isChecked())
+            # the surfaces give the heights: no single continuation height
+            self.label_21.setVisible(not variable)
+            self.lineEdit_10_continuationHeight.setVisible(not variable)
+
+        self.comboBox_2_continuationDirection.currentTextChanged.connect(update_variable)
+        self.checkBox_9_continuation.toggled.connect(update_variable)
+        g.addWidget(self.widget_VarCont, 5, 0, 1, 5)
 
         g.setColumnStretch(4, 1)
         return gb
@@ -2410,6 +2493,7 @@ you are using, go to Code Repository for latest version</p>
 <p>- Multilevel B-Spline (MBA) Gridding — native Python translation of SAGA's grid_spline algorithm (no external plugin required)</p>
 <p>- Differential (Variable) RTP — G.R.J. Cooper & D.R. Cowan (2005) Taylor-series method</p>
 <p>- Low-latitude RTP — M. Hao et al. (2018) Taylor series iterative method</p>
+<p>- Variable continuation — Cordell &amp; Grauch (1985) Taylor series; Pilkington &amp; Urquhart (1990)</p>
 <p>- NSTD — G.R.J. Cooper &amp; D.R. Cowan (2008); NAV-Edge — H.L. Zhang, D. Ravat, Y.R. Marangoni &amp; X.Y. Hu (2014)</p>
 <p>- Example radiometric data in the documentation courtesy of BUMIGEB (Burkina Faso)</p>
 <p>- MRVBF/MRRTF (Multiresolution Valley Bottom/Ridge Top Flatness) — J.C. Gallant & T.I. Dowling (2003)</p>

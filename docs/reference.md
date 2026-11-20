@@ -114,7 +114,7 @@ Each result is saved as a GeoTIFF beside the input grid, named after it with a s
 | Differential RTP | `_DRTP` (+ `_DRTP_inc`, `_DRTP_dec`) | Gaussian | `_Gs` |
 | Reduction to the equator | `_RTE` | Directional | `_Dr` |
 | Vertical integration | `_VI` | Sun shading | `_Sh` |
-| Upward / downward continuation | `_UC` / `_DC` | Min / Max | `_SS_Min` / `_SS_Max` |
+| Upward / downward / variable continuation | `_UC` / `_DC` / `_VC` | Min / Max | `_SS_Min` / `_SS_Max` |
 | Line-noise removal | `_DirC` (noise estimate: `_DirC_noise`) | Variance / Std deviation | `_SS_Var` / `_SS_StdDev` |
 | Remove regional | `_RR` | Skewness / Kurtosis | `_SS_Skew` / `_SS_Kurt` |
 | Band pass | `_BP` | Local anisotropy | `_SS_AnisoMag`, `_SS_AnisoOrient` |
@@ -143,7 +143,7 @@ The tab is named FFT Filters**+** because, besides the Fourier-domain filters, i
 
 All the Grav/Mag, Frequency and Gradient filters on this tab work in the Fourier domain, except Remove Regional and AGC. NSTD uses Fourier-domain derivatives; NAV-Edge and Euler deconvolution work in moving windows.
 
-*In SGTool* (original code): every FFT filter subtracts the grid's median, fills no-data cells with the value of the nearest valid cell, pads the grid to a size whose only factors are 2, 3 and 5 with a linear ramp to zero, tapers the padded grid towards its edges with a Tukey (cosine) window, multiplies the spectrum by the filter, transforms back, removes the padding, restores the no-data cells and adds the median back (except for derivatives, the line-noise estimate and apparent petrophysics, which are zero-mean). The padding on each side is the grid's smaller dimension, up to the **Max FFT Buffer** setting. RTE and the low-latitude RTP pad by mirroring the edges instead (see below).
+*In SGTool* (original code): every FFT filter fills no-data cells with the value of the nearest valid cell, subtracts a regional plane (see below), pads the grid to a size whose only factors are 2, 3 and 5 with a linear ramp to zero, tapers the padded grid towards its edges with a Tukey (cosine) window, multiplies the spectrum by the filter, transforms back, removes the padding, restores the no-data cells and adds back what the filter makes of the plane. The plane is fitted to the whole gap-filled grid by least absolute deviations, so it follows the background rather than a few strong anomalies, and it is fitted over the whole rectangle rather than just the survey: a plane fitted to an irregular survey alone, extrapolated to the corners, leaves large values at the grid's edges that the padding turns into broad false anomalies. Continuation, RTP / RTE and low pass add the plane back unchanged (a plane is a potential field that continues unchanged); high pass and band pass add back only the median level; first x and y derivatives add the plane's slope, the vertical derivative, higher derivatives, tilt angle and analytic signal nothing more. Vertical integration, the line-noise estimate and apparent petrophysics subtract the median instead, as before (derivatives and the latter two are zero-mean). On synthetic data the plane makes little difference on a complete grid with no regional, but cuts the error severalfold with a regional gradient (upward continuation 200 m: 44 % to 10 % RMS; first vertical derivative: 20 % to 7 %) and helps on irregular surveys with gaps (upward continuation: 15 % to 6 %). The padding on each side is the grid's smaller dimension, up to the **Max FFT Buffer** setting. RTE and the low-latitude RTP pad by mirroring the edges instead (see below).
 
 In the equations, $`k = \sqrt{k_x^2 + k_y^2}`$ is the wavenumber in radians per grid unit, $`k_x`$ and $`k_y`$ its components in the x and y directions, and $`\theta`$ the azimuth of the wavenumber, clockwise from north, $`\theta = \arctan(k_x / k_y)`$.
 
@@ -271,6 +271,36 @@ Upward continuation (UC) smooths the field as if measured higher up, attenuating
 **Example: downward continuation, 100 m** (zoomed). Even 100 m (less than one cell) sharpens the anomalies noticeably and starts to amplify noise.
 
 ![Downward continuation](images/examples/continuation_down.png)
+
+#### Variable continuation ●
+
+Direction **variable** continues the data from the surface they were measured on to another surface, either of which may be uneven:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| **Observed** | Height, 100 m | The surface the data were measured on: **Height**, a constant height above sea level (e.g. a barometric survey); **Height grid**, a grid of heights above sea level (e.g. the GPS altitude of a draped survey); **Clearance over DEM**, a DEM plus the clearance given |
+| **Output** | Height, 100 m | The surface to continue onto, chosen the same way |
+| **Smoothing (m)** | auto | Wavelength below which downward continuation and the draping series are damped (see below) |
+| **Terms** | 6 | Number of terms (vertical derivatives) in the Taylor series that drapes onto an uneven output surface |
+
+Height grids and DEMs are resampled onto the grid. Typical uses: a draped survey continued to a constant height above sea level (Observed = Height grid or Clearance over DEM, Output = Height), or a barometric survey continued to a constant clearance above the topography (Observed = Height, Output = Clearance over DEM). Output `_VC`.
+
+**Nulls and edges**: cells with no data, or no observed or output height, are null in the result. For the calculation, gaps are filled from the nearest data, and the regional plane is removed (and added back after), fitted as for the other FFT filters (see the FFT filters notes above). Real heights from the height grid or DEM are used in the gaps where it has them. During the flattening, gap cells follow the correction of the nearest data instead of being fitted as if they were data. The grid is mirror-padded by a quarter of its longer side (16 to 512 cells), tapered to zero; tests showed no gain from more padding. On a synthetic survey covering 57 % of its grid, with a hole, the error inside the survey was about 2.4 % of the anomaly RMS, against 1.1 % for complete data and 7.3 % before these changes.
+
+When a DEM is chosen for either surface, a warning says if the output surface, or a constant observed height, is below the topography anywhere on the grid (how many cells, how far below, and the highest ground), as the field there would be inside the ground, among the sources. The result is still calculated. With no DEM chosen, the topography is not known and nothing is checked. A negative clearance also gives a warning.
+
+The calculation runs in three steps, each skipped when it is not needed:
+
+1. **Flatten**: the data g are brought onto the level of their *lowest* point, z₁, by the Cordell & Grauch iteration $`f_1 \leftarrow f_1 + (g - U f_1)`$, starting from $`f_1 = g`$. Here $`U f_1`$ is the field of the level at each observation point. As every point is at or above the level, U is an upward continuation, calculated exactly: the level is continued by FFT to a stack of levels about a cell apart, and interpolated to each point's height. At wavenumber k and a height Δz above the level the iteration multiplies the error by $`1 - e^{-k \Delta z}`$, between 0 and 1, so it converges at every wavelength with no damping.
+2. **Continue** the level up or down to the mean height of the output surface, z₂.
+3. **Drape** the level onto the output surface by a Taylor series in the vertical derivatives, calculated by FFT: $`f(x, y, z_2 + \Delta z) = \sum_{n=0}^{N} \frac{\Delta z^n}{n!} \frac{\partial^n f}{\partial z^n}(x, y, z_2)`$, with $`\partial / \partial z \leftrightarrow -|k|`$.
+
+Only downward continuation is damped: step 2 when the output level is below the lowest observation, and the draping series of step 3, which blows up short wavelengths where the output relief is large compared with the cell size. Above the **smoothing wavelength** the derivatives are low-passed and the downward continuation is Tikhonov-stabilised. Automatic smoothing is π × the largest height difference of the output surface from its mean, and long enough to keep the gain of any downward continuation below about 20; at least four cells. A shorter wavelength keeps more detail but is noisier. So a draped survey continued to a constant height above its lowest point is never damped, while a barometric survey draped onto the topography is. A message gives the number of iterations, the misfit of the flattened level to the data, and any smoothing used.
+
+On synthetic tests with 50 m cells, a draped survey continued to a constant height was within about 1–3 % RMS of the exact field with 300 m and with 600 m of relief (against 140–210 % uncorrected; most of what is left is edge effect). A barometric survey draped onto the topography was within about 4 % with 300 m of relief and 27 % with 600 m (against 60–70 % uncorrected), as downward continuation has to be damped.
+
+*Reference*: Cordell, L. & Grauch, V.J.S. (1985) Mapping basement magnetization zones from aeromagnetic data in the San Juan Basin, New Mexico. In Hinze, W.J. (ed.), *The Utility of Regional Gravity and Magnetic Anomaly Maps*, SEG, 181–197; Pilkington, M. & Urquhart, W.E.S. (1990) Reduction of potential field data to a horizontal plane. *Geophysics* 55, 549–555.
+*In SGTool*: original code (`calcs/TaylorContinuation.py`). Not yet a Processing algorithm, so it is not replayed on other grids.
 
 ### Frequency Filters
 

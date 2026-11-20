@@ -738,8 +738,8 @@ Tick any of the statistics below. Each is saved as its own grid. Standard deviat
 |---|---|---|
 | **Min**, **Max** | `_SS_Min`, `_SS_Max` | Smallest and largest value around the central cell |
 | **Variance**, **Standard Deviation** | `_SS_Var`, `_SS_StdDev` | How much the values vary in the window: texture or roughness |
-| **Skewness** | `_SS_Skew` | Asymmetry of the values in the window |
-| **Kurtosis** | `_SS_Kurt` | How peaked the values are |
+| **Skewness** | `_SS_Skew` | Asymmetry of the values in the window: positive where a few high values stand out from the rest (e.g. the crest of a narrow anomaly), negative where a few low values do |
+| **Kurtosis** | `_SS_Kurt` | How heavy-tailed the values in the window are: high where a few extreme values (spikes, narrow anomalies, sharp edges) stand out from otherwise similar values, low (negative) where the values are spread evenly, as across a smooth gradient |
 | **Local Anisotropy** | `_SS_AnisoMag`, `_SS_AnisoOrient` | How linear the grid is (0 to 1) and the strike of the linear features (0 to 180°) |
 
 *Reference* (Min to Skewness): standard sample statistics, with no single primary reference.

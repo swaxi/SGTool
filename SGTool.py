@@ -140,6 +140,7 @@ from .calcs.GridData_no_pandas import QGISGridData
 from .calcs.SpatialStats import SpatialStats
 from .calcs import EdgeFilters
 from .calcs import Radiometrics
+from . import sgt_help
 from .calcs import TaylorContinuation
 from .calcs.WTMM import WTMM
 from .calcs.PCAICA import PCAICA
@@ -2449,6 +2450,10 @@ class SGTool:
     _preview_tree_connected = False
     _preview_sticky = False  # Preview was ticked by the user: it follows them between tabs
     _preview_handover = False  # True while the plugin itself moves Preview between tabs
+    # a tab left while previewing keeps its filter and image; the tab shown
+    # then has Preview ticked but waits (this is its index) until a filter is
+    # ticked there, which moves the preview to it
+    _preview_waiting = None
     PREVIEW_PATH = "/vsimem/sgtool_preview.tif"
     PREVIEW_SIDE = 1000  # max cells on the longest side of the map extent previewed
 
@@ -2585,8 +2590,44 @@ class SGTool:
         )
 
     def schedulePreview(self, *args):
-        if self._previewing_here():
+        # also while another tab is shown: a kept preview follows the map
+        if self._preview_tab is not None:
             self._preview_timer.start()  # restarts the debounce
+
+    def _set_preview_box(self, tab, checked):
+        """Tick or untick a tab's Preview box without running onPreviewToggled."""
+        box = self._preview_widgets(tab)[0]
+        box.blockSignals(True)
+        try:
+            box.setChecked(checked)
+        finally:
+            box.blockSignals(False)
+
+    def _clear_preview_waiting(self):
+        if self._preview_waiting is not None:
+            self._set_preview_box(self._preview_waiting, False)
+            self._preview_waiting = None
+
+    def _preview_take_over(self, tab):
+        """A filter was ticked on the waiting tab: end the kept preview (its
+        filter is unticked, its image dropped) and preview here."""
+        old = self._preview_tab
+        self._preview_waiting = None
+        self._preview_handover = True
+        try:
+            if old is not None:
+                self._preview_widgets(old)[0].setChecked(False)  # old preview off
+            self._set_preview_box(tab, True)
+            self.onPreviewToggled(True, tab)
+        finally:
+            self._preview_handover = False
+
+    def _end_waiting_preview(self):
+        """Apply on a waiting tab: end the kept preview first, so its filter
+        (still ticked on the other tab) is not run as well."""
+        if self._preview_waiting is not None:
+            self._clear_preview_waiting()
+            self.discardPreview()
 
     def _untick_other_tabs(self, tab):
         """While previewing, one filter at a time across all tabs: untick the
@@ -2597,6 +2638,11 @@ class SGTool:
                     getattr(self.dlg, cb).setChecked(False)
 
     def _on_filter_toggled(self, checked, tab, checkbox_name):
+        if checked and self._preview_waiting == tab:
+            # unticks the other filters of this tab too (_preview_enter_mode)
+            self._preview_take_over(tab)
+            self._update_window_buttons()
+            return
         if checked and self._preview_tab is not None:
             # one filter at a time while previewing, on this tab and all others
             for _f, _m, _c, other in self.PREVIEW_FILTERS[tab]:
@@ -2630,20 +2676,18 @@ class SGTool:
         getattr(d, apply_btn).setText(self.tr("Apply Processing"))
 
     def _preview_tab_changed(self, index):
-        # A preview belongs to one tab's filters. Leaving that tab unticks its
-        # filters and drops the image; Preview itself stays selected: it is ticked
-        # on the tab arrived at (tabs without a preview, such as Grid + Wavelets,
-        # just wait, and Preview comes back on the next tab that has one).
+        # A preview belongs to one tab's filters. Leaving that tab keeps its
+        # filter ticked and its image (which still follows the map); Preview
+        # shows as ticked on the tab arrived at, which waits: ticking a filter
+        # there moves the preview to it, unticking Preview ends it. Returning
+        # to the preview's own tab just carries on.
         tab = self._preview_tab
-        if tab is not None and index != tab:
-            self._preview_timer.stop()
-            for _f, _m, _c, cb in self.PREVIEW_FILTERS[tab]:
-                getattr(self.dlg, cb).setChecked(False)
-            self._preview_handover = True
-            try:
-                self._preview_widgets(tab)[0].setChecked(False)  # preview off here
-            finally:
-                self._preview_handover = False
+        if tab is not None:
+            self._clear_preview_waiting()
+            if index != tab and index in self.PREVIEW_TABS:
+                self._set_preview_box(index, True)
+                self._preview_waiting = index
+            return
         if self._preview_sticky and index in self.PREVIEW_TABS and self._preview_tab != index:
             self._preview_handover = True
             try:
@@ -2653,6 +2697,12 @@ class SGTool:
 
     def onPreviewToggled(self, checked, tab):
         canvas = self.iface.mapCanvas()
+        if not checked and tab == self._preview_waiting:
+            # Preview unticked on a waiting tab: end the kept preview
+            self._preview_waiting = None
+            if self._preview_tab is not None:
+                self._preview_widgets(self._preview_tab)[0].setChecked(False)
+            return
         if not self._preview_handover:
             self._preview_sticky = checked  # the user's own choice
         if checked:
@@ -2671,6 +2721,8 @@ class SGTool:
             self._update_window_buttons()
             return
         # switched off: discard, unless Keep asked for the full-res result
+        if not self._preview_handover:
+            self._clear_preview_waiting()
         self._preview_timer.stop()
         self._cancel_preview_task()
         self._preview_pending = False
@@ -5151,6 +5203,7 @@ class SGTool:
                         print("Renderer is not a QgsSingleBandGrayRenderer.")
 
     def processGeophysics_fft(self):
+        self._end_waiting_preview()
         if self._previewing_here():  # previewing: Apply saves the previewed filter
             self.keepClicked(self._preview_tab)
             return
@@ -5158,6 +5211,7 @@ class SGTool:
         self.processGeophysics()
 
     def processGeophysics_conv(self):
+        self._end_waiting_preview()
         if self._previewing_here():
             self.keepClicked(self._preview_tab)
             return
@@ -5165,6 +5219,7 @@ class SGTool:
         self.processGeophysics()
 
     def processGeophysics_multi(self):
+        self._end_waiting_preview()
         if self._previewing_here():
             self.keepClicked(self._preview_tab)
             return
@@ -5175,6 +5230,7 @@ class SGTool:
     # Petrophys tab: apparent susceptibility / density grids and Henkel plots
     # ------------------------------------------------------------------
     def processGeophysics_petro(self):
+        self._end_waiting_preview()
         if self._previewing_here():
             self.keepClicked(self._preview_tab)
             return
@@ -7812,6 +7868,8 @@ class SGTool:
             )
             self._init_radiometric_inputs()
             self._init_var_continuation()
+            # after define_tips(): adds its hint to the tooltips
+            self._ctrl_click_help = sgt_help.install(self.dlg)
             # Help tab "Replace existing layer": remembered between sessions
             replace = str(
                 QSettings().value("SGTool/replaceExistingLayers", True)

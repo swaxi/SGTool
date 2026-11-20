@@ -1838,8 +1838,9 @@ class SGTool:
         self._update_window_buttons(job_running=busy and not preview)
 
     def _update_window_buttons(self, job_running=None):
-        """Apply to Window is available on the previewed tab while Preview is
-        ticked with a filter that can be previewed, and no job is running."""
+        """Apply to Window is available on the previewed tab (and on a tab
+        waiting for it) while Preview is ticked with a filter that can be
+        previewed, and no job is running."""
         if self.dlg is None:
             return
         if job_running is None:
@@ -1848,11 +1849,13 @@ class SGTool:
             button = getattr(self.dlg, "pushButton_apply_window" + sfx, None)
             if button is None:
                 continue
+            src = self._preview_tab
             on = (
                 not job_running
-                and self._preview_tab == tab
-                and self._preview_widgets(tab)[0].isChecked()
-                and self._preview_entry(tab) is not None
+                and src is not None
+                and tab in (src, self._preview_waiting)
+                and self._preview_widgets(src)[0].isChecked()
+                and self._preview_entry(src) is not None
             )
             button.setEnabled(on)
 
@@ -2606,7 +2609,9 @@ class SGTool:
     def _clear_preview_waiting(self):
         if self._preview_waiting is not None:
             self._set_preview_box(self._preview_waiting, False)
+            self._set_apply_text(self._preview_waiting, False)
             self._preview_waiting = None
+            self._update_window_buttons()
 
     def _preview_take_over(self, tab):
         """A filter was ticked on the waiting tab: end the kept preview (its
@@ -2622,12 +2627,21 @@ class SGTool:
         finally:
             self._preview_handover = False
 
-    def _end_waiting_preview(self):
-        """Apply on a waiting tab: end the kept preview first, so its filter
-        (still ticked on the other tab) is not run as well."""
-        if self._preview_waiting is not None:
-            self._clear_preview_waiting()
-            self.discardPreview()
+    def _previewing_shown(self):
+        """True while a preview is on and the tab shown is its own tab or the
+        tab waiting for it: Apply and Apply to Window there act on the
+        previewed filter (from whichever tab it is on)."""
+        return (
+            self._preview_tab is not None
+            and self.dlg is not None
+            and self.dlg.tabWidget.currentIndex() in (self._preview_tab, self._preview_waiting)
+        )
+
+    def _set_apply_text(self, tab, previewing):
+        apply_btn = self.PREVIEW_TABS[tab][2]
+        getattr(self.dlg, apply_btn).setText(
+            self.tr("Apply Preview") if previewing else self.tr("Apply Processing")
+        )
 
     def _untick_other_tabs(self, tab):
         """While previewing, one filter at a time across all tabs: untick the
@@ -2687,6 +2701,9 @@ class SGTool:
             if index != tab and index in self.PREVIEW_TABS:
                 self._set_preview_box(index, True)
                 self._preview_waiting = index
+                # Apply here saves the kept preview, as on its own tab
+                self._set_apply_text(index, True)
+                self._update_window_buttons()
             return
         if self._preview_sticky and index in self.PREVIEW_TABS and self._preview_tab != index:
             self._preview_handover = True
@@ -2753,6 +2770,8 @@ class SGTool:
     def keepClicked(self, tab):
         """Apply Processing while previewing: the previewed filter at full
         resolution as a permanent layer, and preview off."""
+        if tab == self._preview_waiting:
+            tab = self._preview_tab  # clicked on the waiting tab
         if self._preview_tab != tab:
             return
         entry = self._preview_entry(tab)
@@ -2769,6 +2788,8 @@ class SGTool:
         """Apply to Window: clip the grid being previewed to the map window
         (as Clip to Window), then save the previewed filter of the clip at full
         resolution as a permanent layer (as Apply Preview), and preview off."""
+        if tab == self._preview_waiting:
+            tab = self._preview_tab  # clicked on the waiting tab
         if self._preview_tab != tab:
             return
         entry = self._preview_entry(tab)
@@ -5203,24 +5224,21 @@ class SGTool:
                         print("Renderer is not a QgsSingleBandGrayRenderer.")
 
     def processGeophysics_fft(self):
-        self._end_waiting_preview()
-        if self._previewing_here():  # previewing: Apply saves the previewed filter
+        if self._previewing_shown():  # previewing: Apply saves the previewed filter
             self.keepClicked(self._preview_tab)
             return
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
         self.processGeophysics()
 
     def processGeophysics_conv(self):
-        self._end_waiting_preview()
-        if self._previewing_here():
+        if self._previewing_shown():
             self.keepClicked(self._preview_tab)
             return
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid_Conv.currentText()
         self.processGeophysics()
 
     def processGeophysics_multi(self):
-        self._end_waiting_preview()
-        if self._previewing_here():
+        if self._previewing_shown():
             self.keepClicked(self._preview_tab)
             return
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid_Multi.currentText()
@@ -5230,8 +5248,7 @@ class SGTool:
     # Petrophys tab: apparent susceptibility / density grids and Henkel plots
     # ------------------------------------------------------------------
     def processGeophysics_petro(self):
-        self._end_waiting_preview()
-        if self._previewing_here():
+        if self._previewing_shown():
             self.keepClicked(self._preview_tab)
             return
         d = self.dlg

@@ -261,5 +261,25 @@ for cls_, cat in ((mod.NSTDFilter, "Edge Detectors"), (mod.KuwaharaFilter, "Doma
     check(f"{cls_.__name__} is in the {cat} toolset", cls_.category == cat and cls_ in tb.tools,
           cls_.category)
 
+# variable continuation: a constant 600 m observation height draped onto the DEM above + 80 m
+outv = os.path.join(DATA, "t_VC.tif")
+m = run(mod.VariableContinuation, {"in_raster": src, "out_raster": outv,
+                                   "obs_surface": "Height", "obs_value": 600.0,
+                                   "out_surface": "Clearance over DEM", "out_grid": dem,
+                                   "out_value": 80.0})
+check("the variable continuation tool writes its output", os.path.exists(outv), m.lines)
+rv = sm.read_sgt_metadata(outv)
+pv_ = {p.get("name"): p.text for p in rv.iter("parameter")} if rv is not None else {}
+check("... and records its surfaces", rv is not None
+      and rv.findtext("operation") == "Variable continuation (Taylor series)"
+      and pv_.get("output") == "dem.tif + 80 m" and pv_.get("observed") == "600 m", pv_)
+m = run(mod.VariableContinuation, {"in_raster": src, "out_raster": os.path.join(DATA, "t_VC2.tif"),
+                                   "obs_surface": "Clearance over DEM", "obs_grid": dem,
+                                   "obs_value": 80.0, "out_surface": "Height", "out_value": 50.0})
+check("... and warns when the output height is below the topography",
+      any("below the topography" in line for line in m.lines), m.lines)
+check("VariableContinuation is in the FFT Filters toolset",
+      mod.VariableContinuation.category == "FFT Filters" and mod.VariableContinuation in tb.tools)
+
 print(f"\n{sum(1 for _, ok in results if ok)}/{len(results)} PYT checks passed", flush=True)
 os._exit(0 if all(ok for _, ok in results) else 1)

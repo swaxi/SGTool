@@ -103,6 +103,37 @@ TOOLS = {
         usage=["Downward continuation amplifies noise strongly: keep the height small, a few cell sizes "
                "at most, and consider smoothing first."],
         params={"height": "Height to continue downward by, in map units (metres for a projected grid)."}),
+    "VariableContinuation": dict(
+        summary="Continue a grid from the surface it was measured on to another surface, either of "
+                "them uneven (Cordell & Grauch 1985): e.g. a draped survey to a constant height above "
+                "sea level, or a barometric survey to a constant clearance above the topography.",
+        usage=["Each surface is a constant Height (m above sea level), a Height grid (m above sea "
+               "level, e.g. a draped survey's GPS altitude) or a Clearance over DEM (a DEM plus the "
+               "clearance given). Height grids and DEMs are resampled onto the input grid.",
+               "Uneven data are flattened onto the level of their lowest point by an iteration that "
+               "needs no damping, continued to the mean height of the output surface, then draped "
+               "onto an uneven output surface by Taylor series. Only downward continuation is "
+               "damped (Smoothing Wavelength).",
+               "A warning is given if the output surface, or a constant observed height, is below "
+               "the topography (when a DEM is given), or a clearance is negative.",
+               "The same calculation as the SGTool QGIS plugin's Continuation, direction variable."],
+        params={
+            "obs_surface": "The surface the data were measured on: Height, Height grid or "
+                           "Clearance over DEM.",
+            "obs_grid": "Height grid or DEM of the observed surface (m above sea level), for Height "
+                        "grid and Clearance over DEM.",
+            "obs_value": "Constant height above sea level (m), or the clearance above the DEM (m).",
+            "out_surface": "The surface to continue the data onto: Height, Height grid or "
+                           "Clearance over DEM.",
+            "out_grid": "Height grid or DEM of the output surface (m above sea level), for Height "
+                        "grid and Clearance over DEM.",
+            "out_value": "Constant height above sea level (m), or the clearance above the DEM (m).",
+            "smoothing": "Wavelength (m) below which downward continuation and the draping series "
+                         "are damped. 0 = automatic: pi x the output surface's relief, and enough to "
+                         "keep the gain of downward continuation below about 20. Not used when the "
+                         "output is above all the observations.",
+            "terms": "Number of terms (vertical derivatives) in the Taylor series that drapes the "
+                     "result onto an uneven output surface (1-12)."}),
     "VerticalIntegration": dict(
         summary="Vertical integration: converts magnetic anomalies into gravity-like (pseudo-gravity) "
                 "anomalies with the same decay with distance from the source, for comparison or joint "

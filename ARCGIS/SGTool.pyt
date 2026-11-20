@@ -52,6 +52,7 @@ class Toolbox:
             ReductionToPoleEquator,
             UpwardContinuation,
             DownwardContinuation,
+            VariableContinuation,
             VerticalIntegration,
             BandPassFilter,
             HighPassFilter,
@@ -588,6 +589,119 @@ class DownwardContinuation(_RasterTool):
         result = proc.downward_continuation(arr, height, buffer_size=buf)
         self._write(result, out_r, ll_x, ll_y, cx, cy, sr, nodata)
         messages.addMessage(f"Downward continuation by {height} units complete → {out_r}")
+
+
+class VariableContinuation(_RasterTool):
+    category    = "FFT Filters"
+    label       = "Variable Continuation"
+    description = ("Continue a grid from the surface it was measured on to another surface, either "
+                   "of them uneven: a constant height, a height grid, or a DEM plus a clearance "
+                   "(Cordell & Grauch 1985). E.g. a draped survey to a constant height above sea "
+                   "level, or a barometric survey to a constant clearance above the topography.")
+
+    SURFACES = ["Height", "Height grid", "Clearance over DEM"]
+
+    def getParameterInfo(self):
+        params = [
+            self._param("in_raster",  "Input Raster"),
+            self._out ("out_raster",  "Output Raster"),
+        ]
+        for key, label in (("obs", "Observed"), ("out", "Output")):
+            mode = self._param(f"{key}_surface", f"{label} Surface", "GPString", default="Height")
+            mode.filter.type = "ValueList"
+            mode.filter.list = self.SURFACES
+            params += [
+                mode,
+                self._param(f"{key}_grid", f"{label} Height Grid or DEM", required=False),
+                self._param(f"{key}_value", f"{label} Height or Clearance (m)", "GPDouble",
+                            default=100.0),
+            ]
+        params += [
+            self._param("smoothing", "Smoothing Wavelength (m, 0 = automatic)", "GPDouble",
+                        required=False, default=0.0),
+            self._param("terms", "Taylor Series Terms", "GPLong", required=False, default=6),
+        ]
+        return params
+
+    # parameters: 0 input, 1 output, 2-4 observed (surface, grid, value),
+    # 5-7 output (surface, grid, value), 8 smoothing, 9 terms
+
+    def updateParameters(self, parameters):
+        for i in (2, 5):
+            surface = parameters[i].valueAsText or "Height"
+            parameters[i + 1].enabled = surface != "Height"  # a grid or a DEM
+            parameters[i + 2].enabled = surface != "Height grid"  # a height or a clearance
+
+    def updateMessages(self, parameters):
+        for i in (2, 5):
+            surface = parameters[i].valueAsText or "Height"
+            if surface != "Height" and not parameters[i + 1].valueAsText:
+                parameters[i + 1].setErrorMessage(
+                    "Choose the " + ("height grid" if surface == "Height grid" else "DEM"))
+
+    def execute(self, parameters, messages):
+        from calcs import TaylorContinuation as T
+        from calcs.Radiometrics import north_up_frame, read_band_on_frame
+
+        in_r  = _describe_path(parameters[0].valueAsText)
+        out_r = parameters[1].valueAsText
+        arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        frame = north_up_frame(in_r)
+        surfaces = []
+        for i in (2, 5):
+            mode = T.surface_mode(parameters[i].valueAsText or "Height")
+            grid_path = _describe_path(parameters[i + 1].valueAsText) if (
+                mode != "height" and parameters[i + 1].valueAsText) else None
+            value = float(parameters[i + 2].value or 0.0)
+            grid = read_band_on_frame(grid_path, 1, *frame) if grid_path else None
+            try:
+                z, dem = T.surface_heights(mode, grid, value)
+            except T.TaylorContinuationError as e:
+                raise arcpy.ExecuteError(f"Variable continuation: {e}")
+            if not np.isscalar(z) and z.shape != arr.shape:
+                raise arcpy.ExecuteError("The height grid could not be matched to the input grid")
+            surfaces.append((mode, z, dem, value, grid_path))
+        (m_o, z_obs, dem_obs, v_o, p_o), (m_t, z_out, dem_out, v_t, p_t) = surfaces
+        for w in T.check_surfaces((m_o, z_obs, dem_obs, v_o), (m_t, z_out, dem_out, v_t),
+                                  np.isfinite(arr)):
+            messages.addWarningMessage("Variable continuation: " + w)
+        dx, dy = abs(cx), abs(cy)
+        gt, _cols, rows, wkt = frame
+        try:
+            from osgeo import osr
+            srs = osr.SpatialReference(); srs.ImportFromWkt(wkt)
+            geographic = bool(srs.IsGeographic())
+        except Exception:
+            geographic = False
+        if geographic:  # roughly to metres, as the QGIS plugin does
+            mx, my = T.metres_per_degree(gt[3] + gt[5] * rows / 2.0)
+            dx, dy = dx * mx, dy * my
+            messages.addMessage("Cell size roughly converted to metres (geographic grid)")
+        smoothing = float(parameters[8].value or 0.0)
+        terms = min(max(int(parameters[9].value or 6), 1), 12)
+        try:
+            result, info = T.variable_continuation(arr, z_obs, z_out, dx, dy, order=terms,
+                                                   smoothing=smoothing, cancel_check=_check_cancel)
+        except T.TaylorContinuationError as e:
+            raise arcpy.ExecuteError(f"Variable continuation: {e}")
+        if info["iterations"]:
+            messages.addMessage(f"Flattened in {info['iterations']} iterations, misfit "
+                                f"{100 * info['relative_misfit']:.2f}% of the data")
+        if info["smoothing"]:
+            messages.addMessage(f"Downward continuation damped below {info['smoothing']:.0f} m")
+        if info["diverged"]:
+            messages.addWarningMessage("The flattening stopped improving: check that the observed "
+                                       "heights match the data")
+        _check_cancel()
+        numpy_to_raster(result, str(out_r), ll_x, ll_y, cx, cy, sr, nodata)
+        name = lambda p: os.path.basename(p) if p else ""
+        write_provenance(str(out_r), in_r, "Variable continuation (Taylor series)", {
+            "observed": T.surface_text(m_o, name(p_o), v_o),
+            "output": T.surface_text(m_t, name(p_t), v_t),
+            "smoothing": smoothing or "auto",
+            "terms": terms,
+        })
+        messages.addMessage(f"Variable continuation complete → {out_r}")
 
 
 class VerticalIntegration(_RasterTool):

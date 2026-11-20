@@ -5,6 +5,7 @@
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
 ## 0.4.4
+      * [New Feature] ArcGIS Pro: variable continuation (GUI and a new Variable Continuation toolbox tool), Ctrl+click help, and the preview kept when changing tab, as in QGIS; the FFT filter changes apply there too (shared calculation code)
       * [GUI Modification] Live preview: changing tab no longer unticks the previewed filter or removes its image; the preview moves to the new tab only when a filter is ticked there, and ends when Preview is unticked; meanwhile Apply Preview and Apply to Window on the new tab act on the previewed filter
       * [New Feature] Ctrl+click (or Cmd+click on macOS) on a filter's tickbox or button opens its section of the SGTool reference on GitHub, without ticking the box or running the filter
       * [Bug Fix] FFT filters: a regional plane, fitted robustly to the whole gap-filled grid, is now removed before filtering instead of the median, and each filter adds back what it makes of it (continuation, RTP / RTE and low pass the plane, high and band pass the level, first horizontal derivatives the slope). Regional gradients no longer give edge artefacts and false anomalies, and irregular surveys with gaps filter more accurately (also in the Processing algorithms and the ArcGIS Pro toolbox)

@@ -452,14 +452,26 @@ check("zooming out cannot go past the whole grid by much", win.cpp <= max(100 / 
 win.reset_view()
 check("double-click / reset shows the whole grid", win.view_box() == (0.0, 0.0, 100.0, 100.0), win.view_box())
 
-# following between tabs
+# following between tabs: the preview is kept until a filter is ticked on another tab
 app.nb.select(1); app.update()
-check("changing to Conv + Stats unticks the FFT filter and moves the preview there",
-      not app.v_deriv.get() and app.v_preview.get() and app._preview_tab == 1)
+check("changing to Conv + Stats keeps the FFT filter ticked and previewed, and Conv + Stats waits",
+      app.v_deriv.get() and app.v_preview.get() and app._preview_tab == 0 and app._preview_waiting == 1,
+      (app.v_deriv.get(), app._preview_tab, app._preview_waiting))
+check("on the waiting tab Apply to Window is available",
+      str(app._window_btns[1].cget("state")) == "normal", app._window_btns[1].cget("state"))
 app.nb.select(3); app.update()
-check("tabs without a preview just wait", app.v_preview.get() and app._preview_tab is None and app._preview_win is not None)
+check("tabs without a preview keep it too",
+      app.v_preview.get() and app._preview_tab == 0 and app._preview_waiting is None and app._preview_win is not None)
 app.nb.select(0); app.update()
-check("back on an FFT tab the preview is there again", app._preview_tab == 0 and app.v_preview.get())
+check("back on the FFT tab the preview carries on",
+      app._preview_tab == 0 and app._preview_waiting is None and app.v_deriv.get() and app.v_preview.get())
+app.nb.select(1); app.update()
+app.v_mean.set(True)
+check("ticking a filter on the waiting tab moves the preview there (the FFT filter is unticked)",
+      app._preview_tab == 1 and app.v_mean.get() and not app.v_deriv.get() and app._preview_waiting is None)
+app.v_mean.set(False)
+app.nb.select(0); app.update()
+check("with nothing ticked on the previewed tab, the preview follows the tab shown", app._preview_tab == 0)
 
 # Apply Preview: saves the previewed filter at full resolution and ends the preview
 app.v_thg.set(True)
@@ -471,6 +483,20 @@ run_loop(lambda: False, 0.3)
 check("Apply Preview wrote the full-resolution result", os.path.exists(os.path.join(DATA, "prevsrc_THG.tif")))
 check("the filter is unticked afterwards and the buttons read Apply again",
       not app.v_thg.get() and app._apply_btns[0].cget("text") == "Apply FFT Processing", app._apply_btns[0].cget("text"))
+
+# Apply on a waiting tab runs the previewed filter of the other tab
+app.nb.select(0); app.update()
+app.v_preview.set(True); run_loop(lambda: app._preview_win is not None, 5)
+app.v_ta.set(True)
+app.nb.select(1); app.update()
+check("the waiting tab's button reads Apply Preview", app._apply_btns[1].cget("text") == "Apply Preview")
+app._apply_conv_stats()
+check("Apply on the waiting tab ends the preview", not app.v_preview.get())
+run_loop(lambda: app._active_token is None and os.path.exists(os.path.join(DATA, "prevsrc_TA.tif")), 60)
+run_loop(lambda: False, 0.3)
+check("... and saved the previewed FFT filter (tilt angle) at full resolution",
+      os.path.exists(os.path.join(DATA, "prevsrc_TA.tif")))
+app.nb.select(0); app.update()
 
 # closing the window ends the preview and unticks the filters
 app.v_preview.set(True); run_loop(lambda: app._preview_win is not None, 5)
@@ -790,6 +816,81 @@ check("a group folds away and opens again with all its rows",
       len(rows_before) >= 2 and not folded and rows_after == rows_before,
       (len(rows_before), len(folded), len(rows_after)))
 check("its folded state is remembered (open again)", G._load_settings()["sections"]["Edge Detectors"] is True)
+
+# ---- variable continuation
+dem_path = os.path.join(DATA, "vc_dem.tif")
+yy, xx = np.mgrid[0:50, 0:50]
+dem = (200 + 150 * np.sin(xx / 8.0) * np.cos(yy / 6.0)).astype("float32")  # 50 x 50 cells of 200 m
+ds = gdal.GetDriverByName("GTiff").Create(dem_path, 50, 50, 1, gdal.GDT_Float32)
+ds.SetGeoTransform([500000, 200.0, 0, 6900000, 0, -200.0])
+srs = osr.SpatialReference(); srs.ImportFromEPSG(28350); ds.SetProjection(srs.ExportToWkt())
+ds.GetRasterBand(1).WriteArray(dem); ds = None
+app.nb.select(0); app.update()
+app.v_input.set(pv)
+app.v_cont.set(True); app.v_cont_dir.set("variable"); app.update()
+check("variable continuation shows the surfaces and hides the single height",
+      app._vc_frame.winfo_manager() == "pack" and not app._cont_h_entry.winfo_manager())
+app.v_vc_obs_mode.set("Height"); app.v_vc_obs_value.set("600")
+app.v_vc_out_mode.set("Clearance over DEM"); app.v_vc_out_grid.set(dem_path); app.v_vc_out_value.set("80")
+before = set(os.listdir(DATA))
+app._do_apply_fft(pv); pump(0.3)
+new = sorted(f for f in set(os.listdir(DATA)) - before if "_VC" in f and f.endswith(".tif"))
+check("variable continuation writes a _VC grid", len(new) == 1, new)
+if new:
+    vc = band(os.path.join(DATA, new[0]))
+    src = band(pv)
+    check("... with data wherever the input has data", np.isfinite(vc[np.isfinite(src)]).all())
+    root = sm.read_sgt_metadata(os.path.join(DATA, new[0]))
+    check("... and its provenance", root is not None
+          and root.findtext("operation") == "Variable continuation (Taylor series)"
+          and params(os.path.join(DATA, new[0])).get("output") == "vc_dem.tif + 80 m",
+          None if root is None else (root.findtext("operation"), params(os.path.join(DATA, new[0]))))
+app.v_cont.set(True)  # Apply unticks it when it finishes
+res = app._compute_preview(0, pv, (10, 10, 60, 60))
+check("the preview runs variable continuation on its window",
+      res["filtered"].shape == (50, 50) and np.isfinite(res["filtered"]).any(), res.get("text"))
+warns = []
+_showwarning = G.messagebox.showwarning
+G.messagebox.showwarning = lambda title, msg, **k: warns.append(msg)
+app.v_vc_obs_mode.set("Clearance over DEM"); app.v_vc_obs_grid.set(dem_path); app.v_vc_obs_value.set("80")
+app.v_vc_out_mode.set("Height"); app.v_vc_out_value.set("100")  # below the hills
+app.v_cont.set(True)
+app._do_apply_fft(pv); pump(0.5)
+G.messagebox.showwarning = _showwarning
+check("an output height below the topography gives a warning",
+      any("below the topography" in w for w in warns), warns)
+app.v_cont.set(True); app.v_cont_dir.set("up"); app.update()
+check("... and the surfaces hide again", not app._vc_frame.winfo_manager()
+      and app._cont_h_entry.winfo_manager() == "pack")
+
+# ---- Ctrl+click: the filter's section of the reference
+import webbrowser
+opened = []
+_wb_open = webbrowser.open
+webbrowser.open = lambda url, *a, **k: opened.append(url)
+names = {str(v): a for a, v in vars(app).items() if isinstance(v, G.tk.Variable)}
+def find_check(attr):
+    stack = [app]
+    while stack:
+        w = stack.pop(); stack.extend(w.winfo_children())
+        if isinstance(w, G.tk.Checkbutton) and names.get(str(w.cget("variable"))) == attr:
+            return w
+cb = find_check("v_ta")
+app.nb.select(0); app.update()
+app.v_ta.set(False); app.update()
+cb.event_generate("<Control-Button-1>", x=5, y=5); cb.event_generate("<Control-ButtonRelease-1>", x=5, y=5)
+app.update()
+check("Ctrl+click on Tilt Angle opens its section of the reference",
+      bool(opened) and opened[-1].endswith("docs/reference.md#tilt-angle-"), opened)
+check("... without ticking it", not app.v_ta.get())
+app.v_cont_dir.set("variable")
+find_check("v_cont").event_generate("<Control-Button-1>", x=5, y=5); app.update()
+check("Ctrl+click on Continuation with direction variable opens Variable continuation",
+      bool(opened) and opened[-1].endswith("#variable-continuation-"), opened[-1:])
+app.v_cont_dir.set("up"); app.v_cont.set(False)
+from sgt_reference import HINT
+check("its tooltip ends with the hint", cb._sgt_tip.text.endswith(HINT), cb._sgt_tip.text[-60:])
+webbrowser.open = _wb_open
 
 passed = sum(1 for _, ok in results if ok)
 print(f"\n{passed}/{len(results)} ARC checks passed", flush=True)

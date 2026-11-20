@@ -375,3 +375,94 @@ def variable_continuation(
         "smoothing": float(sm_out) if damped else 0.0,
     }
     return out, info
+
+
+# ---------------------------------------------------------------- shared by the GUIs
+# The QGIS dialog, the ArcGIS Pro GUI and the ArcGIS Pro toolbox describe each
+# surface the same way: a mode, a grid (for "grid" and "clearance") and a value.
+SURFACE_MODES = ("height", "grid", "clearance")
+SURFACE_LABELS = ("Height", "Height grid", "Clearance over DEM")
+
+
+def surface_mode(label_or_mode):
+    """The mode ("height", "grid", "clearance") for a mode or a label."""
+    text = str(label_or_mode).strip()
+    if text in SURFACE_MODES:
+        return text
+    try:
+        return SURFACE_MODES[SURFACE_LABELS.index(text)]
+    except ValueError:
+        raise TaylorContinuationError(f"Unknown surface type: {text}")
+
+
+def surface_heights(mode, grid, value):
+    """(heights, DEM) of a surface: a constant height (a number), a height grid,
+    or a DEM plus a clearance. The DEM is None unless the surface is a
+    clearance over one. `grid` is the height grid or DEM already on the data's
+    grid (NaN for no data), or None for a constant height."""
+    mode = surface_mode(mode)
+    if mode == "height":
+        return float(value), None
+    if grid is None:
+        raise TaylorContinuationError(
+            "Choose the " + ("height grid" if mode == "grid" else "DEM")
+        )
+    grid = np.asarray(grid, dtype=float)
+    if mode == "grid":
+        return grid, None
+    return grid + float(value), grid
+
+
+def surface_text(mode, name, value):
+    """A surface as recorded in the provenance, e.g. '500 m' or 'dem.tif + 80 m'."""
+    mode = surface_mode(mode)
+    if mode == "height":
+        return f"{float(value):g} m"
+    if mode == "grid":
+        return name or ""
+    return f"{name or ''} + {float(value):g} m"
+
+
+def check_surfaces(obs, out, valid):
+    """Warnings (a list of strings) about the observed and output surfaces, each
+    given as (mode, heights, DEM, value): a negative clearance, and an output
+    surface (or a constant observed height) below the topography anywhere on the
+    grid, where the field would be inside the ground, among the sources. The DEM
+    of the output surface is used, else that of the observed one; with no DEM the
+    topography is not known and is not checked."""
+    warnings = []
+    for (mode, _z, _dem, value), what in ((obs, "observed"), (out, "output")):
+        if surface_mode(mode) == "clearance" and float(value) < 0:
+            warnings.append(
+                f"the {what} clearance is negative ({float(value):g} m), below the ground"
+            )
+    dem = out[2] if out[2] is not None else obs[2]
+    if dem is None:
+        return warnings
+    valid = np.asarray(valid, bool) & np.isfinite(dem)
+    for (_mode, z, _dem, _value), what in ((out, "output"), (obs, "observed")):
+        if what == "observed" and not np.isscalar(z):
+            continue  # a height grid or clearance: as measured
+        below = valid & (z < dem)
+        n = int(below.sum())
+        if not n:
+            continue
+        depth = float(np.max((dem - z)[below]))
+        top = float(np.nanmax(dem[valid]))
+        warnings.append(
+            f"the {what} surface is below the topography in {n} cells "
+            f"({100.0 * n / max(int(valid.sum()), 1):.1f}% of the grid, up to {depth:.0f} m "
+            f"below). The highest ground is {top:.0f} m: use a height above it, or a "
+            "clearance over the DEM"
+        )
+    return warnings
+
+
+def metres_per_degree(latitude):
+    """(east-west, north-south) metres per degree at a latitude, as the plugin
+    converts geographic cell sizes (SG_Util.arc_degree_to_meters)."""
+    lat = np.radians(latitude)
+    r = 6371000.0
+    dy = (np.pi / 180) * r * (1 - 0.00669438 * np.sin(lat) ** 2) ** 0.5
+    dx = (np.pi / 180) * r * np.cos(lat)
+    return float(dx), float(dy)

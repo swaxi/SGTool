@@ -3406,68 +3406,34 @@ class SGTool:
             value = 0.0
         return mode, path, value
 
+    def _vc_heights(self, surface):
+        """(heights, DEM) of a surface on the grid being processed (see
+        TaylorContinuation.surface_heights); raises TaylorContinuationError if
+        its grid is missing."""
+        mode, path, value = surface
+        grid = None
+        if mode != "height" and path is not None:
+            grid = Radiometrics.read_band_on_frame(path, 1, *self._target_frame())
+        return TaylorContinuation.surface_heights(mode, grid, value)
+
     @staticmethod
     def _vc_describe(surface):
         mode, path, value = surface
-        name = os.path.basename(path) if path else ""
-        if mode == "height":
-            return f"{value:g} m"
-        if mode == "grid":
-            return name
-        return f"{name} + {value:g} m"
-
-    def _vc_heights(self, surface, what):
-        """(heights, DEM) of a surface on the grid being processed: the
-        heights are a number for a constant height, the DEM is None unless the
-        surface is a clearance over one. None (with a message) if its grid is
-        missing."""
-        mode, path, value = surface
-        if mode == "height":
-            return value, None
-        if path is None:
-            self._notify(
-                f"Variable continuation: choose the {what} "
-                + ("height grid" if mode == "grid" else "DEM"),
-                Qgis.MessageLevel.Warning, 10,
-            )
-            return None
-        z = Radiometrics.read_band_on_frame(path, 1, *self._target_frame())
-        return (z, None) if mode == "grid" else (z + value, z)
-
-    def _vc_check_topography(self, z_obs, z_out, dem, valid):
-        """Warn if the output surface, or a constant observation height, is
-        below the topography (the DEM chosen for either surface) anywhere on
-        the grid: the field there would be inside the ground, among the
-        sources, where continuation is meaningless."""
-        if dem is None:
-            return
-        for z, what in ((z_out, "output"), (z_obs, "observed")):
-            if what == "observed" and not np.isscalar(z):
-                continue  # a height grid or clearance: as measured
-            below = valid & np.isfinite(dem) & (z < dem)
-            n = int(below.sum())
-            if not n:
-                continue
-            depth = float(np.max((dem - z)[below]))
-            top = float(np.nanmax(dem[valid]))
-            self._notify(
-                f"Variable continuation: the {what} surface is below the topography "
-                f"in {n} cells ({100.0 * n / max(int(valid.sum()), 1):.1f}% of the grid, "
-                f"up to {depth:.0f} m below). The highest ground is {top:.0f} m: "
-                f"use a height above it, or a clearance over the DEM",
-                Qgis.MessageLevel.Warning, 20,
-            )
+        return TaylorContinuation.surface_text(
+            mode, os.path.basename(path) if path else "", value
+        )
 
     def procVarContinuation(self):
         """Continuation from the observed surface to the output surface, either
-        of them uneven (a height grid, or a DEM plus a clearance), by Taylor
-        series: e.g. a draped survey to a constant height, or a barometric
-        survey to a constant clearance above the topography."""
-        obs = self._vc_heights(self.VC_obs, "observed")
-        out = self._vc_heights(self.VC_out, "output")
-        if obs is None or out is None:
+        of them uneven (a height grid, or a DEM plus a clearance): e.g. a draped
+        survey to a constant height, or a barometric survey to a constant
+        clearance above the topography."""
+        try:
+            z_obs, dem_obs = self._vc_heights(self.VC_obs)
+            z_out, dem_out = self._vc_heights(self.VC_out)
+        except TaylorContinuation.TaylorContinuationError as e:
+            self._notify(f"Variable continuation: {e}", Qgis.MessageLevel.Warning, 10)
             return
-        (z_obs, dem_obs), (z_out, dem_out) = obs, out
         data = self.raster_array
         for z in (z_obs, z_out):
             if not np.isscalar(z) and z.shape != data.shape:
@@ -3476,16 +3442,12 @@ class SGTool:
                     Qgis.MessageLevel.Warning, 10,
                 )
                 return
-        for (mode, _path, value), what in ((self.VC_obs, "observed"), (self.VC_out, "output")):
-            if mode == "clearance" and value < 0:
-                self._notify(
-                    f"Variable continuation: the {what} clearance is negative ({value:g} m), "
-                    "below the ground",
-                    Qgis.MessageLevel.Warning, 15,
-                )
-        self._vc_check_topography(
-            z_obs, z_out, dem_out if dem_out is not None else dem_obs, np.isfinite(data),
-        )
+        for warning in TaylorContinuation.check_surfaces(
+            (self.VC_obs[0], z_obs, dem_obs, self.VC_obs[2]),
+            (self.VC_out[0], z_out, dem_out, self.VC_out[2]),
+            np.isfinite(data),
+        ):
+            self._notify("Variable continuation: " + warning, Qgis.MessageLevel.Warning, 20)
         dx, dy = abs(self.dx), abs(self.dy)
         if self._is_geographic():
             _long, lat = self._grid_centroid()

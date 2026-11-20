@@ -274,8 +274,71 @@ class ToolTip:
 
 def tip(widget, text):
     """Attach a tooltip and return the widget (for chaining)."""
-    ToolTip(widget, text)
+    widget._sgt_tip = ToolTip(widget, text)  # kept so a hint can be added later
     return widget
+
+
+# Ctrl+click on a filter's tickbox (by its variable) or button (by its text) opens its
+# section of the SGTool reference (docs/reference.md) on GitHub; see sgt_reference.py.
+# A function of the app gives the heading where it depends on a setting.
+REFERENCE_BY_VARIABLE = {
+    "v_rtp": "RTE/P (reduction to the pole or equator)",
+    "v_vint": "Vertical Integration ●",
+    "v_cont": lambda app: ("Variable continuation ●" if app.v_cont_dir.get() == "variable"
+                           else "Continuation ●"),
+    "v_dirclean": "Direction Cos/Butterw. (line-noise removal)",
+    "v_regrem": "Remove Regional",
+    "v_bp": "Band Pass ●",
+    "v_hlp": "High/Low Pass ●",
+    "v_agc": "Automatic Gain Control ●",
+    "v_deriv": "Derivative ●",
+    "v_thg": "Total Horizontal Gradient ●",
+    "v_ta": "Tilt Angle ●",
+    "v_as_": "Analytic Signal",
+    "v_nstd": "Normalised Standard Deviation (NSTD) ●",
+    "v_nav": "NAV-Edge ●",
+    "v_euler": "Euler Deconvolution",
+    "v_mean": "Mean",
+    "v_med": "Median",
+    "v_gauss": "Gaussian",
+    "v_dconv": "Directional",
+    "v_sun": "Sun Shading",
+    "v_snn": "Symmetric Nearest Neighbour (SNN)",
+    "v_kuw": "Kuwahara",
+    "v_ss_min": "Spatial Statistics",
+    "v_ss_max": "Spatial Statistics",
+    "v_ss_var": "Spatial Statistics",
+    "v_ss_std": "Spatial Statistics",
+    "v_ss_skew": "Spatial Statistics",
+    "v_ss_kurt": "Spatial Statistics",
+    "v_ss_aniso": "Local Anisotropy",
+    "v_ss_chain": "Local Anisotropy",
+    "v_ss_stream": "Local Anisotropy",
+    "v_mrvbf": "MRVBF / MRRTF / Slope",
+    "v_efimov": "Efimov F-parameter",
+    "v_kd": "Kd and Ud",
+    "v_ud": "Kd and Ud",
+    "v_terngrad": "Ternary Gradient",
+    "v_logratio": "Multivariate Statistical Analysis",
+    "v_pca": "Multivariate Statistical Analysis",
+    "v_ica": "Multivariate Statistical Analysis",
+    "v_app_sus": "Apparent susceptibility",
+    "v_app_dens": "Apparent density",
+    "v_thresh_en": "Threshold to NaN",
+    "v_bs_auto": "Choosing the B-spline settings (Auto)",
+}
+REFERENCE_BY_BUTTON = {
+    "Radial Power Spectrum": "Radial Power Spectrum",
+    "Import Data": "Import point or line data",
+    "Multilevel B-Spline Gridding": "Gridding",
+    "Calculate Worms": "BSDWorms",
+    "Save as XML": "SGTool Metadata (provenance)",
+    "Read metadata of input grid": "SGTool Metadata (provenance)",
+    "Create Polygon": "Create Clipping Polygon",
+    "Clip to Window": "Clip to Window",
+    "Normalise Grids": "Normalise Grids",
+    "Convert Grid": "Convert LUT to Grayscale",
+}
 
 
 # ---- the Help tab: the QGIS plugin's Help text; **bold** and [label](url) are marked up in it
@@ -313,6 +376,7 @@ HELP_TEXT = [
     "(no external plugin required)",
     "- Differential (Variable) RTP — G.R.J. Cooper & D.R. Cowan (2005) Taylor-series method",
     "- Low-latitude RTP — M. Hao et al. (2018) Taylor series iterative method",
+    "- Variable continuation — Cordell & Grauch (1985) Taylor series; Pilkington & Urquhart (1990)",
     "- NSTD — G.R.J. Cooper & D.R. Cowan (2008); NAV-Edge — H.L. Zhang, D. Ravat, Y.R. Marangoni & X.Y. Hu (2014)",
     "- Example radiometric data in the documentation courtesy of BUMIGEB (Burkina Faso)",
     "- MRVBF/MRRTF (Multiresolution Valley Bottom/Ridge Top Flatness) — J.C. Gallant & T.I. Dowling (2003)",
@@ -385,6 +449,10 @@ class SGToolApp(tk.Tk):
         self.v_preview       = tk.BooleanVar(value=False)
         self._preview_win    = None     # the preview window, while previewing
         self._preview_tab    = None     # tab (0 FFT, 1 Conv) the preview belongs to
+        # a tab left while previewing keeps its filter and the preview; the tab shown
+        # then waits (this is its index) until a filter is ticked there, which moves the
+        # preview to it. Meanwhile its Apply Preview / Apply to Window act on the preview.
+        self._preview_waiting = None
         self._preview_gen    = 0        # newest request: older results are dropped
         self._preview_timer  = None
         self._preview_src    = None     # (path, mtime, (array, cell x, cell y))
@@ -528,6 +596,8 @@ class SGToolApp(tk.Tk):
         self._layer_combo["values"] = names
         self._petro_refresh_rasters()
         for c in getattr(self, "_rad_combos", {}).values():  # Multiband tab K / eU / eTh
+            c["values"] = names
+        for c in getattr(self, "_vc_combos", []):  # variable continuation height grids
             c["values"] = names
         if names and not self.v_input.get():
             self._layer_combo.set(names[0])
@@ -759,12 +829,14 @@ class SGToolApp(tk.Tk):
         return b
 
     def _update_window_btns(self):
-        """Apply to Window is available on the previewed tab while Preview is on with
-        a filter that can be previewed ticked."""
+        """Apply to Window is available on the previewed tab (and on a tab waiting for
+        it) while Preview is on with a filter that can be previewed ticked."""
         on = self.v_preview.get()
+        src = self._preview_tab
+        ticked = ([n for n in self._ticked(src) if n not in self.PREVIEW_NOT_POSSIBLE]
+                  if src is not None else [])
         for tab, button in self._window_btns.items():
-            ticked = [n for n in self._ticked(tab) if n not in self.PREVIEW_NOT_POSSIBLE]
-            ok = on and self._preview_tab == tab and bool(ticked)
+            ok = on and tab in (src, self._preview_waiting) and bool(ticked)
             button.config(state="normal" if ok else "disabled")
 
     def _current_tab(self):
@@ -815,6 +887,7 @@ class SGToolApp(tk.Tk):
             finally:
                 self._preview_enforcing = False
         self._preview_tab = None
+        self._preview_waiting = None
 
     def _preview_closed(self):
         """The user closed the preview window."""
@@ -852,6 +925,16 @@ class SGToolApp(tk.Tk):
             self._preview_enforcing = False
 
     def _preview_filter_changed(self, tab, name):
+        if (self.v_preview.get() and not self._preview_enforcing
+                and tab == self._preview_waiting and self._filter_var(name).get()):
+            # a filter ticked on the waiting tab: the preview moves here (the old tab's
+            # filter is unticked by _enforce_single)
+            self._preview_waiting = None
+            self._preview_tab = tab
+            self._enforce_single(tab, name)
+            self._preview_schedule()
+            self._update_window_btns()
+            return
         self._update_window_btns()
         if (not self.v_preview.get() or self._preview_tab != tab or self._preview_enforcing):
             return
@@ -860,12 +943,21 @@ class SGToolApp(tk.Tk):
         self._preview_schedule()
 
     def _preview_tab_changed(self, idx):
-        """Leaving a previewed tab unticks its filters; Preview stays on and is shown for
-        the tab arrived at (tabs without a preview just wait)."""
+        """Leaving a previewed tab keeps its filter ticked and the preview (which still
+        follows its window); the tab arrived at waits: ticking a filter there moves the
+        preview to it, and its Apply Preview / Apply to Window act on the previewed
+        filter. Returning to the previewed tab carries on. With nothing previewed yet,
+        the preview simply follows the tab shown."""
         self._update_apply_text()
         if not self.v_preview.get():
             return
         old = self._preview_tab
+        self._preview_waiting = None
+        if old is not None and self._ticked(old):
+            if idx != old and idx in self.PREVIEW_FILTERS:
+                self._preview_waiting = idx
+            self._update_window_btns()
+            return
         if old is not None and old != idx:
             self._preview_enforcing = True
             try:
@@ -1058,7 +1150,8 @@ class SGToolApp(tk.Tk):
         count = [0]
         try:
             if tab == 0:
-                self._fft_steps(path, sub, ecx, ecy, buf, proc, count, keep)
+                self._fft_steps(path, sub, ecx, ecy, buf, proc, count, keep,
+                                box=(x0, y0, x1, y1, k))
             elif tab == 2:
                 # K / eU / eTh or the grid's bands, cut and averaged as `sub` was
                 stack = self._multi_preview_stack(path, (x0, y0, x1, y1), k)
@@ -1127,7 +1220,9 @@ class SGToolApp(tk.Tk):
                          "Low-lat. RTP": "reduction_to_pole_low_latitude"}.get(rt, "reduction_to_pole"))
             if val("v_vint"):
                 add("vertical_integration")
-            if val("v_cont"):
+            if val("v_cont") and val("v_cont_dir", "up") == "variable":
+                out.append("_VC")
+            elif val("v_cont"):
                 add("continuation", DIRECTION=val("v_cont_dir", "up"), HEIGHT=num("v_cont_h", 500.0))
             if val("v_dirclean"):
                 add("directional_line_noise")
@@ -1263,6 +1358,7 @@ class SGToolApp(tk.Tk):
             self._tab_frames[i] = ph
 
         self.nb.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        self.after(0, lambda: self._bind_reference_links(self))  # tabs built so far
 
     def _on_tab_changed(self, event=None):
         idx = self.nb.index(self.nb.select())
@@ -1271,7 +1367,54 @@ class SGToolApp(tk.Tk):
             _, builder = self._tab_specs[idx]
             builder(self._tab_frames[idx].inner)
             self._hook_preview_vars(idx)
+            self._bind_reference_links(self._tab_frames[idx].inner)
         self._preview_tab_changed(idx)
+
+    # ------------------------------------------------------------------
+    # Ctrl+click: the filter's section of the reference (docs/reference.md)
+    # ------------------------------------------------------------------
+    def _bind_reference_links(self, root):
+        """Bind Ctrl+click on every filter tickbox and button under root (see
+        REFERENCE_BY_VARIABLE / _BUTTON) and add the hint to its tooltip."""
+        from sgt_reference import HINT
+
+        names = {str(v): attr for attr, v in vars(self).items() if isinstance(v, tk.Variable)}
+        stack = [root]
+        while stack:
+            w = stack.pop()
+            stack.extend(w.winfo_children())
+            if getattr(w, "_sgt_ref", False):
+                continue
+            heading = None
+            try:
+                if isinstance(w, tk.Checkbutton):
+                    heading = REFERENCE_BY_VARIABLE.get(names.get(str(w.cget("variable"))))
+                elif isinstance(w, tk.Button):
+                    heading = REFERENCE_BY_BUTTON.get(str(w.cget("text")))
+            except tk.TclError:
+                continue
+            if heading is None:
+                continue
+            w._sgt_ref = True
+
+            def open_section(_event, h=heading):
+                import webbrowser
+                from sgt_reference import section_url
+
+                webbrowser.open(section_url(h(self) if callable(h) else h))
+                return "break"  # the tickbox does not toggle, the button does not run
+
+            for seq in ("<Control-Button-1>", "<Command-Button-1>"):
+                try:  # Command exists only on macOS
+                    w.bind(seq, open_section)
+                    w.bind(seq.replace("Button-1", "ButtonRelease-1"), lambda _e: "break")
+                except tk.TclError:
+                    pass
+            tt = getattr(w, "_sgt_tip", None)
+            if tt is None:
+                w._sgt_tip = ToolTip(w, HINT)
+            elif HINT not in tt.text:
+                tt.text = (tt.text + "\n\n" if tt.text else "") + HINT
 
     # ------------------------------------------------------------------
     # Status bar
@@ -1382,11 +1525,19 @@ class SGToolApp(tk.Tk):
             "Upward or downward continuation\n"
             "Upward attenuates high-frequency noise and shallow features\n"
             "Downward enhances shallow or high-frequency anomalies").pack(side="left")
-        tip(combo(r4, ["up", "down"], self.v_cont_dir, w=6, chk_var=self.v_cont),
-            "Select direction of continuation").pack(side="left", padx=4)
-        lbl(r4, "Height:").pack(side="left")
-        tip(entry(r4, self.v_cont_h, 9, chk_var=self.v_cont),
-            "Amount of continuation [m only]").pack(side="left", padx=2)
+        tip(combo(r4, ["up", "down", "variable"], self.v_cont_dir, w=8, chk_var=self.v_cont),
+            "Select direction of continuation\n"
+            "up / down: by a constant height\n"
+            "variable: from the surface the data were measured on (a constant height, a height\n"
+            "grid, or a DEM + clearance) to another such surface (Cordell & Grauch 1985),\n"
+            "e.g. a draped survey to a constant height above sea level, or a barometric\n"
+            "survey to a constant clearance above the topography").pack(side="left", padx=4)
+        self._cont_h_lbl = lbl(r4, "Height:")
+        self._cont_h_lbl.pack(side="left")
+        self._cont_h_entry = tip(entry(r4, self.v_cont_h, 9, chk_var=self.v_cont),
+                                 "Amount of continuation [m only]")
+        self._cont_h_entry.pack(side="left", padx=2)
+        self._build_var_continuation(gm, r4)
 
         # ---- Frequency ----
         ff = section(p, "Frequency Filters")
@@ -2021,6 +2172,8 @@ class SGToolApp(tk.Tk):
                 _save(None, "_" + kind, (operation, {"n_components": n}))
 
     def _apply_multi(self):
+        if self._apply_from_waiting(2):
+            return
         in_r = self._compute_output_path()
         if not in_r:
             messagebox.showwarning("No Input", "Select an input raster.")
@@ -2720,6 +2873,8 @@ class SGToolApp(tk.Tk):
         return bool(srs.IsGeographic())
 
     def _apply_petro(self):
+        if self._apply_from_waiting(4):
+            return
         in_r = self._compute_output_path()
         if not in_r:
             messagebox.showwarning("No Input", "Select an input raster.")
@@ -3203,6 +3358,8 @@ class SGToolApp(tk.Tk):
     # FFT APPLY  (buffer passed to every method)
     # ======================================================================
     def _apply_fft(self):
+        if self._apply_from_waiting(0):
+            return
         in_r = self._compute_output_path()
         if not in_r:
             messagebox.showwarning("No Input", "Select an input raster.")
@@ -3244,9 +3401,178 @@ class SGToolApp(tk.Tk):
         self.after(0, lambda: self._status(f"Done — {count[0]} output(s) written."))
         self.after(0, self._uncheck_fft)
 
-    def _fft_steps(self, in_r, arr, cx, cy, buf, proc, count, _save):
+    # ------------------------------------------------------------------
+    # Variable continuation (calcs/TaylorContinuation.py, as in QGIS)
+    # ------------------------------------------------------------------
+    def _build_var_continuation(self, parent, after):
+        """The observed and output surfaces, each a constant height, a height grid or
+        a DEM + clearance; shown while Continuation is ticked with direction variable."""
+        from calcs.TaylorContinuation import SURFACE_LABELS
+
+        f = tk.Frame(parent, bg=BG)
+        self._vc_frame, self._vc_after = f, after
+        self._vc_combos = []
+        surface_tip = ("Height: a constant height (m above sea level), e.g. a barometric survey's altitude\n"
+                       "Height grid: a grid of heights (m above sea level), e.g. the GPS altitude of a draped survey\n"
+                       "Clearance over DEM: a DEM (m above sea level) plus the clearance given (m)")
+        for key, label, what in (("obs", "Observed", "the data were measured on"),
+                                 ("out", "Output", "to continue the data onto")):
+            r = tk.Frame(f, bg=BG); r.pack(fill="x", padx=(28, 4), pady=1)
+            mode = tk.StringVar(value=SURFACE_LABELS[0])
+            grid = tk.StringVar()
+            value = tk.StringVar(value="100")
+            setattr(self, f"v_vc_{key}_mode", mode)
+            setattr(self, f"v_vc_{key}_grid", grid)
+            setattr(self, f"v_vc_{key}_value", value)
+            lbl(r, label, width=8, anchor="w").pack(side="left")
+            tip(combo(r, list(SURFACE_LABELS), mode, w=17, chk_var=self.v_cont),
+                f"The surface {what}.\n" + surface_tip).pack(side="left", padx=2)
+            gc = ttk.Combobox(r, textvariable=grid, values=list(self._layer_map), width=26, font=FONT)
+            tip(gc, "Height grid or DEM (m above sea level), resampled onto the input grid")
+            self._vc_combos.append(gc)
+            gb = tip(btn(r, "…", lambda v=grid: _browse_file(v), w=2), "Browse for a grid")
+            ve = tip(entry(r, value, 7, chk_var=self.v_cont),
+                     "Height above sea level (m), or the clearance above the DEM (m)")
+            unit = lbl(r, "m")
+
+            def show(*_a, mode=mode, gc=gc, gb=gb, ve=ve, unit=unit):
+                m = mode.get()
+                for w in (gc, gb, ve, unit):
+                    w.pack_forget()
+                if m != SURFACE_LABELS[0]:  # a grid for "Height grid" and "Clearance"
+                    gc.pack(side="left", padx=2)
+                    gb.pack(side="left", padx=2)
+                if m != SURFACE_LABELS[1]:  # a height, or the clearance
+                    ve.pack(side="left", padx=2)
+                    unit.pack(side="left")
+
+            mode.trace_add("write", show)
+            show()
+        r = tk.Frame(f, bg=BG); r.pack(fill="x", padx=(28, 4), pady=1)
+        self.v_vc_smoothing = tk.StringVar(value="")
+        self.v_vc_terms = tk.StringVar(value="6")
+        lbl(r, "Smoothing (m):").pack(side="left")
+        tip(entry(r, self.v_vc_smoothing, 7, chk_var=self.v_cont),
+            "Wavelength (m) below which downward continuation is damped: continuing below the\n"
+            "observations, or draping onto an uneven output surface by Taylor series.\n"
+            "Blank = automatic (pi x the output surface's relief, and enough to keep the gain\n"
+            "of downward continuation below about 20). Shorter keeps more detail but is noisier.\n"
+            "Not used when the output is above all the observations: flattening uneven data\n"
+            "and upward continuation are never damped.").pack(side="left", padx=2)
+        lbl(r, "Terms:").pack(side="left", padx=(8, 0))
+        tip(entry(r, self.v_vc_terms, 4, chk_var=self.v_cont),
+            "Number of terms (vertical derivatives) in the Taylor series that drapes the\n"
+            "result onto an uneven output surface (1-12)").pack(side="left", padx=2)
+        self.v_cont.trace_add("write", self._show_var_continuation)
+        self.v_cont_dir.trace_add("write", self._show_var_continuation)
+        self._show_var_continuation()
+
+    def _show_var_continuation(self, *_a):
+        variable = self.v_cont_dir.get() == "variable"
+        if variable and self.v_cont.get():
+            self._vc_frame.pack(fill="x", after=self._vc_after)
+        else:
+            self._vc_frame.pack_forget()
+        # the surfaces give the heights: no single continuation height
+        for w in (self._cont_h_lbl, self._cont_h_entry):
+            w.pack_forget()
+        if not variable:
+            self._cont_h_lbl.pack(side="left")
+            self._cont_h_entry.pack(side="left", padx=2)
+
+    def _vc_surface(self, key):
+        """(mode, grid path or None, value) of the observed ("obs") or output ("out") surface."""
+        from calcs.TaylorContinuation import surface_mode
+
+        mode = surface_mode(getattr(self, f"v_vc_{key}_mode").get())
+        name = getattr(self, f"v_vc_{key}_grid").get().strip()
+        path = self._layer_map.get(name, name) if name and mode != "height" else None
+        try:
+            value = float(getattr(self, f"v_vc_{key}_value").get())
+        except ValueError:
+            value = 0.0
+        return mode, path, value
+
+    def _vc_grid(self, path, in_r, box):
+        """A height grid or DEM on the input grid's cells (cut to box and block-averaged
+        for the preview, as the input grid is); read once per file."""
+        from calcs.Radiometrics import north_up_frame, read_band_on_frame
+        from calcs.TaylorContinuation import TaylorContinuationError
+
+        if path is None:
+            return None
+        if not os.path.exists(path):
+            raise TaylorContinuationError(f"Cannot find the grid {path}")
+        key = (path, os.path.getmtime(path), in_r, os.path.getmtime(in_r))
+        cache = getattr(self, "_vc_cache", {})
+        if key not in cache:
+            cache = {key: read_band_on_frame(path, 1, *north_up_frame(in_r))}
+            self._vc_cache = cache
+        full = cache[key]
+        if box is None:
+            return full
+        x0, y0, x1, y1, k = box
+        return block_mean(full[y0:y1, x0:x1], k)
+
+    def _var_continuation(self, in_r, arr, cx, cy, _save, box=None):
+        """Variable continuation of arr (the input grid, or the preview's cut of it)."""
+        from calcs import TaylorContinuation as T
+        from calcs.Radiometrics import north_up_frame
+
+        obs, out = self._vc_surface("obs"), self._vc_surface("out")
+        try:
+            z_obs, dem_obs = T.surface_heights(obs[0], self._vc_grid(obs[1], in_r, box), obs[2])
+            z_out, dem_out = T.surface_heights(out[0], self._vc_grid(out[1], in_r, box), out[2])
+            for z in (z_obs, z_out):
+                if not np.isscalar(z) and z.shape != arr.shape:
+                    raise T.TaylorContinuationError(
+                        "the height grid could not be matched to the input grid")
+            if box is None:  # warnings with Apply, not on every preview
+                for w in T.check_surfaces((obs[0], z_obs, dem_obs, obs[2]),
+                                          (out[0], z_out, dem_out, out[2]), np.isfinite(arr)):
+                    self.after(0, lambda w=w: messagebox.showwarning(
+                        "Variable continuation", w[0].upper() + w[1:]))
+            dx, dy = abs(cx), abs(cy)
+            if self._is_geographic(in_r):
+                gt, _cols, rows, _wkt = north_up_frame(in_r)
+                mx, my = T.metres_per_degree(gt[3] + gt[5] * rows / 2.0)
+                dx, dy = dx * mx, dy * my
+            try:
+                smoothing = max(float(self.v_vc_smoothing.get()), 0.0)
+            except ValueError:
+                smoothing = 0.0  # blank: automatic
+            try:
+                terms = min(max(int(float(self.v_vc_terms.get())), 1), 12)
+            except ValueError:
+                terms = 6
+            result, info = T.variable_continuation(
+                arr, z_obs, z_out, dx, dy, order=terms, smoothing=smoothing,
+                cancel_check=self._check_cancel)
+        except T.TaylorContinuationError as e:
+            raise ValueError(f"Variable continuation: {e}")
+        parts = []
+        if info["iterations"]:
+            parts.append(f"flattened in {info['iterations']} iterations, misfit "
+                         f"{100 * info['relative_misfit']:.2f}% of the data")
+        if info["smoothing"]:
+            parts.append(f"downward continuation damped below {info['smoothing']:.0f} m")
+        if info["diverged"]:
+            parts.append("the flattening stopped improving: check the observed heights")
+        if parts and box is None:
+            self.after(0, lambda: self._status("Variable continuation: " + "; ".join(parts)))
+        name = lambda p: os.path.basename(p) if p else ""
+        _save(result, "_VC", ("Variable continuation (Taylor series)", {
+            "observed": T.surface_text(obs[0], name(obs[1]), obs[2]),
+            "output": T.surface_text(out[0], name(out[1]), out[2]),
+            "smoothing": smoothing or "auto",
+            "terms": terms,
+        }))
+
+    def _fft_steps(self, in_r, arr, cx, cy, buf, proc, count, _save, box=None):
         """The ticked FFT filters; each result goes to _save(result, suffix, step)
-        (which writes it, or for the preview just keeps it)."""
+        (which writes it, or for the preview just keeps it). box: for the preview,
+        (x0, y0, x1, y1, k), the cells of the input grid arr was cut from and its
+        block averaging (for the height grids of variable continuation)."""
         if self.v_rtp.get():
             self._check_cancel()
             rt  = self.v_rtp_type.get()
@@ -3313,7 +3639,11 @@ class SGToolApp(tk.Tk):
                                             buffer_size=buf, buffer_method="mirror"), "vi",
                   step_record("vertical_integration"))
 
-        if self.v_cont.get():
+        if self.v_cont.get() and self.v_cont_dir.get() == "variable":
+            self._check_cancel()
+            self.after(0, lambda: self._status("Variable continuation…"))
+            self._var_continuation(in_r, arr, cx, cy, _save, box)
+        elif self.v_cont.get():
             self._check_cancel()
             h = float(self.v_cont_h.get())
             self.after(0, lambda: self._status(f"Continuation {h}…"))
@@ -3449,6 +3779,8 @@ class SGToolApp(tk.Tk):
     # CONV + STATS APPLY
     # ======================================================================
     def _apply_conv_stats(self):
+        if self._apply_from_waiting(1):
+            return
         in_r = self._compute_output_path()
         if not in_r:
             messagebox.showwarning("No Input", "Select an input raster.")
@@ -3858,6 +4190,8 @@ class SGToolApp(tk.Tk):
     # UTILS
     # ======================================================================
     def _apply_threshold(self):
+        if self._apply_from_waiting(5):
+            return
         in_r = self._resolve_input()
         if not in_r or not self.v_thresh_en.get():
             messagebox.showwarning("Missing", "Enable threshold and select input raster.")
@@ -3896,10 +4230,23 @@ class SGToolApp(tk.Tk):
         if target is not None:
             self._run_in_thread(self._do_clip_to_window, in_r, *target)
 
+    def _apply_from_waiting(self, tab):
+        """Apply on a tab waiting for the preview: run the previewed tab's Apply (the
+        previewed filter at full resolution) instead. True if it did."""
+        if not (self.v_preview.get() and tab == self._preview_waiting
+                and self._preview_tab is not None):
+            return False
+        self._preview_waiting = None
+        {0: self._apply_fft, 1: self._apply_conv_stats, 2: self._apply_multi,
+         4: self._apply_petro, 5: self._apply_threshold}[self._preview_tab]()
+        return True
+
     def _apply_to_window(self, tab):
         """Apply to Window: clip the input grid to the ArcGIS Pro map view (as Clip to
         Window), make the clip the input grid, then run Apply Preview on it (the
         previewed filter at full resolution; the preview closes)."""
+        if tab == self._preview_waiting:
+            tab = self._preview_tab  # clicked on the waiting tab
         if not (self.v_preview.get() and self._preview_tab == tab):
             return
         in_r = self._resolve_input()

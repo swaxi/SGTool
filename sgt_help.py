@@ -3,15 +3,14 @@ Ctrl+click (Cmd+click on macOS too) on a filter's tickbox or button opens its
 section of the SGTool reference (docs/reference.md) on GitHub.
 
 The docs are not in the plugin zip (export-ignore), so the guide is read
-online, at the heading's anchor.
+online, at the heading's anchor (sgt_reference.py, shared with the ArcGIS Pro GUI).
 """
-
-import re
 
 from qgis.PyQt.QtCore import QEvent, QObject, Qt, QUrl
 from qgis.PyQt.QtGui import QDesktopServices
 
-REFERENCE_URL = "https://github.com/swaxi/SGTool/blob/main/docs/reference.md"
+from .sgt_reference import HINT, REFERENCE_URL, anchor  # noqa: F401 (re-exported)
+from .sgt_reference import section_url as _section_url
 
 # dialog attribute -> heading in docs/reference.md (the exact heading text, or
 # a function of the dialog giving it)
@@ -84,18 +83,8 @@ SECTIONS = {
     "pushButton_3_applyProcessing_Conv_2": "Convert LUT to Grayscale",
 }
 
-HINT = "Ctrl+click: open this in the SGTool reference"
-
-
-def anchor(heading):
-    """GitHub's anchor for a heading: lower case, punctuation (including
-    symbols such as ●) dropped, spaces as hyphens."""
-    text = re.sub(r"[^\w\- ]", "", heading.strip().lower())
-    return text.replace(" ", "-")
-
-
 def section_url(heading):
-    return QUrl(REFERENCE_URL + "#" + anchor(heading))
+    return QUrl(_section_url(heading))
 
 
 class _CtrlClickHelp(QObject):

@@ -22,6 +22,7 @@ repository=https://github.com/swaxi/SGTool
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
 changelog=0.4.4
+      * [Bug Fix] Convolution filters keep the grid's outline: mean, median and Gaussian no longer grow the grid into null areas, and directional and sun shading no longer blank the cells next to nulls (results elsewhere unchanged)
       * [Performance] Variable continuation: the continuation factors, level weights and gap filling are worked out once rather than every iteration (2-2.5x faster, same results)
       * [Performance] FFT filters, low-latitude RTP and Euler deconvolution use real FFTs on all cores, padded with scipy.fft.next_fast_len (1.5-2x faster for whole filters on large grids, ~4x for Euler's derivatives, same results); the power spectra use multithreaded SciPy FFTs
       * [New Feature] ArcGIS Pro: variable continuation (GUI and a new Variable Continuation toolbox tool), Ctrl+click help, and the preview kept when changing tab, as in QGIS; the FFT filter changes apply there too (shared calculation code)

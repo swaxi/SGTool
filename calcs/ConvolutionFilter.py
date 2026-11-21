@@ -2,6 +2,24 @@ import numpy as np
 
 from .window_ops import iter_windows, nanmedian_last
 
+
+def _nearest_filled(grid):
+    """(grid with each null cell given the value of the nearest valid cell, null
+    mask). For filters that would otherwise spread nulls into the data around
+    them; their result is then nulled again where the input is null."""
+    from scipy.ndimage import distance_transform_edt
+
+    grid = np.asarray(grid, dtype=float)
+    nulls = np.isnan(grid)
+    if not nulls.any() or nulls.all():
+        return grid, nulls
+    idx = distance_transform_edt(nulls, return_distances=False, return_indices=True)
+    return grid[tuple(idx)], nulls
+
+# Every filter here keeps the input's outline: null cells stay null (none is
+# filled in from the data around it) and every valid cell gets a value (none is
+# lost next to a null).
+
 class ConvolutionFilter:
     def __init__(self, grid):
         """
@@ -49,8 +67,12 @@ class ConvolutionFilter:
         # Avoid division by zero
         valid_counts[valid_counts == 0] = np.nan
 
-        # Calculate the mean of valid values
-        return convolved_values / valid_counts
+        # Calculate the mean of valid values; null cells stay null (the kernel
+        # would otherwise give them the mean of the valid cells around them, and
+        # the grid would grow into its null areas)
+        result = convolved_values / valid_counts
+        result[~valid_mask] = np.nan
+        return result
 
     def mean_filter(self, n):
         """
@@ -84,6 +106,7 @@ class ConvolutionFilter:
                 callback(r0 / float(output.shape[0]))
             output[r0:r1] = nanmedian_last(windows)
 
+        output[np.isnan(self.grid)] = np.nan  # null cells stay null (no growth)
         return output
 
     def gaussian_filter(self, sigma):
@@ -152,7 +175,12 @@ class ConvolutionFilter:
                 mode="constant",
             )
 
-        return convolve(self.grid, kernel, mode="reflect")
+        # nulls filled from the nearest data first, so they do not spread into the
+        # cells around them, then put back
+        filled, nulls = _nearest_filled(self.grid)
+        result = convolve(filled, kernel, mode="reflect").astype(float)
+        result[nulls] = np.nan
+        return result
 
     def sun_shading_filter(self, elevation, sun_alt=45.0, sun_az=315.0, resolution=1.0):
         """
@@ -185,6 +213,10 @@ class ConvolutionFilter:
             ]
         )
 
+        # nulls filled from the nearest data, so the gradients next to them exist
+        # (they are put back at the end)
+        elevation, nulls = _nearest_filled(elevation)
+
         # Calculate gradients using finite differences
         dzdx = (np.roll(elevation, -1, axis=1) - np.roll(elevation, 1, axis=1)) / (
             2 * resolution
@@ -210,6 +242,8 @@ class ConvolutionFilter:
         # Clamp shading values to range [0, 1]
         # shading = np.clip(shading, 0, 1)
 
+        shading = np.asarray(shading, dtype=float)
+        shading[nulls] = np.nan
         return shading
 
     def sun_shading_filter_grass(
@@ -260,6 +294,10 @@ class ConvolutionFilter:
         H = resolution_ew * 4 * scale / zscale  # horizontal run for gradient
         V = resolution_ns * 4 * scale / zscale  # vertical run for gradient
 
+        # nulls filled from the nearest data, so the cells next to them are shaded
+        # too (the nulls are put back at the end)
+        elevation, nulls = _nearest_filled(elevation)
+
         # Pad the elevation array to handle edges
         elev_padded = np.pad(elevation, pad_width=1, mode="edge")
 
@@ -289,13 +327,5 @@ class ConvolutionFilter:
         # Scale to 0-255 range
         output = 255.0 * cang
 
-        # Handle NaN values in the input
-        if np.any(np.isnan(elevation)):
-            # Create a mask for 3x3 windows containing NaN values
-            nan_mask = np.isnan(elev_padded)
-            # Use maximum filter to expand the mask by one pixel in all directions
-            expanded_nan_mask = ndimage.maximum_filter(nan_mask, size=3)
-            # Apply to our output, removing the padding
-            output[expanded_nan_mask[1:-1, 1:-1]] = np.nan
-
+        output[nulls] = np.nan  # the input's null cells, and only those
         return output

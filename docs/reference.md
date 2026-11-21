@@ -643,7 +643,7 @@ The tab has its own **Select Grid**. Filter sizes and windows are in cells.
 Averages the values in an n x n window.
 
 *Reference*: a standard moving-average filter, with no single primary reference.
-*In SGTool*: original code. No-data cells are left out of each average (normalised convolution: the sum of the valid values divided by their number), and the edges are reflected.
+*In SGTool*: original code. No-data cells are left out of each average (normalised convolution: the sum of the valid values divided by their number), and the edges are reflected. No-data cells stay no-data: the grid does not grow into its null areas.
 
 **Example: mean, 9 x 9** (zoomed).
 
@@ -654,7 +654,7 @@ Averages the values in an n x n window.
 The median of the values in an n x n window. Removes spikes and keeps edges.
 
 *Reference*: Tukey (1977).
-*In SGTool*: original code. No-data cells are left out of each median, and cells beyond the edges count as no data.
+*In SGTool*: original code. No-data cells are left out of each median, and cells beyond the edges count as no data. No-data cells stay no-data.
 
 **Example: median, 9 x 9** (zoomed). Edges stay sharper than with the mean.
 
@@ -665,7 +665,7 @@ The median of the values in an n x n window. Removes spikes and keeps edges.
 Smooths with a Gaussian of the given standard deviation (sigma, in cells).
 
 *Reference*: a standard smoothing kernel, with no single primary reference.
-*In SGTool*: original code. The kernel is cut off at about 2 standard deviations (2⌈2σ⌉+1 cells across), normalised to sum to 1, and applied as a normalised convolution that leaves no-data cells out.
+*In SGTool*: original code. The kernel is cut off at about 2 standard deviations (2⌈2σ⌉+1 cells across), normalised to sum to 1, and applied as a normalised convolution that leaves no-data cells out. No-data cells stay no-data.
 
 **Example: Gaussian, sigma 3** (zoomed).
 
@@ -676,7 +676,7 @@ Smooths with a Gaussian of the given standard deviation (sigma, in cells).
 A compass-gradient filter that enhances edges facing the chosen direction (NE, N, NW, W, SW, S, SE, E).
 
 *Reference*: the 3 x 3 compass gradient kernels of Prewitt (1970).
-*In SGTool*: original code. For a kernel size n larger than 3, the 3 x 3 kernel is padded with zeros, so the result is the same as with n = 3.
+*In SGTool*: original code. For a kernel size n larger than 3, the 3 x 3 kernel is padded with zeros, so the result is the same as with n = 3. No-data cells are filled from the nearest data for the calculation and are no-data in the result, so the cells next to them keep a value.
 
 **Example: directional, NE** (zoomed).
 
@@ -687,7 +687,7 @@ A compass-gradient filter that enhances edges facing the chosen direction (NE, N
 Relief shading of a digital elevation model or any other grid, lit from the sun's **Azimuth** (degrees clockwise from north) at **Zenith** degrees above the horizon. Features perpendicular to the azimuth are enhanced most.
 
 *Reference*: Horn (1981).
-*In SGTool*: with **relief** ticked, a vectorised Python translation of the GRASS GIS `r.relief` module (GRASS Development Team), with 3 x 3 Sobel-type gradients; otherwise original code that shades the surface normal from central differences with a Lambertian light source. For a geographic grid the cell size is converted roughly to metres.
+*In SGTool*: with **relief** ticked, a vectorised Python translation of the GRASS GIS `r.relief` module (GRASS Development Team), with 3 x 3 Sobel-type gradients; otherwise original code that shades the surface normal from central differences with a Lambertian light source. For a geographic grid the cell size is converted roughly to metres. No-data cells are filled from the nearest data for the calculation and are no-data in the result, so the cells next to them are shaded too.
 
 **Example: sun shading, azimuth 45, zenith 45, relief.**
 

@@ -535,9 +535,11 @@ class SGTool:
         )
         d = self.dlg
         surface_tip = self.tr(
-            "Height: a constant height (m above sea level), e.g. a barometric survey's altitude\n"
-            "Height grid: a grid of heights (m above sea level), e.g. the GPS altitude of a draped survey\n"
-            "Clearance over DEM: a DEM (m above sea level) plus the clearance given (m)"
+            "Baro (constant height): a constant height above sea level (m), e.g. a barometric survey's altitude\n"
+            "Drape (height grid): a grid of heights above sea level (m), e.g. the GPS altitude of a draped survey\n"
+            "Drape (DEM + clearance): a DEM (m above sea level) plus the clearance given (m)\n"
+            "E.g. Observed = Drape, Output = Baro levels a draped survey to a constant height;\n"
+            "Observed = Baro, Output = Drape (DEM + clearance) drapes a barometric survey over the topography"
         )
         for key, what in (("obs", "the data were measured on"), ("out", "to continue the data onto")):
             getattr(d, f"comboBox_VC_{key}_mode").setToolTip(

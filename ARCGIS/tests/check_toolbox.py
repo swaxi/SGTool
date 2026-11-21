@@ -264,8 +264,8 @@ for cls_, cat in ((mod.NSTDFilter, "Edge Detectors"), (mod.KuwaharaFilter, "Doma
 # variable continuation: a constant 600 m observation height draped onto the DEM above + 80 m
 outv = os.path.join(DATA, "t_VC.tif")
 m = run(mod.VariableContinuation, {"in_raster": src, "out_raster": outv,
-                                   "obs_surface": "Height", "obs_value": 600.0,
-                                   "out_surface": "Clearance over DEM", "out_grid": dem,
+                                   "obs_surface": "Baro (constant height)", "obs_value": 600.0,
+                                   "out_surface": "Drape (DEM + clearance)", "out_grid": dem,
                                    "out_value": 80.0})
 check("the variable continuation tool writes its output", os.path.exists(outv), m.lines)
 rv = sm.read_sgt_metadata(outv)
@@ -274,8 +274,8 @@ check("... and records its surfaces", rv is not None
       and rv.findtext("operation") == "Variable continuation (Taylor series)"
       and pv_.get("output") == "dem.tif + 80 m" and pv_.get("observed") == "600 m", pv_)
 m = run(mod.VariableContinuation, {"in_raster": src, "out_raster": os.path.join(DATA, "t_VC2.tif"),
-                                   "obs_surface": "Clearance over DEM", "obs_grid": dem,
-                                   "obs_value": 80.0, "out_surface": "Height", "out_value": 50.0})
+                                   "obs_surface": "Drape (DEM + clearance)", "obs_grid": dem,
+                                   "obs_value": 80.0, "out_surface": "Height", "out_value": 50.0})  # an old label, still understood
 check("... and warns when the output height is below the topography",
       any("below the topography" in line for line in m.lines), m.lines)
 check("VariableContinuation is in the FFT Filters toolset",

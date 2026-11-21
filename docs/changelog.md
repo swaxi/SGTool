@@ -5,6 +5,7 @@
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
 ## 0.4.4
+      * [Performance] Variable continuation: the continuation factors, level weights and gap filling are worked out once rather than every iteration (2-2.5x faster, same results)
       * [Performance] FFT filters, low-latitude RTP and Euler deconvolution use real FFTs on all cores, padded with scipy.fft.next_fast_len (1.5-2x faster for whole filters on large grids, ~4x for Euler's derivatives, same results); the power spectra use multithreaded SciPy FFTs
       * [New Feature] ArcGIS Pro: variable continuation (GUI and a new Variable Continuation toolbox tool), Ctrl+click help, and the preview kept when changing tab, as in QGIS; the FFT filter changes apply there too (shared calculation code)
       * [GUI Modification] Live preview: changing tab no longer unticks the previewed filter or removes its image; the preview moves to the new tab only when a filter is ticked there, and ends when Preview is unticked; meanwhile Apply Preview and Apply to Window on the new tab act on the previewed filter

@@ -599,17 +599,18 @@ class VariableContinuation(_RasterTool):
                    "(Cordell & Grauch 1985). E.g. a draped survey to a constant height above sea "
                    "level, or a barometric survey to a constant clearance above the topography.")
 
-    SURFACES = ["Height", "Height grid", "Clearance over DEM"]
-
     def getParameterInfo(self):
+        from calcs.TaylorContinuation import SURFACE_LABELS
+
         params = [
             self._param("in_raster",  "Input Raster"),
             self._out ("out_raster",  "Output Raster"),
         ]
         for key, label in (("obs", "Observed"), ("out", "Output")):
-            mode = self._param(f"{key}_surface", f"{label} Surface", "GPString", default="Height")
+            mode = self._param(f"{key}_surface", f"{label} Surface", "GPString",
+                               default=SURFACE_LABELS[0])
             mode.filter.type = "ValueList"
-            mode.filter.list = self.SURFACES
+            mode.filter.list = list(SURFACE_LABELS)
             params += [
                 mode,
                 self._param(f"{key}_grid", f"{label} Height Grid or DEM", required=False),
@@ -626,18 +627,28 @@ class VariableContinuation(_RasterTool):
     # parameters: 0 input, 1 output, 2-4 observed (surface, grid, value),
     # 5-7 output (surface, grid, value), 8 smoothing, 9 terms
 
+    @staticmethod
+    def _mode(parameter):
+        """'height', 'grid' or 'clearance' for a surface parameter."""
+        from calcs.TaylorContinuation import surface_mode, TaylorContinuationError
+
+        try:
+            return surface_mode(parameter.valueAsText or "height")
+        except TaylorContinuationError:
+            return "height"
+
     def updateParameters(self, parameters):
         for i in (2, 5):
-            surface = parameters[i].valueAsText or "Height"
-            parameters[i + 1].enabled = surface != "Height"  # a grid or a DEM
-            parameters[i + 2].enabled = surface != "Height grid"  # a height or a clearance
+            mode = self._mode(parameters[i])
+            parameters[i + 1].enabled = mode != "height"  # a grid or a DEM
+            parameters[i + 2].enabled = mode != "grid"  # a height or a clearance
 
     def updateMessages(self, parameters):
         for i in (2, 5):
-            surface = parameters[i].valueAsText or "Height"
-            if surface != "Height" and not parameters[i + 1].valueAsText:
+            mode = self._mode(parameters[i])
+            if mode != "height" and not parameters[i + 1].valueAsText:
                 parameters[i + 1].setErrorMessage(
-                    "Choose the " + ("height grid" if surface == "Height grid" else "DEM"))
+                    "Choose the " + ("height grid" if mode == "grid" else "DEM"))
 
     def execute(self, parameters, messages):
         from calcs import TaylorContinuation as T
@@ -649,7 +660,7 @@ class VariableContinuation(_RasterTool):
         frame = north_up_frame(in_r)
         surfaces = []
         for i in (2, 5):
-            mode = T.surface_mode(parameters[i].valueAsText or "Height")
+            mode = T.surface_mode(parameters[i].valueAsText or "height")
             grid_path = _describe_path(parameters[i + 1].valueAsText) if (
                 mode != "height" and parameters[i + 1].valueAsText) else None
             value = float(parameters[i + 2].value or 0.0)

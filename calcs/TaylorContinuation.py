@@ -104,23 +104,23 @@ class _Spectral:
         self.window = np.outer(taper(ny, self.full[0]), taper(nx, self.full[1]))
 
     def transform(self, f):
-        from scipy.fft import rfft2
-
         if self.check is not None:
             self.check()
         p = self.pad
         g = np.pad(f, p, mode="reflect") if p else f
         buf = np.zeros(self.full)
         buf[: g.shape[0], : g.shape[1]] = g
-        return rfft2(buf * self.window, workers=-1)
+        from scipy.fft import rfft2
+
+        return rfft2(buf * self.window, workers=-1)  # real transform, all cores
 
     def inverse(self, F):
-        from scipy.fft import irfft2
-
         if self.check is not None:
             self.check()
         p = self.pad
         ny, nx = self.shape
+        from scipy.fft import irfft2
+
         return irfft2(F, s=self.full, workers=-1)[p : p + ny, p : p + nx]
 
 
@@ -195,21 +195,35 @@ class _Upward:
             n = MAX_LEVELS
         self.heights = step * np.arange(n)
         t = np.clip(dz, 0.0, None) / step
-        self.i0 = np.clip(np.floor(t).astype(int) - 1, 0, n - 4)
-        self.w = _lagrange4(t - self.i0)  # (4, rows, cols)
+        i0 = np.clip(np.floor(t).astype(int) - 1, 0, n - 4).ravel()
+        w = _lagrange4(t - i0.reshape(t.shape)).reshape(4, -1)
+        # each level's cells and weights, worked out once (they do not change
+        # from one iteration to the next)
+        self.levels = []
+        for level in range(n):
+            j = level - i0
+            cells = np.nonzero((j >= 0) & (j < 4))[0]
+            if cells.size:
+                self.levels.append((level, cells, w[j[cells], cells]))
+        # levels are evenly spaced: each one's continuation factor is the
+        # previous one's times exp(-k step), a multiply instead of an exp
+        self.step_up = np.exp(-spec.k * step)
 
     def forward(self, f0):
         F = self.spec.transform(f0)
-        out = np.zeros_like(f0)
-        for level, h in enumerate(self.heights):
-            j = level - self.i0
-            use = (j >= 0) & (j < 4)
-            if not use.any():
-                continue
-            fl = f0 if h == 0 else self.spec.inverse(F * np.exp(-self.spec.k * h))
-            w = np.take_along_axis(self.w, np.clip(j, 0, 3)[None], 0)[0]
-            out[use] += w[use] * fl[use]
-        return out
+        f0_flat = f0.ravel()
+        out = np.zeros(f0.size)
+        G, at = F, 0  # G: the spectrum continued to level `at`
+        for level, cells, weights in self.levels:
+            if level == 0:
+                fl = f0_flat
+            else:
+                while at < level:
+                    G = G * self.step_up
+                    at += 1
+                fl = self.spec.inverse(G).ravel()
+            out[cells] += weights * fl[cells]
+        return out.reshape(f0.shape)
 
 
 def _flatten(g, valid, series, max_iterations, tolerance, progress):
@@ -218,6 +232,13 @@ def _flatten(g, valid, series, max_iterations, tolerance, progress):
     diverged)."""
     f = g.copy()
     best, best_misfit, worse, it = f, np.inf, 0, 0
+    # the gap cells' nearest data cells, found once (the gaps do not change)
+    nearest = None
+    if not valid.all():
+        from scipy.ndimage import distance_transform_edt
+
+        nearest = tuple(distance_transform_edt(
+            ~valid, return_distances=False, return_indices=True))
     for it in range(1, int(max_iterations) + 1):
         r = g - series.forward(f)
         misfit = float(np.sqrt(np.mean(r[valid] ** 2)))
@@ -235,7 +256,7 @@ def _flatten(g, valid, series, max_iterations, tolerance, progress):
             break
         # gap cells follow the correction of the nearest data, rather than
         # being fitted to the filled values as if they were data
-        f = f + (r if valid.all() else _fill_nearest(np.where(valid, r, np.nan)))
+        f = f + (r if nearest is None else r[nearest])
     # stopped getting better well short of the tolerance: diverging
     diverged = best_misfit > max(10 * tolerance, 0.01)
     return best, it, best_misfit, diverged
@@ -381,7 +402,9 @@ def variable_continuation(
 # The QGIS dialog, the ArcGIS Pro GUI and the ArcGIS Pro toolbox describe each
 # surface the same way: a mode, a grid (for "grid" and "clearance") and a value.
 SURFACE_MODES = ("height", "grid", "clearance")
-SURFACE_LABELS = ("Height", "Height grid", "Clearance over DEM")
+SURFACE_LABELS = ("Baro (constant height)", "Drape (height grid)", "Drape (DEM + clearance)")
+# the labels used before, still understood (e.g. in saved toolbox scripts)
+OLD_SURFACE_LABELS = ("Height", "Height grid", "Clearance over DEM")
 
 
 def surface_mode(label_or_mode):
@@ -389,10 +412,10 @@ def surface_mode(label_or_mode):
     text = str(label_or_mode).strip()
     if text in SURFACE_MODES:
         return text
-    try:
-        return SURFACE_MODES[SURFACE_LABELS.index(text)]
-    except ValueError:
-        raise TaylorContinuationError(f"Unknown surface type: {text}")
+    for labels in (SURFACE_LABELS, OLD_SURFACE_LABELS):
+        if text in labels:
+            return SURFACE_MODES[labels.index(text)]
+    raise TaylorContinuationError(f"Unknown surface type: {text}")
 
 
 def surface_heights(mode, grid, value):

@@ -107,9 +107,13 @@ TOOLS = {
         summary="Continue a grid from the surface it was measured on to another surface, either of "
                 "them uneven (Cordell & Grauch 1985): e.g. a draped survey to a constant height above "
                 "sea level, or a barometric survey to a constant clearance above the topography.",
-        usage=["Each surface is a constant Height (m above sea level), a Height grid (m above sea "
-               "level, e.g. a draped survey's GPS altitude) or a Clearance over DEM (a DEM plus the "
-               "clearance given). Height grids and DEMs are resampled onto the input grid.",
+        usage=["Each surface is Baro (constant height): a constant height above sea level, as a "
+               "barometric survey; Drape (height grid): a grid of heights above sea level, e.g. a "
+               "draped survey's GPS altitude; or Drape (DEM + clearance): a DEM plus the clearance "
+               "given. Height grids and DEMs are resampled onto the input grid.",
+               "Observed = Drape, Output = Baro levels a draped survey to a constant height; "
+               "Observed = Baro, Output = Drape (DEM + clearance) drapes a barometric survey over "
+               "the topography.",
                "Uneven data are flattened onto the level of their lowest point by an iteration that "
                "needs no damping, continued to the mean height of the output surface, then draped "
                "onto an uneven output surface by Taylor series. Only downward continuation is "
@@ -118,15 +122,15 @@ TOOLS = {
                "the topography (when a DEM is given), or a clearance is negative.",
                "The same calculation as the SGTool QGIS plugin's Continuation, direction variable."],
         params={
-            "obs_surface": "The surface the data were measured on: Height, Height grid or "
-                           "Clearance over DEM.",
-            "obs_grid": "Height grid or DEM of the observed surface (m above sea level), for Height "
-                        "grid and Clearance over DEM.",
+            "obs_surface": "The surface the data were measured on: Baro (constant height), "
+                           "Drape (height grid) or Drape (DEM + clearance).",
+            "obs_grid": "Height grid or DEM of the observed surface (m above sea level), for the "
+                        "two kinds of drape.",
             "obs_value": "Constant height above sea level (m), or the clearance above the DEM (m).",
-            "out_surface": "The surface to continue the data onto: Height, Height grid or "
-                           "Clearance over DEM.",
-            "out_grid": "Height grid or DEM of the output surface (m above sea level), for Height "
-                        "grid and Clearance over DEM.",
+            "out_surface": "The surface to continue the data onto: Baro (constant height), "
+                           "Drape (height grid) or Drape (DEM + clearance).",
+            "out_grid": "Height grid or DEM of the output surface (m above sea level), for the "
+                        "two kinds of drape.",
             "out_value": "Constant height above sea level (m), or the clearance above the DEM (m).",
             "smoothing": "Wavelength (m) below which downward continuation and the draping series "
                          "are damped. 0 = automatic: pi x the output surface's relief, and enough to "

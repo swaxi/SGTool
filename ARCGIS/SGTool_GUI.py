@@ -3412,9 +3412,11 @@ class SGToolApp(tk.Tk):
         f = tk.Frame(parent, bg=BG)
         self._vc_frame, self._vc_after = f, after
         self._vc_combos = []
-        surface_tip = ("Height: a constant height (m above sea level), e.g. a barometric survey's altitude\n"
-                       "Height grid: a grid of heights (m above sea level), e.g. the GPS altitude of a draped survey\n"
-                       "Clearance over DEM: a DEM (m above sea level) plus the clearance given (m)")
+        surface_tip = ("Baro (constant height): a constant height above sea level (m), e.g. a barometric survey's altitude\n"
+                       "Drape (height grid): a grid of heights above sea level (m), e.g. the GPS altitude of a draped survey\n"
+                       "Drape (DEM + clearance): a DEM (m above sea level) plus the clearance given (m)\n"
+                       "E.g. Observed = Drape, Output = Baro levels a draped survey to a constant height;\n"
+                       "Observed = Baro, Output = Drape (DEM + clearance) drapes a barometric survey over the topography")
         for key, label, what in (("obs", "Observed", "the data were measured on"),
                                  ("out", "Output", "to continue the data onto")):
             r = tk.Frame(f, bg=BG); r.pack(fill="x", padx=(28, 4), pady=1)
@@ -3425,7 +3427,7 @@ class SGToolApp(tk.Tk):
             setattr(self, f"v_vc_{key}_grid", grid)
             setattr(self, f"v_vc_{key}_value", value)
             lbl(r, label, width=8, anchor="w").pack(side="left")
-            tip(combo(r, list(SURFACE_LABELS), mode, w=17, chk_var=self.v_cont),
+            tip(combo(r, list(SURFACE_LABELS), mode, w=22, chk_var=self.v_cont),
                 f"The surface {what}.\n" + surface_tip).pack(side="left", padx=2)
             gc = ttk.Combobox(r, textvariable=grid, values=list(self._layer_map), width=26, font=FONT)
             tip(gc, "Height grid or DEM (m above sea level), resampled onto the input grid")
@@ -3439,7 +3441,7 @@ class SGToolApp(tk.Tk):
                 m = mode.get()
                 for w in (gc, gb, ve, unit):
                     w.pack_forget()
-                if m != SURFACE_LABELS[0]:  # a grid for "Height grid" and "Clearance"
+                if m != SURFACE_LABELS[0]:  # a grid for both kinds of drape
                     gc.pack(side="left", padx=2)
                     gb.pack(side="left", padx=2)
                 if m != SURFACE_LABELS[1]:  # a height, or the clearance

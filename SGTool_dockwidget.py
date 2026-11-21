@@ -556,7 +556,9 @@ class SGToolDockWidget(QDockWidget):
             lbl = QLabel(label)
             labels.append(lbl)
             mode = QComboBox()
-            mode.addItems([_tr("Height"), _tr("Height grid"), _tr("Clearance over DEM")])
+            # the order of TaylorContinuation.SURFACE_MODES: height, grid, clearance
+            mode.addItems([_tr("Baro (constant height)"), _tr("Drape (height grid)"),
+                           _tr("Drape (DEM + clearance)")])
             mode.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
             mode.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             layer = QgsMapLayerComboBox()
@@ -580,7 +582,7 @@ class SGToolDockWidget(QDockWidget):
             setattr(self, f"label_VC_{key}_unit", unit)
 
             def show(index, layer=layer, value_edit=value_edit, unit=unit):
-                layer.setVisible(index != 0)  # a grid for "Height grid" and "Clearance"
+                layer.setVisible(index != 0)  # a grid for both kinds of drape
                 value_edit.setVisible(index != 1)  # a height, or the clearance
                 unit.setVisible(index != 1)
 

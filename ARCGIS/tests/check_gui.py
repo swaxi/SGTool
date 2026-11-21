@@ -830,8 +830,8 @@ app.v_input.set(pv)
 app.v_cont.set(True); app.v_cont_dir.set("variable"); app.update()
 check("variable continuation shows the surfaces and hides the single height",
       app._vc_frame.winfo_manager() == "pack" and not app._cont_h_entry.winfo_manager())
-app.v_vc_obs_mode.set("Height"); app.v_vc_obs_value.set("600")
-app.v_vc_out_mode.set("Clearance over DEM"); app.v_vc_out_grid.set(dem_path); app.v_vc_out_value.set("80")
+app.v_vc_obs_mode.set("Baro (constant height)"); app.v_vc_obs_value.set("600")
+app.v_vc_out_mode.set("Drape (DEM + clearance)"); app.v_vc_out_grid.set(dem_path); app.v_vc_out_value.set("80")
 before = set(os.listdir(DATA))
 app._do_apply_fft(pv); pump(0.3)
 new = sorted(f for f in set(os.listdir(DATA)) - before if "_VC" in f and f.endswith(".tif"))
@@ -852,8 +852,8 @@ check("the preview runs variable continuation on its window",
 warns = []
 _showwarning = G.messagebox.showwarning
 G.messagebox.showwarning = lambda title, msg, **k: warns.append(msg)
-app.v_vc_obs_mode.set("Clearance over DEM"); app.v_vc_obs_grid.set(dem_path); app.v_vc_obs_value.set("80")
-app.v_vc_out_mode.set("Height"); app.v_vc_out_value.set("100")  # below the hills
+app.v_vc_obs_mode.set("Drape (DEM + clearance)"); app.v_vc_obs_grid.set(dem_path); app.v_vc_obs_value.set("80")
+app.v_vc_out_mode.set("Baro (constant height)"); app.v_vc_out_value.set("100")  # below the hills
 app.v_cont.set(True)
 app._do_apply_fft(pv); pump(0.5)
 G.messagebox.showwarning = _showwarning

@@ -279,12 +279,12 @@ Direction **variable** continues the data from the surface they were measured on
 
 | Setting | Default | Meaning |
 |---|---|---|
-| **Observed** | Height, 100 m | The surface the data were measured on: **Height**, a constant height above sea level (e.g. a barometric survey); **Height grid**, a grid of heights above sea level (e.g. the GPS altitude of a draped survey); **Clearance over DEM**, a DEM plus the clearance given |
-| **Output** | Height, 100 m | The surface to continue onto, chosen the same way |
+| **Observed** | Baro (constant height), 100 m | The surface the data were measured on: **Baro (constant height)**, a constant height above sea level, as a barometric survey; **Drape (height grid)**, a grid of heights above sea level (e.g. the GPS altitude of a draped survey); **Drape (DEM + clearance)**, a DEM plus the clearance given |
+| **Output** | Baro (constant height), 100 m | The surface to continue onto, chosen the same way |
 | **Smoothing (m)** | auto | Wavelength below which downward continuation and the draping series are damped (see below) |
 | **Terms** | 6 | Number of terms (vertical derivatives) in the Taylor series that drapes onto an uneven output surface |
 
-Height grids and DEMs are resampled onto the grid. Typical uses: a draped survey continued to a constant height above sea level (Observed = Height grid or Clearance over DEM, Output = Height), or a barometric survey continued to a constant clearance above the topography (Observed = Height, Output = Clearance over DEM). Output `_VC`.
+Height grids and DEMs are resampled onto the grid. Typical uses: **Drape → Baro**, a draped survey levelled to a constant height above sea level (Observed = either Drape, Output = Baro), and **Baro → Drape**, a barometric survey continued to a constant clearance above the topography (Observed = Baro, Output = Drape (DEM + clearance)). Drape → Drape changes the clearance of a draped survey. The ArcGIS Pro toolbox still accepts the earlier names (Height, Height grid, Clearance over DEM). Output `_VC`.
 
 **Nulls and edges**: cells with no data, or no observed or output height, are null in the result. For the calculation, gaps are filled from the nearest data, and the regional plane is removed (and added back after), fitted as for the other FFT filters (see the FFT filters notes above). Real heights from the height grid or DEM are used in the gaps where it has them. During the flattening, gap cells follow the correction of the nearest data instead of being fitted as if they were data. The grid is mirror-padded by a quarter of its longer side (16 to 512 cells), tapered to zero; tests showed no gain from more padding. On a synthetic survey covering 57 % of its grid, with a hole, the error inside the survey was about 2.4 % of the anomaly RMS, against 1.1 % for complete data and 7.3 % before these changes.
 

@@ -4731,8 +4731,9 @@ class SGToolApp(tk.Tk):
         try:
             arr, _, ll_x, ll_y, cx, cy, sr = raster_to_numpy(in_r)
             filled, _ = make_processor(cx, cy, 10).fill_nan(arr)
-            fft2   = np.fft.fft2(filled)
-            power  = np.abs(np.fft.fftshift(fft2))**2
+            from scipy.fft import fft2 as _fft2, fftshift as _fftshift
+            spec   = _fft2(filled, workers=-1)  # the full spectrum, on all cores
+            power  = np.abs(_fftshift(spec))**2
             nr, nc = power.shape
             yr, xr = np.indices(power.shape)
             r      = np.sqrt((xr - nc//2)**2 + (yr - nr//2)**2).astype(int)

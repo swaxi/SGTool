@@ -110,7 +110,10 @@ class PowerSpectrumDock:
             The Power Density Spectra of the data
         """
         kx, ky = self._fftfreqs(x, y, shape, shape)
-        pds = abs(np.fft.fft2(np.reshape(data, shape))) ** 2
+        from scipy.fft import fft2
+
+        # the full spectrum for the radial average; all cores
+        pds = abs(fft2(np.reshape(data, shape), workers=-1)) ** 2
         return kx, ky, pds
 
     def radial_average_spectrum(self, kx, ky, pds, max_radius=None, ring_width=None):

@@ -23,6 +23,7 @@ from .worms.Utility import (
 )
 from .text_io import write_rows
 from .detrend import robust_plane
+from .fftutil import RealSpectrum, fast_len
 from .sgt_cancel import OperationCancelled
 
 
@@ -110,25 +111,8 @@ class GeophysicalProcessor:
         Returns:
             tuple: (optimal_size, left_padding, right_padding)
         """
-        # Minimum size needed with padding on both sides
-        min_size = dimension + 2 * min_padding_each_side
-
-        # Find the next size that is a product of powers of 2, 3, and 5
-        optimal_size = min_size
-
-        while True:
-            # Test if the current size is a product of powers of 2, 3, and 5 only
-            n = optimal_size
-            for p in [2, 3, 5]:
-                while n % p == 0:
-                    n //= p
-
-            # If n becomes 1, it means size was a product of powers of 2, 3, 5 only
-            if n == 1:
-                break
-
-            # Try the next size
-            optimal_size += 1
+        # the next size with no prime factors but 2, 3 and 5 (scipy.fft.next_fast_len)
+        optimal_size = fast_len(dimension + 2 * min_padding_each_side)
 
         # Calculate the padding on each side
         total_padding = optimal_size - dimension
@@ -318,7 +302,8 @@ class GeophysicalProcessor:
 
         # Apply the Fourier filter
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method
+            data, filter_function, buffer_size, buffer_method,
+            hermitian=True,
         )
 
     # --- Apparent petrophysics ---
@@ -347,7 +332,8 @@ class GeophysicalProcessor:
             return np.where(k > 0, inverse(k), 0.0)
 
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method, preserve_dc=False
+            data, filter_function, buffer_size, buffer_method, preserve_dc=False,
+            hermitian=True,
         )
 
     def apparent_susceptibility(
@@ -453,6 +439,7 @@ class GeophysicalProcessor:
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method,
             plane=self.PLANE_KEEP,
+            hermitian=True,
         )
 
     def downward_continuation(
@@ -469,6 +456,7 @@ class GeophysicalProcessor:
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method,
             plane=self.PLANE_KEEP,
+            hermitian=True,
         )
 
     def total_hz_grad(self, data, buffer_size=10, buffer_method="mirror"):
@@ -504,6 +492,7 @@ class GeophysicalProcessor:
             buffer_method,
             preserve_dc=False,
             plane=[self.PLANE_DX, self.PLANE_DY],
+            hermitian=True,
         )
 
         print("dx range:", np.nanmin(dx), np.nanmax(dx))
@@ -568,6 +557,7 @@ class GeophysicalProcessor:
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method,
             plane=self.PLANE_KEEP,
+            hermitian=True,
         )
 
     def reduction_to_equator(
@@ -584,6 +574,7 @@ class GeophysicalProcessor:
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method, mirror_pad=True,
             plane=self.PLANE_KEEP,
+            hermitian=True,
         )
 
     @staticmethod
@@ -647,8 +638,6 @@ class GeophysicalProcessor:
         (array-like, int)
             The reduced to pole data, and the number of iterations used.
         """
-        from scipy.fft import fft2, ifft2
-
         inc, dec = np.radians(inclination), np.radians(declination)
 
         def filter_function(kx, ky, m, width=0.0):
@@ -680,16 +669,12 @@ class GeophysicalProcessor:
         median, _sx, _sy = self._plane_fit(filled_data)
         buffered_data, padding_info = self._mirror_buffer(filled_data - median, buffer_size)
         self._check()
-        data_fft = fft2(buffered_data, workers=-1)
+        spectrum = RealSpectrum(buffered_data, self.dy, self.dx, flip0=True)
         self._check()
-        ny, nx = buffered_data.shape
-        kx, ky = self.create_wavenumber_grids(nx, ny)
 
         if iterations and iterations > 0:
             m = int(iterations)
-            result = np.real(ifft2(
-                data_fft * filter_function(kx, ky, m, stripe_width), workers=-1
-            ))
+            result = spectrum.apply(lambda kx, ky: filter_function(kx, ky, m, stripe_width), True)
             result = self.remove_buffer(result, buffer_size, padding_info)
             return self.restore_nan(result + median, nan_mask), m
 
@@ -703,7 +688,7 @@ class GeophysicalProcessor:
         best, best_m, best_corr = None, 0, -np.inf
         for m in self.TSI_RTP_ITERATIONS:
             self._check()
-            result = np.real(ifft2(data_fft * filter_function(kx, ky, m), workers=-1))
+            result = spectrum.apply(lambda kx, ky, m=m: filter_function(kx, ky, m), True)
             result = self.remove_buffer(result, buffer_size, padding_info)
             t = result[valid] - np.mean(result[valid])
             denom = np.sqrt(np.sum(t**2) * np.sum(a**2))
@@ -712,9 +697,9 @@ class GeophysicalProcessor:
                 best, best_m, best_corr = result, m, corr
 
         if stripe_width and stripe_width > 0:
-            best = np.real(ifft2(
-                data_fft * filter_function(kx, ky, best_m, stripe_width), workers=-1
-            ))
+            best = spectrum.apply(
+                lambda kx, ky: filter_function(kx, ky, best_m, stripe_width), True
+            )
             best = self.remove_buffer(best, buffer_size, padding_info)
 
         return self.restore_nan(best + median, nan_mask), best_m
@@ -795,6 +780,7 @@ class GeophysicalProcessor:
             buffer_method,
             preserve_dc=False,
             plane=[self._derivative_plane(d, order) for d in directions],
+            hermitian=[d == "z" or float(order).is_integer() for d in directions],
         )
 
     def tilt_angle(self, data, buffer_size=10, buffer_method="mirror"):
@@ -925,6 +911,7 @@ class GeophysicalProcessor:
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method,
             plane=self.PLANE_KEEP,
+            hermitian=True,
         )
 
     def low_pass_filterx(
@@ -942,6 +929,7 @@ class GeophysicalProcessor:
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method,
             plane=self.PLANE_KEEP,
+            hermitian=True,
         )
 
     def high_pass_filter(
@@ -1011,6 +999,7 @@ class GeophysicalProcessor:
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method,
             plane=self.PLANE_LEVEL,
+            hermitian=True,
         )
 
     def high_pass_filterx(
@@ -1028,6 +1017,7 @@ class GeophysicalProcessor:
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method,
             plane=self.PLANE_LEVEL,
+            hermitian=True,
         )
 
     def band_pass_filterx(
@@ -1050,6 +1040,7 @@ class GeophysicalProcessor:
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method,
             plane=self.PLANE_LEVEL,
+            hermitian=True,
         )
 
     def band_pass_filter(
@@ -1171,6 +1162,7 @@ class GeophysicalProcessor:
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method,
             plane=self.PLANE_LEVEL,
+            hermitian=True,
         )
 
     def butterworth_band_pass(
@@ -1225,6 +1217,7 @@ class GeophysicalProcessor:
         return self._apply_fourier_filter(
             data, filter_function, buffer_size, buffer_method,
             plane=self.PLANE_LEVEL,
+            hermitian=True,
         )
 
     def directional_butterworth_band_pass(
@@ -1327,7 +1320,8 @@ class GeophysicalProcessor:
             return combined_filter
 
         return self._apply_fourier_filter(
-            data, filter_function, buffer_size, buffer_method, preserve_dc=preserve_dc
+            data, filter_function, buffer_size, buffer_method, preserve_dc=preserve_dc,
+            hermitian=True,
         )
 
     def line_noise_removal(
@@ -1427,6 +1421,7 @@ class GeophysicalProcessor:
         preserve_dc=True,
         mirror_pad=False,
         plane=None,
+        hermitian=False,
     ):
         """
         Apply a Fourier-domain filter with buffering and NaN handling.
@@ -1439,7 +1434,7 @@ class GeophysicalProcessor:
         """
         return self._apply_fourier_filters(
             data, [filter_function], buffer_size, buffer_method, preserve_dc,
-            mirror_pad, None if plane is None else [plane],
+            mirror_pad, None if plane is None else [plane], hermitian,
         )[0]
 
     # What a filter makes of the plane removed before it (see _plane_fit), as
@@ -1468,6 +1463,7 @@ class GeophysicalProcessor:
         preserve_dc=True,
         mirror_pad=False,
         plane=None,
+        hermitian=False,
     ):
         """
         Apply several Fourier-domain filters to the same grid, sharing the NaN
@@ -1478,9 +1474,11 @@ class GeophysicalProcessor:
         preserve_dc); otherwise a plane fitted to the gap-filled grid is
         removed, and plane[i] (one of the PLANE_* weights) says what filter i
         makes of it, to add to its result.
-        """
-        from scipy.fft import fft2, ifft2
 
+        hermitian: True (or one bool per filter) for filters that are Hermitian
+        as functions, H(-k) = conj(H(k)), which saves evaluating them twice
+        (see fftutil.RealSpectrum.response); the result is the same either way.
+        """
         median = np.nanmedian(data)
 
         # inpaint NaN values
@@ -1502,24 +1500,17 @@ class GeophysicalProcessor:
                 centered_data, buffer_size, buffer_method
             )
 
-        # Fourier transform
+        # Fourier transform: real transforms on all cores (see fftutil); the
+        # filters get the wavenumbers of create_wavenumber_grids (y positive north)
         self._check()
-        data_fft = fft2(buffered_data, workers=-1)
+        spectrum = RealSpectrum(buffered_data, self.dy, self.dx, flip0=True)
 
-        ny, nx = buffered_data.shape
-        kx, ky = self.create_wavenumber_grids(nx, ny)
-
+        if isinstance(hermitian, bool):
+            hermitian = [hermitian] * len(filter_functions)
         results = []
         for i, filter_function in enumerate(filter_functions):
             self._check()
-            # Compute filter
-            filter_array = filter_function(kx, ky)
-
-            # Apply filter
-            filtered_fft = data_fft * filter_array
-
-            # Inverse transform
-            filtered_data = np.real(ifft2(filtered_fft, workers=-1))
+            filtered_data = spectrum.apply(filter_function, hermitian[i])
 
             # Remove buffer
             unbuffered_data = self.remove_buffer(

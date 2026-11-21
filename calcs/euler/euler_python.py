@@ -46,7 +46,9 @@ def fft_pad_data(data, mode="edge"):
 
     mask = np.zeros_like(padded_data, dtype=bool)
     mask[padx : padx + nx, pady : pady + ny] = True
-    fpdat = np.fft.fft2(padded_data)
+    from scipy.fft import fft2
+
+    fpdat = fft2(padded_data, workers=-1)  # all cores
     return fpdat, mask
 
 
@@ -71,7 +73,9 @@ def ifft_unpad_data(data_p, mask, shape_dat):
     * data: 2d-array
         The unpadded data in space-domain.
     """
-    ifft_data = np.real(np.fft.ifft2(data_p))
+    from scipy.fft import ifft2
+
+    ifft_data = np.real(ifft2(data_p, workers=-1))  # all cores
     data = ifft_data[mask]
     return np.reshape(data, shape_dat)
 
@@ -123,22 +127,31 @@ def deriv(data, shape, area):
         derivatives in x-, y- and z-directions
     """
 
-    anom_FFT, mask = fft_pad_data(data)
+    try:
+        from ..fftutil import RealSpectrum
+    except ImportError:  # calcs on the path as top-level modules
+        from fftutil import RealSpectrum
+
+    # padded as fft_pad_data pads, then real transforms on all cores (fftutil)
+    n_points = int(2 ** (np.ceil(np.log(np.max(data.shape)) / np.log(2))))
+    nx0, ny0 = data.shape
+    padx, pady = (n_points - nx0) // 2, (n_points - ny0) // 2
+    padded = np.pad(data, ((padx, padx), (pady, pady)), "edge")
 
     nx, ny = shape
     xa, xb, ya, yb = area
     xs = np.linspace(xa, xb, nx)
     ys = np.linspace(ya, yb, ny)
     Y, X = np.meshgrid(ys, xs)
+    # spacings as fft_wavenumbers takes them: u along axis 0 with dx, v along axis 1 with dy
+    dx = (X.max() - X.min()) / (data.shape[0] - 1)
+    dy = (Y.max() - Y.min()) / (data.shape[1] - 1)
+    spectrum = RealSpectrum(padded, dx, dy)
+    window = (slice(padx, padx + nx0), slice(pady, pady + ny0))
 
-    u, v = fft_wavenumbers(X, Y, data.shape, anom_FFT.shape)
-
-    derivx_ft = anom_FFT * (u * 1j)
-    derivy_ft = anom_FFT * (v * 1j)
-    derivz_ft = anom_FFT * np.sqrt(u**2 + v**2)
-    derivx = ifft_unpad_data(derivx_ft, mask, data.shape)
-    derivy = ifft_unpad_data(derivy_ft, mask, data.shape)
-    derivz = ifft_unpad_data(derivz_ft, mask, data.shape)
+    derivx = spectrum.apply(lambda v, u: u * 1j, True)[window]  # Hermitian filters
+    derivy = spectrum.apply(lambda v, u: v * 1j, True)[window]
+    derivz = spectrum.apply(lambda v, u: np.sqrt(u**2 + v**2), True)[window]
 
     return derivx, derivy, derivz
 

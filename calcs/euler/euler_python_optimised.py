@@ -53,13 +53,17 @@ def fft_pad_data(data, mode="edge"):
     padded_data = np.pad(data, ((padx, padx), (pady, pady)), mode)
     mask = np.zeros_like(padded_data, dtype=bool)
     mask[padx : padx + nx, pady : pady + ny] = True
-    fpdat = np.fft.fft2(padded_data)
+    from scipy.fft import fft2
+
+    fpdat = fft2(padded_data, workers=-1)  # all cores
     return fpdat, mask
 
 
 def ifft_unpad_data(data_p, mask, shape_dat):
     """Optimized unpadding - unchanged from original"""
-    ifft_data = np.real(np.fft.ifft2(data_p))
+    from scipy.fft import ifft2
+
+    ifft_data = np.real(ifft2(data_p, workers=-1))  # all cores
     data = ifft_data[mask]
     return np.reshape(data, shape_dat)
 

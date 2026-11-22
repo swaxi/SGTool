@@ -221,8 +221,18 @@ class SGToolDockWidget(QDockWidget):
         scroll.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         scroll.setWidget(content_widget)
 
+        # the bar is in its wrapper before anything can show it: a parentless
+        # widget made visible opens as a window of its own (a small flash of a
+        # stray scroll bar when the plugin loaded)
+        wrapper = QWidget()
+        wrapper.setProperty("sgtScroll", True)  # _cap_tab_widths leaves it full width
+        row = QHBoxLayout(wrapper)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(0)
         inner = scroll.verticalScrollBar()
-        bar = QScrollBar(Qt.Orientation.Vertical)
+        bar = QScrollBar(Qt.Orientation.Vertical, wrapper)
+        row.addWidget(bar)
+        row.addWidget(scroll, 1)
 
         def follow_range(low, high):
             bar.setRange(low, high)
@@ -234,14 +244,6 @@ class SGToolDockWidget(QDockWidget):
         inner.valueChanged.connect(bar.setValue)
         bar.valueChanged.connect(inner.setValue)
         follow_range(inner.minimum(), inner.maximum())
-
-        wrapper = QWidget()
-        wrapper.setProperty("sgtScroll", True)  # _cap_tab_widths leaves it full width
-        row = QHBoxLayout(wrapper)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(0)
-        row.addWidget(bar)
-        row.addWidget(scroll, 1)
         return wrapper
 
     # ------------------------------------------------------------------

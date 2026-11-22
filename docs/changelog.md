@@ -5,17 +5,17 @@
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
 ## 0.4.4
-      * [Bug Fix] Convolution filters keep the grid's outline: mean, median and Gaussian no longer grow the grid into null areas, and directional and sun shading no longer blank the cells next to nulls (results elsewhere unchanged)
-      * [Performance] Variable continuation: the continuation factors, level weights and gap filling are worked out once rather than every iteration (2-2.5x faster, same results)
-      * [Performance] FFT filters, low-latitude RTP and Euler deconvolution use real FFTs on all cores, padded with scipy.fft.next_fast_len (1.5-2x faster for whole filters on large grids, ~4x for Euler's derivatives, same results); the power spectra use multithreaded SciPy FFTs
-      * [New Feature] ArcGIS Pro: variable continuation (GUI and a new Variable Continuation toolbox tool), Ctrl+click help, and the preview kept when changing tab, as in QGIS; the FFT filter changes apply there too (shared calculation code)
-      * [GUI Modification] Live preview: changing tab no longer unticks the previewed filter or removes its image; the preview moves to the new tab only when a filter is ticked there, and ends when Preview is unticked; meanwhile Apply Preview and Apply to Window on the new tab act on the previewed filter
-      * [New Feature] Ctrl+click (or Cmd+click on macOS) on a filter's tickbox or button opens its section of the SGTool reference on GitHub, without ticking the box or running the filter
-      * [Bug Fix] FFT filters: a regional plane, fitted robustly to the whole gap-filled grid, is now removed before filtering instead of the median, and each filter adds back what it makes of it (continuation, RTP / RTE and low pass the plane, high and band pass the level, first horizontal derivatives the slope). Regional gradients no longer give edge artefacts and false anomalies, and irregular surveys with gaps filter more accurately (also in the Processing algorithms and the ArcGIS Pro toolbox)
-      * [New Feature] Continuation: new direction variable continues the data between uneven surfaces (Cordell & Grauch 1985: uneven data are flattened by an undamped iteration, and draped onto an uneven output by Taylor series): the observed and output surfaces are each a constant height, a height grid or a DEM + clearance, e.g. a draped survey to a constant height above sea level, or a barometric survey to a constant clearance above the topography
-      * [GUI Modification] Multiband tab: the radiometric rows are now K, eTh, eU, the usual ternary band order, and a 3-band grid whose band names do not identify the elements fills band 2 as eTh and band 3 as eU (before, eU and eTh); the same default applies to the Processing algorithms and ArcGIS Pro toolbox tools
-      * [New Feature] Local anisotropy: new Orientation from setting; Curvature (lines) takes the orientation from the Hessian instead of the gradient, so the strike stays steady along thin lines such as NAV-Edge, NSTD or vertical-derivative lineaments (also in the Processing algorithm, replay and the ArcGIS Pro GUI)
-      * [GUI Modification] Spatial Statistics: the window size now starts at 5 (was 3), which suits skewness and kurtosis better, as in the ArcGIS Pro GUI
+      * [New Feature] Continuation: new variable direction, continuing between uneven surfaces (constant height, height grid or DEM + clearance; Cordell & Grauch 1985)
+      * [New Feature] Local anisotropy: Orientation from Curvature (lines) gives a steadier strike along thin lines such as NAV-Edge or NSTD lineaments
+      * [New Feature] Ctrl+click (Cmd+click on macOS) on a filter opens its section of the reference on GitHub
+      * [New Feature] ArcGIS Pro: variable continuation, Ctrl+click help and the preview kept across tabs
+      * [Performance] FFT filters, low-latitude RTP, Euler deconvolution and power spectra are 1.5-4x faster on large grids (real FFTs on all cores), with the same results
+      * [GUI Modification] Live preview: changing tab keeps the previewed filter and its image; ticking a filter on the new tab moves the preview there
+      * [GUI Modification] Multiband tab: the radiometric rows are in ternary order K, eTh, eU, as are the default bands of a 3-band grid
+      * [GUI Modification] Spatial Statistics: the window size starts at 5
+      * [Bug Fix] FFT filters remove a robust regional plane before filtering, not the median, so regional gradients no longer give edge artefacts
+      * [Bug Fix] Convolution filters keep the grid's outline at null areas
+      * [Bug Fix] Live preview: the map could go dark when a filter was unticked
 
 ## 0.4.3
       * [New Feature] Edge Detectors on the FFT Filters+ tab (renamed from FFT Filters): normalised standard deviation (NSTD, Cooper & Cowan 2008) and NAV-Edge (Zhang et al. 2014), whose edges are its zero crossings

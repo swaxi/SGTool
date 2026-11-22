@@ -62,7 +62,7 @@ from qgis.core import (
     QgsCoordinateTransformContext,
     QgsMapLayerType,
 )
-from qgis.gui import QgsMapToolEmitPoint
+from qgis.gui import QgsMapLayerComboBox, QgsMapToolEmitPoint
 
 from qgis.PyQt.QtCore import (
     QSettings,
@@ -398,6 +398,7 @@ class SGTool:
                 self.discardPreview()
             elif getattr(self, "preview_layer_id", None):
                 self.removePreviewLayer()
+            self._unlink_preview_file(now=True)  # no timer may outlive the plugin
         except Exception:
             logging.getLogger(__name__).debug("Ignored: ignored", exc_info=True)
 
@@ -1613,6 +1614,16 @@ class SGTool:
             if hasattr(d, name)
         ]
 
+    def _except_preview_from_combos(self, layer):
+        """Keep the preview layer (None: no preview) out of every layer
+        dropdown of the dialog: it is never an input, and a dropdown that
+        picked it up switched layer again (firing its signals) when it went."""
+        dlg = getattr(self, "dlg", None)
+        if dlg is None:
+            return
+        for combo in dlg.findChildren(QgsMapLayerComboBox):
+            combo.setExceptedLayerList([layer] if layer is not None else [])
+
     def _is_preview_layer(self, layer):
         return layer is not None and (
             layer.id() == getattr(self, "preview_layer_id", None)
@@ -2459,7 +2470,13 @@ class SGTool:
     # then has Preview ticked but waits (this is its index) until a filter is
     # ticked there, which moves the preview to it
     _preview_waiting = None
-    PREVIEW_PATH = "/vsimem/sgtool_preview.tif"
+    # each preview image is a new in-memory file (/vsimem/sgtool_preview_<n>.tif):
+    # rewriting one file in place while QGIS may still be drawing it (or holds
+    # it open) can draw the preview empty / dark
+    PREVIEW_PREFIX = "/vsimem/sgtool_preview"
+    _preview_seq = 0
+    _preview_files = None  # files written and not yet deleted (a list once used)
+    PREVIEW_UNLINK_DELAY = 5000  # ms before an old preview file is deleted
     PREVIEW_SIDE = 1000  # max cells on the longest side of the map extent previewed
 
     # (flag set by parseParams, proc method, stdClip, checkbox attribute),
@@ -2851,11 +2868,12 @@ class SGTool:
         # re-created) so no preview layer can be orphaned in the project
         ids = {self.preview_layer_id} if self.preview_layer_id else set()
         for lyr in project.mapLayers().values():
-            if lyr.source().startswith("/vsimem/sgtool_preview"):
+            if lyr.source().startswith(self.PREVIEW_PREFIX):
                 ids.add(lyr.id())
         with self._keep_selection():
             for lyr_id in ids:
                 project.removeMapLayer(lyr_id)
+        self._except_preview_from_combos(None)
         self.preview_layer_id = None
         if self._preview_tree_connected:
             try:
@@ -2875,11 +2893,39 @@ class SGTool:
         except Exception:
             logging.getLogger(__name__).debug("Ignored: ignored", exc_info=True)
 
-    def _unlink_preview_file(self):
-        try:
-            gdal.Unlink(self.PREVIEW_PATH)
-        except RuntimeError:
-            pass  # nothing there yet
+    def _new_preview_path(self):
+        """A fresh in-memory file name for the next preview image."""
+        if self._preview_files is None:
+            self._preview_files = []
+        self._preview_seq += 1
+        path = f"{self.PREVIEW_PREFIX}_{self._preview_seq}.tif"
+        self._preview_files.append(path)
+        return path
+
+    def _unlink_preview_file(self, now=False):
+        """Delete the preview files the preview layer no longer shows. Not at
+        once (unless `now`): a map redraw already under way may still be
+        reading the old file, and finding it gone draws the map dark."""
+        if not self._preview_files:
+            return
+
+        def drop():
+            layer = self._preview_layer()
+            shown = layer.source() if layer is not None else None
+            for path in list(self._preview_files or []):
+                if path == shown:
+                    continue
+                for name in (path, path + ".aux.xml"):  # QGIS writes the statistics beside it
+                    try:
+                        gdal.Unlink(name)
+                    except RuntimeError:
+                        pass  # already gone / never written
+                self._preview_files.remove(path)
+
+        if now:
+            drop()
+        else:
+            QTimer.singleShot(self.PREVIEW_UNLINK_DELAY, drop)
 
     def _read_preview_array(self, layer, max_side):
         """Read band 1 for the preview as a north-up float array plus geotransform.
@@ -2986,6 +3032,14 @@ class SGTool:
             if task.superseded:
                 return  # a newer view, Cancel or preview off took over
             self._flush_messages(messages)
+            if self._preview_tab == tab and ok:
+                current = self._preview_entry(tab)
+                if current is None or current[0] != entry[0]:
+                    # the filter was unticked (or another ticked) while this
+                    # was calculating: don't draw it, show what is ticked now
+                    self.schedulePreview()
+                    self._run_pending_preview()
+                    return
             if self._preview_tab == tab:
                 if ok:
                     grid, suffix = task.result
@@ -3050,7 +3104,10 @@ class SGTool:
             QTimer.singleShot(0, self._run_pending_preview)
 
     _last_preview_task = None  # the latest preview task (it may have been abandoned)
-    _preview_waiting = False  # a check for the abandoned calculation is scheduled
+    # a check for the abandoned calculation is scheduled (not _preview_waiting,
+    # which is the tab waiting for the preview: sharing it made False / True
+    # stand for tabs 0 / 1)
+    _preview_recheck = False
 
     def _preview_calc_running(self):
         """True while the latest preview's calculation is still running, also
@@ -3061,12 +3118,12 @@ class SGTool:
     def _wait_for_preview_calc(self):
         """Check again shortly; once the abandoned calculation has stopped,
         draw the preview that waited for it."""
-        if self._preview_waiting:
+        if self._preview_recheck:
             return
-        self._preview_waiting = True
+        self._preview_recheck = True
 
         def again():
-            self._preview_waiting = False
+            self._preview_recheck = False
             if self._preview_calc_running():
                 self._wait_for_preview_calc()
             elif self._preview_pending and self._task is None:
@@ -3166,9 +3223,9 @@ class SGTool:
             # grey / RGB / styled: the renderer (and opacity) can't simply
             # switch over, so start with a fresh layer
             self.removePreviewLayer()
-        self._unlink_preview_file()
+        path = self._new_preview_path()
         ds = gdal.GetDriverByName("GTiff").Create(
-            self.PREVIEW_PATH, cols, rows, nbands, gdal.GDT_Float32
+            path, cols, rows, nbands, gdal.GDT_Float32
         )
         ds.SetGeoTransform(gt)
         ds.SetProjection(src.crs().toWkt())
@@ -3182,9 +3239,10 @@ class SGTool:
 
         layer = self._preview_layer()
         if layer is None:
-            layer = QgsRasterLayer(self.PREVIEW_PATH, layer_name)
+            layer = QgsRasterLayer(path, layer_name)
             if not layer.isValid():
                 raise RuntimeError("Could not create preview layer")
+            self._except_preview_from_combos(layer)  # before it is in the project
             with self._keep_selection():
                 QgsProject.instance().addMapLayer(layer)
                 self.preview_layer_id = layer.id()
@@ -3195,7 +3253,8 @@ class SGTool:
                     self._preview_tree_connected = True
                 self._move_preview_to_top()
         else:
-            layer.setDataSource(self.PREVIEW_PATH, layer_name, "gdal")
+            layer.setDataSource(path, layer_name, "gdal")
+            self._unlink_preview_file()  # the file shown until now, a little later
         layer.setCustomProperty("sgtool_preview_kind", kind)
         if nbands >= 3:
             self._apply_rgb_stretch(layer)
@@ -4329,7 +4388,10 @@ class SGTool:
         for key in ("obs", "out"):
             combo = getattr(d, f"mMapLayerComboBox_VC_{key}")
             combo.setFilters(QgsMapLayerProxyModel.Filter.RasterLayer)
-            combo.layerChanged.connect(tick)
+            # only a layer picked by the user ticks Continuation: layerChanged
+            # also fires when QGIS repoints the box as layers come and go (e.g.
+            # the preview layer), which ticked Continuation out of the blue
+            combo.activated.connect(tick)
             getattr(d, f"comboBox_VC_{key}_mode").currentIndexChanged.connect(tick)
             getattr(d, f"lineEdit_VC_{key}_value").textChanged.connect(tick)
         d.lineEdit_VC_smoothing.textChanged.connect(tick)

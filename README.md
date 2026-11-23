@@ -5,7 +5,7 @@
     
  This plugin is available directly within **QGIS** using the Plugin Manager, however the latest **ArcGIS Pro** version or QGIS version with all new bugs will always be at this site.   
 
-**[User guide](docs/user-guide.md) | [Reference](docs/reference.md)** | **Ctrl-click on a GUI element in plugin to open online Reference guide**
+**[User guide](docs/user-guide.md) | [Reference](docs/reference.md)** | **Ctrl-click (Cmd-click on MacOS) on a GUI element in plugin to open online Reference guide**
     
 <img src="docs/images/examples/sgtool.gif">    
 

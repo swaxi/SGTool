@@ -611,7 +611,8 @@ class SGTool:
             self.tr("Total Horizontal Gradient Calculation (THG)")
         )
         self.dlg.pushButton_rad_power_spectrum.setToolTip(
-            self.tr("Provides pop-up display of grid plus Radial Averaged Power Spectrum (needs testing!)")
+            self.tr("Provides pop-up display of grid plus Radial Averaged Power Spectrum (needs testing!)\n"
+                    "Runs in the background: Cancel on this tab stops it")
         )
 
         self.dlg.checkBox_Mean.setToolTip(
@@ -7279,36 +7280,44 @@ class SGTool:
             return False
 
         self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
-        if self.localGridName != "":
-            self.pslayer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-            if self.pslayer.isValid():
-                grid = self.extract_raster_to_numpy(
-                    self.pslayer
-                )  # Your method to get NumPy array from raster
+        if self.localGridName == "":
+            return
+        self.pslayer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
+        if not self.pslayer.isValid():
+            return
+        # layer facts on the main thread; reading and the spectrum in a
+        # background task, so QGIS stays usable and Cancel works on large grids
+        name = self.localGridName
+        path = self.pslayer.dataProvider().dataSourceUri().split("|")[0]
+        dx, dy = (
+            self.pslayer.rasterUnitsPerPixelX(),
+            self.pslayer.rasterUnitsPerPixelY(),
+        )
+        extent = self.pslayer.extent()
+        provider = self.pslayer.dataProvider()
+        x = np.linspace(extent.xMinimum(), extent.xMaximum(), provider.xSize())
+        y = np.linspace(extent.yMinimum(), extent.yMaximum(), provider.ySize())
+        holder = {}
 
-                dx, dy = (
-                    self.pslayer.rasterUnitsPerPixelX(),
-                    self.pslayer.rasterUnitsPerPixelY(),
-                )
-                # Get extent
-                extent = self.pslayer.extent()
-                minx = extent.xMinimum()
-                maxx = extent.xMaximum()
-                miny = extent.yMinimum()
-                maxy = extent.yMaximum()
+        def work(task):
+            ds = gdal.Open(path)
+            band = ds.GetRasterBand(1)
+            no_data = band.GetNoDataValue()
+            grid = band.ReadAsArray().astype(float)
+            if no_data is not None:
+                grid[grid == no_data] = np.nan
+            if ds.GetGeoTransform()[5] > 0:  # south-up: flip to north-up
+                grid = np.flipud(grid)
+            ds = None
+            task.check(3)
+            dock = PowerSpectrumDock(grid, name, dx, dy, x, y)
+            holder["dock"] = dock
+            return dock.compute(check=task.check)
 
-                # Get number of columns (nx) and rows (ny)
-                provider = self.pslayer.dataProvider()
-                nx = provider.xSize()  # Number of columns
-                ny = provider.ySize()  # Number of rows
+        def show(computed):
+            holder["dock"].plot(computed)  # matplotlib: on the main thread
 
-                x = np.linspace(minx, maxx, provider.xSize())
-                y = np.linspace(miny, maxy, provider.ySize())
-                # Initialize the PowerSpectrumDock and display the plot
-                power_spectrum_dock = PowerSpectrumDock(
-                    grid, self.localGridName, dx, dy, x, y
-                )
-                power_spectrum_dock.plot_grid_and_power_spectrum()
+        self.start_task(f"Radial power spectrum of {name}", work, show)
 
     def update_paths(self):
         """

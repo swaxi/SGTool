@@ -4752,16 +4752,26 @@ class SGToolApp(tk.Tk):
         self.after(0, lambda: self._status("Computing radial power spectrum…"))
         try:
             arr, _, ll_x, ll_y, cx, cy, sr = raster_to_numpy(in_r)
+            self._check_cancel()
             filled, _ = make_processor(cx, cy, 10).fill_nan(arr)
+            self._check_cancel()
             from scipy.fft import fft2 as _fft2, fftshift as _fftshift
             spec   = _fft2(filled, workers=-1)  # the full spectrum, on all cores
             power  = np.abs(_fftshift(spec))**2
+            del spec
+            self._check_cancel()
             nr, nc = power.shape
-            yr, xr = np.indices(power.shape)
-            r      = np.sqrt((xr - nc//2)**2 + (yr - nr//2)**2).astype(int)
+            yr = (np.arange(nr) - nr//2)[:, None]
+            xr = (np.arange(nc) - nc//2)[None, :]
+            r      = np.sqrt(xr**2 + yr**2).astype(int)
             r_max  = min(nc//2, nr//2)
             bins   = np.arange(1, r_max)
-            rad_p  = np.array([power[r==ri].mean() for ri in bins])
+            # every ring's mean in one pass (not a mask over the whole
+            # spectrum per ring, which took minutes on large grids)
+            sums   = np.bincount(r.ravel(), weights=power.ravel(), minlength=r_max)
+            counts = np.bincount(r.ravel(), minlength=r_max)
+            rad_p  = sums[bins] / counts[bins]
+            self._check_cancel()
             cell   = min(cx, cy)
             dim    = min(nr, nc)
             wn     = bins / (dim * cell)   # wavenumber (cycles per map unit)
@@ -4791,6 +4801,8 @@ class SGToolApp(tk.Tk):
 
             self.after(0, _plot)
             self.after(0, lambda: self._status("Power spectrum displayed."))
+        except OperationCancelled:
+            raise  # Cancel: _run_in_thread reports it, not as an error
         except Exception as e:
             self.after(0, lambda msg=str(e): self._status(f"Power spectrum error: {msg}"))
 

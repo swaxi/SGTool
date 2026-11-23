@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <plugins>
-  <pyqgis_plugin name="SGTool" version="0.4.4" plugin_id="sgtool">
+  <pyqgis_plugin name="SGTool" version="0.4.5" plugin_id="sgtool">
     <description>Simple Potential Field Processing</description>
     <about>Simple Potential Field Processing using FFT grid filters, e.g. RTP, 1VD, Band Pass, Analytic Signal, Upward Continuation, edge detectors, worms etc., plus radiometric ratios and multiband analysis, apparent susceptibility and density grids, and Henkel plots and histograms of apparent and measured petrophysics.</about>
-    <version>0.4.4</version>
+    <version>0.4.5</version>
     <qgis_minimum_version>3.24</qgis_minimum_version>
     <qgis_maximum_version>4.99</qgis_maximum_version>
     <homepage>https://github.com/swaxi/SGTool</homepage>
     <file_name>sgtool.zip</file_name>
     <icon>icon.png</icon>
     <author_name>Mark Jessell</author_name>
-    <download_url>https://github.com/swaxi/SGTool/releases/download/v0.4.4/sgtool.zip</download_url>
+    <download_url>https://github.com/swaxi/SGTool/releases/download/v0.4.5/sgtool.zip</download_url>
     <uploaded_by>Mark Jessell</uploaded_by>
-    <create_date>2026-11-22</create_date>
-    <update_date>2026-11-22</update_date>
+    <create_date>2026-11-23</create_date>
+    <update_date>2026-11-23</update_date>
     <experimental>False</experimental>
     <deprecated>False</deprecated>
     <tracker>https://github.com/swaxi/SGTool/issues</tracker>

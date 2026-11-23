@@ -1,4 +1,4 @@
-# Structural Geophysics Tool v0.4.5
+# Structural Geophysics Tool v0.4.6
  [![Mentioned in Awesome mineral exploration](https://awesome.re/mentioned-badge.svg)](https://github.com/XploraHub/awesome-mineral-exploration)   
  Simple Potential Field and other Geophysical Grid Calcs to assist WAXI/Agate Structural Geophysics Course    
  https://waxi4.org   and  https://agate-project.org    

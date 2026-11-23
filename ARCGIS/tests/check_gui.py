@@ -936,6 +936,8 @@ def find_check(attr):
 cb = find_check("v_ta")
 app.nb.select(0); app.update()
 app.v_ta.set(False); app.update()
+_really = G.SGToolApp._ctrl_really_down
+G.SGToolApp._ctrl_really_down = staticmethod(lambda: True)  # as if Ctrl is held
 cb.event_generate("<Control-Button-1>", x=5, y=5); cb.event_generate("<Control-ButtonRelease-1>", x=5, y=5)
 app.update()
 check("Ctrl+click on Tilt Angle opens its section of the reference",
@@ -946,6 +948,18 @@ find_check("v_cont").event_generate("<Control-Button-1>", x=5, y=5); app.update(
 check("Ctrl+click on Continuation with direction variable opens Variable continuation",
       bool(opened) and opened[-1].endswith("#variable-continuation-"), opened[-1:])
 app.v_cont_dir.set("up"); app.v_cont.set(False)
+# Tk on Windows can keep believing Ctrl is held after it was released in the
+# browser a Ctrl+click opened: such a click must act as an ordinary one
+G.SGToolApp._ctrl_really_down = staticmethod(lambda: False)
+opened.clear(); app.v_ta.set(False); app.update()
+cb.event_generate("<Enter>", x=5, y=5)
+cb.event_generate("<ButtonPress-1>", x=5, y=5, state=4)
+cb.event_generate("<ButtonRelease-1>", x=5, y=5, state=4)
+app.update()
+check("a click Tk wrongly marks as Ctrl+click ticks the box", app.v_ta.get())
+check("... and opens no reference", not opened, opened)
+app.v_ta.set(False)
+G.SGToolApp._ctrl_really_down = _really
 from sgt_reference import HINT
 check("its tooltip ends with the hint", cb._sgt_tip.text.endswith(HINT), cb._sgt_tip.text[-60:])
 webbrowser.open = _wb_open

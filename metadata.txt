@@ -7,7 +7,7 @@ name=SGTool
 qgisMinimumVersion=3.24
 qgisMaximumVersion=4.99
 description=Simple Potential Field Processing
-version=0.4.5
+version=0.4.6
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
@@ -21,7 +21,9 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.4.5
+changelog=0.4.6
+      * [Bug Fix] ArcGIS Pro GUI: after a Ctrl+click opened the reference, every later click could open it too (Ctrl had been released in the browser), so nothing could be used; clicks now work as usual
+      0.4.5
       * [New Feature] Remove IGRF (FFT Filters+ tab, beside IGRF, now called Centroid IGRF; also in the ArcGIS Pro GUI and as an ArcGIS Pro toolbox tool): the IGRF total field for the survey date, calculated at every cell at sea level, is subtracted from the grid (saves _IGRF, loads _RMI)
       * [Performance] Radial power spectrum: much faster on large grids (seconds instead of many minutes; same spectrum), also in the ArcGIS Pro GUI
       * [GUI Modification] Radial power spectrum runs in the background and can be stopped with Cancel

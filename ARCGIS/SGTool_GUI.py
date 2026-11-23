@@ -1410,6 +1410,20 @@ class SGToolApp(tk.Tk):
     # ------------------------------------------------------------------
     _HELP_KEYS = ("Control_L", "Control_R", "Meta_L", "Meta_R")  # Meta: Cmd on macOS
 
+    @staticmethod
+    def _ctrl_really_down():
+        """Whether Ctrl is held right now. Tk on Windows takes the modifiers of
+        a click from the window's own record of the keyboard: after a Ctrl+click
+        opens the browser, Ctrl is released there, the window never hears of it,
+        and every later click would arrive as a Ctrl+click. So ask Windows."""
+        if sys.platform != "win32":
+            return True  # trust the event elsewhere
+        try:
+            import ctypes
+            return bool(ctypes.windll.user32.GetAsyncKeyState(0x11) & 0x8000)  # VK_CONTROL
+        except Exception:
+            return True
+
     def _bind_help_cursor(self):
         """A question-mark cursor over the window while Ctrl (Cmd) is held, as
         Ctrl+click opens the reference. Each widget's own cursor is put back
@@ -1432,6 +1446,17 @@ class SGToolApp(tk.Tk):
                 except tk.TclError:
                     pass  # no cursor option (e.g. a menu)
             self._help_cursors = saved
+            poll()
+
+        def poll():
+            # Ctrl may be released where the window can't see it (in the browser
+            # a Ctrl+click opened): check the key itself while the question shows
+            if self._help_cursors is None:
+                return
+            if not self._ctrl_really_down():
+                off()
+            else:
+                self.after(200, poll)
 
         def off(_e=None):
             saved, self._help_cursors = self._help_cursors, None
@@ -1515,9 +1540,18 @@ class SGToolApp(tk.Tk):
             if heading is None:
                 continue
             w._sgt_ref = True
+            section = w if isinstance(w, CollapsibleSection) else None
             w = target
 
-            def open_section(_event, h=heading):
+            def open_section(_event, h=heading, section=section):
+                if not self._ctrl_really_down():
+                    # Ctrl is not really held (see _ctrl_really_down): an
+                    # ordinary click. A control's own click handling follows;
+                    # a section title's (the same binding tag) is called here.
+                    if section is not None:
+                        section.toggle()
+                        return "break"
+                    return None
                 import webbrowser
                 from sgt_reference import section_url
 
@@ -1527,7 +1561,8 @@ class SGToolApp(tk.Tk):
             for seq in ("<Control-Button-1>", "<Command-Button-1>"):
                 try:  # Command exists only on macOS
                     w.bind(seq, open_section)
-                    w.bind(seq.replace("Button-1", "ButtonRelease-1"), lambda _e: "break")
+                    # the release goes on as usual: after a real Ctrl+click the
+                    # press never reached the control, so its release does nothing
                 except tk.TclError:
                     pass
             w._sgt_open_section = open_section  # for the tests

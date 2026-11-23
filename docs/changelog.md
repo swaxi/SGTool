@@ -4,6 +4,9 @@
 
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
+## 0.4.6
+      * [Bug Fix] ArcGIS Pro GUI: after a Ctrl+click opened the reference, every later click could open it too (Ctrl had been released in the browser), so nothing could be used; clicks now work as usual
+
 ## 0.4.5
       * [New Feature] Remove IGRF (FFT Filters+ tab, beside IGRF, now called Centroid IGRF; also in the ArcGIS Pro GUI and as an ArcGIS Pro toolbox tool): the IGRF total field for the survey date, calculated at every cell at sea level, is subtracted from the grid (saves _IGRF, loads _RMI)
       * [Performance] Radial power spectrum: much faster on large grids (seconds instead of many minutes; same spectrum), also in the ArcGIS Pro GUI

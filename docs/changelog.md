@@ -5,6 +5,7 @@
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
 ## 0.4.6
+      * [GUI Modification] ArcGIS Pro GUI: Sun Shading's relief option is on by default and stays as set after a run, as in QGIS
       * [Bug Fix] ArcGIS Pro GUI: after a Ctrl+click opened the reference, every later click could open it too (Ctrl had been released in the browser), so nothing could be used; clicks now work as usual
 
 ## 0.4.5

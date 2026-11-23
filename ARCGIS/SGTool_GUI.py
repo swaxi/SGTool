@@ -1943,7 +1943,7 @@ class SGToolApp(tk.Tk):
         self.v_sun       = tk.BooleanVar()
         self.v_sun_alt   = tk.StringVar(value="45.0")
         self.v_sun_az    = tk.StringVar(value="315.0")
-        self.v_sun_relief= tk.BooleanVar()
+        self.v_sun_relief= tk.BooleanVar(value=True)  # on, as in QGIS
         tip(check(rs, "Sun Shading", self.v_sun),
             "Sun shading of grid\nUses azimuth and altitude angles to create a shaded relief effect").pack(side="left")
         lbl(rs, "Alt:").pack(side="left", padx=(8,0))
@@ -4126,8 +4126,9 @@ class SGToolApp(tk.Tk):
                     "angle_tolerance": ang_tol, "max_steps": max_steps}))
 
     def _uncheck_conv(self):
+        # relief is a setting of Sun Shading, not a filter: it stays as it was
         for v in (self.v_mean, self.v_med, self.v_gauss, self.v_dconv,
-                  self.v_sun, self.v_sun_relief,
+                  self.v_sun,
                   self.v_ss_min, self.v_ss_max, self.v_ss_var, self.v_ss_std,
                   self.v_ss_skew, self.v_ss_kurt,
                   self.v_ss_aniso, self.v_ss_chain, self.v_ss_stream,

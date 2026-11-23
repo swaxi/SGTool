@@ -1508,14 +1508,14 @@ class SGToolApp(tk.Tk):
         entry(r2, self.v_igrf_lon, 7).pack(side="left", padx=2)
         lbl(r2, "Year:").pack(side="left", padx=(8,0))
         entry(r2, self.v_igrf_year, 7).pack(side="left", padx=2)
-        tip(btn(r2, "Calc IGRF", self._calc_igrf, w=10),
+        tip(btn(r2, "Centroid IGRF", self._calc_igrf, w=13),
             "Calculate IGRF Inclination & Declination\nbased on centroid of selected grid and specified date").pack(side="left", padx=8)
         tip(btn(r2, "Remove IGRF", self._remove_igrf, w=12),
             "Remove IGRF: the IGRF total field for the Year given, at sea level,\n"
             "calculated at every cell of the input grid, is subtracted from it.\n"
             "Saves <grid>_IGRF.tif (the field, not added to the map) and adds\n"
             "<grid>_RMI.tif (the residual magnetic intensity, TMI - IGRF).\n"
-            "For a TMI grid, not one with the IGRF already removed").pack(side="left", padx=2)
+            "For a TMI grid, not one with the IGRF already removed").pack(side="left", padx=(16, 2))
 
         r3 = tk.Frame(gm, bg=BG); r3.pack(fill="x", padx=4, pady=2)
         self.v_vint = tk.BooleanVar()

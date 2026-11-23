@@ -53,6 +53,7 @@ class Toolbox:
             UpwardContinuation,
             DownwardContinuation,
             VariableContinuation,
+            RemoveIGRF,
             VerticalIntegration,
             BandPassFilter,
             HighPassFilter,
@@ -713,6 +714,62 @@ class VariableContinuation(_RasterTool):
             "terms": terms,
         })
         messages.addMessage(f"Variable continuation complete → {out_r}")
+
+
+class RemoveIGRF(_RasterTool):
+    category    = "FFT Filters"
+    label       = "Remove IGRF"
+    description = ("Subtract the IGRF total field, calculated at every cell for the survey "
+                   "date at sea level, from a total magnetic intensity grid: the residual "
+                   "magnetic intensity (TMI - IGRF). The IGRF grid is saved beside the output "
+                   "as <output>_IGRF.tif.")
+
+    def getParameterInfo(self):
+        return [
+            self._param("in_raster",  "Input TMI Raster"),
+            self._out ("out_raster",  "Output Residual Raster (TMI - IGRF)"),
+            self._param("year",       "Survey Date (decimal year)", "GPDouble", default=2025.0),
+        ]
+
+    def execute(self, parameters, messages):
+        from arcgis_utils import get_noddy_mag_params, raster_header_info
+        from calcs.igrf.igrf_field import grid_igrf, IGRF_GENERATION, looks_like_anomaly
+        from calcs.Radiometrics import north_up_frame
+
+        in_r  = _describe_path(parameters[0].valueAsText)
+        out_r = parameters[1].valueAsText
+        year  = float(parameters[2].value)
+        if get_noddy_mag_params(in_r) is not None:
+            raise arcpy.ExecuteError("This grid carries its own field in its metadata (a Noddy "
+                                     "model), so it has no IGRF to remove")
+        hdr = raster_header_info(in_r)
+        gt, cols, rows, wkt = north_up_frame(in_r)
+        crs = (hdr or {}).get("authid") or wkt
+        if not crs:
+            raise arcpy.ExecuteError("The grid needs a coordinate system")
+        arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
+        _inc, _dec, F = grid_igrf(gt, (rows, cols), crs, year, callback=_check_cancel)
+        if F.shape != arr.shape:
+            raise arcpy.ExecuteError("The IGRF grid could not be matched to the input grid")
+        if looks_like_anomaly(arr, F):
+            messages.addWarningMessage(
+                f"The grid has a median of {np.nanmedian(arr):.0f} nT, far below the IGRF "
+                f"({np.nanmean(F):.0f} nT), so it looks like an anomaly grid that already has "
+                "the IGRF removed. The result was saved anyway.")
+        base, ext = os.path.splitext(str(out_r))
+        igrf_r = base + "_IGRF" + (ext or ".tif")
+        params = {"date": f"{year:.3f} (decimal year)", "altitude_km": 0.0,
+                  "model": "IGRF-" + IGRF_GENERATION}
+        _check_cancel()
+        # the IGRF grid: written beside the output, not added to the map
+        numpy_to_raster(F, igrf_r, ll_x, ll_y, cx, cy, sr, nodata)
+        write_provenance(igrf_r, in_r, "IGRF total field", params)
+        _check_cancel()
+        numpy_to_raster(arr - F, str(out_r), ll_x, ll_y, cx, cy, sr, nodata)
+        write_provenance(str(out_r), in_r, "Remove IGRF (TMI - IGRF)", params)
+        messages.addMessage(f"IGRF-{IGRF_GENERATION} for {year:.3f} at sea level: "
+                            f"{np.nanmin(F):.0f} to {np.nanmax(F):.0f} nT over the grid")
+        messages.addMessage(f"Remove IGRF complete → {out_r} (IGRF saved as {igrf_r})")
 
 
 class VerticalIntegration(_RasterTool):

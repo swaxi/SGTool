@@ -138,6 +138,16 @@ TOOLS = {
                          "output is above all the observations.",
             "terms": "Number of terms (vertical derivatives) in the Taylor series that drapes the "
                      "result onto an uneven output surface (1-12)."}),
+    "RemoveIGRF": dict(
+        summary="Remove the IGRF from a total magnetic intensity grid: the IGRF total field for the "
+                "survey date, calculated at every cell at sea level, is subtracted, giving the "
+                "residual magnetic intensity (TMI - IGRF).",
+        usage=["Use it on a TMI grid, not on one that already has the IGRF (or a regional field) "
+               "removed: a warning is given if the grid's median is far below the IGRF.",
+               "The IGRF grid is saved beside the output as <output>_IGRF.tif, but not added to the "
+               "map. A Noddy grid carries its own uniform field, so it has no IGRF to remove.",
+               "The same calculation as the Remove IGRF button of the SGTool GUI and QGIS plugin."],
+        params={"year": "Date the survey was flown, as a decimal year (e.g. 2023.5 for mid-2023)."}),
     "VerticalIntegration": dict(
         summary="Vertical integration: converts magnetic anomalies into gravity-like (pseudo-gravity) "
                 "anomalies with the same decay with distance from the source, for comparison or joint "

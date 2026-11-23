@@ -157,12 +157,12 @@ Tick **RTE/P** and choose the method in the list.
 | Setting | Default | Meaning |
 |---|---|---|
 | Method list | RTP | **RTP**, **Low-lat. RTP**, **Diff. RTP** or **RTE** (below) |
-| **IGRF** | | Fills in Inc, Dec and Int from the IGRF model at the centre of the selected grid on the date shown, at sea level. If the grid came from Noddy, the values are read from its GeoTIFF metadata. |
+| **Centroid IGRF** | | Fills in Inc, Dec and Int from the IGRF model at the centre of the selected grid on the date shown, at sea level. If the grid came from Noddy, the values are read from its GeoTIFF metadata. |
 | **Remove IGRF** | | Subtracts the IGRF total field, calculated at every cell for the date shown, from the selected grid: see [Remove IGRF](#remove-igrf) |
 | **Inc** | 0 | Magnetic inclination, degrees from horizontal (positive down) |
 | **Dec** | 0 | Magnetic declination, degrees clockwise from north |
 | **Int** | 50000 | Total field strength, nT |
-| Date | 1 Jan 2000 | Survey date, 1900 to 2030, used by **IGRF**, **Remove IGRF** and Diff. RTP |
+| Date | 1 Jan 2000 | Survey date, 1900 to 2030, used by **Centroid IGRF**, **Remove IGRF** and Diff. RTP |
 | **Iterations** (Low-lat. RTP only) | blank (auto) | Number of iterations of the equator-to-pole operator; blank chooses it automatically |
 | **Stripe suppression (°)** (Low-lat. RTP only) | 10 | The iterations fade out within this angle of the direction perpendicular to the declination; 0 turns it off |
 
@@ -241,11 +241,11 @@ Converts magnetic data measured at any inclination and declination to what it wo
 
 #### Remove IGRF
 
-The button to the right of **IGRF** removes the main geomagnetic field from a total magnetic intensity (TMI) grid. The IGRF total intensity for the date in the date box is calculated at the centre of every cell of the selected grid, at sea level, and subtracted from it:
+The button to the right of **Centroid IGRF** removes the main geomagnetic field from a total magnetic intensity (TMI) grid. The IGRF total intensity for the date in the date box is calculated at the centre of every cell of the selected grid, at sea level, and subtracted from it:
 
 $`\text{RMI}(x, y) = \text{TMI}(x, y) - F_{\text{IGRF}}(x, y)`$
 
-Outputs: `_RMI`, the residual magnetic intensity, which is loaded, and `_IGRF`, the field itself, which is saved but not loaded. Use it on a TMI grid, not on one that already has the IGRF (or a regional field) removed. A grid from Noddy carries its own uniform field instead, so it has no IGRF to remove.
+Outputs: `_RMI`, the residual magnetic intensity, which is loaded, and `_IGRF`, the field itself, which is saved but not loaded. Use it on a TMI grid, not on one that already has the IGRF (or a regional field) removed. A grid from Noddy carries its own uniform field instead, so it has no IGRF to remove. A warning is given if the grid's median is far below the IGRF, as it is for a grid that already has the IGRF removed (such as the example grid). Also in the ArcGIS Pro GUI and as the **Remove IGRF** toolbox tool, which writes the IGRF grid beside its output as `<output>_IGRF.tif`.
 
 The field is that of a survey flown at sea level: at a survey height of h km it is lower by roughly 25 nT per km (about 3F/R), almost uniformly over a survey, which only shifts the level of the result.
 
@@ -1324,7 +1324,7 @@ The two versions share the calculation code and most features: the **Wedge** set
 - **Utils tab**: **Clip to Window** (clips the input grid to the part of the ArcGIS Pro map you are looking at, as in QGIS; it needs the map view the toolbox tool writes, so launch the GUI from the toolbox and keep the map open), **Read metadata of input grid** (history as text, raw XML on a second tab), **Save as XML** and **Apply same steps to another grid...** (tick which steps to **Apply** and which results to **Save**, set the survey date).
 - **Petrophys tab**: the same apparent susceptibility and density calculations, Henkel plots and histograms as in QGIS (see [Petrophys tab](#petrophys-tab)). The apparent grids for plotting are chosen from the map's raster layers (or a file), and the polygons and sample points are chosen as files (shapefile, GeoPackage and other formats GDAL reads), with all their features used (QGIS uses only the selected features when some are selected). Each plot opens in its own window with a toolbar to zoom and save it. The toolbox has **Apparent Susceptibility** (leave the field strength blank to use the IGRF at the raster's centre) and **Apparent Density** tools in a Petrophysics category.
 - **Gridding**: multilevel B-spline (Grid + Wavelets tab) reads a point shapefile or GeoPackage, offered automatically after **Import Data**, and writes `<points>_<field>_bspline.tif`; its **Auto** box (and a matching option in the toolbox tool) chooses the cell size and Max levels from the points. IDW and Esri's Spline are in the toolbox only and need the Spatial Analyst extension.
-- **Toolbox** (`SGTool.pyt`, 49 tools) stands in for the QGIS Processing algorithms: you name each output, high and low pass are separate tools, Kd and Ud are one tool (**Kd / Ud**), and there is no tool for replaying a history. The MRVBF tool writes the other three results beside the one you name. Its toolsets follow the QGIS tabs and groups: FFT Filters (with Euler deconvolution), Gradient Filters and Edge Detectors; Convolution + Statistics, Domain Detection and Landform; Multiband; Petrophysics; Grid + Wavelets; Utils.
+- **Toolbox** (`SGTool.pyt`, 50 tools) stands in for the QGIS Processing algorithms: you name each output, high and low pass are separate tools, Kd and Ud are one tool (**Kd / Ud**), and there is no tool for replaying a history. The MRVBF tool writes the other three results beside the one you name. Its toolsets follow the QGIS tabs and groups: FFT Filters (with Euler deconvolution), Gradient Filters and Edge Detectors; Convolution + Statistics, Domain Detection and Landform; Multiband; Petrophysics; Grid + Wavelets; Utils.
 - **Groups and settings**: the groups on each tab fold away with a click on their title, and **Replace existing layer** is at the top of the Help tab, as in QGIS; the GUI remembers both (in `.sgtool_arcgis_gui.json` in your home folder). When the toolbox adds a local anisotropy result to the map, the magnitude layer is unticked and the orientation coloured with a spectrum colour ramp at 50% transparency.
 - **MRVBF slope** is calculated in numpy (QGIS uses its own slope tool); the DTM curvature classifier is gone from both versions.
 - **Preview and tabs**: as in QGIS, changing tab keeps the previewed filter ticked and the preview on it; the tab you arrive at waits, and its **Apply Preview** and **Apply to Window** act on the previewed filter, until you tick a filter there (which moves the preview to it) or untick Preview.

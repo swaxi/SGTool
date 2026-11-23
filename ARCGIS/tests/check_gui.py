@@ -210,9 +210,33 @@ check("no error dialog from a cancelled job", "Error" not in app.v_status.get())
 # ---- threshold writes provenance too
 app.v_thresh_cond.set("above"); app.v_thresh_above.set("50"); app.v_thresh_below.set("-9e9")
 out_t = os.path.join(DATA, "arcsrc_thresh.tif")
-import importlib.util
-check('shapely is not installed in this environment (so the threshold must not need it)', importlib.util.find_spec('shapely') is None)
-app._do_threshold(src, out_t)
+# ArcGIS Pro's Python has no shapely, so the threshold must not need it. Wherever
+# shapely is installed (e.g. a QGIS-like test environment), its import is blocked
+# while the threshold runs, so the check means the same on every system.
+import importlib.abc, importlib.util
+
+
+class _NoShapely(importlib.abc.MetaPathFinder):
+    def find_spec(self, name, path=None, target=None):
+        if name == "shapely" or name.startswith("shapely."):
+            raise ModuleNotFoundError(f"No module named {name!r} (blocked for this check)", name=name)
+        return None
+
+
+_hidden = {k: sys.modules.pop(k) for k in list(sys.modules) if k == "shapely" or k.startswith("shapely.")}
+_blocker = _NoShapely()
+sys.meta_path.insert(0, _blocker)
+try:
+    app._do_threshold(src, out_t)
+    _thresh_error = None
+except Exception as e_:
+    _thresh_error = e_
+finally:
+    sys.meta_path.remove(_blocker)
+    sys.modules.update(_hidden)
+check("Threshold to NaN runs without shapely"
+      + (" (installed here, blocked for this check)" if importlib.util.find_spec("shapely") else ""),
+      _thresh_error is None, repr(_thresh_error))
 check("threshold provenance", sm.read_sgt_metadata(out_t) is not None and
       sm.read_sgt_metadata(out_t).findtext("operation") == "Threshold to NaN")
 

@@ -22,7 +22,7 @@ repository=https://github.com/swaxi/SGTool
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
 changelog=0.4.4
-      * [New Feature] Remove IGRF (FFT Filters+ tab, beside IGRF; also in the ArcGIS Pro GUI): the IGRF total field for the survey date, calculated at every cell at sea level, is subtracted from the grid (saves _IGRF, loads _RMI)
+      * [New Feature] Remove IGRF (FFT Filters+ tab, beside IGRF, now called Centroid IGRF; also in the ArcGIS Pro GUI and as an ArcGIS Pro toolbox tool): the IGRF total field for the survey date, calculated at every cell at sea level, is subtracted from the grid (saves _IGRF, loads _RMI)
       * [Bug Fix] IGRF: the field was evaluated on a sphere of the Earth's mean radius instead of at the surface, so the total intensity was out by up to a few hundred nT and the inclination by up to ~0.3 degrees; it now agrees with the independent ppigrf package to 0.1 nT. The IGRF button now uses sea level (it asked for 100 km, which the old code ignored)
       * [GUI Modification] Differential RTP: the IGRF inclination and declination are calculated at every cell rather than interpolated from the corners and centre (also in the ArcGIS Pro GUI and the replay)
       * [New Feature] Continuation: new variable direction, continuing between uneven surfaces (constant height, height grid or DEM + clearance; Cordell & Grauch 1985)

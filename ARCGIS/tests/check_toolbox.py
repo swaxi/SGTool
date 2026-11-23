@@ -281,5 +281,27 @@ check("... and warns when the output height is below the topography",
 check("VariableContinuation is in the FFT Filters toolset",
       mod.VariableContinuation.category == "FFT Filters" and mod.VariableContinuation in tb.tools)
 
+# Remove IGRF: a TMI grid (the test grid plus the IGRF) gives the grid back
+from calcs.igrf.igrf_field import grid_igrf
+from calcs.Radiometrics import north_up_frame
+gt_, cols_, rows_, _w = north_up_frame(src)
+_i, _d, F_ = grid_igrf(gt_, (rows_, cols_), "EPSG:28350", 2020.5)
+tmi = os.path.join(DATA, "t_tmi.tif")
+ds = gdal.GetDriverByName("GTiff").Create(tmi, cols_, rows_, 1, gdal.GDT_Float32)
+ds.SetGeoTransform(gt_); s3 = osr.SpatialReference(); s3.ImportFromEPSG(28350); ds.SetProjection(s3.ExportToWkt())
+ds.GetRasterBand(1).SetNoDataValue(-9999.0); ds.GetRasterBand(1).WriteArray((arr + F_).astype("float32")); ds = None
+outr = os.path.join(DATA, "t_tmi_RMI.tif")
+m = run(mod.RemoveIGRF, {"in_raster": tmi, "out_raster": outr, "year": 2020.5})
+check("the Remove IGRF tool writes the residual and the IGRF beside it",
+      os.path.exists(outr) and os.path.exists(os.path.join(DATA, "t_tmi_RMI_IGRF.tif")), m.lines)
+if os.path.exists(outr):
+    res_ = gdal.Open(outr).ReadAsArray().astype(float)
+    check("... the residual is the grid without its IGRF", np.nanmax(np.abs(res_ - arr)) < 0.05,
+          np.nanmax(np.abs(res_ - arr)))
+    check("... with its provenance", sm.read_sgt_metadata(outr).findtext("operation") == "Remove IGRF (TMI - IGRF)")
+check("... and no anomaly warning for a TMI grid", not any("already has the IGRF" in l for l in m.lines), m.lines)
+m = run(mod.RemoveIGRF, {"in_raster": src, "out_raster": os.path.join(DATA, "t_RMI.tif"), "year": 2020.5})
+check("... but a warning for an anomaly grid", any("already has the IGRF" in l for l in m.lines), m.lines)
+
 print(f"\n{sum(1 for _, ok in results if ok)}/{len(results)} PYT checks passed", flush=True)
 os._exit(0 if all(ok for _, ok in results) else 1)

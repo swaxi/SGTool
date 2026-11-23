@@ -72,7 +72,7 @@ The examples use an aeromagnetic total magnetic intensity (TMI) grid of part of 
 
 The dashed box marks the 38 x 56 km area that the zoomed examples show. Filters that act over a few cells, such as the convolution filters and window statistics, are easier to judge at that scale.
 
-**Magnetic field at the example grid.** Pressing **IGRF** with the dialog's default survey date (1 January 2000) gives an inclination of 29.2°, a declination of -5.4° and a field strength of 36,751 nT at the centre of the grid. The examples use those values. With your own data, set the date the survey was flown.
+**Magnetic field at the example grid.** Pressing **Centroid IGRF** with the dialog's default survey date (1 January 2000) gives an inclination of 29.0°, a declination of -5.4° and a field strength of 36,621 nT at the centre of the grid. The examples were made with the values SGTool gave before its IGRF calculation was corrected in 0.4.4 (29.2°, -5.4°, 36,751 nT), which look the same. With your own data, set the date the survey was flown.
 
 **How the example figures were made.** Each figure shows the input on the left and the result on the right, at the same scale. Every result was calculated with SGTool's own code (`sgt_filters.py`, the same code the dialog, the Processing algorithms and the ArcGIS Pro version call) on the example grid, with the settings given in the figure title. Grids such as TMI and RTP are drawn with a histogram-equalised colour scale, and derivatives and other zero-centred results with a blue-white-red scale centred on zero.
 
@@ -153,7 +153,7 @@ SGTool has four options in the **RTE/P** list:
 
 1. On **FFT Filters**, select `ogrm_usgs_mag_tmi` in **Select Grid**.
 2. Tick **RTE/P** and choose **RTP** in the list.
-3. Set the survey date in the date box, then press **IGRF**. SGTool calculates the field at the centre of the grid from the IGRF model and fills in **Inc**, **Dec** and **Int**. For the example with the default date (1 Jan 2000) these are 29.2, -5.4 and 36751.
+3. Set the survey date in the date box, then press **Centroid IGRF**. SGTool calculates the field at the centre of the grid from the IGRF model and fills in **Inc**, **Dec** and **Int**. For the example with the default date (1 Jan 2000) these are 29.0, -5.4 and 36621.
    - You can type the values instead, if you know them from the survey report.
    - For a grid made by Noddy, the values are read from the file.
 4. Press **Apply Processing**. The result is `ogrm_usgs_mag_tmi_RTP.tif`.
@@ -448,7 +448,7 @@ The **Petrophys** tab estimates rock properties from the grids and compares them
 1. Make the RTP grid first ([section 3](#3-reduce-magnetic-data-to-the-pole)).
 2. On **Petrophys**, select `ogrm_usgs_mag_tmi_RTP` in **Select Grid**.
 3. Tick **Apparent Susceptibility**.
-4. Set the date and press **IGRF** to fill in the **Field (nT)**, the total strength of the Earth's field (36751 nT for the example).
+4. Set the date and press **IGRF** to fill in the **Field (nT)**, the total strength of the Earth's field (36621 nT for the example).
 5. Set **Depth to top**: 0 puts the top of the magnetic layer at the sensor. For airborne data, use the terrain clearance.
 6. Press **Apply Processing**. The result is `_AppSus`, in SI units, as a variation about the **Background** (0.001 SI).
 ![Apparent susceptibility](images/examples/apparent_susceptibility.png)
@@ -577,7 +577,7 @@ In **ArcGIS Pro** the same filters are geoprocessing tools in the `SGTool.pyt` t
 | "The following Python packages are required but not installed" | Install the **qpip** plugin and let it install them (see [Installation](installation.md)). |
 | "You need to specify lengths in degrees" or "needs a projected coordinate system" | The grid is in latitude/longitude. Reproject it to a metre-based system (**Raster > Projections > Warp**) and process the copy. |
 | RTP has strong stripes along the declination | The inclination is low. Use **Low-lat. RTP** or **RTE**. |
-| RTP looks wrong everywhere | Check Inc and Dec: press **IGRF** with the right survey date, and check the grid's CRS. |
+| RTP looks wrong everywhere | Check Inc and Dec: press **Centroid IGRF** with the right survey date, and check the grid's CRS. |
 | Downward continuation is full of noise | It amplifies short wavelengths very fast. Use a smaller height, or low-pass the grid first. |
 | Edge effects (ringing or bands along the grid edges) | Normal for FFT filters near edges. Process a larger area and clip the result afterwards. |
 | A filter is slow | Try it on a clip first (**Clip to Window**), or use **Preview**. Skewness and kurtosis are slow on large windows. |

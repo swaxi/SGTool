@@ -445,10 +445,13 @@ class SGToolDockWidget(QDockWidget):
             QComboBox.SizeAdjustPolicy.AdjustToContents
         )
         self.pushButton_4_calcIGRF = QPushButton("IGRF")
+        self.pushButton_removeIGRF = QPushButton(_tr("Remove IGRF"))
 
         g.addWidget(self.checkBox_4_RTE_P,        0, 0)
         g.addWidget(self.comboBox_3_rte_p_list,   0, 1, 1, 2)
         g.addWidget(self.pushButton_4_calcIGRF,   0, 3)
+        self.pushButton_removeIGRF.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        g.addWidget(self.pushButton_removeIGRF,   0, 4, Qt.AlignmentFlag.AlignLeft)
 
         # Row 1: Inc / Dec / Int / date
         self.label_15 = QLabel(_tr("Inc"))

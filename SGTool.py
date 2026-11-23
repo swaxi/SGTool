@@ -163,7 +163,7 @@ from .calcs.sgt_metadata import (
 )
 from .sgt_tasks import SGToolTask
 from .sgt_processing import SGToolProvider, read_grid
-from .calcs.igrf.igrf_field import calc_igrf
+from .calcs.igrf.igrf_field import calc_igrf, grid_igrf, IGRF_GENERATION, looks_like_anomaly
 from .calcs.workflow import history_steps
 from .sgt_workflow import (
     plan_steps, run_replay, output_paths, uniform_field, check_igrf_possible,
@@ -480,6 +480,12 @@ class SGTool:
         self.dlg.checkBox_4_RTE_P.setToolTip(
             self.tr("Reduction to pole or equator\nThe reduction to the pole (RTP), differential RTP or to Equator (RTE) is a process in geophysics\nwhere magnetic data are transformed to look as though\n they were measured at the magnetic pole/equator\nCorrects the asymmetry of magnetic anomalies caused by\n the Earth's field, making them appear directly above their sources\n Differential RTP (code derived from Cooper & Cowan 2005) calculates RTP with spatially varying inclination and declination")
         )
+        self.dlg.pushButton_removeIGRF.setToolTip(self.tr(
+            "Remove IGRF: the IGRF total field for the date in the date box, at sea level,\n"
+            "calculated at every cell of the selected grid, is subtracted from it.\n"
+            "Saves <grid>_IGRF.tif (the field, not loaded) and loads <grid>_RMI.tif\n"
+            "(the residual magnetic intensity, TMI - IGRF). For a TMI grid, not one\n"
+            "with the IGRF already removed"))
         self.dlg.pushButton_4_calcIGRF.setToolTip(
             self.tr("Calculate IGRF Inclination & Declination based on centroid of selected grid and specified survey height and date\nIf a grid originated from a Noddy calculation, the info is read from the geotiff metadata")
         )
@@ -1990,10 +1996,21 @@ class SGTool:
             }
         if s in ("_DRTP_inc", "_DRTP_dec"):
             return (
-                "Differential RTP: interpolated "
+                "Differential RTP: IGRF "
                 + ("inclination" if s.endswith("inc") else "declination")
                 + " field"
-            ), {"date": "-".join(str(v) for v in reversed(self.RTE_P_date))}
+            ), {"date": "-".join(str(v) for v in reversed(self.RTE_P_date)),
+                "altitude_km": 0.0}
+        if s == "_IGRF":
+            return "IGRF total field", {
+                "date": self._igrf_removed["date_text"], "altitude_km": 0.0,
+                "model": "IGRF-" + IGRF_GENERATION,
+            }
+        if s == "_RMI":
+            return "Remove IGRF (TMI - IGRF)", {
+                "date": self._igrf_removed["date_text"], "altitude_km": 0.0,
+                "model": "IGRF-" + IGRF_GENERATION,
+            }
         if s == "_RR":
             return "Remove regional", {"polynomial_order": self.RemRegional_order}
         if s.startswith("_d") and s[-1:] in ("x", "y", "z"):
@@ -3354,17 +3371,27 @@ class SGTool:
         Uses the Cooper/Cowan rtp() for all 13 Taylor-series calls,
         giving results identical to the reference standalone implementation.
         """
-        # the IGRF values are worked out on the main thread before the job starts
-        inc_corners, dec_corners, inc_center, dec_center = self._igrf or (None,) * 4
-        if inc_corners is None:
+        # the date and CRS are read on the main thread before the job starts
+        igrf = self._igrf
+        if igrf is None:
             self._notify(
-                "Var. RTP: could not compute IGRF corners — check layer CRS and date.",
+                "Diff. RTP: could not work out the IGRF — check the grid's CRS and the date.",
                 Qgis.MessageLevel.Warning, 15,
             )
             return
 
         data = self.raster_array
         nr, nc = data.shape
+        if igrf["uniform"] is not None:  # a Noddy grid: its own, uniform field
+            inc_grid = np.full((nr, nc), igrf["uniform"][0])
+            dec_grid = np.full((nr, nc), igrf["uniform"][1])
+        else:
+            # the IGRF at every cell (calcs/igrf/igrf_field.py), not interpolated
+            # from the corners as before
+            gt, cols, rows, _wkt = Radiometrics.north_up_frame(self.diskGridPath)
+            check = (lambda _f: self._task_ref.check()) if self._task_ref is not None else None
+            inc_grid, dec_grid, _F = grid_igrf(gt, (rows, cols), igrf["crs"], igrf["date"],
+                                               callback=check)
 
         # SGTool stores rasters north-up (row 0 = north). Cooper/Cowan expects
         # MATLAB axis-xy convention (row 1 = south, row nr = north). Flip before
@@ -3372,8 +3399,8 @@ class SGTool:
         # then flip the result back to north-up for QGIS display.
         # NaN filling and restoration are handled internally by rtpvariable.
         _, varrtp, incv_deg, decv_deg = cooper_rtpvariable(
-            np.flipud(data), nr, nc, inc_corners, dec_corners,
-            inc_center=inc_center, dec_center=dec_center,
+            np.flipud(data), nr, nc, None, None,
+            incv=np.flipud(inc_grid), decv=np.flipud(dec_grid),
         )
         # Save inc/dec field grids to disk alongside the output (not added to QGIS)
         # Flip south-up grids back to north-up to match GeoTIFF convention
@@ -5846,7 +5873,7 @@ class SGTool:
                 self._out_suffix[flag] = self._prepare_output_suffix("_" + self.LogRatio_type)
             elif flag == "RTE_P" and job[1] == "procVRTP":
                 # IGRF values come from the date widget and the layer
-                self._igrf = self.get_igrf_corners()
+                self._igrf = self._igrf_setup()
             ready.append(job)
         return ready
 
@@ -6984,7 +7011,7 @@ class SGTool:
                             self.magn_SurveyDay,
                         )
 
-                        I, D, intensity = self.calcIGRF(date, float(100.0), lat, long)
+                        I, D, intensity = self.calcIGRF(date, 0.0, lat, long)  # at sea level
 
                         self.RTE_P_inc = I
                         self.RTE_P_dec = D
@@ -6995,75 +7022,81 @@ class SGTool:
                         self.dlg.lineEdit_6_inc.setText(str(round(self.RTE_P_inc, 1)))
                         self.dlg.lineEdit_6_int.setText(str(int(self.RTE_P_int)))
 
-    def get_igrf_corners(self):
-        """Return (inc_corners, dec_corners, inc_center, dec_center) for the four grid
-        corners and the grid centre.
+    _igrf_removed = None  # date of the last Remove IGRF (for its provenance)
 
-        Corner order matches Cooper_Cowan_rtpvariable:
-          [NW, NE, SW, SE]  i.e. [row=nr col=1, row=nr col=nc, row=1 col=1, row=1 col=nc]
-          when the grid is displayed with axis-xy (row nr = geographic north).
-
-        Returns (None, None, None, None) on failure.
-        """
-        self.localGridName = self.dlg.mMapLayerComboBox_selectGrid.currentText()
-        if not self.localGridName:
-            return None, None, None, None
-
-        self.layer = QgsProject.instance().mapLayersByName(self.localGridName)[0]
-        if not self.layer.isValid() or not self.validCRS(self.layer):
-            return None, None, None, None
-
+    def removeIGRF(self):
+        """Remove IGRF: the IGRF total field (at sea level, for the date in the
+        date box) at every cell of the grid selected on the FFT tab, saved as
+        <grid>_IGRF.tif (not loaded), and the grid minus it, the residual
+        magnetic intensity, saved and loaded as <grid>_RMI.tif."""
+        if self._busy():
+            return
+        setup = self._igrf_setup()
+        if setup is None:
+            return
+        if setup["uniform"] is not None:
+            self._notify(
+                "Remove IGRF: this grid carries its own field in its metadata (a Noddy "
+                "model), so it has no IGRF to remove", Qgis.MessageLevel.Warning, 12,
+            )
+            return
+        name = self.dlg.mMapLayerComboBox_selectGrid.currentText()
+        self.localGridName = self.base_name = name
+        self.layer = QgsProject.instance().mapLayersByName(name)[0]
         self.diskGridPath = self.layer.dataProvider().dataSourceUri()
-        inc_meta, dec_meta, _ = self.getMagParamGeotiff(self.diskGridPath)
+        self.replace_existing = self.dlg.checkBox_replace_layers.isChecked()
+        path = self.diskGridPath
 
-        date_text = str(self.dlg.dateEdit.date().toPyDate())
-        date_split = date_text.split("-")
-        date = self.day_month_to_decimal_year(
-            int(date_split[0]), int(date_split[1]), int(date_split[2])
-        )
+        def work(task):
+            arr, gt, _projection = read_grid(path)  # north-up, NaN for no data
+            _inc, _dec, F = grid_igrf(gt, arr.shape, setup["crs"], setup["date"],
+                                      callback=lambda f: task.check(100.0 * f))
+            return arr, F
 
-        if inc_meta is not None:
-            # Noddy GeoTIFF: uniform field — centre equals corners
-            v_inc, v_dec = float(inc_meta), float(dec_meta)
-            return (v_inc,) * 4, (v_dec,) * 4, v_inc, v_dec
+        def done(result):
+            arr, F = result
+            self._igrf_removed = setup
+            self._results = None  # written and loaded now
+            self._emit(F, "_IGRF", std_clip=False, load_layer=False)
+            self._emit(arr - F, "_RMI")
+            self._notify(
+                f"Remove IGRF: IGRF-{IGRF_GENERATION} for {setup['date_text']} at sea level, "
+                f"{np.nanmin(F):.0f} to {np.nanmax(F):.0f} nT over the grid",
+                duration=10,
+            )
+            if looks_like_anomaly(arr, F):
+                self._notify(
+                    f"Remove IGRF: {name} has a median of {np.nanmedian(arr):.0f} nT, far below "
+                    f"the IGRF ({np.nanmean(F):.0f} nT), so it looks like an anomaly grid that "
+                    "already has the IGRF removed. The result was saved anyway",
+                    Qgis.MessageLevel.Warning, 20,
+                )
 
-        # General case: compute IGRF at each geographic corner and the centre
-        magn_proj = self.layer.crs().authid().split(":")[1]
-        from pyproj import CRS
-        crs_proj = CRS.from_user_input(int(magn_proj))
-        crs_ll = CRS.from_user_input(4326)
-        proj = Transformer.from_crs(crs_proj, crs_ll, always_xy=True)
+        self.start_task("SGTool: Remove IGRF", work, done)
 
-        ext = self.layer.extent()
-        # Order: [NW, NE, SW, SE] = [xmin/ymax, xmax/ymax, xmin/ymin, xmax/ymin]
-        corners_xy = [
-            (ext.xMinimum(), ext.yMaximum()),
-            (ext.xMaximum(), ext.yMaximum()),
-            (ext.xMinimum(), ext.yMinimum()),
-            (ext.xMaximum(), ext.yMinimum()),
-        ]
-        center_xy = ((ext.xMinimum() + ext.xMaximum()) / 2.0,
-                     (ext.yMinimum() + ext.yMaximum()) / 2.0)
-
-        inc_corners, dec_corners = [], []
-        for x, y in corners_xy:
-            lon, lat = proj.transform(x, y)
-            inc_val, dec_val, _ = self.calcIGRF(date, 100.0, lat, lon)
-            inc_corners.append(inc_val)
-            dec_corners.append(dec_val)
-
-        lon_c, lat_c = proj.transform(*center_xy)
-        inc_center, dec_center, _ = self.calcIGRF(date, 100.0, lat_c, lon_c)
-
-        if any(v is None for v in inc_corners + dec_corners + [inc_center, dec_center]):
-            return None, None, None, None
-
-        print("geographic corners:", corners_xy)
-        print("geographic centre:", center_xy)
-        print("IGRF corners (inc, dec):", list(zip(inc_corners, dec_corners)))
-        print("IGRF centre  (inc, dec):", (inc_center, dec_center))
-
-        return tuple(inc_corners), tuple(dec_corners), inc_center, dec_center
+    def _igrf_setup(self):
+        """Main thread: what differential RTP and Remove IGRF need to work out
+        the IGRF over the grid selected on the FFT tab: {"date": decimal year,
+        "date_text": 'YYYY-MM-DD', "crs": its CRS (EPSG code or WKT), "uniform":
+        (inc, dec) of a Noddy grid's own field, else None}. None (with a
+        message) if the grid or its CRS cannot be used."""
+        name = self.dlg.mMapLayerComboBox_selectGrid.currentText()
+        if not name:
+            self._notify("Select a grid first", Qgis.MessageLevel.Warning, 8)
+            return None
+        layer = QgsProject.instance().mapLayersByName(name)[0]
+        if not layer.isValid() or not self.validCRS(layer):
+            return None
+        path = layer.dataProvider().dataSourceUri()
+        inc_meta, dec_meta, _ = self.getMagParamGeotiff(path)
+        when = self.dlg.dateEdit.date().toPyDate()
+        crs = layer.crs()
+        return {
+            "date": self.day_month_to_decimal_year(when.year, when.month, when.day),
+            "date_text": when.isoformat(),
+            "crs": crs.authid() if crs.authid().upper().startswith("EPSG:") else crs.toWkt(),
+            "uniform": None if inc_meta is None else (float(inc_meta), float(dec_meta)),
+        }
 
     def getMagParamGeotiff(self, geotiff_path):
         """
@@ -7599,6 +7632,7 @@ class SGTool:
             self.dlg.comboBox_2_FreqCutType.addItems(self.freq_cut_type_list)
 
             self.dlg.pushButton_4_calcIGRF.clicked.connect(self.update_mag_field)
+            self.dlg.pushButton_removeIGRF.clicked.connect(self.removeIGRF)
             self.dlg.pushButton_2_selectGrid.clicked.connect(self.select_grid_file)
             self.dlg.pushButton_2_selectGrid_RGB.clicked.connect(
                 self.select_RGBgrid_file

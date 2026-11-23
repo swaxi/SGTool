@@ -2,9 +2,11 @@
 Geomagnetic field (IGRF) values for a grid, with no QGIS dependency, so they
 can be worked out in a background task or a Processing algorithm.
 
-calc_igrf() is the plugin's calcIGRF() moved here unchanged; grid_field() adds
-the step the plugin dialog does around it (grid centre and corners from the
-extent and CRS code, converted to latitude/longitude).
+igrf_values() evaluates the field at many points at once (vectorised, in
+chunks), and calc_igrf() at one point (or many); grid_igrf() gives the field
+at every cell of a grid, as Remove IGRF and differential RTP use it, and
+grid_field() at the grid's centre (and corners), as the IGRF button does.
+Altitudes are in km above the WGS-84 ellipsoid; the grids use sea level.
 """
 
 import os
@@ -29,65 +31,62 @@ def decimal_year(year, month, day):
     return year + (date - start_of_year).days / days_in_year
 
 
+_MODEL = None  # (igrf_utils instance, coefficient file, interpolator), loaded once
+
+
+def _model():
+    global _MODEL
+    if _MODEL is None:
+        iut = IGRF(None, None, None)
+        igrf_file = str(Path(os.path.join(_SHC_DIR, "IGRF" + IGRF_GENERATION + ".SHC")))
+        igrf = iut.load_shcfile(igrf_file, None)
+        f = interpolate.interp1d(igrf.time, igrf.coeffs, fill_value="extrapolate")
+        _MODEL = (iut, igrf, f)
+    return _MODEL
+
+
+def igrf_values(date, alt, lat, lon, chunk=100_000, callback=None):
+    """Inclination, declination (degrees) and total intensity (nT) of the IGRF
+    main field at many points at once (arrays of any matching shape).
+
+    date: decimal year; alt: km above sea level (WGS-84); lat, lon: geodetic
+    degrees. The points are converted to geocentric radius and colatitude, the
+    field is evaluated there and rotated back to the geodetic frame. Points are
+    done chunk at a time (memory); callback(fraction done) is called after each
+    chunk and may raise to stop.
+    """
+    iut, igrf, f = _model()
+    coeffs = f(date).T
+    nmax = igrf.parameters["nmax"]
+    lat, lon = np.broadcast_arrays(np.asarray(lat, dtype=float), np.asarray(lon, dtype=float))
+    shape = lat.shape
+    lat, lon = lat.ravel(), lon.ravel()
+    inc = np.empty(lat.size)
+    dec = np.empty(lat.size)
+    F = np.empty(lat.size)
+    for s in range(0, lat.size, chunk):
+        e = min(s + chunk, lat.size)
+        radius, theta, sd, cd = iut.gg_to_geo(np.full(e - s, float(alt)), 90.0 - lat[s:e])
+        Br, Bt, Bp = iut.synth_values(coeffs, radius, theta, lon[s:e], nmax)
+        X, Y, Z = -Bt, Bp, -Br
+        X, Z = X * cd + Z * sd, Z * cd - X * sd  # geocentric -> geodetic
+        dec[s:e], _hoz, inc[s:e], F[s:e] = iut.xyz2dhif(X, Y, Z)
+        if callback is not None:
+            callback(e / lat.size)
+    return inc.reshape(shape), dec.reshape(shape), F.reshape(shape)
+
+
 def calc_igrf(date, alt, lat, lon):
     """Inclination, declination (degrees) and total intensity (nT) of the
     International Geomagnetic Reference Field.
 
-    date: decimal year; alt: altitude above sea level in km; lat, lon: degrees.
+    date: decimal year; alt: altitude above sea level in km; lat, lon: degrees
+    (numbers, or arrays for many points).
     """
-    itype = 1
-    d1 = d2 = d3 = None
-    colat = 90 - lat
-    iut = IGRF(d1, d2, d3)
-
-    # Load in the file of coefficients
-    igrf_file = str(Path(os.path.join(_SHC_DIR, "IGRF" + IGRF_GENERATION + ".SHC")))
-    igrf = iut.load_shcfile(igrf_file, None)
-
-    # Interpolate the geomagnetic coefficients to the desired date
-    f = interpolate.interp1d(igrf.time, igrf.coeffs, fill_value="extrapolate")
-    coeffs = f(date)
-
-    # Main field B_r, B_theta and B_phi for the location
-    Br, Bt, Bp = iut.synth_values(coeffs.T, alt, colat, lon, igrf.parameters["nmax"])
-
-    # For the SV, find the 5 year period in which the date lies and compute
-    # the SV within that period (IGRF has constant SV between each 5 year period)
-    epoch = (date - 1900) // 5
-    epoch_start = epoch * 5
-    coeffs_sv = f(1900 + epoch_start + 1) - f(1900 + epoch_start)
-    Brs, Bts, Bps = iut.synth_values(coeffs_sv.T, alt, colat, lon, igrf.parameters["nmax"])
-
-    # Main field coefficients from the start of each five epoch
-    coeffsm = f(1900 + epoch_start)
-    Brm, Btm, Bpm = iut.synth_values(coeffsm.T, alt, colat, lon, igrf.parameters["nmax"])
-
-    # Rearrange to X, Y, Z components
-    X = -Bt
-    Y = Bp
-    Z = -Br
-    dX = -Bts
-    dZ = -Brs
-    Xm = -Btm
-    Zm = -Brm
-    if itype == 1:
-        alt, colat, sd, cd = iut.gg_to_geo(alt, colat)
-
-    # Rotate back to geodetic coords if needed
-    if itype == 1:
-        t = X
-        X = X * cd + Z * sd
-        Z = Z * cd - t * sd
-        t = dX
-        dX = dX * cd + dZ * sd
-        dZ = dZ * cd - t * sd
-        t = Xm
-        Xm = Xm * cd + Zm * sd
-        Zm = Zm * cd - t * sd
-
-    intensity = np.sqrt(X**2 + Y**2 + Z**2)
-    dec, hoz, inc, eff = iut.xyz2dhif(X, Y, Z)
-    return inc, dec, intensity
+    inc, dec, F = igrf_values(date, alt, lat, lon)
+    if np.ndim(inc) == 0:
+        return float(inc), float(dec), float(F)
+    return inc, dec, F
 
 
 def _to_lonlat(authid):
@@ -120,11 +119,11 @@ def _to_lonlat(authid):
     )
 
 
-def grid_field(extent, authid, date, alt=100.0, corners=False):
+def grid_field(extent, authid, date, alt=0.0, corners=False):
     """IGRF inclination and declination for a grid.
 
     extent: (xmin, ymin, xmax, ymax) in the grid's CRS; authid: e.g. 'EPSG:28350';
-    date: decimal year; alt: km above sea level (the dialog uses 100).
+    date: decimal year; alt: km above sea level.
 
     Returns (inc, dec) at the grid centre. With corners=True returns
     (inc_corners, dec_corners, inc_centre, dec_centre) with the corners in
@@ -144,3 +143,69 @@ def grid_field(extent, authid, date, alt=100.0, corners=False):
         inc_corners.append(inc_v)
         dec_corners.append(dec_v)
     return tuple(inc_corners), tuple(dec_corners), inc_c, dec_c
+
+
+
+def _lonlat_arrays(crs, x, y):
+    """(lon, lat) arrays of points (x, y arrays) in a CRS given as 'EPSG:nnnn' or
+    WKT. pyproj if it is installed, else GDAL (the ArcGIS Pro environment)."""
+    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    try:
+        from pyproj import CRS, Transformer
+
+        transformer = Transformer.from_crs(CRS.from_user_input(crs), CRS.from_user_input(4326),
+                                           always_xy=True)
+        lon, lat = transformer.transform(x, y)
+        return np.asarray(lon, dtype=float), np.asarray(lat, dtype=float)
+    except ImportError:
+        pass
+    from osgeo import osr
+
+    src = osr.SpatialReference()
+    if str(crs).upper().startswith("EPSG:"):
+        src.ImportFromEPSG(int(str(crs).split(":")[1]))
+    else:
+        src.ImportFromWkt(str(crs))
+    dst = osr.SpatialReference()
+    dst.ImportFromEPSG(4326)
+    for ref in (src, dst):
+        if hasattr(osr, "OAMS_TRADITIONAL_GIS_ORDER"):  # x = lon / easting, always
+            ref.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+    out = np.array(osr.CoordinateTransformation(src, dst).TransformPoints(
+        np.column_stack([x.ravel(), y.ravel()]).tolist()), dtype=float)
+    return out[:, 0].reshape(x.shape), out[:, 1].reshape(x.shape)
+
+
+def grid_igrf(gt, shape, crs, date, alt=0.0, callback=None, chunk=200_000):
+    """IGRF inclination, declination (degrees) and total intensity (nT) at the
+    centre of every cell of a north-up grid (each a (rows, cols) array).
+
+    gt: GDAL geotransform of the north-up grid; shape: (rows, cols); crs: its
+    CRS as 'EPSG:nnnn' or WKT; date: decimal year; alt: km above sea level.
+    The cells are done a block of rows at a time (about `chunk` cells);
+    callback(fraction done) is called after each block and may raise to stop.
+    """
+    rows, cols = int(shape[0]), int(shape[1])
+    inc = np.empty((rows, cols))
+    dec = np.empty((rows, cols))
+    F = np.empty((rows, cols))
+    x = gt[0] + (np.arange(cols) + 0.5) * gt[1]
+    step = max(1, chunk // max(cols, 1))
+    for r0 in range(0, rows, step):
+        r1 = min(rows, r0 + step)
+        y = gt[3] + (np.arange(r0, r1) + 0.5) * gt[5]
+        X, Y = np.meshgrid(x, y)
+        lon, lat = _lonlat_arrays(crs, X, Y)
+        inc[r0:r1], dec[r0:r1], F[r0:r1] = igrf_values(date, alt, lat, lon)
+        if callback is not None:
+            callback(r1 / rows)
+    return inc, dec, F
+
+
+def looks_like_anomaly(data, field):
+    """True if a grid meant to be total magnetic intensity sits far below the IGRF
+    total field over it (its median under half the field's): it is then most
+    likely an anomaly grid that already has the IGRF (or a regional) removed."""
+    data = np.asarray(data, dtype=float)
+    med = np.nanmedian(data) if np.isfinite(data).any() else np.nan
+    return bool(np.isfinite(med) and abs(med) < 0.5 * float(np.nanmean(field)))

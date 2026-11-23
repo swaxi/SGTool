@@ -213,47 +213,13 @@ def raster_center_latlon(raster_path):
 # ---------------------------------------------------------------------------
 def calc_igrf(lat, lon, altitude_km, date_decimal):
     """
-    Calculate IGRF magnetic field parameters.
+    Calculate IGRF magnetic field parameters (calcs/igrf/igrf_field.py, as in QGIS).
     Returns (inclination_deg, declination_deg, intensity_nT) or None on failure.
     """
     try:
-        from calcs.igrf import igrf_utils as iu
+        from calcs.igrf.igrf_field import calc_igrf as _calc
 
-        shc_dir = os.path.join(_IGRF, "SHC_files")
-        shc_files = sorted(
-            [f for f in os.listdir(shc_dir) if f.endswith(".SHC")],
-            reverse=True
-        )
-        if not shc_files:
-            return None
-        shc_path = os.path.join(shc_dir, shc_files[0])
-
-        # load_shcfile returns a populated igrf_utils instance
-        igrf = iu.igrf_utils(None, None, None).load_shcfile(shc_path)
-
-        # Interpolate coefficients to the target decimal year
-        # igrf.time: shape (N,)   igrf.coeffs: shape (n_coefficients, N)
-        coeffs_t = np.array([
-            np.interp(date_decimal, igrf.time, igrf.coeffs[i])
-            for i in range(igrf.coeffs.shape[0])
-        ])
-
-        # Geodetic → geocentric; returns (radius_km, geocentric_colat, sd, cd)
-        gdcolat = 90.0 - lat
-        r, thc, sd, cd = igrf.gg_to_geo(float(altitude_km), float(gdcolat))
-
-        # Field components in geocentric frame
-        Br, Bt, Bp = igrf.synth_values(
-            coeffs_t, r,
-            np.float64(thc), np.float64(lon)
-        )
-
-        # Rotate geocentric → geodetic (BGS convention)
-        X = -float(Bt) * float(cd) - float(Br) * float(sd)   # North
-        Y =  float(Bp)                                          # East
-        Z =  float(Bt) * float(sd) - float(Br) * float(cd)   # Down
-
-        dec, _H, inc, F = igrf.xyz2dhif(X, Y, Z)
+        inc, dec, F = _calc(float(date_decimal), float(altitude_km), float(lat), float(lon))
         return float(inc), float(dec), float(F)
     except Exception:
         return None

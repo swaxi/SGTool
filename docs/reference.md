@@ -32,7 +32,7 @@ For each method, *Reference* gives the primary published source (listed in full 
 The examples use `ogrm_usgs_mag_tmi.tif`, an aeromagnetic total magnetic intensity grid of part of Mauritania (courtesy of the Mauritanian Government (OMRG) and the USGS), linked from the plugin's Help tab: 924 x 629 cells of 175 m, WGS 84 / UTM zone 29N, -1410 to 5005 nT. See [The example data](user-guide.md#1-the-example-data) in the user guide.
 
 - Each figure shows the input on the left and the result on the right, with the settings in the title. The results were calculated with SGTool's own filter code (`sgt_filters.py`, also used by the dialog and the Processing algorithms).
-- Magnetic reductions use the IGRF field for the dialog's default date, 1 January 2000, at the grid centre: inclination 29.2°, declination -5.4°, total field 36,751 nT.
+- Magnetic reductions use the IGRF field for the dialog's default date, 1 January 2000, at the grid centre: inclination 29.0°, declination -5.4°, total field 36,621 nT (the figures were made with the slightly different values SGTool gave before its IGRF calculation was corrected in 0.4.4: 29.2°, -5.4°, 36,751 nT).
 - Unless stated otherwise, filters are applied to the RTP grid, `ogrm_usgs_mag_tmi_RTP`, and window statistics to its first vertical derivative.
 - Figures marked *zoomed* show the 38 x 56 km area outlined below, where the effect of filters that act over a few cells can be seen.
 - Grids such as TMI and RTP are drawn with a histogram-equalised colour scale. Derivatives and other zero-centred results use a blue-white-red scale centred on zero.
@@ -157,11 +157,12 @@ Tick **RTE/P** and choose the method in the list.
 | Setting | Default | Meaning |
 |---|---|---|
 | Method list | RTP | **RTP**, **Low-lat. RTP**, **Diff. RTP** or **RTE** (below) |
-| **IGRF** | | Fills in Inc, Dec and Int from the IGRF model at the centre of the selected grid on the date shown. If the grid came from Noddy, the values are read from its GeoTIFF metadata. |
+| **IGRF** | | Fills in Inc, Dec and Int from the IGRF model at the centre of the selected grid on the date shown, at sea level. If the grid came from Noddy, the values are read from its GeoTIFF metadata. |
+| **Remove IGRF** | | Subtracts the IGRF total field, calculated at every cell for the date shown, from the selected grid: see [Remove IGRF](#remove-igrf) |
 | **Inc** | 0 | Magnetic inclination, degrees from horizontal (positive down) |
 | **Dec** | 0 | Magnetic declination, degrees clockwise from north |
 | **Int** | 50000 | Total field strength, nT |
-| Date | 1 Jan 2000 | Survey date, 1900 to 2030, used by **IGRF** and by Diff. RTP |
+| Date | 1 Jan 2000 | Survey date, 1900 to 2030, used by **IGRF**, **Remove IGRF** and Diff. RTP |
 | **Iterations** (Low-lat. RTP only) | blank (auto) | Number of iterations of the equator-to-pole operator; blank chooses it automatically |
 | **Stripe suppression (°)** (Low-lat. RTP only) | 10 | The iterations fade out within this angle of the direction perpendicular to the declination; 0 turns it off |
 
@@ -216,12 +217,12 @@ More iterations get closer to the exact (unstable) RTP; the gain perpendicular t
 
 ##### Variable (differential) reduction to the pole
 
-Accounts for the spatial variation of inclination and declination across a survey area by applying a Taylor-series expansion of the standard RTP operator. The IGRF field is computed at the four grid corners and the centre for the date shown, then bilinearly interpolated to build spatially varying inclination and declination grids. The expansion is evaluated at 13 perturbed inc/dec pairs and combined to give a single corrected output. Outputs: `_DRTP` (corrected field), and `_DRTP_inc` and `_DRTP_dec` (the interpolated inclination and declination fields used; saved but not loaded). Recommended for surveys covering several degrees of latitude or longitude, where a single inc/dec value would introduce systematic phase or amplitude errors.
+Accounts for the spatial variation of inclination and declination across a survey area by applying a Taylor-series expansion of the standard RTP operator. The IGRF inclination and declination are computed at every cell of the grid for the date shown (at sea level). The expansion is evaluated at 13 perturbed inc/dec pairs and combined to give a single corrected output. Outputs: `_DRTP` (corrected field), and `_DRTP_inc` and `_DRTP_dec` (the inclination and declination grids used; saved but not loaded). Recommended for surveys covering several degrees of latitude or longitude, where a single inc/dec value would introduce systematic phase or amplitude errors.
 
 *Reference*: Cooper & Cowan (2005).
-*In SGTool*: a line-by-line Python translation (Mark Jessell, 2026) of Gordon Cooper's MATLAB `rtpvariable.m`, supplied by its author. SGTool adds the IGRF calculation of the corner and centre values and the filling and restoring of no-data cells.
+*In SGTool*: a line-by-line Python translation (Mark Jessell, 2026) of Gordon Cooper's MATLAB `rtpvariable.m`, supplied by its author. SGTool adds the IGRF calculation at every cell (before 0.4.4, at the corners and centre, interpolated between them) and the filling and restoring of no-data cells.
 
-**Example: differential RTP**, compared with the ordinary RTP. The example grid spans only about 1.6° of longitude and 1° of latitude (inclination 28.2° to 30.3° at the corners), so the two are almost the same.
+**Example: differential RTP**, compared with the ordinary RTP. The example grid spans only about 1.6° of longitude and 1° of latitude (inclination 27.9° to 30.0°), so the two are almost the same.
 
 ![Differential RTP](images/examples/drtp.png)
 
@@ -237,6 +238,19 @@ Converts magnetic data measured at any inclination and declination to what it wo
 **Example: RTE** (Inc 29.2, Dec -5.4). At the equator, an induced anomaly is a low over its source, elongated perpendicular to the declination.
 
 ![RTE](images/examples/rte.png)
+
+#### Remove IGRF
+
+The button to the right of **IGRF** removes the main geomagnetic field from a total magnetic intensity (TMI) grid. The IGRF total intensity for the date in the date box is calculated at the centre of every cell of the selected grid, at sea level, and subtracted from it:
+
+$`\text{RMI}(x, y) = \text{TMI}(x, y) - F_{\text{IGRF}}(x, y)`$
+
+Outputs: `_RMI`, the residual magnetic intensity, which is loaded, and `_IGRF`, the field itself, which is saved but not loaded. Use it on a TMI grid, not on one that already has the IGRF (or a regional field) removed. A grid from Noddy carries its own uniform field instead, so it has no IGRF to remove.
+
+The field is that of a survey flown at sea level: at a survey height of h km it is lower by roughly 25 nT per km (about 3F/R), almost uniformly over a survey, which only shifts the level of the result.
+
+*Reference*: Alken et al. (2021), International Geomagnetic Reference Field: the thirteenth generation; IGRF-14 coefficients from IAGA Working Group V-MOD (2024).
+*In SGTool*: the field is evaluated with the IGRF code in `calcs/igrf/` (adapted from pyIGRF), vectorised so a grid of a million cells takes about 2 s. It agrees with the independent `ppigrf` package to within 0.1 nT. Before 0.4.4 SGTool evaluated the field on a sphere of the Earth's mean radius rather than at the surface, which put the total intensity out by up to a few hundred nT (and the inclination by up to about 0.3°).
 
 #### Vertical Integration ●
 
@@ -1045,7 +1059,7 @@ From a magnetic anomaly grid (nT) already reduced to the pole (or to the equator
 With an infinite thickness (the default) the last term is dropped. The result is in SI units.
 
 - **Input**: the anomaly after IGRF removal and RTP. Using the TMI anomaly without RTP partly cancels the positive and negative lobes of each anomaly.
-- **Field (nT)**: the full IGRF total intensity (for example about 58,000 nT in Western Australia, 36,751 nT for the example grid), not anything taken from the anomaly grid. It is filled in from the IGRF at the centre of the grid on the date shown whenever a grid is selected, the date changes or **IGRF** is pressed, or from the grid's own metadata if it records the field intensity. It can also be typed in.
+- **Field (nT)**: the full IGRF total intensity (for example about 58,000 nT in Western Australia, 36,621 nT for the example grid), not anything taken from the anomaly grid. It is filled in from the IGRF at the centre of the grid on the date shown whenever a grid is selected, the date changes or **IGRF** is pressed, or from the grid's own metadata if it records the field intensity. It can also be typed in.
 
 **Example: apparent susceptibility of the RTP** (Field 36751 nT, depth 0, infinite thickness, background 0.001).
 
@@ -1322,6 +1336,7 @@ The two versions share the calculation code and most features: the **Wedge** set
 ## References
 
 - Aitchison, J., 1986. *The Statistical Analysis of Compositional Data*. Chapman and Hall, London. https://doi.org/10.1007/978-94-009-4109-0
+- Alken, P., Thébault, E., Beggan, C.D., et al., 2021. International Geomagnetic Reference Field: the thirteenth generation. *Earth, Planets and Space* 73, 49. https://doi.org/10.1186/s40623-020-01288-x
 - Baranov, V., 1957. A new method for interpretation of aeromagnetic maps: pseudo-gravimetric anomalies. *Geophysics* 22, 359–382. https://doi.org/10.1190/1.1438369
 - Baranov, V., Naudy, H., 1964. Numerical calculation of the formula of reduction to the magnetic pole. *Geophysics* 29, 67–79. https://doi.org/10.1190/1.1439334
 - Bhattacharyya, B.K., 1965. Two-dimensional harmonic analysis as a tool for magnetic interpretation. *Geophysics* 30, 829–857. https://doi.org/10.1190/1.1439658

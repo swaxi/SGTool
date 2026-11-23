@@ -398,7 +398,9 @@ class igrf_utils:  # A simple class to put the igrf file values into
         (N,)-shaped outputs as in the first example.
 
         """
-        radius = 6371.2
+        # (the radius used to be overwritten here with 6371.2 km, so the field was
+        # always evaluated on the mean-radius sphere, whatever the altitude and
+        # latitude: up to several hundred nT out at the Earth's surface)
         # ensure ndarray inputs
         coeffs = np.array(coeffs, dtype=float)
         radius = np.array(radius, dtype=float) / 6371.2  # Earth's average radius

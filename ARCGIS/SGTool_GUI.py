@@ -328,6 +328,7 @@ REFERENCE_BY_VARIABLE = {
     "v_bs_auto": "Choosing the B-spline settings (Auto)",
 }
 REFERENCE_BY_BUTTON = {
+    "Remove IGRF": "Remove IGRF",
     "Radial Power Spectrum": "Radial Power Spectrum",
     "Import Data": "Import point or line data",
     "Multilevel B-Spline Gridding": "Gridding",
@@ -1509,6 +1510,12 @@ class SGToolApp(tk.Tk):
         entry(r2, self.v_igrf_year, 7).pack(side="left", padx=2)
         tip(btn(r2, "Calc IGRF", self._calc_igrf, w=10),
             "Calculate IGRF Inclination & Declination\nbased on centroid of selected grid and specified date").pack(side="left", padx=8)
+        tip(btn(r2, "Remove IGRF", self._remove_igrf, w=12),
+            "Remove IGRF: the IGRF total field for the Year given, at sea level,\n"
+            "calculated at every cell of the input grid, is subtracted from it.\n"
+            "Saves <grid>_IGRF.tif (the field, not added to the map) and adds\n"
+            "<grid>_RMI.tif (the residual magnetic intensity, TMI - IGRF).\n"
+            "For a TMI grid, not one with the IGRF already removed").pack(side="left", padx=2)
 
         r3 = tk.Frame(gm, bg=BG); r3.pack(fill="x", padx=4, pady=2)
         self.v_vint = tk.BooleanVar()
@@ -3586,27 +3593,28 @@ class SGToolApp(tk.Tk):
             elif rt == "Diff. RTP":
                 self.after(0, lambda: self._status("Differential (variable) RTP…"))
                 year = float(self.v_igrf_year.get())
-                inc_c, dec_c, inc_ctr, dec_ctr = self._get_igrf_corners(in_r, year)
-                if inc_c is None:
+                fields = self._igrf_grids(in_r, year, arr.shape)
+                if fields is None:
                     self.after(0, lambda: messagebox.showwarning(
                         "Diff. RTP",
-                        "Could not compute IGRF at grid corners.\n"
+                        "Could not compute the IGRF over the grid.\n"
                         "Check that the raster has a valid CRS and the IGRF Year is correct."))
                 else:
                     from calcs.Cooper_Cowan_rtpvariable import rtpvariable as cooper_rtpvariable
                     nr, nc = arr.shape
-                    # NaN filling and restoration are handled inside rtpvariable (as in QGIS)
+                    # the IGRF at every cell (as in QGIS); NaN filling and restoration
+                    # are handled inside rtpvariable
                     _, varrtp, incv_deg, decv_deg = cooper_rtpvariable(
-                        np.flipud(arr), nr, nc, inc_c, dec_c,
-                        inc_center=inc_ctr, dec_center=dec_ctr,
+                        np.flipud(arr), nr, nc, None, None,
+                        incv=np.flipud(fields[0]), decv=np.flipud(fields[1]),
                     )
                     when = self._year_to_date(year)
                     _save(np.flipud(varrtp),    "_DRTP",
                           ("Differential reduction to pole", {"date": when}))
                     _save(np.flipud(incv_deg),  "_DRTP_inc",
-                          ("Differential RTP: interpolated inclination field", {"date": when}))
+                          ("Differential RTP: IGRF inclination field", {"date": when, "altitude_km": 0.0}))
                     _save(np.flipud(decv_deg),  "_DRTP_dec",
-                          ("Differential RTP: interpolated declination field", {"date": when}))
+                          ("Differential RTP: IGRF declination field", {"date": when, "altitude_km": 0.0}))
             elif rt == "Pole":
                 self.after(0, lambda: self._status("RTP…"))
                 _save(proc.reduction_to_pole(arr, inc, dec, buffer_size=buf), "rtp",
@@ -4641,85 +4649,97 @@ class SGToolApp(tk.Tk):
         except Exception as e:
             messagebox.showerror("IGRF Error", str(e))
 
-    def _get_igrf_corners(self, in_r, year):
-        """Return (inc_corners, dec_corners, inc_center, dec_center) for Cooper/Cowan Diff. RTP.
+    def _igrf_crs(self, in_r):
+        """The input grid's CRS for the IGRF: its EPSG code, else its WKT."""
+        hdr = raster_header_info(in_r)
+        if hdr and hdr.get("authid"):
+            return hdr["authid"]
+        from calcs.Radiometrics import north_up_frame
+        return north_up_frame(in_r)[3] or None
 
-        Corner order: [NW, NE, SW, SE] — the axis-xy convention expected by
-        Cooper_Cowan_rtpvariable (row nr = geographic north, row 1 = south).
-        Returns (None, None, None, None) on any failure.
-        """
-        from arcgis_utils import calc_igrf, get_noddy_mag_params
+    def _igrf_grids(self, in_r, year, shape):
+        """(inclination, declination) grids, north-up, for differential RTP: the
+        IGRF at every cell (calcs/igrf/igrf_field.py, as in QGIS), or the uniform
+        field a Noddy grid carries. None on failure."""
+        from arcgis_utils import get_noddy_mag_params
         noddy = get_noddy_mag_params(in_r)
         if noddy is not None:
-            # Noddy GeoTIFF: uniform field, so centre equals corners
-            inc, dec, _ = noddy
-            return [inc] * 4, [dec] * 4, inc, dec
-        hdr = raster_header_info(in_r)
-        if hdr and hdr["authid"]:
-            # the same calculation as the QGIS dialog (calcs/igrf/igrf_field.py)
-            try:
-                from calcs.igrf.igrf_field import grid_field
-                return grid_field(hdr["extent"], hdr["authid"], float(year), corners=True)
-            except Exception:
-                logging.getLogger(__name__).debug("grid_field failed", exc_info=True)
+            return np.full(shape, noddy[0]), np.full(shape, noddy[1])
         try:
-            from osgeo import gdal, osr
-            ds = gdal.Open(str(in_r), gdal.GA_ReadOnly)
-            if ds is None:
-                return None, None, None, None
-            gt   = ds.GetGeoTransform()
-            cols = ds.RasterXSize
-            rows = ds.RasterYSize
-            wkt  = ds.GetProjection()
-            ds   = None
+            from calcs.igrf.igrf_field import grid_igrf
+            from calcs.Radiometrics import north_up_frame
 
-            # Five points in raster CRS: NW, NE, SW, SE, centre
-            pts_xy = [
-                (gt[0],                                    gt[3]),                                    # NW
-                (gt[0] + gt[1]*cols,                       gt[3] + gt[4]*cols),                       # NE
-                (gt[0] + gt[2]*rows,                       gt[3] + gt[5]*rows),                       # SW
-                (gt[0] + gt[1]*cols + gt[2]*rows,          gt[3] + gt[4]*cols + gt[5]*rows),           # SE
-                (gt[0] + gt[1]*cols/2 + gt[2]*rows/2,      gt[3] + gt[4]*cols/2 + gt[5]*rows/2),      # centre
-            ]
-
-            src_srs = osr.SpatialReference()
-            if wkt:
-                src_srs.ImportFromWkt(wkt)
-            else:
-                src_srs.ImportFromEPSG(4326)
-
-            if src_srs.IsGeographic():
-                def to_latlon(x, y):
-                    return float(y), float(x)
-            else:
-                geo_srs = osr.SpatialReference()
-                geo_srs.ImportFromEPSG(4326)
-                geo_srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
-                ct = osr.CoordinateTransformation(src_srs, geo_srs)
-                def to_latlon(x, y):
-                    lon, lat, _ = ct.TransformPoint(x, y)
-                    return float(lat), float(lon)
-
-            inc_corners, dec_corners = [], []
-            for x, y in pts_xy[:4]:
-                lat, lon = to_latlon(x, y)
-                res = calc_igrf(lat, lon, 0.0, year)
-                if res is None:
-                    return None, None, None, None
-                inc, dec, _ = res
-                inc_corners.append(inc)
-                dec_corners.append(dec)
-
-            ctr_x, ctr_y = pts_xy[4]
-            lat_c, lon_c = to_latlon(ctr_x, ctr_y)
-            res_c = calc_igrf(lat_c, lon_c, 0.0, year)
-            if res_c is None:
-                return None, None, None, None
-            inc_center, dec_center, _ = res_c
-
-            return inc_corners, dec_corners, inc_center, dec_center
+            crs = self._igrf_crs(in_r)
+            if not crs:
+                return None
+            gt, cols, rows, _wkt = north_up_frame(in_r)
+            inc, dec, _F = grid_igrf(gt, (rows, cols), crs, float(year),
+                                     callback=lambda _f: self._check_cancel())
+            return inc, dec
+        except OperationCancelled:
+            raise
         except Exception:
-            return None, None, None, None
+            logging.getLogger(__name__).debug("grid_igrf failed", exc_info=True)
+            return None
+
+    def _remove_igrf(self):
+        """Remove IGRF: the IGRF total field (at sea level, for the Year given) at
+        every cell of the input grid is saved as <grid>_IGRF.tif (not added to the
+        map), and the grid minus it, the residual magnetic intensity, is saved and
+        added as <grid>_RMI.tif."""
+        from arcgis_utils import get_noddy_mag_params
+        in_r = self._resolve_input()
+        if not in_r or not os.path.exists(in_r):
+            messagebox.showwarning("Remove IGRF", "Select an input raster first.")
+            return
+        if get_noddy_mag_params(in_r) is not None:
+            messagebox.showwarning(
+                "Remove IGRF", "This grid carries its own field in its metadata (a Noddy "
+                "model), so it has no IGRF to remove.")
+            return
+        try:
+            year = float(self.v_igrf_year.get())
+        except ValueError:
+            messagebox.showwarning("Remove IGRF", "Enter the survey date as a decimal Year.")
+            return
+        if not self._igrf_crs(in_r):
+            messagebox.showwarning("Remove IGRF", "The grid needs a coordinate system.")
+            return
+        self._status("Remove IGRF…")
+        self._run_in_thread(self._do_remove_igrf, in_r, year)
+
+    def _do_remove_igrf(self, in_r, year):
+        from calcs.igrf.igrf_field import grid_igrf, IGRF_GENERATION, looks_like_anomaly
+        from calcs.Radiometrics import north_up_frame
+
+        arr, nodata, ll_x, ll_y, cx, cy, sr = raster_to_numpy(in_r)
+        gt, cols, rows, _wkt = north_up_frame(in_r)
+        _inc, _dec, F = grid_igrf(gt, (rows, cols), self._igrf_crs(in_r), year,
+                                  callback=lambda _f: self._check_cancel())
+        base, ext = os.path.splitext(in_r)
+        ext = ext or ".tif"
+        params = {"date": self._year_to_date(year), "altitude_km": 0.0,
+                  "model": "IGRF-" + IGRF_GENERATION}
+        for grid, suffix, operation, add in (
+                (F, "_IGRF", "IGRF total field", False),
+                (arr - F, "_RMI", "Remove IGRF (TMI - IGRF)", True)):
+            self._check_cancel()
+            out_r = self._output_path(base, suffix, ext)
+            numpy_to_raster(grid, out_r, ll_x, ll_y, cx, cy, sr, nodata)
+            write_provenance(out_r, in_r, operation, params)
+            if add:  # only the residual is added to the map
+                self._record_pending(out_r)
+                self.after(0, self._on_output_written, out_r)
+        self.after(0, lambda: self._status(
+            f"Remove IGRF: IGRF-{IGRF_GENERATION} for {params['date']} at sea level, "
+            f"{np.nanmin(F):.0f} to {np.nanmax(F):.0f} nT over the grid"))
+        if looks_like_anomaly(arr, F):
+            med, mean_f = float(np.nanmedian(arr)), float(np.nanmean(F))
+            self.after(0, lambda: messagebox.showwarning(
+                "Remove IGRF",
+                f"The grid has a median of {med:.0f} nT, far below the IGRF ({mean_f:.0f} nT), "
+                "so it looks like an anomaly grid that already has the IGRF removed.\n"
+                "The result was saved anyway."))
 
     def _show_power_spectrum(self):
         in_r = self._resolve_input()

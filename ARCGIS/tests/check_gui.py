@@ -863,6 +863,40 @@ app.v_cont.set(True); app.v_cont_dir.set("up"); app.update()
 check("... and the surfaces hide again", not app._vc_frame.winfo_manager()
       and app._cont_h_entry.winfo_manager() == "pack")
 
+# ---- Remove IGRF: the IGRF at every cell, saved, and subtracted (only the residual added)
+from calcs.igrf.igrf_field import calc_igrf, grid_igrf, _to_lonlat
+# a TMI grid: the anomaly grid prevsrc.tif plus the IGRF
+ds = gdal.Open(pv); anom_ = ds.GetRasterBand(1).ReadAsArray().astype(float); gt_ = ds.GetGeoTransform(); ds = None
+_inc, _dec, F_true = grid_igrf(gt_, anom_.shape, "EPSG:28350", 2020.5)
+tmi_src = os.path.join(DATA, "tmi.tif")
+ds = gdal.GetDriverByName("GTiff").Create(tmi_src, anom_.shape[1], anom_.shape[0], 1, gdal.GDT_Float32)
+ds.SetGeoTransform(gt_); s_ = osr.SpatialReference(); s_.ImportFromEPSG(28350); ds.SetProjection(s_.ExportToWkt())
+ds.GetRasterBand(1).SetNoDataValue(-9999.0); ds.GetRasterBand(1).WriteArray((anom_ + F_true).astype("float32")); ds = None
+queued, warns = [], []
+_rec, _sw = app._record_pending, G.messagebox.showwarning
+app._record_pending = lambda path: (queued.append(os.path.basename(path)), _rec(path))
+G.messagebox.showwarning = lambda title, msg, **k: warns.append(msg)
+app._do_remove_igrf(tmi_src, 2020.5); pump(0.5)
+igrf_tif, rmi_tif = os.path.join(DATA, "tmi_IGRF.tif"), os.path.join(DATA, "tmi_RMI.tif")
+check("Remove IGRF writes the IGRF grid and the residual", os.path.exists(igrf_tif) and os.path.exists(rmi_tif))
+if os.path.exists(igrf_tif) and os.path.exists(rmi_tif):
+    F_, rmi_, tmi_ = band(igrf_tif), band(rmi_tif), band(tmi_src)
+    check("... the residual is the grid minus the IGRF", np.allclose(rmi_, tmi_ - F_, atol=1e-2, equal_nan=True))
+    check("... which gives the anomaly back (to float32 precision)",
+          np.nanmax(np.abs(rmi_ - anom_)) < 0.05, np.nanmax(np.abs(rmi_ - anom_)))
+    lon_, lat_ = _to_lonlat("EPSG:28350").transform(gt_[0] + gt_[1] / 2, gt_[3] + gt_[5] / 2)  # top-left cell centre
+    check("... the IGRF is the field at each cell", abs(F_[0, 0] - calc_igrf(2020.5, 0.0, lat_, lon_)[2]) < 0.05,
+          (F_[0, 0], calc_igrf(2020.5, 0.0, lat_, lon_)[2]))
+    root_ = sm.read_sgt_metadata(rmi_tif)
+    check("... with its provenance", root_ is not None and root_.findtext("operation") == "Remove IGRF (TMI - IGRF)")
+check("... only the residual is added to the map", queued == ["tmi_RMI.tif"], queued)
+check("... and there is no anomaly warning for a TMI grid", not warns, warns)
+app._do_remove_igrf(pv, 2020.5); pump(0.5)  # an anomaly grid: the IGRF is already removed
+check("Remove IGRF warns on a grid that already has the IGRF removed",
+      any("already has the IGRF removed" in w for w in warns), warns)
+app._record_pending, G.messagebox.showwarning = _rec, _sw
+check("Ctrl+click on Remove IGRF is linked to its section", G.REFERENCE_BY_BUTTON.get("Remove IGRF") == "Remove IGRF")
+
 # ---- Ctrl+click: the filter's section of the reference
 import webbrowser
 opened = []

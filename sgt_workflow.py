@@ -27,7 +27,7 @@ try:  # as part of the QGIS plugin package
     from .calcs.layer_shim import LayerShim
     from .calcs.sgt_metadata import write_sgt_metadata
     from .calcs.Cooper_Cowan_rtpvariable import rtpvariable as cooper_rtpvariable
-    from .calcs.igrf.igrf_field import grid_field, decimal_year
+    from .calcs.igrf.igrf_field import grid_field, grid_igrf, decimal_year
     from .sgt_filters import (
         FILTER_SPECS, SUFFIXES, GridContext, auto_output_path, read_grid, write_grid,
         _plugin_version,
@@ -36,7 +36,7 @@ except ImportError:  # from the ArcGIS Pro GUI, where these are top-level module
     from calcs.layer_shim import LayerShim
     from calcs.sgt_metadata import write_sgt_metadata
     from calcs.Cooper_Cowan_rtpvariable import rtpvariable as cooper_rtpvariable
-    from calcs.igrf.igrf_field import grid_field, decimal_year
+    from calcs.igrf.igrf_field import grid_field, grid_igrf, decimal_year
     from sgt_filters import (
         FILTER_SPECS, SUFFIXES, GridContext, auto_output_path, read_grid, write_grid,
         _plugin_version,
@@ -268,14 +268,23 @@ def check_igrf_possible(grid_info):
 
 
 def _field_for_grid(source_path, grid_info, when):
-    """(inc, dec) at the grid centre, and for differential RTP the corner values."""
+    """(inc, dec) at the grid centre (the field a Noddy grid carries, else the IGRF)."""
     fixed = uniform_field(source_path)
     if fixed is not None:
-        return fixed, ((fixed[0],) * 4, (fixed[1],) * 4, fixed[0], fixed[1])
+        return fixed
     year = decimal_year(when.year, when.month, when.day)
-    inc_c, dec_c = grid_field(grid_info["extent"], grid_info["authid"], year)
-    corners = grid_field(grid_info["extent"], grid_info["authid"], year, corners=True)
-    return (inc_c, dec_c), corners
+    return grid_field(grid_info["extent"], grid_info["authid"], year)
+
+
+def _field_grids(source_path, grid_info, when, gt, shape):
+    """Inclination and declination grids for differential RTP (north-up): the
+    IGRF at every cell, as the dialog works it out, or a Noddy grid's own field."""
+    fixed = uniform_field(source_path)
+    if fixed is not None:
+        return np.full(shape, fixed[0]), np.full(shape, fixed[1])
+    year = decimal_year(when.year, when.month, when.day)
+    inc, dec, _F = grid_igrf(gt, shape, grid_info["authid"], year)
+    return inc, dec
 
 
 # ---------------------------------------------------------------- replay
@@ -325,7 +334,7 @@ def run_replay(
         else:
             spec = _SPEC_BY_ID[item["spec_id"]]
             if item["igrf"]:
-                (inc, dec), _corners = _field_for_grid(source_path, grid_info, when)
+                inc, dec = _field_for_grid(source_path, grid_info, when)
                 inc, dec = float(inc), float(dec)
                 values["INCLINATION"], values["DECLINATION"] = inc, dec
                 record = dict(values, igrf_date=when.isoformat())
@@ -380,12 +389,12 @@ def _replay_drtp(item, current, source_path, grid_info, when,
                  arr, gt, projection, log):
     """Differential RTP for the grid, plus the inclination / declination grids
     it used (written, as the dialog does, but not loaded)."""
-    _centre, corners = _field_for_grid(source_path, grid_info, when)
-    inc_corners, dec_corners, inc_c, dec_c = corners
+    inc_grid, dec_grid = _field_grids(source_path, grid_info, when, gt, arr.shape)
     nr, nc = arr.shape
+    inc_c, dec_c = inc_grid[nr // 2, nc // 2], dec_grid[nr // 2, nc // 2]
     _, varrtp, incv, decv = cooper_rtpvariable(
-        np.flipud(arr), nr, nc, inc_corners, dec_corners,
-        inc_center=inc_c, dec_center=dec_c,
+        np.flipud(arr), nr, nc, None, None,
+        incv=np.flipud(inc_grid), decv=np.flipud(dec_grid),
     )
     log.append(
         f"{item['operation']}: field from IGRF for {when.isoformat()} "
@@ -396,7 +405,7 @@ def _replay_drtp(item, current, source_path, grid_info, when,
         clear_outputs([path])
         write_grid(path, np.flipud(field), gt, projection)
         write_sgt_metadata(
-            path, current, f"Differential RTP: interpolated {what} field",
-            {"date": when.isoformat()}, _plugin_version(),
+            path, current, f"Differential RTP: IGRF {what} field",
+            {"date": when.isoformat(), "altitude_km": 0.0}, _plugin_version(),
         )
     return {"grid": np.flipud(varrtp), "date": when.isoformat()}

@@ -445,19 +445,10 @@ class SGToolDockWidget(QDockWidget):
             QComboBox.SizeAdjustPolicy.AdjustToContents
         )
         self.pushButton_4_calcIGRF = QPushButton(_tr("Centroid IGRF"))
-        self.pushButton_removeIGRF = QPushButton(_tr("Remove IGRF"))
 
         g.addWidget(self.checkBox_4_RTE_P,        0, 0)
         g.addWidget(self.comboBox_3_rte_p_list,   0, 1, 1, 2)
-        # Centroid IGRF, a gap, then Remove IGRF (a different kind of action)
-        igrf_row = QHBoxLayout()
-        igrf_row.setContentsMargins(0, 0, 0, 0)
-        igrf_row.setSpacing(0)
-        igrf_row.addWidget(self.pushButton_4_calcIGRF)
-        igrf_row.addSpacing(16)
-        igrf_row.addWidget(self.pushButton_removeIGRF)
-        igrf_row.addStretch()
-        g.addLayout(igrf_row, 0, 3, 1, 2)
+        g.addWidget(self.pushButton_4_calcIGRF,   0, 3)
 
         # Row 1: Inc / Dec / Int / date
         self.label_15 = QLabel(_tr("Inc"))
@@ -515,12 +506,21 @@ class SGToolDockWidget(QDockWidget):
         )
         g.addWidget(self.widget_LL_RTP, 2, 0, 1, 5)
 
+        # Row 3: Remove IGRF (TMI - IGRF at every cell, for the date above)
+        self.checkBox_RemIGRF = QCheckBox(_tr("Remove IGRF"))
+        self.label_RemIGRF = QLabel(_tr("(TMI - IGRF, for the date above)"))
+        row_igrf = QHBoxLayout()
+        row_igrf.addWidget(self.checkBox_RemIGRF)
+        row_igrf.addWidget(self.label_RemIGRF)
+        row_igrf.addStretch()
+        g.addLayout(row_igrf, 3, 0, 1, 5)
+
         # Row 3: ● PGrav
         self.label_26 = QLabel("●")
         self.label_26.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.checkBox_4_PGrav = QCheckBox(
             _tr("Vertical Integration (apply to RTE/P result to get Pseudo Gravity)"))
-        g.addLayout(self._bullet_check(self.label_26, self.checkBox_4_PGrav), 3, 0, 1, 5)
+        g.addLayout(self._bullet_check(self.label_26, self.checkBox_4_PGrav), 4, 0, 1, 5)
 
         # Row 4: ● Continuation / Direction / Height
         self.label_28 = QLabel("●")
@@ -548,7 +548,7 @@ class SGToolDockWidget(QDockWidget):
         row3.addWidget(self.label_21)
         row3.addWidget(self.lineEdit_10_continuationHeight)
         row3.addStretch()
-        g.addLayout(row3, 4, 0, 1, 5)
+        g.addLayout(row3, 5, 0, 1, 5)
 
         # Row 5: variable continuation, shown only while Continuation is ticked
         # with the direction "variable": the observed and output surfaces, each
@@ -630,7 +630,7 @@ class SGToolDockWidget(QDockWidget):
 
         self.comboBox_2_continuationDirection.currentTextChanged.connect(update_variable)
         self.checkBox_9_continuation.toggled.connect(update_variable)
-        g.addWidget(self.widget_VarCont, 5, 0, 1, 5)
+        g.addWidget(self.widget_VarCont, 6, 0, 1, 5)
 
         g.setColumnStretch(4, 1)
         return gb

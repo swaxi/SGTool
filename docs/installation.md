@@ -17,7 +17,7 @@
 
    
 ## ArcGIS Pro:
-1) Download and unzip this respository and store somewhere safe.
+1) Download **SGTool-ArcGIS-x.y.z.zip** from the latest ArcGIS release on the [Releases page](https://github.com/swaxi/SGTool/releases) (tagged `arcgis-v...`), or the whole repository (**Code > Download ZIP**), unzip it and store it somewhere safe.
 2) In the ArcGIS Pro Catalog pane, go to **Toolboxes > Add Toolbox** and select the file **SGTool.pyt** in the **ARCGIS** directory in this repository.
 3) SGTool needs some Python libraries that ArcGIS Pro does not include. The default environment (arcgispro-py3) cannot be changed, so they go into a clone of it. Either use the setup tool (3A, recommended) or do it by hand (3B).
 

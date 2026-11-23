@@ -158,7 +158,7 @@ Tick **RTE/P** and choose the method in the list.
 |---|---|---|
 | Method list | RTP | **RTP**, **Low-lat. RTP**, **Diff. RTP** or **RTE** (below) |
 | **Centroid IGRF** | | Fills in Inc, Dec and Int from the IGRF model at the centre of the selected grid on the date shown, at sea level. If the grid came from Noddy, the values are read from its GeoTIFF metadata. |
-| **Remove IGRF** | | Subtracts the IGRF total field, calculated at every cell for the date shown, from the selected grid: see [Remove IGRF](#remove-igrf) |
+| **Remove IGRF** | | Tickbox on its own row beneath RTE/P: run with **Apply Processing**, subtracts the IGRF total field, calculated at every cell for the date shown, from the selected grid; cannot be previewed. See [Remove IGRF](#remove-igrf) |
 | **Inc** | 0 | Magnetic inclination, degrees from horizontal (positive down) |
 | **Dec** | 0 | Magnetic declination, degrees clockwise from north |
 | **Int** | 50000 | Total field strength, nT |
@@ -241,7 +241,7 @@ Converts magnetic data measured at any inclination and declination to what it wo
 
 #### Remove IGRF
 
-The button to the right of **Centroid IGRF** removes the main geomagnetic field from a total magnetic intensity (TMI) grid. The IGRF total intensity for the date in the date box is calculated at the centre of every cell of the selected grid, at sea level, and subtracted from it:
+Tick **Remove IGRF** (on its own row beneath RTE/P) and press **Apply Processing** to remove the main geomagnetic field from a total magnetic intensity (TMI) grid. Like differential RTP, it cannot be previewed. The IGRF total intensity for the date in the date box is calculated at the centre of every cell of the selected grid, at sea level, and subtracted from it:
 
 $`\text{RMI}(x, y) = \text{TMI}(x, y) - F_{\text{IGRF}}(x, y)`$
 

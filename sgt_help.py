@@ -20,7 +20,7 @@ from .sgt_reference import section_url as _section_url
 SECTIONS = {
     # FFT Filters+
     "checkBox_4_RTE_P": "RTE/P (reduction to the pole or equator)",
-    "pushButton_removeIGRF": "Remove IGRF",
+    "checkBox_RemIGRF": "Remove IGRF",
     "checkBox_4_PGrav": "Vertical Integration ●",
     "checkBox_9_continuation": lambda d: (
         "Variable continuation ●"

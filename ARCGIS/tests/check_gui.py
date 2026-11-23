@@ -900,7 +900,15 @@ queued, warns = [], []
 _rec, _sw = app._record_pending, G.messagebox.showwarning
 app._record_pending = lambda path: (queued.append(os.path.basename(path)), _rec(path))
 G.messagebox.showwarning = lambda title, msg, **k: warns.append(msg)
-app._do_remove_igrf(tmi_src, 2020.5); pump(0.5)
+app.nb.select(0); app.update()
+for _n in app.PREVIEW_FILTERS[0]:  # nothing else ticked from the checks above
+    if app._filter_var(_n) is not None:
+        app._filter_var(_n).set(False)
+app.v_input.set(tmi_src); app.v_igrf_year.set("2020.5")
+check("Remove IGRF is a tickbox on the FFT tab, run by Apply", app._filter_var("v_remigrf") is not None
+      and "v_remigrf" in app.PREVIEW_FILTERS[0] and "v_remigrf" in app.PREVIEW_NOT_POSSIBLE)
+app.v_remigrf.set(True)
+app._do_apply_fft(tmi_src); pump(0.5)
 igrf_tif, rmi_tif = os.path.join(DATA, "tmi_IGRF.tif"), os.path.join(DATA, "tmi_RMI.tif")
 check("Remove IGRF writes the IGRF grid and the residual", os.path.exists(igrf_tif) and os.path.exists(rmi_tif))
 if os.path.exists(igrf_tif) and os.path.exists(rmi_tif):
@@ -915,11 +923,13 @@ if os.path.exists(igrf_tif) and os.path.exists(rmi_tif):
     check("... with its provenance", root_ is not None and root_.findtext("operation") == "Remove IGRF (TMI - IGRF)")
 check("... only the residual is added to the map", queued == ["tmi_RMI.tif"], queued)
 check("... and there is no anomaly warning for a TMI grid", not warns, warns)
-app._do_remove_igrf(pv, 2020.5); pump(0.5)  # an anomaly grid: the IGRF is already removed
+app.v_input.set(pv); app.v_remigrf.set(True)
+app._do_apply_fft(pv); pump(0.5)  # an anomaly grid: the IGRF is already removed
 check("Remove IGRF warns on a grid that already has the IGRF removed",
       any("already has the IGRF removed" in w for w in warns), warns)
 app._record_pending, G.messagebox.showwarning = _rec, _sw
-check("Ctrl+click on Remove IGRF is linked to its section", G.REFERENCE_BY_BUTTON.get("Remove IGRF") == "Remove IGRF")
+app.v_remigrf.set(False)
+check("Ctrl+click on Remove IGRF is linked to its section", G.REFERENCE_BY_VARIABLE.get("v_remigrf") == "Remove IGRF")
 
 # ---- Ctrl+click: the filter's section of the reference
 import webbrowser

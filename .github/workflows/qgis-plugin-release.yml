@@ -18,6 +18,8 @@ env:
 
 jobs:
   release:
+    # ArcGIS Pro releases (tags arcgis-v...) carry their own zip: no QGIS build
+    if: ${{ !startsWith(github.event.release.tag_name, 'arcgis') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

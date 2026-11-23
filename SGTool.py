@@ -488,12 +488,12 @@ class SGTool:
         self.dlg.checkBox_4_RTE_P.setToolTip(
             self.tr("Reduction to pole or equator\nThe reduction to the pole (RTP), differential RTP or to Equator (RTE) is a process in geophysics\nwhere magnetic data are transformed to look as though\n they were measured at the magnetic pole/equator\nCorrects the asymmetry of magnetic anomalies caused by\n the Earth's field, making them appear directly above their sources\n Differential RTP (code derived from Cooper & Cowan 2005) calculates RTP with spatially varying inclination and declination")
         )
-        self.dlg.pushButton_removeIGRF.setToolTip(self.tr(
-            "Remove IGRF: the IGRF total field for the date in the date box, at sea level,\n"
+        self.dlg.checkBox_RemIGRF.setToolTip(self.tr(
+            "Remove IGRF: the IGRF total field for the date above, at sea level,\n"
             "calculated at every cell of the selected grid, is subtracted from it.\n"
             "Saves <grid>_IGRF.tif (the field, not loaded) and loads <grid>_RMI.tif\n"
             "(the residual magnetic intensity, TMI - IGRF). For a TMI grid, not one\n"
-            "with the IGRF already removed"))
+            "with the IGRF already removed. Runs with Apply Processing; cannot be previewed"))
         self.dlg.pushButton_4_calcIGRF.setToolTip(
             self.tr("Calculate IGRF Inclination & Declination based on centroid of selected grid and specified survey height and date\nIf a grid originated from a Noddy calculation, the info is read from the geotiff metadata")
         )
@@ -1053,6 +1053,7 @@ class SGTool:
             self.DC_width = 45.0  # blank/invalid: the usual wedge
 
         self.RTE_P = self.dlg.checkBox_4_RTE_P.isChecked()
+        self.RemIGRF = self.dlg.checkBox_RemIGRF.isChecked()
         self.RTE_P_type = self.dlg.comboBox_3_rte_p_list.currentText()
         self.RTE_P_inc = self.to_float(self.dlg.lineEdit_6_inc.text())
         self.RTE_P_dec = self.to_float(self.dlg.lineEdit_5_dec.text())
@@ -2570,7 +2571,7 @@ class SGTool:
     # filters on each tab that can't be previewed: disabled (and unticked)
     # while previewing
     PREVIEW_DISABLED = {
-        0: ["checkBox_ED", "checkBox_ED_Stats"],
+        0: ["checkBox_ED", "checkBox_ED_Stats", "checkBox_RemIGRF"],
         1: [
             "checkBox_SS_ChainLength",
             "checkBox_SS_Streamline", "checkBox_MRVBF",
@@ -5808,6 +5809,7 @@ class SGTool:
     PIPELINE_JOBS = (
         ("DirClean", "procDirClean", True, True),
         ("RTE_P", None, True, True),  # procRTP_E, or procVRTP for differential RTP
+        ("RemIGRF", "procRemIGRF", True, False),  # writes _IGRF and _RMI itself
         ("RemRegional", "procRemRegional", True, True),
         ("Derivative", "procDerivative", True, True),
         ("TA", "procTiltAngle", True, True),
@@ -5888,15 +5890,17 @@ class SGTool:
                     raise ValueError(f"Failed to load raster layer: {self.diskGridPath}")
             elif flag == "LogRatio":
                 self._out_suffix[flag] = self._prepare_output_suffix("_" + self.LogRatio_type)
-            elif flag == "RTE_P" and job[1] == "procVRTP":
-                # IGRF values come from the date widget and the layer
+            elif (flag == "RTE_P" and job[1] == "procVRTP") or flag == "RemIGRF":
+                # IGRF date and CRS come from the date widget and the layer
                 self._igrf = self._igrf_setup()
+                if self._igrf is None:
+                    continue
             ready.append(job)
         return ready
 
     # Short names for the task manager
     _JOB_LABELS = {
-        "DirClean": "Directional clean", "RTE_P": "RTP/RTE", "RemRegional": "Remove regional",
+        "DirClean": "Directional clean", "RTE_P": "RTP/RTE", "RemIGRF": "Remove IGRF", "RemRegional": "Remove regional",
         "Derivative": "Derivative", "TA": "Tilt angle", "AS": "Analytic signal",
         "Continuation": "Continuation", "BandPass": "Band pass", "FreqCut": "High/Low pass",
         "AGC": "AGC", "VI": "Vertical integration", "THG": "Total horizontal gradient",
@@ -6018,6 +6022,7 @@ class SGTool:
         """
 
         self.dlg.checkBox_4_RTE_P.setChecked(False)
+        self.dlg.checkBox_RemIGRF.setChecked(False)
         self.dlg.checkBox_7_tiltDerivative.setChecked(False)
         self.dlg.checkBox_8_analyticSignal.setChecked(False)
         self.dlg.checkBox_4_PGrav.setChecked(False)
@@ -6072,6 +6077,7 @@ class SGTool:
         self.RemRegional = False
         self.Derivative = False
         self.Continuation = False
+        self.RemIGRF = False
         self.BandPass = False
         self.AGC = False
         self.FreqCut = False
@@ -7041,55 +7047,40 @@ class SGTool:
 
     _igrf_removed = None  # date of the last Remove IGRF (for its provenance)
 
-    def removeIGRF(self):
-        """Remove IGRF: the IGRF total field (at sea level, for the date in the
-        date box) at every cell of the grid selected on the FFT tab, saved as
+    def procRemIGRF(self):
+        """Remove IGRF (a job of Apply Processing): the IGRF total field (at sea
+        level, for the date in the date box) at every cell of the grid, saved as
         <grid>_IGRF.tif (not loaded), and the grid minus it, the residual
         magnetic intensity, saved and loaded as <grid>_RMI.tif."""
-        if self._busy():
+        igrf = self._igrf  # date and CRS, read on the main thread
+        if igrf is None:
+            self._notify("Remove IGRF: could not work out the IGRF — check the grid's CRS "
+                         "and the date", Qgis.MessageLevel.Warning, 12)
             return
-        setup = self._igrf_setup()
-        if setup is None:
-            return
-        if setup["uniform"] is not None:
+        if igrf["uniform"] is not None:
             self._notify(
                 "Remove IGRF: this grid carries its own field in its metadata (a Noddy "
                 "model), so it has no IGRF to remove", Qgis.MessageLevel.Warning, 12,
             )
             return
-        name = self.dlg.mMapLayerComboBox_selectGrid.currentText()
-        self.localGridName = self.base_name = name
-        self.layer = QgsProject.instance().mapLayersByName(name)[0]
-        self.diskGridPath = self.layer.dataProvider().dataSourceUri()
-        self.replace_existing = self.dlg.checkBox_replace_layers.isChecked()
-        path = self.diskGridPath
-
-        def work(task):
-            arr, gt, _projection = read_grid(path)  # north-up, NaN for no data
-            _inc, _dec, F = grid_igrf(gt, arr.shape, setup["crs"], setup["date"],
-                                      callback=lambda f: task.check(100.0 * f))
-            return arr, F
-
-        def done(result):
-            arr, F = result
-            self._igrf_removed = setup
-            self._results = None  # written and loaded now
-            self._emit(F, "_IGRF", std_clip=False, load_layer=False)
-            self._emit(arr - F, "_RMI")
+        data = self.raster_array
+        gt, cols, rows, _wkt = Radiometrics.north_up_frame(self.diskGridPath)
+        check = (lambda _f: self._task_ref.check()) if self._task_ref is not None else None
+        _inc, _dec, F = grid_igrf(gt, (rows, cols), igrf["crs"], igrf["date"], callback=check)
+        self._igrf_removed = igrf  # for the outputs' provenance
+        self._emit(F, "_IGRF", std_clip=False, load_layer=False)
+        self._emit(data - F, "_RMI")
+        self._notify(
+            f"Remove IGRF: IGRF-{IGRF_GENERATION} for {igrf['date_text']} at sea level, "
+            f"{np.nanmin(F):.0f} to {np.nanmax(F):.0f} nT over the grid", duration=10,
+        )
+        if looks_like_anomaly(data, F):
             self._notify(
-                f"Remove IGRF: IGRF-{IGRF_GENERATION} for {setup['date_text']} at sea level, "
-                f"{np.nanmin(F):.0f} to {np.nanmax(F):.0f} nT over the grid",
-                duration=10,
+                f"Remove IGRF: the grid has a median of {np.nanmedian(data):.0f} nT, far below "
+                f"the IGRF ({np.nanmean(F):.0f} nT), so it looks like an anomaly grid that "
+                "already has the IGRF removed. The result was saved anyway",
+                Qgis.MessageLevel.Warning, 20,
             )
-            if looks_like_anomaly(arr, F):
-                self._notify(
-                    f"Remove IGRF: {name} has a median of {np.nanmedian(arr):.0f} nT, far below "
-                    f"the IGRF ({np.nanmean(F):.0f} nT), so it looks like an anomaly grid that "
-                    "already has the IGRF removed. The result was saved anyway",
-                    Qgis.MessageLevel.Warning, 20,
-                )
-
-        self.start_task("SGTool: Remove IGRF", work, done)
 
     def _igrf_setup(self):
         """Main thread: what differential RTP and Remove IGRF need to work out
@@ -7657,7 +7648,6 @@ class SGTool:
             self.dlg.comboBox_2_FreqCutType.addItems(self.freq_cut_type_list)
 
             self.dlg.pushButton_4_calcIGRF.clicked.connect(self.update_mag_field)
-            self.dlg.pushButton_removeIGRF.clicked.connect(self.removeIGRF)
             self.dlg.pushButton_2_selectGrid.clicked.connect(self.select_grid_file)
             self.dlg.pushButton_2_selectGrid_RGB.clicked.connect(
                 self.select_RGBgrid_file

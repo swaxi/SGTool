@@ -339,6 +339,40 @@ REFERENCE_BY_BUTTON = {
     "Clip to Window": "Clip to Window",
     "Normalise Grids": "Normalise Grids",
     "Convert Grid": "Convert LUT to Grayscale",
+    "Centroid IGRF": "RTE/P (reduction to the pole or equator)",
+    "IGRF": "Apparent susceptibility",
+    "Apply same steps to another grid…": "Apply the same steps to another grid",
+}
+# options more specific than their section's heading
+REFERENCE_EXTRA_BY_VARIABLE = {
+    "v_sun_relief": "Sun Shading",
+    "v_app_sus_finite": "Apparent susceptibility",
+    "v_hk_group": "Grouping similar categories",
+    "v_ms_group": "Grouping similar categories",
+    "v_replace": "Output names",
+}
+# the controls found on every tab (outside the sections), by text / variable
+REFERENCE_COMMON_BY_TEXT = {
+    "Apply to Window": "Live preview",
+    "Cancel": "Background calculations",
+    "Apply FFT Processing": "Controls common to all tabs",
+    "Apply Conv + Stats": "Controls common to all tabs",
+    "Apply Multiband": "Controls common to all tabs",
+    "Apply Petrophysics": "Controls common to all tabs",
+    "⟳ Refresh": "Controls common to all tabs",
+    "Browse File…": "Controls common to all tabs",
+}
+REFERENCE_COMMON_BY_VARIABLE = {"v_preview": "Live preview"}
+# section titles worded differently from their heading in the reference
+REFERENCE_BY_SECTION = {
+    "Multivariate Analysis": "Multivariate Statistical Analysis",
+    "Import Point / Line Data": "Import point or line data",
+    "Multilevel B-Spline Gridding": "Gridding",
+    "BSD Worms": "BSDWorms",
+    "SGTool Metadata": "SGTool Metadata (provenance)",
+    "Create Data Boundary Polygon": "Create Clipping Polygon",
+    "Normalise Grids (Batch)": "Normalise Grids",
+    "Convert RGB Grid to Grayscale": "Convert LUT to Grayscale",
 }
 
 
@@ -1374,11 +1408,95 @@ class SGToolApp(tk.Tk):
     # ------------------------------------------------------------------
     # Ctrl+click: the filter's section of the reference (docs/reference.md)
     # ------------------------------------------------------------------
+    _HELP_KEYS = ("Control_L", "Control_R", "Meta_L", "Meta_R")  # Meta: Cmd on macOS
+
+    def _bind_help_cursor(self):
+        """A question-mark cursor over the window while Ctrl (Cmd) is held, as
+        Ctrl+click opens the reference. Each widget's own cursor is put back
+        when the key is released or the window loses the focus."""
+        if getattr(self, "_help_cursor_bound", False):
+            return
+        self._help_cursor_bound = True
+        self._help_cursors = None  # {widget: its cursor} while the question mark shows
+
+        def on(_e=None):
+            if self._help_cursors is not None:
+                return  # key auto-repeat
+            saved, stack = {}, [self]
+            while stack:
+                w = stack.pop()
+                stack.extend(w.winfo_children())
+                try:
+                    saved[w] = w.cget("cursor")
+                    w.configure(cursor="question_arrow")
+                except tk.TclError:
+                    pass  # no cursor option (e.g. a menu)
+            self._help_cursors = saved
+
+        def off(_e=None):
+            saved, self._help_cursors = self._help_cursors, None
+            for w, cursor in (saved or {}).items():
+                try:
+                    w.configure(cursor=cursor)
+                except tk.TclError:
+                    pass  # destroyed meanwhile
+
+        for key in self._HELP_KEYS:
+            try:
+                self.bind_all(f"<KeyPress-{key}>", on, add="+")
+                self.bind_all(f"<KeyRelease-{key}>", off, add="+")
+            except tk.TclError:
+                pass  # a key name this platform does not have
+        def focus_left(_e=None):
+            # FocusOut comes from whichever widget had the focus: shortly after,
+            # see whether the window still has it (Ctrl may be released elsewhere)
+            def check():
+                try:
+                    still = self.focus_get() is not None
+                except (KeyError, tk.TclError):
+                    still = True  # e.g. a combobox's drop-down list
+                if not still:
+                    off()
+            self.after(50, check)
+
+        self.bind_all("<FocusOut>", focus_left, add="+")
+
+    @staticmethod
+    def _section_heading(section):
+        return REFERENCE_BY_SECTION.get(section._text, section._text)
+
+    def _reference_heading(self, w, names):
+        """The reference heading of a control: from the filter tables, else the
+        option and common-control tables, else its section's. None: no link."""
+        try:
+            var = (names.get(str(w.cget("variable")))
+                   if isinstance(w, (tk.Checkbutton, tk.Radiobutton)) else None)
+            text = str(w.cget("text"))
+        except tk.TclError:
+            return None
+        if isinstance(w, tk.Checkbutton) and var in REFERENCE_BY_VARIABLE:
+            return REFERENCE_BY_VARIABLE[var]
+        if isinstance(w, tk.Button) and text in REFERENCE_BY_BUTTON:
+            return REFERENCE_BY_BUTTON[text]
+        heading = (REFERENCE_EXTRA_BY_VARIABLE.get(var)
+                   or REFERENCE_COMMON_BY_VARIABLE.get(var)
+                   or (REFERENCE_COMMON_BY_TEXT.get(text) if isinstance(w, tk.Button) else None))
+        if heading:
+            return heading
+        p = w.master
+        while p is not None:
+            if isinstance(p, CollapsibleSection):
+                return self._section_heading(p)
+            p = p.master
+        return None
+
     def _bind_reference_links(self, root):
-        """Bind Ctrl+click on every filter tickbox and button under root (see
-        REFERENCE_BY_VARIABLE / _BUTTON) and add the hint to its tooltip."""
+        """Bind Ctrl+click on every tickbox, radio button, button and section
+        title under root to its section of the reference (see
+        _reference_heading) and add the hint to the controls' tooltips."""
         from sgt_reference import HINT
 
+        self._bind_help_cursor()
         names = {str(v): attr for attr, v in vars(self).items() if isinstance(v, tk.Variable)}
         stack = [root]
         while stack:
@@ -1386,17 +1504,18 @@ class SGToolApp(tk.Tk):
             stack.extend(w.winfo_children())
             if getattr(w, "_sgt_ref", False):
                 continue
-            heading = None
-            try:
-                if isinstance(w, tk.Checkbutton):
-                    heading = REFERENCE_BY_VARIABLE.get(names.get(str(w.cget("variable"))))
-                elif isinstance(w, tk.Button):
-                    heading = REFERENCE_BY_BUTTON.get(str(w.cget("text")))
-            except tk.TclError:
+            if isinstance(w, CollapsibleSection):
+                heading = self._section_heading(w)
+                target, add_tip = w._title, False  # Ctrl+click on its title
+            elif isinstance(w, (tk.Checkbutton, tk.Radiobutton, tk.Button)):
+                heading = self._reference_heading(w, names)
+                target, add_tip = w, True
+            else:
                 continue
             if heading is None:
                 continue
             w._sgt_ref = True
+            w = target
 
             def open_section(_event, h=heading):
                 import webbrowser
@@ -1411,6 +1530,9 @@ class SGToolApp(tk.Tk):
                     w.bind(seq.replace("Button-1", "ButtonRelease-1"), lambda _e: "break")
                 except tk.TclError:
                     pass
+            w._sgt_open_section = open_section  # for the tests
+            if not add_tip:
+                continue
             tt = getattr(w, "_sgt_tip", None)
             if tt is None:
                 w._sgt_tip = ToolTip(w, HINT)

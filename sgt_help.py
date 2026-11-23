@@ -7,7 +7,11 @@ online, at the heading's anchor (sgt_reference.py, shared with the ArcGIS Pro GU
 """
 
 from qgis.PyQt.QtCore import QEvent, QObject, Qt, QUrl
-from qgis.PyQt.QtGui import QDesktopServices
+from qgis.PyQt.QtGui import QCursor, QDesktopServices
+from qgis.PyQt.QtWidgets import QApplication
+
+_CTRL_KEYS = (Qt.Key.Key_Control, Qt.Key.Key_Meta)  # Meta: the Ctrl key on macOS
+_CTRL_MODS = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier
 
 from .sgt_reference import HINT, REFERENCE_URL, anchor  # noqa: F401 (re-exported)
 from .sgt_reference import section_url as _section_url
@@ -84,6 +88,36 @@ SECTIONS = {
     "pushButton_3_applyProcessing_Conv_2": "Convert LUT to Grayscale",
 }
 
+# controls without a line in SECTIONS, more specific than their group's section
+EXTRA = {
+    "checkBox_relief": "Sun Shading",
+    "radioButton_RR_1st": "Remove Regional",
+    "radioButton_RR_2nd": "Remove Regional",
+    "pushButton_4_calcIGRF": "RTE/P (reduction to the pole or equator)",
+    "checkBox_AppSus_thickness": "Apparent susceptibility",
+    "pushButton_AppSus_IGRF": "Apparent susceptibility",
+    "checkBox_Henkel_group": "Grouping similar categories",
+    "checkBox_Petro_group": "Grouping similar categories",
+    "pushButton_replay_history": "Apply the same steps to another grid",
+    "checkBox_replace_layers": "Output names",
+}
+
+# controls found on every tab (outside the groups), by attribute name prefix
+COMMON = (
+    ("checkBox_preview", "Live preview"),
+    ("pushButton_apply_window", "Live preview"),
+    ("pushButton_cancel", "Background calculations"),
+    ("pushButton_3_applyProcessing", "Controls common to all tabs"),
+    ("pushButton_2_selectGrid", "Controls common to all tabs"),
+)
+
+# group titles whose section heading differs (None: no section, not watched)
+GROUP_HEADINGS = {
+    "SGTool Metadata": "SGTool Metadata (provenance)",
+    "Wavelet Transform Modulus Maxima": None,
+}
+
+
 def section_url(heading):
     return QUrl(_section_url(heading))
 
@@ -96,14 +130,88 @@ class _CtrlClickHelp(QObject):
         super().__init__(parent)
         self._dialog = dialog
         self._heading = {}  # widget -> heading or function of the dialog
+        self._groups = set()  # group boxes: their title, and controls inside them
+        self._bars = set()  # other parents of controls (e.g. the Apply / Cancel bar)
+        # a question-mark cursor while Ctrl is held over the dialog: Ctrl's key
+        # events go to whichever widget has the focus (often the map), so the
+        # whole application is watched for them
+        self._cursor_on = False
+        QApplication.instance().installEventFilter(self)
+        dialog.installEventFilter(self)  # its Enter / Leave
 
-    def watch(self, widget, heading):
+    def uninstall(self):
+        """Stop watching the application (e.g. when the plugin is unloaded)."""
+        self._set_cursor(False)
+        app = QApplication.instance()
+        if app is not None:
+            app.removeEventFilter(self)
+
+    def _over_dialog(self):
+        d = self._dialog
+        return d.isVisible() and d.rect().contains(d.mapFromGlobal(QCursor.pos()))
+
+    def _set_cursor(self, on):
+        if on and not self._cursor_on:
+            QApplication.setOverrideCursor(QCursor(Qt.CursorShape.WhatsThisCursor))
+            self._cursor_on = True
+        elif not on and self._cursor_on:
+            QApplication.restoreOverrideCursor()
+            self._cursor_on = False
+
+    def _update_cursor(self, event):
+        """Question mark while Ctrl is down and the mouse is over the dialog."""
+        kind = event.type()
+        if kind in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
+            if event.key() in _CTRL_KEYS:
+                self._set_cursor(kind == QEvent.Type.KeyPress and self._over_dialog())
+        elif kind in (QEvent.Type.Enter, QEvent.Type.Leave):
+            held = bool(QApplication.queryKeyboardModifiers() & _CTRL_MODS)
+            self._set_cursor(kind == QEvent.Type.Enter and held)
+        elif kind == QEvent.Type.ApplicationDeactivate:
+            self._set_cursor(False)  # Ctrl released in another program
+
+    def watch(self, widget, heading, group=False):
         self._heading[widget] = heading
+        if group:
+            self._groups.add(widget)
         widget.installEventFilter(self)
 
+    def watch_parent(self, widget):
+        """A disabled control gets no mouse events: they go to its parent. So
+        the parent of a control outside the groups is watched too, and a Ctrl+
+        click there is resolved to the control under the mouse."""
+        parent = widget.parentWidget()
+        if parent is not None and parent not in self._heading and parent not in self._bars:
+            self._bars.add(parent)
+            parent.installEventFilter(self)
+
+    def _target(self, obj, event):
+        """The watched widget a Ctrl+click on `obj` is for (None: none). A
+        click arriving at a group box or a bar is resolved to the watched
+        control under the mouse (a disabled one sends its clicks there)."""
+        if obj not in self._groups and obj not in self._bars:
+            return obj
+        pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
+        child = obj.childAt(pos)
+        while child is not None and child is not obj:
+            if child in self._heading:
+                return child
+            child = child.parentWidget()
+        # the title or an empty part of a group: its section; of a bar: nothing
+        return obj if obj in self._groups else None
+
     def eventFilter(self, obj, event):
-        heading = self._heading.get(obj)
-        if heading is None:
+        kind = event.type()
+        if kind in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease,
+                    QEvent.Type.ApplicationDeactivate) or (
+            obj is self._dialog and kind in (QEvent.Type.Enter, QEvent.Type.Leave)
+        ):
+            try:
+                self._update_cursor(event)
+            except RuntimeError:
+                pass  # the dialog has been deleted
+            return False  # only watched: the key / Enter / Leave goes on as usual
+        if obj not in self._heading and obj not in self._bars:
             return False
         kind = event.type()
         if kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease,
@@ -116,22 +224,71 @@ class _CtrlClickHelp(QObject):
             ) and mods & (
                 Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier
             ):
+                target = self._target(obj, event)
+                if target is None:
+                    return False  # an empty part of a bar: not ours
                 if kind == QEvent.Type.MouseButtonRelease:
+                    heading = self._heading[target]
                     text = heading(self._dialog) if callable(heading) else heading
                     QDesktopServices.openUrl(section_url(text))
                 return True
         return False
 
 
+def _group_heading(group):
+    title = group.title().strip()
+    return GROUP_HEADINGS.get(title, title) if title else None
+
+
 def install(dialog):
-    """Watch every widget in SECTIONS that the dialog has, and add the hint
-    to its tooltip. Returns the filter (keep a reference to it)."""
+    """Watch every group box (Ctrl+click on its title) and every tickbox and
+    button of the dialog, each with its section: from SECTIONS, else EXTRA,
+    else its group's, else the common controls' (COMMON). Adds the hint to the
+    controls' tooltips. Returns the filter (keep a reference to it)."""
+    from qgis.PyQt.QtWidgets import QAbstractButton, QGroupBox
+
     helper = _CtrlClickHelp(dialog, dialog)
+    names = {}  # widget -> attribute name of the dialog
+    for name, value in vars(dialog).items():
+        if isinstance(value, (QAbstractButton, QGroupBox)):
+            names.setdefault(value, name)
+
+    for group in dialog.findChildren(QGroupBox):
+        heading = _group_heading(group)
+        if heading:
+            helper.watch(group, heading, group=True)
+
+    # everything SECTIONS names, whatever its type (e.g. the variable
+    # continuation panel)
     for name, heading in SECTIONS.items():
         widget = getattr(dialog, name, None)
-        if widget is None:
-            continue
+        if widget is not None and widget not in helper._groups:
+            helper.watch(widget, heading)
+            tip = widget.toolTip()
+            if HINT not in tip:
+                widget.setToolTip(tip + ("\n\n" if tip else "") + HINT)
+
+    def enclosing_group(widget):
+        parent = widget.parentWidget()
+        while parent is not None and parent is not dialog:
+            if parent in helper._groups:
+                return helper._heading[parent]
+            parent = parent.parentWidget()
+        return None
+
+    for widget in dialog.findChildren(QAbstractButton):
+        if (widget in helper._heading
+                or type(widget).__name__ == "QgsGroupBoxCollapseButton"):
+            continue  # done above, or a group's fold arrow
+        name = names.get(widget, widget.objectName())
+        heading = SECTIONS.get(name) or EXTRA.get(name) or enclosing_group(widget)
+        if heading is None:
+            heading = next((h for prefix, h in COMMON if name.startswith(prefix)), None)
+        if heading is None:
+            continue  # e.g. a widget the dialog builds without a name
         helper.watch(widget, heading)
+        if enclosing_group(widget) is None:
+            helper.watch_parent(widget)  # for its clicks while disabled
         tip = widget.toolTip()
         if HINT not in tip:
             widget.setToolTip(tip + ("\n\n" if tip else "") + HINT)

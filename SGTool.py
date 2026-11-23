@@ -381,6 +381,14 @@ class SGTool:
         self.actions = []
         self.iface.mainWindow().removeToolBar(self.toolbar)
         self.toolbar.deleteLater()
+        # the Ctrl+click help watches the whole application (for its cursor)
+        helper = getattr(self, "_ctrl_click_help", None)
+        if helper is not None:
+            try:
+                helper.uninstall()
+            except RuntimeError:
+                pass  # already deleted with the dialog
+            self._ctrl_click_help = None
 
         try:
             self.iface.currentLayerChanged.disconnect(self._active_layer_changed)

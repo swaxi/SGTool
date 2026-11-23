@@ -32,7 +32,7 @@ For each method, *Reference* gives the primary published source (listed in full 
 The examples use `ogrm_usgs_mag_tmi.tif`, an aeromagnetic total magnetic intensity grid of part of Mauritania (courtesy of the Mauritanian Government (OMRG) and the USGS), linked from the plugin's Help tab: 924 x 629 cells of 175 m, WGS 84 / UTM zone 29N, -1410 to 5005 nT. See [The example data](user-guide.md#1-the-example-data) in the user guide.
 
 - Each figure shows the input on the left and the result on the right, with the settings in the title. The results were calculated with SGTool's own filter code (`sgt_filters.py`, also used by the dialog and the Processing algorithms).
-- Magnetic reductions use the IGRF field for the dialog's default date, 1 January 2000, at the grid centre: inclination 29.0°, declination -5.4°, total field 36,621 nT (the figures were made with the slightly different values SGTool gave before its IGRF calculation was corrected in 0.4.4: 29.2°, -5.4°, 36,751 nT).
+- Magnetic reductions use the IGRF field for the dialog's default date, 1 January 2000, at the grid centre: inclination 29.0°, declination -5.4°, total field 36,621 nT (the figures were made with the slightly different values SGTool gave before its IGRF calculation was corrected in 0.4.5: 29.2°, -5.4°, 36,751 nT).
 - Unless stated otherwise, filters are applied to the RTP grid, `ogrm_usgs_mag_tmi_RTP`, and window statistics to its first vertical derivative.
 - Figures marked *zoomed* show the 38 x 56 km area outlined below, where the effect of filters that act over a few cells can be seen.
 - Grids such as TMI and RTP are drawn with a histogram-equalised colour scale. Derivatives and other zero-centred results use a blue-white-red scale centred on zero.
@@ -220,7 +220,7 @@ More iterations get closer to the exact (unstable) RTP; the gain perpendicular t
 Accounts for the spatial variation of inclination and declination across a survey area by applying a Taylor-series expansion of the standard RTP operator. The IGRF inclination and declination are computed at every cell of the grid for the date shown (at sea level). The expansion is evaluated at 13 perturbed inc/dec pairs and combined to give a single corrected output. Outputs: `_DRTP` (corrected field), and `_DRTP_inc` and `_DRTP_dec` (the inclination and declination grids used; saved but not loaded). Recommended for surveys covering several degrees of latitude or longitude, where a single inc/dec value would introduce systematic phase or amplitude errors.
 
 *Reference*: Cooper & Cowan (2005).
-*In SGTool*: a line-by-line Python translation (Mark Jessell, 2026) of Gordon Cooper's MATLAB `rtpvariable.m`, supplied by its author. SGTool adds the IGRF calculation at every cell (before 0.4.4, at the corners and centre, interpolated between them) and the filling and restoring of no-data cells.
+*In SGTool*: a line-by-line Python translation (Mark Jessell, 2026) of Gordon Cooper's MATLAB `rtpvariable.m`, supplied by its author. SGTool adds the IGRF calculation at every cell (before 0.4.5, at the corners and centre, interpolated between them) and the filling and restoring of no-data cells.
 
 **Example: differential RTP**, compared with the ordinary RTP. The example grid spans only about 1.6° of longitude and 1° of latitude (inclination 27.9° to 30.0°), so the two are almost the same.
 
@@ -250,7 +250,7 @@ Outputs: `_RMI`, the residual magnetic intensity, which is loaded, and `_IGRF`, 
 The field is that of a survey flown at sea level: at a survey height of h km it is lower by roughly 25 nT per km (about 3F/R), almost uniformly over a survey, which only shifts the level of the result.
 
 *Reference*: Alken et al. (2021), International Geomagnetic Reference Field: the thirteenth generation; IGRF-14 coefficients from IAGA Working Group V-MOD (2024).
-*In SGTool*: the field is evaluated with the IGRF code in `calcs/igrf/` (adapted from pyIGRF), vectorised so a grid of a million cells takes about 2 s. It agrees with the independent `ppigrf` package to within 0.1 nT. Before 0.4.4 SGTool evaluated the field on a sphere of the Earth's mean radius rather than at the surface, which put the total intensity out by up to a few hundred nT (and the inclination by up to about 0.3°).
+*In SGTool*: the field is evaluated with the IGRF code in `calcs/igrf/` (adapted from pyIGRF), vectorised so a grid of a million cells takes about 2 s. It agrees with the independent `ppigrf` package to within 0.1 nT. Before 0.4.5 SGTool evaluated the field on a sphere of the Earth's mean radius rather than at the surface, which put the total intensity out by up to a few hundred nT (and the inclination by up to about 0.3°).
 
 #### Vertical Integration ●
 

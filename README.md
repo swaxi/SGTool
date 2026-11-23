@@ -74,7 +74,6 @@ There are several excellent Open Source or at least free alternatives to this pl
 - TerraWorkBench https://github.com/jordan-zav/TerraWorkBench
 
 # Code development
-- You can explore the codebase and functionality at the <a href="https://deepwiki.com/swaxi/SGTool">DeepWiki Code description</a>   
 - Calcs ChatGPT, Claude and Mark Jessell
 - Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin https://g-sherman.github.io/Qgis-Plugin-Builder/    
 - IGRF calculation -  using pyIGRF https://github.com/ciaranbe/pyIGRF

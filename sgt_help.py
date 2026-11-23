@@ -91,6 +91,7 @@ SECTIONS = {
 # controls without a line in SECTIONS, more specific than their group's section
 EXTRA = {
     "checkBox_relief": "Sun Shading",
+    "checkBox_Kuwahara_generalized": "Kuwahara",
     "radioButton_RR_1st": "Remove Regional",
     "radioButton_RR_2nd": "Remove Regional",
     "pushButton_4_calcIGRF": "RTE/P (reduction to the pole or equator)",

@@ -346,6 +346,7 @@ REFERENCE_BY_BUTTON = {
 # options more specific than their section's heading
 REFERENCE_EXTRA_BY_VARIABLE = {
     "v_sun_relief": "Sun Shading",
+    "v_kuw_gen": "Kuwahara",
     "v_app_sus_finite": "Apparent susceptibility",
     "v_hk_group": "Grouping similar categories",
     "v_ms_group": "Grouping similar categories",
@@ -1974,6 +1975,14 @@ class SGToolApp(tk.Tk):
             tip(check(r, text, var), help_text).pack(side="left")
             lbl(r, "Window (px, odd):").pack(side="left", padx=(8, 0))
             tip(entry(r, win, 4, chk_var=var), "Window size in cells (odd)").pack(side="left", padx=2)
+        # on the Kuwahara row (the last): the generalized filter; ticking it ticks
+        # Kuwahara (and so redraws a preview of it)
+        self.v_kuw_gen = tk.BooleanVar(value=False)
+        tip(check(r, "generalized", self.v_kuw_gen, command=lambda: self.v_kuw.set(True)),
+            "Generalized Kuwahara (Papari et al. 2007): a circular, Gaussian-weighted\n"
+            "window of 8 overlapping sectors, whose means are blended by how uniform\n"
+            "each sector is. Keeps steps sharp like the classic filter, without its\n"
+            "square patches in large windows (slower).").pack(side="left", padx=(10, 0))
 
         ss = section(p, "Spatial Statistics")
         ss.pack(fill="x", padx=8, pady=4)
@@ -4040,8 +4049,10 @@ class SGToolApp(tk.Tk):
             self.after(0, lambda: self._status("Kuwahara…"))
             from calcs.EdgeFilters import kuwahara
             n = self._ensure_odd(self.v_kuw_win.get() or 5)
-            _save(kuwahara(arr, n, callback=lambda fraction=None: self._check_cancel()), "kuw",
-                  step_record("kuwahara", WINDOW=n))
+            gen = bool(self.v_kuw_gen.get())
+            _save(kuwahara(arr, n, callback=lambda fraction=None: self._check_cancel(),
+                           generalized=gen), "kuw",
+                  step_record("kuwahara", WINDOW=n, GENERALIZED=gen))
 
         win = self._ensure_odd(self.v_ss_win.get() or 5)
         for v_chk, stat, sfx in [

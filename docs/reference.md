@@ -738,6 +738,19 @@ The window (2a+1 cells across) is split into four overlapping (a+1) x (a+1) quad
 
 ![Kuwahara](images/examples/kuwahara.png)
 
+**Generalized** (the tick box beside the window). With a large window the classic filter breaks the grid into square patches with straight horizontal and vertical edges: its quadrants are squares, and each cell takes the mean of just one of them, so neighbouring cells that pick the same quadrant share nearly the same value and the value jumps where the choice changes. The generalized filter uses a circular window instead (radius *r* = half the window size), weighted by a Gaussian (σ = *r*/2) and divided into 8 overlapping sectors with smooth (cos²) edges that add up to one everywhere. Each sector's weighted mean *m*<sub>i</sub> and standard deviation *s*<sub>i</sub> are calculated, and the cell takes
+
+$`\displaystyle \frac{\sum_i m_i\, s_i^{-q}}{\sum_i s_i^{-q}}, \qquad q = 8`$
+
+so the most uniform sectors dominate, as in the classic filter, but the change from one to another is smooth. Steps stay as sharp, without the square patches; it is slower (a few seconds for a large window on a grid of a million cells).
+
+*Reference*: Papari, Petkov & Campisi (2007).
+*In SGTool*: original code; the sector statistics come from FFT convolutions, and no-data cells are left out of every sector.
+
+**Example: classic and generalized Kuwahara, 41 x 41, of the RTP.**
+
+![Kuwahara, classic and generalized](images/examples/kuwahara_generalized.png)
+
 ### Spatial Statistics
 
 | Setting | Default | Meaning |
@@ -1370,6 +1383,7 @@ The two versions share the calculation code and most features: the **Wedge** set
 - Miller, H.G., Singh, V., 1994. Potential field tilt — a new concept for location of potential field sources. *Journal of Applied Geophysics* 32, 213–217. https://doi.org/10.1016/0926-9851(94)90022-1
 - Minty, B.R.S., 1991. Simple micro-levelling for aeromagnetic data. *Exploration Geophysics* 22, 591–592. https://doi.org/10.1071/EG991591
 - Nabighian, M.N., 1972. The analytic signal of two-dimensional magnetic bodies with polygonal cross-section: its properties and use for automated anomaly interpretation. *Geophysics* 37, 507–517. https://doi.org/10.1190/1.1440276
+- Papari, G., Petkov, N., Campisi, P., 2007. Artistic edge and corner enhancing smoothing. *IEEE Transactions on Image Processing* 16(10), 2449–2462. https://doi.org/10.1109/TIP.2007.903912
 - Parker, R.L., 1973. The rapid calculation of potential anomalies. *Geophysical Journal of the Royal Astronomical Society* 31, 447–455. https://doi.org/10.1111/j.1365-246X.1973.tb06513.x
 - Pearson, K., 1901. On lines and planes of closest fit to systems of points in space. *Philosophical Magazine* 2, 559–572. https://doi.org/10.1080/14786440109462720
 - Pires, A.C.B., 1995. Identificação geofísica de áreas de alteração hidrotermal, Crixás-Guarinos, Goiás. *Revista Brasileira de Geociências* 25, 61–68.

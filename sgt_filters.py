@@ -431,7 +431,9 @@ def _c_nav_edge(g, p):
 
 
 def _c_kuwahara(g, p):
-    return _calc_class("EdgeFilters", "kuwahara")(g.arr, int(p["WINDOW"]))
+    return _calc_class("EdgeFilters", "kuwahara")(
+        g.arr, int(p["WINDOW"]), generalized=bool(p.get("GENERALIZED", False))
+    )
 
 
 def _c_snn(g, p):
@@ -713,9 +715,13 @@ FILTER_SPECS = [
         help=(
             "Edge-preserving smoother: the window is split into four overlapping quadrants "
             "that share the centre cell, and the cell takes the mean of the quadrant with the "
-            "least variance. Flattens the inside of domains while keeping steps sharp."
+            "least variance. Flattens the inside of domains while keeping steps sharp. "
+            "Generalized (Papari et al. 2007): a circular, Gaussian-weighted window of 8 "
+            "overlapping sectors whose means are blended by how uniform each is, without the "
+            "square patches of the classic filter in large windows."
         ),
-        params=[_int("WINDOW", "Window size (pixels, odd)", 5, minimum=3)],
+        params=[_int("WINDOW", "Window size (pixels, odd)", 5, minimum=3),
+                _bool("GENERALIZED", "Generalized Kuwahara (smooth sectors)", False)],
     ),
     dict(
         id="snn", name="Symmetric nearest neighbour filter",

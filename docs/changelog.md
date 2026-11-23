@@ -4,6 +4,9 @@
 
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
+## 0.4.7
+      * [New Feature] Kuwahara: new generalized option (Papari et al. 2007), smooth circular sectors instead of four square quadrants, so large windows no longer break the grid into square patches (also in Processing, replay and the ArcGIS Pro GUI and toolbox)
+
 ## 0.4.6
       * [GUI Modification] ArcGIS Pro GUI: Sun Shading's relief option is on by default and stays as set after a run, as in QGIS
       * [Bug Fix] ArcGIS Pro GUI: after a Ctrl+click opened the reference, every later click could open it too (Ctrl had been released in the browser), so nothing could be used; clicks now work as usual

@@ -347,7 +347,7 @@ The **Domain Detection** group has two edge-preserving smoothers. They flatten t
 
 ![Kuwahara, 9 x 9](images/examples/kuwahara.png)
 
-Kuwahara gives the strongest, terraced simplification; SNN is gentler and is best for removing spikes and line noise while keeping narrow features.
+Kuwahara gives the strongest, terraced simplification; SNN is gentler and is best for removing spikes and line noise while keeping narrow features. With a large Kuwahara window, tick **generalized**: the classic filter then breaks the grid into square patches, which the generalized one avoids.
 
 ### Step by step: window statistics and anisotropy [Conv + Stats Tab]
 

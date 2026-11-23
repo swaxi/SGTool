@@ -110,17 +110,91 @@ def _least_variance_mean(grid, sub, offsets, callback=None):
     return out
 
 
-def kuwahara(grid, window=5, callback=None):
+def kuwahara(grid, window=5, callback=None, generalized=False):
     """Kuwahara filter: the window (odd size 2a+1) is split into four
     overlapping (a+1) x (a+1) quadrants that share the centre cell; the cell
     takes the mean of the quadrant with the lowest variance. Smooths the
-    inside of domains while keeping steps sharp."""
+    inside of domains while keeping steps sharp.
+
+    generalized: the generalized Kuwahara filter instead (kuwahara_generalized),
+    without the square patches of the four quadrants in large windows."""
+    if generalized:
+        return kuwahara_generalized(grid, window, callback=callback)
     window = max(3, int(window) | 1)
     a = window // 2
     sub = a + 1
     # top-left corners: quadrants up-left, up-right, down-left, down-right
     offsets = [(0, 0), (0, a), (a, 0), (a, a)]
     return _least_variance_mean(grid, sub, offsets, callback)
+
+
+def kuwahara_generalized(grid, window=5, sectors=8, q=8.0, callback=None):
+    """Generalized Kuwahara filter (Papari, Petkov & Campisi 2007, IEEE Trans.
+    Image Processing 16(10), 2449-2462).
+
+    The circular window (radius = window // 2) is weighted by a Gaussian
+    (sigma = radius / 2) and divided into `sectors` overlapping sectors with
+    smooth (cos^2) edges, which add up to one everywhere. Each sector's
+    weighted mean m_i and standard deviation s_i are calculated, and the cell
+    takes the mean of the sector means weighted by s_i^-q: the most uniform
+    sectors dominate, as in the classic filter, but the change from one sector
+    to another is smooth, so a large window does not break the grid into the
+    square patches of the classic filter's four quadrants. The weights are
+    ratios of standard deviations, so the result does not depend on the
+    grid's units. No-data cells are left out of every sector."""
+    from scipy.fft import irfft2, next_fast_len, rfft2
+
+    window = max(3, int(window) | 1)
+    r = window // 2
+    rows, cols = grid.shape
+    valid = np.isfinite(grid)
+    if not valid.any():
+        return np.full(grid.shape, np.nan)
+    offset = float(np.nanmean(grid))
+    a = np.where(valid, grid - offset, 0.0)
+    v = valid.astype(float)
+
+    # the sector kernels: a Gaussian disc of radius r, split by angle
+    y, x = np.mgrid[-r:r + 1, -r:r + 1].astype(float)
+    rho = np.hypot(x, y)
+    gauss = np.exp(-0.5 * (rho / max(r / 2.0, 0.5)) ** 2) * (rho <= r + 0.5)
+    theta = np.arctan2(y, x)
+    half = np.pi / sectors * 2.0  # each sector reaches its neighbours' centres
+    kernels = []
+    for i in range(sectors):
+        d = np.angle(np.exp(1j * (theta - 2 * np.pi * i / sectors)))  # -pi..pi
+        w = np.where(np.abs(d) < half, np.cos(d * np.pi / (2 * half)) ** 2, 0.0)
+        w[r, r] = 1.0 / sectors  # the centre belongs to every sector equally
+        kernels.append(w * gauss)
+
+    # every convolution through one set of FFTs of the data
+    shape = (next_fast_len(rows + 2 * r, real=True), next_fast_len(cols + 2 * r, real=True))
+    F_v, F_a, F_aa = (rfft2(z, s=shape, workers=-1) for z in (v, a, a * a))
+    eps = 1e-6 * max(float(np.nanstd(grid)), 1e-30)
+    num = np.zeros(grid.shape)
+    den = np.zeros(grid.shape)
+    for i, k in enumerate(kernels):
+        _check(callback, i / sectors)
+        K = rfft2(k[::-1, ::-1], s=shape, workers=-1)  # correlation = convolution with the flip
+
+        def conv(F):
+            full = irfft2(F * K, s=shape, workers=-1)
+            return full[r:r + rows, r:r + cols]
+
+        n = conv(F_v)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            m = conv(F_a) / n
+            var = conv(F_aa) / n - m * m
+        s = np.sqrt(np.clip(var, 0.0, None))
+        ok = n > 1e-9  # some data in this sector
+        # s^-q relative to the grid's spread: a ratio, so free of units
+        w = np.where(ok, (s / (eps * 1e6) + 1e-6) ** -q, 0.0)
+        num += np.where(ok, w * m, 0.0)
+        den += w
+    with np.errstate(invalid="ignore", divide="ignore"):
+        out = num / den + offset
+    out[~valid] = np.nan
+    return out
 
 
 

@@ -328,9 +328,18 @@ TOOLS = {
         summary="Kuwahara filter: an edge-preserving smoother. The window is split into four "
                 "overlapping quadrants that share the centre cell, and the cell takes the mean of the "
                 "quadrant with the least variance, so domains are flattened while their edges stay sharp.",
-        usage=["No-data cells are left out of each quadrant."],
+        usage=["No-data cells are left out of each quadrant.",
+               "With a large window the classic filter breaks the grid into square patches (the four "
+               "quadrants are squares, and each cell takes only one of them): tick Generalized Kuwahara "
+               "to avoid them."],
         params={"window_size": "Width of the window in pixels (odd); the quadrants are (size + 1) / 2 "
-                               "pixels across."}),
+                               "pixels across.",
+                "generalized": "Generalized Kuwahara filter (Papari, Petkov & Campisi 2007): the "
+                               "circular window (radius = half the window size) is Gaussian-weighted "
+                               "and divided into 8 overlapping sectors, and the cell takes the mean of "
+                               "the sector means weighted by their standard deviation to the power "
+                               "-8. Steps stay sharp, without the classic filter's square patches; "
+                               "slower."}),
     "SNNFilter": dict(
         summary="Symmetric nearest neighbour filter (Harwood et al. 1987): of each pair of cells placed "
                 "symmetrically about the centre of the window, the one closer in value to the centre is "

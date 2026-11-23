@@ -1291,23 +1291,31 @@ class KuwaharaFilter(_RasterTool):
     label       = "Kuwahara Filter"
     description = ("Edge-preserving smoother: each cell takes the mean of the least-variance "
                    "of the four overlapping quadrants of its window. Flattens the inside of "
-                   "domains while keeping steps sharp.")
+                   "domains while keeping steps sharp. Generalized (Papari et al. 2007): a "
+                   "circular, Gaussian-weighted window of 8 overlapping sectors whose means are "
+                   "blended by how uniform each is, without the classic filter's square patches "
+                   "in large windows.")
 
     def getParameterInfo(self):
         return [
             self._param("in_raster",   "Input Raster"),
             self._out ("out_raster",   "Output Raster"),
             self._param("window_size", "Window Size (pixels, odd)", "GPLong", default=5),
+            self._param("generalized", "Generalized Kuwahara (smooth sectors)", "GPBoolean",
+                        required=False, default=False),
         ]
 
     def execute(self, parameters, messages):
         in_r  = parameters[0].valueAsText
         out_r = parameters[1].valueAsText
         n     = int(parameters[2].value) | 1
+        gen   = bool(parameters[3].value) if len(parameters) > 3 else False
         arr, nodata, ll_x, ll_y, cx, cy, sr = self._read(in_r)
         from calcs.EdgeFilters import kuwahara
-        self._write(kuwahara(arr, n, callback=_check_cancel), out_r, ll_x, ll_y, cx, cy, sr, nodata)
-        messages.addMessage(f"Kuwahara filter (window={n}) complete → {out_r}")
+        self._write(kuwahara(arr, n, callback=_check_cancel, generalized=gen),
+                    out_r, ll_x, ll_y, cx, cy, sr, nodata)
+        kind = "Generalized Kuwahara" if gen else "Kuwahara"
+        messages.addMessage(f"{kind} filter (window={n}) complete → {out_r}")
 
 
 class SNNFilter(_RasterTool):

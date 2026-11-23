@@ -1273,7 +1273,10 @@ class SGToolDockWidget(QDockWidget):
                          "lineEdit_SNN_window", "3")
         self._window_row(g, 1, "checkBox_Kuwahara", "Kuwahara",
                          "lineEdit_Kuwahara_window", "5")
-        g.setColumnStretch(3, 1)
+        # the generalized filter: smooth sectors instead of four square quadrants
+        self.checkBox_Kuwahara_generalized = QCheckBox(_tr("generalized"))
+        g.addWidget(self.checkBox_Kuwahara_generalized, 1, 3)
+        g.setColumnStretch(4, 1)
         return gb
 
     def _window_row(self, g, row, attr_cb, text, attr_le, default, bullet=False):

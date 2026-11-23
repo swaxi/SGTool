@@ -912,6 +912,11 @@ class SGTool:
             "Flattens noise inside domains while keeping steps sharp."))
         d.lineEdit_Kuwahara_window.setToolTip(self.tr(
             "Window size in cells (odd); quadrants are (size+1)/2 cells across"))
+        d.checkBox_Kuwahara_generalized.setToolTip(self.tr(
+            "Generalized Kuwahara (Papari et al. 2007): a circular, Gaussian-weighted\n"
+            "window of 8 overlapping sectors, whose means are blended by how uniform\n"
+            "each sector is. Keeps steps sharp like the classic filter, without its\n"
+            "square patches in large windows (slower)."))
         d.checkBox_NAVEdge.setToolTip(self.tr(
             "NAV-Edge, normalised anisotropy variance (Zhang et al. 2014, Geophysics\n"
             "79(3) J43-J53). Dimensionless; positive over sources, negative outside;\n"
@@ -1199,6 +1204,7 @@ class SGTool:
         self.NSTD_window = max(3, self.to_int(d.lineEdit_NSTD_window.text())) | 1
         self.Kuwahara = d.checkBox_Kuwahara.isChecked()
         self.Kuwahara_window = max(3, self.to_int(d.lineEdit_Kuwahara_window.text())) | 1
+        self.Kuwahara_generalized = d.checkBox_Kuwahara_generalized.isChecked()
         self.NAVEdge = d.checkBox_NAVEdge.isChecked()
         self.NAV_window = max(3, self.to_int(d.lineEdit_NAV_window.text())) | 1
         self.NAV_cof = max(1.0, self.to_float(d.lineEdit_NAV_cof.text()))
@@ -2134,7 +2140,8 @@ class SGTool:
                 "window_size": self.NSTD_window,
             }
         if s == "_Kuw":
-            return "Kuwahara filter", {"window_size": self.Kuwahara_window}
+            return "Kuwahara filter", {"window_size": self.Kuwahara_window,
+                                       "generalized": self.Kuwahara_generalized}
         if s == "_NAV":
             return "NAV-Edge (normalised anisotropy variance)", {
                 "window_size": self.NAV_window,
@@ -4254,7 +4261,8 @@ class SGTool:
 
     def procKuwahara(self):
         self.new_grid = EdgeFilters.kuwahara(
-            self.raster_array, self.Kuwahara_window, callback=self._progress()
+            self.raster_array, self.Kuwahara_window, callback=self._progress(),
+            generalized=self.Kuwahara_generalized,
         )
         self.suffix = "_Kuw"
 
@@ -7945,6 +7953,9 @@ class SGTool:
                 (self.dlg.lineEdit_NAV_cof, self.dlg.checkBox_NAVEdge),
             ):
                 _edit.textChanged.connect(lambda _t, b=_box: self.update_checkbox(b))
+            self.dlg.checkBox_Kuwahara_generalized.toggled.connect(
+                lambda _on: self.update_checkbox(self.dlg.checkBox_Kuwahara)
+            )
             self.dlg.comboBox_TernGrad_scaling.currentIndexChanged.connect(
                 lambda _i: self.update_checkbox(self.dlg.checkBox_TernGrad)
             )

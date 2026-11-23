@@ -227,6 +227,17 @@ for cls_name, values, suffix in (
     a_ = _band1(out_)
     check(f"the {cls_name} tool writes a grid", a_ is not None and np.isfinite(a_).any(), m_.lines)
 
+# the generalized Kuwahara: a different, smooth result, as the shared calculation gives
+out_g = os.path.join(DATA, "t_Kuw_gen.tif")
+m_ = run(mod.KuwaharaFilter, dict(in_raster=src, out_raster=out_g, window_size=9, generalized=True))
+a_g = _band1(out_g)
+from calcs.EdgeFilters import kuwahara as _kuw
+_src = _band1(src); _src[_src == -9999.0] = np.nan
+want = _kuw(_src, 9, generalized=True)
+check("the Kuwahara tool's generalized option gives the generalized filter",
+      a_g is not None and np.allclose(a_g, want, equal_nan=True, rtol=1e-4, atol=1e-3)
+      and not np.allclose(want, _kuw(_src, 9), equal_nan=True), m_.lines)
+
 rad = os.path.join(DATA, "kthu.tif")
 rgr = np.random.default_rng(5)
 kk = 1.5 + rgr.random((60, 80)); tt = 10 + 4 * kk + rgr.random((60, 80)); uu = 2 + 0.2 * tt

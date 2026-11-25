@@ -10,7 +10,7 @@ import numpy as np
 MAX_FIT_CELLS = 250_000  # larger grids are fitted on a regular subsample
 
 
-def robust_plane(filled, iterations=20):
+def robust_plane(filled, iterations=200, tolerance=1e-7):
     """
     Plane a + b*row + c*col through a gap-filled grid (no NaN), fitted over
     the whole rectangle by least absolute deviations (iteratively reweighted
@@ -24,17 +24,33 @@ def robust_plane(filled, iterations=20):
     plane is: the edges of the residual then sit near zero, which is what the
     padding expects.
 
+    The iterations go on until the plane at the grid's edges moves by less than
+    tolerance times the grid's standard deviation (or up to `iterations`): run
+    to convergence, the plane no longer depends on rounding, so it is the same
+    with any numpy version.
+
     Returns (plane grid, (a, b, c)).
     """
     ny, nx = filled.shape
     step = max(1, int(np.ceil(np.sqrt(filled.size / MAX_FIT_CELLS))))
     rows, cols = np.mgrid[0:ny:step, 0:nx:step]
     y = filled[::step, ::step].ravel().astype(float)
-    A = np.column_stack([np.ones(y.size), rows.ravel(), cols.ravel()])
+    # rows and columns centred on the grid: a well-conditioned 3 x 3 system
+    r0, c0 = (ny - 1) / 2, (nx - 1) / 2
+    r, c = rows.ravel() - r0, cols.ravel() - c0
+    A = np.column_stack([np.ones(y.size), r, c])
     coef, *_ = np.linalg.lstsq(A, y, rcond=None)
-    floor = 1e-6 * (np.std(y) + 1e-30)
+    scale = np.std(y) + 1e-30
+    floor = 1e-6 * scale
+    rr, rc, cc, ry, cy = r * r, r * c, c * c, r * y, c * y
     for _ in range(int(iterations)):
-        sw = 1.0 / np.sqrt(np.maximum(np.abs(y - A @ coef), floor))
-        coef, *_ = np.linalg.lstsq(A * sw[:, None], y * sw, rcond=None)
-    r, c = np.indices(filled.shape)
-    return coef[0] + coef[1] * r + coef[2] * c, tuple(coef)
+        # weighted least squares with weights 1/|residual|, by its normal equations
+        w = 1.0 / np.maximum(np.abs(y - coef[0] - coef[1] * r - coef[2] * c), floor)
+        sw, swr, swc, swrc = w.sum(), w @ r, w @ c, w @ rc
+        M = np.array([[sw, swr, swc], [swr, w @ rr, swrc], [swc, swrc, w @ cc]])
+        previous, coef = coef, np.linalg.solve(M, [w @ y, w @ ry, w @ cy])
+        if np.max(np.abs(coef - previous) * [1, ny, nx]) <= tolerance * scale:
+            break
+    a, b, c = coef[0] - coef[1] * r0 - coef[2] * c0, coef[1], coef[2]
+    rows, cols = np.indices(filled.shape)
+    return a + b * rows + c * cols, (a, b, c)

@@ -4586,10 +4586,10 @@ class SGToolApp(tk.Tk):
                             float(self.v_rgb_min.get()), float(self.v_rgb_max.get()))
 
     def _do_convert_rgb(self, in_r, out_r, col_str, min_v, max_v):
-        # Direct port of QGIS convert_RGB_to_grey — algorithm unchanged.
+        # the QGIS plugin's calculation (calcs/rgb_lut.py)
         self.after(0, lambda: self._status("RGB→Grayscale…"))
         from osgeo import gdal
-        from scipy.spatial import cKDTree
+        from calcs import rgb_lut
 
         dataset = gdal.Open(in_r, gdal.GA_ReadOnly)
         if not dataset:
@@ -4606,32 +4606,13 @@ class SGToolApp(tk.Tk):
         projection = dataset.GetProjection()
         dataset = None
 
-        rgb_raster = np.dstack((red, green, blue))
-
         LUT = col_str.replace(" ", "")
-        lut = self._parse_lut_string(LUT, num_entries=1024)
+        lut = rgb_lut.parse_lut_string(LUT, num_entries=1024)
         if not lut:
             self.after(0, lambda: self._status("Couldn't generate LUT — check colour list."))
             return
 
-        scalar_values, lut_colors = zip(*lut)
-        lut_colors = np.array(lut_colors) / 255.0  # normalise LUT to [0, 1]
-
-        white_mask = (rgb_raster == [255, 255, 255]).all(axis=2)
-        black_mask = (rgb_raster == [0, 0, 0]).all(axis=2)
-
-        normalized_rgb = rgb_raster / 255.0
-        reshaped_rgb   = normalized_rgb.reshape(-1, 3)
-
-        lut_tree = cKDTree(lut_colors)
-        distances, indices = lut_tree.query(reshaped_rgb)
-
-        scalar_grid = np.array(scalar_values)[indices].reshape(rgb_raster.shape[:2])
-
-        scalar_grid[white_mask] = np.nan
-        scalar_grid[black_mask] = np.nan
-
-        scalar_grid = (scalar_grid * (max_v - min_v)) + min_v
+        scalar_grid = rgb_lut.rgb_to_scalar(red, green, blue, lut, min_v, max_v)
 
         rows, cols = red.shape
         driver = gdal.GetDriverByName("GTiff")
@@ -4736,77 +4717,6 @@ class SGToolApp(tk.Tk):
 
         canvas.bind("<Button-1>", _on_click)
         btn(win, "Done", win.destroy, w=10).pack(pady=(2, 10))
-
-    def _parse_lut_string(self, LUT, num_entries=1024):
-        """Port of QGIS parse_lut_string."""
-        import re
-        LUT = LUT.replace(" ", "")
-
-        if "(" in LUT:
-            rgb_pattern = r"\(([^)]+)\)"
-            matches = re.findall(rgb_pattern, LUT)
-            if matches:
-                rgb_list = []
-                for match in matches:
-                    values = match.split(",")
-                    try:
-                        if len(values) >= 3:
-                            rgb = tuple(float(v) for v in values[:3])
-                            rgb_list.append(rgb)
-                        else:
-                            raise ValueError
-                    except ValueError:
-                        break
-                else:
-                    rgb_list.reverse()
-                    return self._generate_rgb_lut_from_rgb(rgb_list, num_entries)
-
-        elements = LUT.split(",")
-        try:
-            numbers = [float(elem) for elem in elements]
-            if len(numbers) >= 3 and len(numbers) % 3 == 0:
-                rgb_list = []
-                for i in range(0, len(numbers), 3):
-                    rgb_list.append(tuple(numbers[i:i+3]))
-                rgb_list.reverse()
-                return self._generate_rgb_lut_from_rgb(rgb_list, num_entries)
-        except ValueError:
-            pass
-
-        css_color_list = elements
-        css_color_list.reverse()
-        return self._generate_rgb_lut(css_color_list, num_entries)
-
-    def _generate_rgb_lut_from_rgb(self, rgb_list, num_entries=1024):
-        """Port of QGIS generate_rgb_lut_from_rgb."""
-        import matplotlib.colors as mcolors
-        normalized_rgb_list = []
-        for rgb in rgb_list:
-            r, g, b = rgb[0], rgb[1], rgb[2]
-            if any(val > 1 for val in [r, g, b]):
-                normalized_rgb_list.append((r / 255.0, g / 255.0, b / 255.0))
-            else:
-                normalized_rgb_list.append((r, g, b))
-        decimal_indices = np.linspace(0, 1, num_entries)
-        try:
-            cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", normalized_rgb_list)
-        except Exception:
-            return False
-        rgb_colors = [cmap(i)[:3] for i in decimal_indices]
-        rgb_colors_255 = [(int(r * 255), int(g * 255), int(b * 255)) for r, g, b in rgb_colors]
-        return [[round(di, 6), rgb] for di, rgb in zip(decimal_indices, rgb_colors_255)]
-
-    def _generate_rgb_lut(self, css_color_list, num_entries=1024):
-        """Port of QGIS generate_rgb_lut."""
-        import matplotlib.colors as mcolors
-        decimal_indices = np.linspace(0, 1, num_entries)
-        try:
-            cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", css_color_list)
-        except Exception:
-            return False
-        rgb_colors = [cmap(i)[:3] for i in decimal_indices]
-        rgb_colors_255 = [(int(r * 255), int(g * 255), int(b * 255)) for r, g, b in rgb_colors]
-        return [[round(di, 6), rgb] for di, rgb in zip(decimal_indices, rgb_colors_255)]
 
     # ======================================================================
     # IGRF  +  Power Spectrum

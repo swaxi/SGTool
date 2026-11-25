@@ -238,6 +238,11 @@ class Grid(_Raster):
     pysgtool.read(path).
     """
 
+    _file_items = None  # text items to write into the GeoTIFF (a Noddy grid's header)
+
+    def _file_metadata(self):
+        return self._file_items
+
     # ------------------------------------------------------------ magnetic field
     def field_direction(self, date):
         """(inclination, declination, intensity in nT) of the IGRF at the grid's centre
@@ -422,6 +427,38 @@ class Grid(_Raster):
             self._derive(np.flipud(ridge), "Multiresolution ridge top flatness", record, "_MRRTF"),
         )
 
+    def slope(self, z_factor=1.0):
+        """Slope in degrees (Horn's 3 x 3 method), as QGIS's Slope algorithm gives it:
+        no data on the outer row and column and next to gaps."""
+        from .calcs.slope import slope_degrees
+
+        self._require_projected("Slope")
+        return self._derive(slope_degrees(self.values, self.dx, self.dy, z_factor),
+                            "Slope (degrees)", {"z_factor": z_factor}, "_slope")
+
+    def mrvbf_composite(self, t_slope=16.0, t_pctl_v=0.40, t_pctl_r=0.35, p_slope=4.0,
+                        p_pctl=3.0, max_res=100.0, callback=None):
+        """The plugin's MRVBF outputs: (MRVBF, MRRTF, slope, composite), the last a Stack
+        with bands R = MRRTF, G = MRVBF, B = slope."""
+        valley, ridge = self.mrvbf(t_slope, t_pctl_v, t_pctl_r, p_slope, p_pctl, max_res,
+                                   callback)
+        slope = self.slope()
+        record = dict(t_slope=t_slope, t_pctl_v=t_pctl_v, t_pctl_r=t_pctl_r, p_slope=p_slope,
+                      p_pctl=p_pctl, max_res=max_res, bands="R=MRRTF, G=MRVBF, B=slope")
+        composite = self._derive(np.stack([ridge.values, valley.values, slope.values]),
+                                 "MRVBF/MRRTF/slope RGB composite", record, "_MRVBF_RGB", Stack)
+        composite.names = ["MRRTF", "MRVBF", "slope"]
+        return valley, ridge, slope, composite
+
+    def profile(self, line, spacing):
+        """Values along a line at 0, spacing, 2 x spacing ... (map units) from its start,
+        each the value of the cell the point falls in, as the plugin's WTMM profile.
+        line: [(x, y), ...] vertices. Returns (distances, points (n, 2), values)."""
+        from .calcs.line_data import points_along_line, sample_cells
+
+        distances, points = points_along_line(line, spacing)
+        return distances, points, sample_cells(self.values, self.gt, points)
+
     def power_spectrum(self):
         """(wavenumber in radians per map unit, power): the radially averaged power
         spectrum, with no data as 0 as in the plugin."""
@@ -507,6 +544,25 @@ class Stack(_Raster):
 
     def __len__(self):
         return self.values.shape[0]
+
+    def to_grey(self, colours, vmin=0.0, vmax=1.0):
+        """An RGB image (bands 1-3, 0-255) as values: each cell takes the value of the
+        nearest colour of a colour scale, from vmax for the first colour to vmin for the
+        last. White and black cells are no data. colours: as in the plugin, colour names
+        ("red,yellow,blue") or RGB triplets ("(255,0,0),(0,0,255)"). Needs matplotlib."""
+        from .calcs import rgb_lut
+
+        if len(self) < 3:
+            raise ValueError("An RGB image needs at least 3 bands")
+        colours = colours.replace(" ", "")
+        lut = rgb_lut.parse_lut_string(colours, num_entries=1024)
+        if not lut:
+            raise ValueError(f"Could not read the colours {colours!r}")
+        values = rgb_lut.rgb_to_scalar(self.values[0], self.values[1], self.values[2], lut,
+                                       vmin, vmax)
+        return self._derive(values, "RGB image to grey scale",
+                            {"lookup_table": colours, "scale_min": vmin, "scale_max": vmax},
+                            "_gray", Grid)
 
     def band(self, which):
         """One band as a Grid: its number (from 1) or its name."""

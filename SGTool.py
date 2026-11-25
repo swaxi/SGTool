@@ -172,6 +172,7 @@ from .sgt_replay_dialog import ReplayDialog
 from .calcs.sgt_cancel import OperationCancelled
 from .calcs.layer_shim import LayerShim
 from .calcs.mrvbf import mrvbf as calc_mrvbf
+from .calcs import line_data, rgb_lut
 from .calcs.mba_suggest import describe as describe_mba_suggestion, suggest_mba_parameters
 from .sgt_clip_project import ClipJob
 from .calcs.saga_mba_gridding import mba_gridding
@@ -6370,65 +6371,14 @@ class SGTool:
         tuple: (geotiff_path, ntxt_path) - paths to the created files
         """
 
-        # Read the file
-        with open(input_file, "r") as f:
-            lines = f.readlines()
+        noddy = line_data.read_noddy(input_file)
+        data_array = noddy["values"]
+        dataType = noddy["data_type"]
+        geotransform = noddy["gt"]
+        metadata = noddy["metadata"]
+        actual_rows, actual_cols = data_array.shape
 
-        # Find the start of the header data by skipping comment lines
-        header_start = 0
-        for i, line in enumerate(lines):
-            if not line.strip().startswith("#") and line.strip():
-                header_start = i
-                break
-
-        # Parse header information (6 lines after file code and comments)
-        file_code = int(lines[header_start].strip())
-        if file_code == 333:
-            dataType = "mag"
-        else:
-            dataType = "grv"
-
-        # Skip any additional comment lines after file code
-        data_line_index = header_start + 1
-        while data_line_index < len(lines) and lines[
-            data_line_index
-        ].strip().startswith("#"):
-            data_line_index += 1
-
-        # Now read the 6 header lines
-        calc_range, cols, rows, layers = map(
-            int, lines[data_line_index].strip().split()
-        )
-        inclination, declination, intensity = map(
-            float, lines[data_line_index + 1].strip().split()
-        )
-        sw_x, sw_y, sw_z = map(float, lines[data_line_index + 2].strip().split())
-        ne_x, ne_y, ne_z = map(float, lines[data_line_index + 3].strip().split())
-        cell_size, survey_height = map(
-            float, lines[data_line_index + 4].strip().split()
-        )
-
-        # load grid data
-        data_array = mag = np.loadtxt(input_file, skiprows=8)
-        actual_rows = mag.shape[0]
-        actual_cols = mag.shape[1]
-
-        # Calculate geotransform parameters
-        # [top_left_x, pixel_width, rotation, top_left_y, rotation, pixel_height]
-        pixel_width = (ne_x - sw_x) / actual_cols
-        pixel_height = (
-            -(ne_y - sw_y) / actual_rows
-        )  # Negative because Y decreases from north to south
-
-        # Top-left corner coordinates (GDAL convention)
-        top_left_x = sw_x
-        top_left_y = ne_y  # Start from the north (top)
-
-        geotransform = [top_left_x, pixel_width, 0, top_left_y, 0, pixel_height]
-
-        # Set up file paths
-        base_name = os.path.splitext(input_file)[0]
-        geotiff_path = f"{base_name}_{dataType}.tif"
+        geotiff_path = line_data.noddy_output_name(input_file, dataType)
         head_tail = os.path.split(input_file)
         layer_name = head_tail[1].split(".")[0] + f"_{dataType}"
 
@@ -6466,35 +6416,13 @@ class SGTool:
 
         # Set the projection (UTM29N)
         srs = osr.SpatialReference()
-        srs.ImportFromEPSG(32629)  # UTM29N
+        srs.ImportFromEPSG(line_data.NODDY_EPSG)
         dataset.SetProjection(srs.ExportToWkt())
 
         # Write the data to the band
         band = dataset.GetRasterBand(1)
         band.WriteArray(data_array)
 
-        # Set nodata value if needed
-        # band.SetNoDataValue(-9999)
-
-        # Set metadata
-        metadata = {
-            "file_code": str(file_code),
-            "calculation_range": str(calc_range),
-            "original_rows": str(rows),
-            "original_cols": str(cols),
-            "layers": str(layers),
-            "intensity": str(intensity),
-            "inclination": str(inclination),
-            "declination": str(declination),
-            "sw_corner_x": str(sw_x),
-            "sw_corner_y": str(sw_y),
-            "sw_corner_z": str(sw_z),
-            "ne_corner_x": str(ne_x),
-            "ne_corner_y": str(ne_y),
-            "ne_corner_z": str(ne_z),
-            "cube_size": str(cell_size),
-            "survey_height": str(survey_height),
-        }
         dataset.SetMetadata(metadata)
 
         # Properly close the dataset
@@ -6723,42 +6651,12 @@ class SGTool:
                 self.pointType = "point"
 
     def get_XYZ_header(self, csv_file):
-        # Input file path
-        # csv_file = r"//wsl.localhost/Ubuntu-20.04/home/mark/gridding/MAG.XYZ"  # Replace with your actual file path
-
-        # Initialize variables
-        data_list = []
-        current_line_number = None
-
-        # Read the file line-by-line
-        with open(csv_file, "r") as file:
-            for line in file:
-                line = line.strip()
-                if line.startswith("LINE:"):  # Check for 'LINE:' markers
-                    current_line_number = int(
-                        re.search(r"\d+", line).group()
-                    )  # Extract the line number
-                elif current_line_number is not None:
-                    try:
-                        # Parse numerical lines
-                        parts = list(map(float, line.split()))
-                        if len(parts) >= 3:  # Ensure at least 5 components (x, y, z)
-                            data_list.append(parts + [current_line_number])
-                            return len(parts) - 2
-                    except ValueError:
-                        pass
+        """The number of values after x and y in an XYZ line file (None if none)."""
+        return line_data.xyz_value_count(csv_file)
 
     def read_header(self, file_path, delimiter=","):
-        """
-        Reads the first line of a CSV file and stores the values as a list.
-
-        :param file_path: Path to the CSV file
-        :return: List of header values
-        """
-        with open(file_path, "r") as file:
-            header = file.readline().strip().split(delimiter)
-            header = list(filter(None, header))
-        return header
+        """The field names in the first row of a CSV file."""
+        return line_data.read_header(file_path, delimiter)
 
     def numpy_array_to_raster(
         self,
@@ -8537,46 +8435,12 @@ class SGTool:
             import_XYZ("path/to/xyz_file.xyz", "4326", layer_name="my_layer", load_ties=False)
         """
 
-        # Initialize variables
-        data_list = []
-        current_line_number = None
         dir_name, basename = os.path.split(XYZ_file)
         output_path = os.path.join(dir_name, f"{basename}.shp")
 
-        # Read the file line-by-line
-        with open(XYZ_file, "r") as file:
-            for line in file:
-                line = line.strip()
-                if not line or line.startswith("/"):  # skip blank/comment lines
-                    continue
-                if re.match(r"(?i)^line\b", line):  # Check for 'LINE:'/'Line' markers
-                    current_line_number = int(re.search(r"\d+", line).group())
-                elif re.match(r"(?i)^tie\b", line):  # Check for 'TIE:'/'Tie' markers
-                    if load_ties:
-                        current_line_number = int(re.search(r"\d+", line).group())
-                    else:
-                        current_line_number = None
-                elif current_line_number is not None:
-                    # Drop any non-numeric tokens (e.g. date/time columns) rather
-                    # than discarding the whole row when one field isn't a float.
-                    parts = []
-                    for token in line.split():
-                        try:
-                            parts.append(float(token))
-                        except ValueError:
-                            continue
-                    if len(parts) >= 2:  # Ensure at least x and y are present
-                        data_list.append(parts + [current_line_number])
-                else:
-                    if load_ties:
-                        print("Invalid line:", line)
+        # [x, y, value..., line number] rows (ValueError if there are none)
+        data_list = line_data.read_xyz(XYZ_file, load_ties)
 
-        if not data_list:
-            raise ValueError(
-                f"No usable coordinate data found in {XYZ_file}. "
-                "Expected 'LINE:'/'Line' (and optionally 'TIE:'/'Tie') markers "
-                "followed by rows of numeric X Y [values...]."
-            )
         # Process and create the line layer
         line_layer = QgsVectorLayer("LineString?crs=EPSG:" + crs, layer_name, "memory")
         line_provider = line_layer.dataProvider()
@@ -8590,15 +8454,7 @@ class SGTool:
         line_provider.addAttributes(fields)
         line_layer.updateFields()
 
-        line_features = {}
-
-        for data in data_list:
-            x, y, *values, line_id = data
-            if line_id not in line_features:
-                line_features[line_id] = []
-            line_features[line_id].append((x, y, values))
-
-        for line_id, points in line_features.items():
+        for line_id, points in line_data.xyz_lines(data_list).items():
             coords = [QgsPointXY(x, y) for x, y, _ in points]
             geometry = QgsGeometry.fromPolylineXY(coords)
 
@@ -8696,54 +8552,18 @@ class SGTool:
         transform = dataset.GetGeoTransform()
         projection = dataset.GetProjection()
 
-        # Stack bands into an RGB array
-        rgb_raster = np.dstack((red, green, blue))
-
-        # Parse the LUT
-
         LUT = LUT.replace(" ", "")
-        lut = self.parse_lut_string(LUT, num_entries=1024)
-
-        """css_color_list = LUT.split(",")
-        css_color_list.reverse()
-
-        lut = self.generate_rgb_lut(css_color_list, num_entries=1024)"""
+        lut = rgb_lut.parse_lut_string(LUT, num_entries=1024)
         if not lut:
-            print("Couldn't generate LUT")
             return False, False
 
-        scalar_values, lut_colors = zip(*lut)
-        lut_colors = np.array(lut_colors) / 255.0  # Normalize LUT colors
-
-        # Identify white and black pixels
-        white_mask = (rgb_raster == [255, 255, 255]).all(axis=2)
-        black_mask = (rgb_raster == [0, 0, 0]).all(axis=2)
-
-        # Normalize raster RGB values to [0, 1]
-        normalized_rgb = rgb_raster / 255.0
-
-        # Flatten RGB raster for KDTree query
-        reshaped_rgb = normalized_rgb.reshape(-1, 3)
-
-        # Build a KDTree for nearest neighbor lookup
-        lut_tree = cKDTree(lut_colors)
-        distances, indices = lut_tree.query(reshaped_rgb)
-
-        # Map nearest LUT color to scalar values
-        scalar_grid = np.array(scalar_values)[indices].reshape(rgb_raster.shape[:2])
-
-        # Set white and black areas to NaN
-        scalar_grid[white_mask] = np.nan
-        scalar_grid[black_mask] = np.nan
-
-        # Scale data
         LUT_min = (
             lut_min if lut_min is not None else self.dlg.mQgsDoubleSpinBox_LUT_min.value()
         )
         LUT_max = (
             lut_max if lut_max is not None else self.dlg.mQgsDoubleSpinBox_LUT_max.value()
         )
-        scalar_grid = (scalar_grid * (LUT_max - LUT_min)) + LUT_min
+        scalar_grid = rgb_lut.rgb_to_scalar(red, green, blue, lut, LUT_min, LUT_max)
 
         # Prepare output file
         driver = gdal.GetDriverByName("GTiff")
@@ -8789,199 +8609,6 @@ class SGTool:
 
         result = True
         return result, RGBGridPath_gray
-
-    def parse_lut_string(self, LUT, num_entries=1024):
-        """
-        Parse a LUT string and generate the appropriate RGB LUT.
-
-        Parameters:
-            LUT (str): String containing either CSS color names or RGB triplets
-                    Examples:
-                    - "red,green,blue"
-                    - "(255,0,0),(0,255,0),(0,0,255)"
-                    - "255,0,0,0,255,0,0,0,255"
-                    - "(1.0,0,0),(0,1.0,0),(0,0,1.0)"
-            num_entries (int): Number of entries in the LUT
-
-        Returns:
-            list: LUT list or False if parsing fails
-        """
-        import re
-
-        # Remove spaces
-        LUT = LUT.replace(" ", "")
-
-        # Try to detect format and parse accordingly
-
-        # Check for parentheses format: (R,G,B),(R,G,B)
-        if "(" in LUT:
-            rgb_pattern = r"\(([^)]+)\)"
-            matches = re.findall(rgb_pattern, LUT)
-
-            if matches:
-                rgb_list = []
-                for match in matches:
-                    values = match.split(",")
-                    try:
-                        # Convert to floats (works for both int and float values)
-                        if len(values) >= 3:
-                            rgb = tuple(float(v) for v in values[:3])
-                            rgb_list.append(rgb)
-                        else:
-                            raise ValueError("Not enough values for RGB")
-                    except ValueError:
-                        # Failed to parse as numbers, fall back to CSS colors
-                        break
-                else:
-                    # Successfully parsed all as RGB
-                    rgb_list.reverse()
-                    return self.generate_rgb_lut_from_rgb(rgb_list, num_entries)
-
-        # Try flat number format or CSS colors
-        elements = LUT.split(",")
-
-        # First, try to parse as numbers
-        try:
-            numbers = [float(elem) for elem in elements]
-
-            # Check if we have RGB triplets (multiple of 3)
-            if len(numbers) >= 3 and len(numbers) % 3 == 0:
-                # Group into RGB triplets
-                rgb_list = []
-                for i in range(0, len(numbers), 3):
-                    rgb = tuple(numbers[i : i + 3])
-                    rgb_list.append(rgb)
-
-                rgb_list.reverse()
-                return self.generate_rgb_lut_from_rgb(rgb_list, num_entries)
-        except ValueError:
-            # Not all numbers, continue to CSS parsing
-            pass
-
-        # Default to CSS color names
-        css_color_list = elements
-        css_color_list.reverse()
-        return self.generate_rgb_lut(css_color_list, num_entries)
-
-    def generate_rgb_lut_from_rgb(self, rgb_list, num_entries=1024):
-        """
-        Generate an RGB LUT list from a list of RGB triplets.
-
-        Parameters:
-            rgb_list (list): List of RGB triplets. Each triplet can be:
-                            - (R, G, B) where R, G, B are 0-255 integers
-                            - (R, G, B) where R, G, B are 0-1 floats
-                            - [R, G, B] lists work too
-            num_entries (int): Total number of entries in the LUT.
-
-        Returns:
-            list: List of [decimal index, (R, G, B)] where R, G, B are 0-255 integers.
-        """
-        try:
-            import matplotlib.colors as mcolors
-        except ImportError:
-            QMessageBox.information(
-                None,  # Parent widget
-                "",
-                "Missing Packages for SGTool: "  # Window title
-                + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
-                "Please open the QGIS Python Console and run the following command:\n\n"
-                f"!pip3 install matplotlib",  # Message text
-                QMessageBox_Ok,  # Buttons parameter
-            )
-            return False
-
-        # Normalize RGB values to 0-1 range if needed
-        normalized_rgb_list = []
-        for rgb in rgb_list:
-            r, g, b = rgb[0], rgb[1], rgb[2]
-
-            # Check if values are in 0-255 range (integers or floats > 1)
-            if any(val > 1 for val in [r, g, b]):
-                # Normalize from 0-255 to 0-1
-                normalized_rgb = (r / 255.0, g / 255.0, b / 255.0)
-            else:
-                # Already in 0-1 range
-                normalized_rgb = (r, g, b)
-
-            normalized_rgb_list.append(normalized_rgb)
-
-        # Normalize indices to decimal values between 0 and 1
-        decimal_indices = np.linspace(0, 1, num_entries)
-
-        # Create a continuous colormap using the normalized RGB list
-        try:
-            cmap = mcolors.LinearSegmentedColormap.from_list(
-                "custom_cmap", normalized_rgb_list
-            )
-        except:
-            return False
-
-        # Generate RGB values for each index
-        rgb_colors = [cmap(i)[:3] for i in decimal_indices]
-        rgb_colors_255 = [
-            (int(r * 255), int(g * 255), int(b * 255)) for r, g, b in rgb_colors
-        ]
-
-        # Combine decimal indices and RGB tuples
-        lut = [
-            [round(decimal_index, 6), rgb]
-            for decimal_index, rgb in zip(decimal_indices, rgb_colors_255)
-        ]
-
-        return lut
-
-    def generate_rgb_lut(self, css_color_list, num_entries=1024):
-        """
-        Generate an RGB LUT list from a list of CSS color names.
-
-        Parameters:
-            css_color_list (list): List of CSS color names recognized by Matplotlib.
-            num_entries (int): Total number of entries in the LUT.
-
-        Returns:
-            list: List of [decimal index, (R, G, B)] where R, G, B are 0-255 integers.
-        """
-        try:
-            import matplotlib.colors as mcolors
-
-        except ImportError:
-            QMessageBox.information(
-                None,  # Parent widget
-                "",
-                "Missing Packages for SGTool: "  # Window title
-                + f"The following Python packages are required for some functions, but not installed: matplotlib\n\n"
-                "Please open the QGIS Python Console and run the following command:\n\n"
-                f"!pip3 install matplotlib",  # Message text
-                QMessageBox_Ok,  # Buttons parameter
-            )
-            return False
-
-        # Normalize indices to decimal values between 0 and 1
-        decimal_indices = np.linspace(0, 1, num_entries)
-
-        # Create a continuous colormap using the input CSS color list
-        try:
-            cmap = mcolors.LinearSegmentedColormap.from_list(
-                "custom_cmap", css_color_list
-            )
-        except:
-
-            return False
-
-        # Generate RGB values for each index
-        rgb_colors = [cmap(i)[:3] for i in decimal_indices]
-        rgb_colors_255 = [
-            (int(r * 255), int(g * 255), int(b * 255)) for r, g, b in rgb_colors
-        ]
-
-        # Combine decimal indices and RGB tuples
-        lut = [
-            [round(decimal_index, 6), rgb]
-            for decimal_index, rgb in zip(decimal_indices, rgb_colors_255)
-        ]
-
-        return lut
 
     def vector_layer_to_dataframe(self, layer, attribute_name):
         """
@@ -9373,76 +9000,9 @@ class SGTool:
             coords.append((point.x(), point.y()))
             field_values.append(feature[field_name])
 
-        # Convert to numpy arrays
-        coords = np.array(coords)
-        field_values = np.array(field_values)
-
-        # Determine the dominant axis (x or y) by checking the range
-        x_range = np.max(coords[:, 0]) - np.min(coords[:, 0])
-        y_range = np.max(coords[:, 1]) - np.min(coords[:, 1])
-
-        # Sort the points based on the dominant axis
-        if x_range >= y_range:
-            # Sort by x-coordinate
-            print("Sorting points along X axis (dominant)")
-            sort_idx = np.argsort(coords[:, 0])
-        else:
-            # Sort by y-coordinate
-            print("Sorting points along Y axis (dominant)")
-            sort_idx = np.argsort(coords[:, 1])
-
-        coords_sorted = coords[sort_idx]
-        field_values_sorted = field_values[sort_idx]
-
-        # Calculate distances between consecutive points
-        distances = [0]
-        point_distances = []
-
-        for i in range(1, len(coords_sorted)):
-            prev = coords_sorted[i - 1]
-            curr = coords_sorted[i]
-            d = np.sqrt((curr[0] - prev[0]) ** 2 + (curr[1] - prev[1]) ** 2)
-            point_distances.append(d)
-            distances.append(distances[-1] + d)
-
-        total_length = distances[-1]
-
-        # Determine regularization parameters
-        if spacing == "auto":
-            # Calculate median point spacing
-            median_spacing = np.median(point_distances)
-            print(f"Using auto-calculated median spacing: {median_spacing}")
-            num_new_points = int(total_length / median_spacing) + 1
-            used_spacing = median_spacing
-        elif isinstance(spacing, (int, float)):
-            num_new_points = int(total_length / spacing) + 1
-            used_spacing = spacing
-        elif num_points is not None:
-            num_new_points = num_points
-            used_spacing = (
-                total_length / (num_new_points - 1) if num_new_points > 1 else 0
-            )
-        else:
-            num_new_points = len(coords_sorted)
-            used_spacing = (
-                total_length / (num_new_points - 1) if num_new_points > 1 else 0
-            )
-
-        # Create evenly spaced points along the path
-        new_distances = np.linspace(0, total_length, num_new_points)
-
-        # Interpolate coordinates along the path
-        x_interp = interp1d(distances, coords_sorted[:, 0], kind="linear")
-        y_interp = interp1d(distances, coords_sorted[:, 1], kind="linear")
-
-        # Interpolate field values along the path
-        field_interp = interp1d(distances, field_values_sorted, kind="linear")
-
-        # Calculate new coordinates and field values
-        new_coords = np.column_stack((x_interp(new_distances), y_interp(new_distances)))
-        new_field_values = field_interp(new_distances)
-
-        return new_coords, new_field_values, used_spacing
+        return line_data.regularize_profile(
+            np.array(coords), np.array(field_values), spacing, num_points
+        )
 
     def create_regularized_layer(
         self,

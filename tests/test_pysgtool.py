@@ -412,6 +412,145 @@ def test_mrvbf():
     assert np.nanmean(valley.values[:, 28:32]) > np.nanmean(valley.values[:, 10:20])
 
 
+def test_slope():
+    y, x = np.mgrid[0:20, 0:30]
+    dem = sg.Grid(x * 25.0 * np.tan(np.radians(30)), 25, 40, name="dem")  # 30 degrees east
+    dem.values[10, 10] = np.nan
+    s = dem.slope()
+    assert s.name == "dem_slope" and s.history[-1]["operation"] == "Slope (degrees)"
+    # as QGIS: no data on the outer cells and next to gaps
+    assert np.isnan(s.values[0]).all() and np.isnan(s.values[:, -1]).all()
+    around = s.values[9:12, 9:12].copy()
+    assert not np.isnan(around[1, 1])  # as QGIS: the gap itself has data all round
+    around[1, 1] = np.nan
+    assert np.isnan(around).all() and not np.isnan(s.values[5, 5])
+    assert np.allclose(s.values[~np.isnan(s.values)], 30)
+
+
+def test_mrvbf_composite():
+    y, x = np.mgrid[0:40, 0:40] * 30.0
+    valley, ridge, slope, rgb = sg.Grid(np.abs(x - 600) * 0.2, 30, name="dem").mrvbf_composite()
+    assert rgb.name == "dem_MRVBF_RGB" and rgb.names == ["MRRTF", "MRVBF", "slope"]
+    assert np.array_equal(rgb.values[2], slope.values, equal_nan=True)
+    assert np.array_equal(rgb.values[0], ridge.values, equal_nan=True)
+
+
+def test_grid_profile():
+    g = sg.Grid(np.arange(100.0).reshape(10, 10), 10, origin=(0, 100))
+    # along row 4 (y 50-60), at 0, 30, 60, 90: no end point, as QGIS
+    d, p, v = g.profile([(0.5, 54), (99.5, 54)], 30)
+    assert np.allclose(d, [0, 30, 60, 90]) and np.allclose(p[:, 1], 54)
+    assert np.array_equal(v, [40, 43, 46, 49])
+    d, p, v = g.profile([(95, 54), (150, 54)], 20)  # off the grid: NaN
+    assert v[0] == 49 and np.isnan(v[-1])
+
+
+def test_points_profile():
+    rng = np.random.default_rng(2)
+    x = rng.uniform(0, 1000, 30)
+    pts = sg.io.Points(np.r_[x, x], np.r_[x * 0, x * 0 + 500], {
+        "LINE_ID": np.r_[np.ones(30, int), np.full(30, 2)], "v": np.r_[x / 10, -x]})
+    coords, values, used = pts.profile("v", line=1, spacing=50)
+    assert used == 50 and np.allclose(np.diff(coords[:, 0]), coords[1, 0] - coords[0, 0])
+    assert np.allclose(values, coords[:, 0] / 10) and np.allclose(coords[:, 1], 0)
+    with pytest.raises(ValueError):
+        pts.profile("v", line=3)
+
+
+@needs_mpl
+def test_rgb_to_grey():
+    pytest.importorskip("scipy")
+    # blue (first colour) is vmax, red (last) vmin; white and black are no data
+    r = np.array([[255, 0, 128, 255, 0]], float)
+    g = np.array([[0, 0, 0, 255, 0]], float)
+    b = np.array([[0, 255, 128, 255, 0]], float)
+    st = sg.Stack(np.stack([r, g, b]), 10, name="map")
+    grey = st.to_grey("blue,red", vmin=10, vmax=20)
+    assert grey.name == "map_gray" and grey.history[-1]["parameters"]["lookup_table"] == "blue,red"
+    v = grey.values[0]
+    # the table has 1024 whole-number colours, so the ends are near, not exactly, 10 and 20
+    assert v[0] == pytest.approx(10, abs=0.05) and v[1] == pytest.approx(20, abs=0.05)
+    assert 14 < v[2] < 16
+    assert np.isnan(v[3]) and np.isnan(v[4])
+    # RGB triplets give the same table as colour names
+    assert np.array_equal(st.to_grey("(0,0,255),(255,0,0)", 10, 20).values, grey.values,
+                          equal_nan=True)
+    with pytest.raises(ValueError):
+        st.to_grey("notacolour,blue")
+
+
+def _noddy(path, code=333):
+    with open(path, "w") as f:
+        f.write(f"#Noddy\n#test\n{code}\n0 4 3 1\n-60.0 5.0 51000.0\n0.0 0.0 5000.0\n"
+                "400.0 300.0 0.0\n100.0 80.0\n")
+        for row in range(3):
+            f.write(" ".join(str(row * 10 + c) for c in range(4)) + "\n")
+
+
+@needs_crs
+def test_noddy_grid(tmp_path):
+    _noddy(tmp_path / "model.mag")
+    g = sg.read(tmp_path / "model.mag")
+    assert g.name == "model_mag" and g.epsg == 32629 and g.gt == (0, 100, 0, 300, 0, -100)
+    assert g.values[0, 1] == 1 and g.field_direction("2020-01-01") == (-60, 5, 51000)
+    assert g.history[-1]["operation"] == "Import Noddy grid"
+    _noddy(tmp_path / "model.grv", 444)
+    assert sg.read(tmp_path / "model.grv").name == "model_grv"
+
+
+@needs_io
+@needs_crs
+def test_noddy_grid_saved(tmp_path):
+    _noddy(tmp_path / "model.mag")
+    g = sg.read(tmp_path / "model.mag").save()
+    assert os.path.basename(g.path) == "model_mag.tif"
+    back = sg.read(g.path)
+    assert back.metadata["inclination"] == "-60.0" and back.field_direction(2020) == (-60, 5, 51000)
+
+
+XYZ = """/ export
+LINE: 10
+500000.0 7000000.0 50001.5 2024/01/01 80
+500050.0 7000000.0 50002.5 2024/01/01 81
+Line 20
+500000.0 7000100.0 50003.5 2024/01/02 82
+TIE: 900
+500000.0 7000000.0 50004.5 2024/01/03 83
+500000.0 7000100.0 50005.5 2024/01/03 84
+"""
+
+
+def test_xyz_lines(tmp_path):
+    (tmp_path / "survey.xyz").write_text(XYZ)
+    pts = sg.read_points(tmp_path / "survey.xyz", crs=CRS)
+    assert list(pts.fields) == ["LINE_ID", "data_0", "data_1"]  # the date is left out
+    assert list(pts.fields["LINE_ID"]) == [10, 10, 20, 900, 900]
+    assert list(pts.fields["data_0"]) == [50001.5, 50002.5, 50003.5, 50004.5, 50005.5]
+    no_ties = sg.read_points(tmp_path / "survey.xyz", crs=CRS, load_ties=False)
+    assert list(no_ties.fields["LINE_ID"]) == [10, 10, 20]
+
+
+@needs_io
+@needs_crs
+def test_xyz_and_csv_saved(tmp_path):
+    (tmp_path / "survey.xyz").write_text(XYZ)
+    path = sg.read_points(tmp_path / "survey.xyz", crs=CRS).save()
+    assert path.endswith("survey.xyz.shp")
+    v = raster_io.read_vector(path)
+    assert list(v["fields"]) == ["LINE_ID", "data_0", "data_1"] and len(v["wkb"]) == 5
+    (tmp_path / "pts.csv").write_text("ID,E,N,Au,Rock\n1,500000.5,7000000,0.5,gran\n"
+                                      "2,500010.5,7000010,,bas\n")
+    pts = sg.read_points(tmp_path / "pts.csv", x="E", y="N", crs=CRS)
+    # whole numbers as integers, as QGIS reads delimited text
+    assert [pts.fields[n].dtype.kind for n in pts.fields] == ["i", "f", "i", "f", "O"]
+    assert np.isnan(pts.fields["Au"][1]) and pts.x[1] == 500010.5
+    path = pts.save()
+    assert path.endswith("pts.csv.shp")
+    assert sg.read_points(path).fields["Rock"].tolist() == ["gran", "bas"]
+    with pytest.raises(ValueError):
+        sg.read_points(tmp_path / "pts.csv", x="X", y="N")
+
+
 def test_power_spectrum():
     n, dx, k = 256, 50.0, 2 * np.pi / 800
     g = sg.Grid(np.tile(np.sin(k * np.arange(n) * dx), (n, 1)), dx)

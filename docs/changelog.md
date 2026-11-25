@@ -4,7 +4,12 @@
 
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
+## 0.4.8
+      * [GUI Modification] Remove IGRF is a tickbox beneath RTE/P, run by Apply Processing like the other filters, instead of a button (also in the ArcGIS Pro GUI)
+      * [Bug Fix] ArcGIS Pro GUI: it could freeze for good when Python's garbage collector ran on a worker thread and freed a Tk object; collection now runs on Tk's own thread
+
 ## 0.4.7
+      * [Bug Fix] QGIS could crash on macOS (segmentation fault in an event filter): the question-mark cursor shown while Ctrl is held over SGTool watched every event in QGIS through the application; it now watches only the SGTool panel
       * [New Feature] Kuwahara: new generalized option (Papari et al. 2007), smooth circular sectors instead of four square quadrants, so large windows no longer break the grid into square patches (also in Processing, replay and the ArcGIS Pro GUI and toolbox)
 
 ## 0.4.6

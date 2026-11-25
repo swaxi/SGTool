@@ -6,11 +6,10 @@ The docs are not in the plugin zip (export-ignore), so the guide is read
 online, at the heading's anchor (sgt_reference.py, shared with the ArcGIS Pro GUI).
 """
 
-from qgis.PyQt.QtCore import QEvent, QObject, Qt, QUrl
+from qgis.PyQt.QtCore import QEvent, QObject, Qt, QTimer, QUrl
 from qgis.PyQt.QtGui import QCursor, QDesktopServices
 from qgis.PyQt.QtWidgets import QApplication
 
-_CTRL_KEYS = (Qt.Key.Key_Control, Qt.Key.Key_Meta)  # Meta: the Ctrl key on macOS
 _CTRL_MODS = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier
 
 from .sgt_reference import HINT, REFERENCE_URL, anchor  # noqa: F401 (re-exported)
@@ -21,7 +20,7 @@ from .sgt_reference import section_url as _section_url
 SECTIONS = {
     # FFT Filters+
     "checkBox_4_RTE_P": "RTE/P (reduction to the pole or equator)",
-    "pushButton_removeIGRF": "Remove IGRF",
+    "checkBox_RemIGRF": "Remove IGRF",
     "checkBox_4_PGrav": "Vertical Integration ●",
     "checkBox_9_continuation": lambda d: (
         "Variable continuation ●"
@@ -133,19 +132,24 @@ class _CtrlClickHelp(QObject):
         self._heading = {}  # widget -> heading or function of the dialog
         self._groups = set()  # group boxes: their title, and controls inside them
         self._bars = set()  # other parents of controls (e.g. the Apply / Cancel bar)
-        # a question-mark cursor while Ctrl is held over the dialog: Ctrl's key
-        # events go to whichever widget has the focus (often the map), so the
-        # whole application is watched for them
+        # a question-mark cursor while Ctrl is held over the dialog. Ctrl's key
+        # events go to whichever widget has the focus (often the map), but the
+        # application is NOT watched for them: a Python event filter on the
+        # QApplication sees every event of every object in QGIS, and wrapping an
+        # object that is being deleted crashes QGIS (in SIP, before any Python
+        # runs). Instead, while the mouse is over the dialog (its Enter / Leave),
+        # a timer polls the keyboard modifiers.
         self._cursor_on = False
-        QApplication.instance().installEventFilter(self)
+        self._poll = QTimer(self)
+        self._poll.setInterval(100)
+        self._poll.timeout.connect(self._poll_ctrl)
         dialog.installEventFilter(self)  # its Enter / Leave
 
     def uninstall(self):
-        """Stop watching the application (e.g. when the plugin is unloaded)."""
+        """Stop the Ctrl polling and restore the cursor (e.g. when the plugin
+        is unloaded)."""
+        self._poll.stop()
         self._set_cursor(False)
-        app = QApplication.instance()
-        if app is not None:
-            app.removeEventFilter(self)
 
     def _over_dialog(self):
         d = self._dialog
@@ -159,17 +163,20 @@ class _CtrlClickHelp(QObject):
             QApplication.restoreOverrideCursor()
             self._cursor_on = False
 
-    def _update_cursor(self, event):
-        """Question mark while Ctrl is down and the mouse is over the dialog."""
-        kind = event.type()
-        if kind in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
-            if event.key() in _CTRL_KEYS:
-                self._set_cursor(kind == QEvent.Type.KeyPress and self._over_dialog())
-        elif kind in (QEvent.Type.Enter, QEvent.Type.Leave):
+    def _poll_ctrl(self):
+        """Question mark while Ctrl is down, the mouse is over the dialog and
+        QGIS is the active application; polling stops once the mouse leaves."""
+        try:
+            over = self._over_dialog()
             held = bool(QApplication.queryKeyboardModifiers() & _CTRL_MODS)
-            self._set_cursor(kind == QEvent.Type.Enter and held)
-        elif kind == QEvent.Type.ApplicationDeactivate:
-            self._set_cursor(False)  # Ctrl released in another program
+            active = QApplication.activeWindow() is not None
+        except RuntimeError:  # the dialog has been deleted
+            self._poll.stop()
+            self._set_cursor(False)
+            return
+        self._set_cursor(over and held and active)
+        if not over:
+            self._poll.stop()
 
     def watch(self, widget, heading, group=False):
         self._heading[widget] = heading
@@ -203,15 +210,14 @@ class _CtrlClickHelp(QObject):
 
     def eventFilter(self, obj, event):
         kind = event.type()
-        if kind in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease,
-                    QEvent.Type.ApplicationDeactivate) or (
-            obj is self._dialog and kind in (QEvent.Type.Enter, QEvent.Type.Leave)
-        ):
-            try:
-                self._update_cursor(event)
-            except RuntimeError:
-                pass  # the dialog has been deleted
-            return False  # only watched: the key / Enter / Leave goes on as usual
+        if obj is self._dialog and kind in (QEvent.Type.Enter, QEvent.Type.Leave):
+            if kind == QEvent.Type.Enter:
+                self._poll.start()
+                self._poll_ctrl()
+            else:
+                self._poll.stop()
+                self._set_cursor(False)
+            return False  # only watched: Enter / Leave go on as usual
         if obj not in self._heading and obj not in self._bars:
             return False
         kind = event.type()

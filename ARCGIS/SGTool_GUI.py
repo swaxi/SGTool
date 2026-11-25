@@ -283,6 +283,7 @@ def tip(widget, text):
 # A function of the app gives the heading where it depends on a setting.
 REFERENCE_BY_VARIABLE = {
     "v_rtp": "RTE/P (reduction to the pole or equator)",
+    "v_remigrf": "Remove IGRF",
     "v_vint": "Vertical Integration ●",
     "v_cont": lambda app: ("Variable continuation ●" if app.v_cont_dir.get() == "variable"
                            else "Continuation ●"),
@@ -328,7 +329,6 @@ REFERENCE_BY_VARIABLE = {
     "v_bs_auto": "Choosing the B-spline settings (Auto)",
 }
 REFERENCE_BY_BUTTON = {
-    "Remove IGRF": "Remove IGRF",
     "Radial Power Spectrum": "Radial Power Spectrum",
     "Import Data": "Import point or line data",
     "Multilevel B-Spline Gridding": "Gridding",
@@ -469,6 +469,7 @@ class SGToolApp(tk.Tk):
     def __init__(self):
         _use_app_icon("WAXI.SGTool")
         super().__init__()
+        self._start_main_thread_gc()
         _set_window_icon(self, os.path.join(_HERE, "..", "icon.png"))
         self.title("SGTool – Geophysical Processing (ArcGIS)")
         self.configure(bg=BG)
@@ -519,6 +520,35 @@ class SGToolApp(tk.Tk):
     # ------------------------------------------------------------------
     # Theme
     # ------------------------------------------------------------------
+
+    # Garbage collection on Tk's thread only. Python's cyclic collector runs in
+    # whichever thread happens to be allocating; if that is a worker (a job or a
+    # preview) and it frees a Tk variable or widget, their clean-up calls into
+    # Tcl, which must wait for the main thread: if the main thread is meanwhile
+    # waiting for that worker (e.g. Thread.start()), the GUI freezes for good.
+    # So the automatic collector is off, and collections are run here, on the
+    # main thread, by a timer (a quick young-generation one often, a full one
+    # now and then).
+    _GC_EVERY_MS = 500
+    _GC_FULL_EVERY = 20  # full collection every 20 ticks (10 s)
+
+    def _start_main_thread_gc(self):
+        import gc
+
+        gc.disable()
+        self._gc_ticks = 0
+        self.after(self._GC_EVERY_MS, self._main_thread_gc)
+
+    def _main_thread_gc(self):
+        import gc
+
+        self._gc_ticks += 1
+        gc.collect(2 if self._gc_ticks % self._GC_FULL_EVERY == 0 else 0)
+        try:
+            self.after(self._GC_EVERY_MS, self._main_thread_gc)
+        except tk.TclError:
+            pass  # the window is closing
+
     def _apply_theme(self):
         s = ttk.Style(self)
         s.theme_use("clam")
@@ -810,7 +840,7 @@ class SGToolApp(tk.Tk):
     # tabs: 0 FFT Filters+, 1 Conv + Stats, 2 Multiband, 3 Grid + Wavelets,
     # 4 Petrophys, 5 Utils, 6 Help
     PREVIEW_FILTERS = {
-        0: ("v_rtp", "v_vint", "v_cont", "v_dirclean", "v_regrem", "v_bp", "v_hlp", "v_agc",
+        0: ("v_rtp", "v_remigrf", "v_vint", "v_cont", "v_dirclean", "v_regrem", "v_bp", "v_hlp", "v_agc",
             "v_deriv", "v_thg", "v_ta", "v_as_", "v_nstd", "v_nav", "v_euler"),
         1: ("v_mean", "v_med", "v_gauss", "v_dconv", "v_sun", "v_snn", "v_kuw",
             "v_ss_min", "v_ss_max", "v_ss_var", "v_ss_std", "v_ss_skew", "v_ss_kurt",
@@ -819,7 +849,7 @@ class SGToolApp(tk.Tk):
         4: ("v_app_sus", "v_app_dens"),  # Petrophys tab: at most one ticked
         5: ("v_thresh_en",),  # Utils tab: Threshold to NaN
     }
-    PREVIEW_NOT_POSSIBLE = ("v_ss_chain", "v_ss_stream", "v_mrvbf", "v_euler")
+    PREVIEW_NOT_POSSIBLE = ("v_ss_chain", "v_ss_stream", "v_mrvbf", "v_euler", "v_remigrf")
     # previews drawn cell by cell (no bilinear smoothing): thin edge lines, and the
     # orientation, which wraps from 180 back to 0 degrees
     PREVIEW_UNSMOOTHED = ("v_nstd", "v_nav", "v_ss_aniso")
@@ -1254,6 +1284,8 @@ class SGToolApp(tk.Tk):
                 else:
                     add({"Equator": "reduction_to_equator",
                          "Low-lat. RTP": "reduction_to_pole_low_latitude"}.get(rt, "reduction_to_pole"))
+            if val("v_remigrf"):
+                out.append("_RMI")
             if val("v_vint"):
                 add("vertical_integration")
             if val("v_cont") and val("v_cont_dir", "up") == "variable":
@@ -1668,12 +1700,17 @@ class SGToolApp(tk.Tk):
         entry(r2, self.v_igrf_year, 7).pack(side="left", padx=2)
         tip(btn(r2, "Centroid IGRF", self._calc_igrf, w=13),
             "Calculate IGRF Inclination & Declination\nbased on centroid of selected grid and specified date").pack(side="left", padx=8)
-        tip(btn(r2, "Remove IGRF", self._remove_igrf, w=12),
-            "Remove IGRF: the IGRF total field for the Year given, at sea level,\n"
+
+        r_igrf = tk.Frame(gm, bg=BG); r_igrf.pack(fill="x", padx=4, pady=2)
+        self.v_remigrf = tk.BooleanVar()
+        tip(check(r_igrf, "Remove IGRF", self.v_remigrf),
+            "Remove IGRF: the IGRF total field for the Year above, at sea level,\n"
             "calculated at every cell of the input grid, is subtracted from it.\n"
             "Saves <grid>_IGRF.tif (the field, not added to the map) and adds\n"
             "<grid>_RMI.tif (the residual magnetic intensity, TMI - IGRF).\n"
-            "For a TMI grid, not one with the IGRF already removed").pack(side="left", padx=(16, 2))
+            "For a TMI grid, not one with the IGRF already removed.\n"
+            "Runs with Apply; cannot be previewed").pack(side="left")
+        lbl(r_igrf, "(TMI - IGRF, for the Year above)").pack(side="left", padx=4)
 
         r3 = tk.Frame(gm, bg=BG); r3.pack(fill="x", padx=4, pady=2)
         self.v_vint = tk.BooleanVar()
@@ -3565,6 +3602,11 @@ class SGToolApp(tk.Tk):
 
         self._fft_steps(in_r, arr, cx, cy, buf, proc, count, _save)
 
+        if self.v_remigrf.get():  # (no preview, so not in _fft_steps)
+            self._check_cancel()
+            self.after(0, lambda: self._status("Remove IGRF…"))
+            self._remove_igrf_step(in_r, arr, (ll_x, ll_y, cx, cy, sr, nodata), base, ext, _save)
+
         if self.v_euler.get():  # (not a filter: no preview, so not in _fft_steps)
             self._check_cancel()
             self.after(0, lambda: self._status("Euler deconvolution…"))
@@ -4851,64 +4893,45 @@ class SGToolApp(tk.Tk):
             logging.getLogger(__name__).debug("grid_igrf failed", exc_info=True)
             return None
 
-    def _remove_igrf(self):
-        """Remove IGRF: the IGRF total field (at sea level, for the Year given) at
-        every cell of the input grid is saved as <grid>_IGRF.tif (not added to the
-        map), and the grid minus it, the residual magnetic intensity, is saved and
-        added as <grid>_RMI.tif."""
+    def _remove_igrf_step(self, in_r, arr, georef, base, ext, _save):
+        """Remove IGRF (with Apply FFT Processing): the IGRF total field (at sea
+        level, for the Year given) at every cell of the input grid is written as
+        <grid>_IGRF.tif (not added to the map), and the grid minus it, the residual
+        magnetic intensity, goes to _save as <grid>_RMI.tif."""
         from arcgis_utils import get_noddy_mag_params
-        in_r = self._resolve_input()
-        if not in_r or not os.path.exists(in_r):
-            messagebox.showwarning("Remove IGRF", "Select an input raster first.")
-            return
-        if get_noddy_mag_params(in_r) is not None:
-            messagebox.showwarning(
-                "Remove IGRF", "This grid carries its own field in its metadata (a Noddy "
-                "model), so it has no IGRF to remove.")
-            return
-        try:
-            year = float(self.v_igrf_year.get())
-        except ValueError:
-            messagebox.showwarning("Remove IGRF", "Enter the survey date as a decimal Year.")
-            return
-        if not self._igrf_crs(in_r):
-            messagebox.showwarning("Remove IGRF", "The grid needs a coordinate system.")
-            return
-        self._status("Remove IGRF…")
-        self._run_in_thread(self._do_remove_igrf, in_r, year)
-
-    def _do_remove_igrf(self, in_r, year):
         from calcs.igrf.igrf_field import grid_igrf, IGRF_GENERATION, looks_like_anomaly
         from calcs.Radiometrics import north_up_frame
 
-        arr, nodata, ll_x, ll_y, cx, cy, sr = raster_to_numpy(in_r)
+        def warn(msg):
+            self.after(0, lambda: messagebox.showwarning("Remove IGRF", msg))
+
+        if get_noddy_mag_params(in_r) is not None:
+            return warn("This grid carries its own field in its metadata (a Noddy model), "
+                        "so it has no IGRF to remove.")
+        try:
+            year = float(self.v_igrf_year.get())
+        except ValueError:
+            return warn("Enter the survey date as a decimal Year.")
+        crs = self._igrf_crs(in_r)
+        if not crs:
+            return warn("The grid needs a coordinate system.")
         gt, cols, rows, _wkt = north_up_frame(in_r)
-        _inc, _dec, F = grid_igrf(gt, (rows, cols), self._igrf_crs(in_r), year,
+        _inc, _dec, F = grid_igrf(gt, (rows, cols), crs, year,
                                   callback=lambda _f: self._check_cancel())
-        base, ext = os.path.splitext(in_r)
-        ext = ext or ".tif"
         params = {"date": self._year_to_date(year), "altitude_km": 0.0,
                   "model": "IGRF-" + IGRF_GENERATION}
-        for grid, suffix, operation, add in (
-                (F, "_IGRF", "IGRF total field", False),
-                (arr - F, "_RMI", "Remove IGRF (TMI - IGRF)", True)):
-            self._check_cancel()
-            out_r = self._output_path(base, suffix, ext)
-            numpy_to_raster(grid, out_r, ll_x, ll_y, cx, cy, sr, nodata)
-            write_provenance(out_r, in_r, operation, params)
-            if add:  # only the residual is added to the map
-                self._record_pending(out_r)
-                self.after(0, self._on_output_written, out_r)
+        self._check_cancel()
+        igrf_r = self._output_path(base, "_IGRF", ext)  # written, not added to the map
+        numpy_to_raster(F, igrf_r, *georef)
+        write_provenance(igrf_r, in_r, "IGRF total field", params)
+        _save(arr - F, "_RMI", ("Remove IGRF (TMI - IGRF)", params))
         self.after(0, lambda: self._status(
             f"Remove IGRF: IGRF-{IGRF_GENERATION} for {params['date']} at sea level, "
             f"{np.nanmin(F):.0f} to {np.nanmax(F):.0f} nT over the grid"))
         if looks_like_anomaly(arr, F):
-            med, mean_f = float(np.nanmedian(arr)), float(np.nanmean(F))
-            self.after(0, lambda: messagebox.showwarning(
-                "Remove IGRF",
-                f"The grid has a median of {med:.0f} nT, far below the IGRF ({mean_f:.0f} nT), "
-                "so it looks like an anomaly grid that already has the IGRF removed.\n"
-                "The result was saved anyway."))
+            warn(f"The grid has a median of {np.nanmedian(arr):.0f} nT, far below the IGRF "
+                 f"({np.nanmean(F):.0f} nT), so it looks like an anomaly grid that already has "
+                 "the IGRF removed.\nThe result was saved anyway.")
 
     def _show_power_spectrum(self):
         in_r = self._resolve_input()

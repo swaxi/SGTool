@@ -7,7 +7,7 @@ name=SGTool
 qgisMinimumVersion=3.24
 qgisMaximumVersion=4.99
 description=Simple Potential Field Processing
-version=0.4.7
+version=0.4.8
 author=Mark Jessell
 email=mark.jessell@uwa.edu.au
 
@@ -21,7 +21,11 @@ repository=https://github.com/swaxi/SGTool
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=0.4.7
+changelog=0.4.8
+      * [GUI Modification] Remove IGRF is a tickbox beneath RTE/P, run by Apply Processing like the other filters, instead of a button (also in the ArcGIS Pro GUI)
+      * [Bug Fix] ArcGIS Pro GUI: it could freeze for good when Python's garbage collector ran on a worker thread and freed a Tk object; collection now runs on Tk's own thread
+      0.4.7
+      * [Bug Fix] QGIS could crash on macOS (segmentation fault in an event filter): the question-mark cursor shown while Ctrl is held over SGTool watched every event in QGIS through the application; it now watches only the SGTool panel
       * [New Feature] Kuwahara: new generalized option (Papari et al. 2007), smooth circular sectors instead of four square quadrants, so large windows no longer break the grid into square patches (also in Processing, replay and the ArcGIS Pro GUI and toolbox)
       0.4.6
       * [GUI Modification] ArcGIS Pro GUI: Sun Shading's relief option is on by default and stays as set after a run, as in QGIS

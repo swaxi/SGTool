@@ -1,22 +1,18 @@
-from unittest import result
+import logging
 import numpy as np
 from numpy.polynomial.polynomial import polyval2d
 from math import ceil, fabs
-import numpy as np
-import matplotlib.pyplot as plt
-
-from osgeo import ogr, osr
-
 import csv
-
 import glob
 import os
-from osgeo import gdal
 
+try:
+    from osgeo import gdal, ogr, osr
+except ImportError:  # array calculations only
+    from .no_gdal import gdal, ogr, osr
 
 from .worms.wormer import Wormer
 from .worms.Utility import (
-    GetExtent,
     numpy_array_to_raster,
     insert_text_before_extension,
     fill_nan,
@@ -26,8 +22,7 @@ from .detrend import robust_plane
 from .fftutil import RealSpectrum, fast_len
 from .sgt_cancel import OperationCancelled
 
-
-import os
+logger = logging.getLogger(__name__)
 
 
 class GeophysicalProcessor:
@@ -495,12 +490,12 @@ class GeophysicalProcessor:
             hermitian=True,
         )
 
-        print("dx range:", np.nanmin(dx), np.nanmax(dx))
-        print("dy range:", np.nanmin(dy), np.nanmax(dy))
+        logger.debug("%s %s %s", "dx range:", np.nanmin(dx), np.nanmax(dx))
+        logger.debug("%s %s %s", "dy range:", np.nanmin(dy), np.nanmax(dy))
 
         # Compute the total horizontal gradient
         thg = np.sqrt(dx**2 + dy**2)
-        print("thg range:", np.nanmin(thg), np.nanmax(thg))
+        logger.debug("%s %s %s", "thg range:", np.nanmin(thg), np.nanmax(thg))
 
         return thg
 
@@ -1530,23 +1525,10 @@ class GeophysicalProcessor:
             results.append(self.restore_nan(unbuffered_data, nan_mask))
         return results
 
-    def bsdwormer(
-        self, image, layer, gridPath, num_levels, bottom_level, delta_z, shps, crs,
-        callback=None, out_dir=None,
-    ):
-        # code borrows heavilly from bsdwormer example ipynb template example
-        # adds on the fly calc of padded grid
-        # callback(fraction_done) is called before each level and may raise
-        # calcs.sgt_cancel.OperationCancelled to stop the calculation.
-        # layer: a QgsRasterLayer or LayerShim (extent and EPSG code), crs: the
-        # EPSG number; outputs go beside gridPath, or into out_dir if given.
-
-        print(gridPath, num_levels, bottom_level, delta_z)
-        # load grid and convert to numpy
-
-        # add padding and save to file
-
-        # Remove the mean
+    @staticmethod
+    def worm_padded_image(image):
+        """(padded and tapered zero-mean image, pad_y, pad_x) that the worms are
+        made from."""
         image_zero_mean = image - np.nanmean(image)
         image_zero_mea_nonan = fill_nan(image_zero_mean)
         pad_y = int(0.2 * image.shape[0])
@@ -1558,34 +1540,71 @@ class GeophysicalProcessor:
             image_zero_mea_nonan,
             pad_width=((pad_y, pad_y), (pad_x, pad_x)),
             mode="linear_ramp",
-            # constant_values=0,
         )
-        print("padded_size=", padded_image.shape)
 
-        # Create a 2D Hanning window
+        # taper it with a 2D Hanning window
         window_y = np.hanning(padded_image.shape[0])
         window_x = np.hanning(padded_image.shape[1])
-        hanning_window = np.outer(window_y, window_x)
+        return padded_image * np.outer(window_y, window_x), pad_y, pad_x
 
-        # Apply the Hanning window to the padded image
-        final_image = padded_image * hanning_window
-        # save padded image to file as
+    @staticmethod
+    def worm_level_points(job, geomat, pad_y, pad_x, shape, dzm):
+        """Worm points (y, x, z, value columns) at height dzm inside a grid of
+        this shape and geotransform, from a Wormer with its padded grid set."""
+        job.wormLevelAsPoints(dz=dzm)
+        xmin_padded = geomat[0] - (pad_x * geomat[1])
+        ymax_padded = geomat[3] - (pad_y * geomat[5])
+        x = (job.worm_xs * geomat[1]) + xmin_padded
+        y = (job.worm_ys * geomat[5]) + ymax_padded
+        points = np.column_stack((y, x, [dzm] * len(job.worm_ys), job.worm_vals))
+        x_edges = (geomat[0], geomat[0] + shape[1] * geomat[1])
+        y_edges = (geomat[3], geomat[3] + shape[0] * geomat[5])
+        mask = (
+            (points[:, 1] >= min(x_edges))
+            & (points[:, 1] <= max(x_edges))
+            & (points[:, 0] >= min(y_edges))
+            & (points[:, 0] <= max(y_edges))
+        )
+        return points[mask]
+
+    def worm_points(self, image, geomat, num_levels, bottom_level, delta_z, callback=None):
+        """The worms of a north-up grid as an array of (y, x, z, value) rows, level
+        by level: the points bsdwormer() writes to its CSV, with no files.
+        geomat: the grid's geotransform. callback(fraction done) is called before
+        each level and may raise OperationCancelled."""
+        final_image, pad_y, pad_x = self.worm_padded_image(image)
+        job = Wormer()
+        job.dx, job.dy = geomat[1], geomat[5]
+        # bsdwormer() reads the padded grid back from a float32 file
+        job.padded_grid = final_image.astype(np.float32)
+        out = []
+        for dz in range(0, num_levels):
+            if callback is not None:
+                callback(dz / float(num_levels))
+            dzm = ((dz * delta_z) + bottom_level) or 0.01
+            out.append(self.worm_level_points(job, geomat, pad_y, pad_x, image.shape, dzm))
+        return np.concatenate(out) if out else np.empty((0, 4))
+
+    def bsdwormer(
+        self, image, layer, gridPath, num_levels, bottom_level, delta_z, shps, crs,
+        callback=None, out_dir=None,
+    ):
+        # code borrows heavilly from bsdwormer example ipynb template example
+        # adds on the fly calc of padded grid
+        # callback(fraction_done) is called before each level and may raise
+        # calcs.sgt_cancel.OperationCancelled to stop the calculation.
+        # layer: a QgsRasterLayer or LayerShim (extent and EPSG code), crs: the
+        # EPSG number; outputs go beside gridPath, or into out_dir if given.
+
+        logger.debug("%s %s %s %s", gridPath, num_levels, bottom_level, delta_z)
+        final_image, pad_y, pad_x = self.worm_padded_image(image)
+        logger.debug("%s %s", "padded_size=", final_image.shape)
 
         job = Wormer()
         job.importGdalRaster(gridPath)
-        extent = job.geomat
-        print("job.geomat", job.geomat)
-        # extentPadded = GetExtent(job.geomat, -pad_x, -pad_y)
-        xmin_padded, ymax_padded = GetExtent(job.geomat, pad_x, pad_y)
+        logger.debug("%s %s", "job.geomat", job.geomat)
         xmin_padded = job.geomat[0] - (pad_x * job.geomat[1])
         ymax_padded = job.geomat[3] - (pad_y * job.geomat[5])
-        extentPadded = [
-            [None, None],
-            [None, None],
-            [xmin_padded, ymax_padded],
-            [None, None],
-        ]
-        print("geomat[5]:", job.geomat[5])
 
         gridPathPadded = insert_text_before_extension(gridPath, "_padded")
 
@@ -1603,8 +1622,8 @@ class GeophysicalProcessor:
             pad_x,
             pad_y,
             dx=job.geomat[1],
-            xmin=extentPadded[2][0],
-            ymax=extentPadded[2][1],
+            xmin=xmin_padded,
+            ymax=ymax_padded,
             reference_layer=layer,
             no_data_value=np.nan,
         )
@@ -1613,7 +1632,7 @@ class GeophysicalProcessor:
 
         # Initialize a flag to track if the header has been written
         header_written = False
-        print("num_levels", num_levels)
+        logger.debug("%s %s", "num_levels", num_levels)
 
         # the levels take most of the time, unless polylines are made from them too
         level_share = 0.7 if shps else 1.0
@@ -1623,38 +1642,8 @@ class GeophysicalProcessor:
             dzm = (dz * delta_z) + bottom_level
             if dzm == 0:
                 dzm = 0.01
-            job.wormLevelAsPoints(dz=dzm)
-
-            z = [dzm] * len(job.worm_ys)
-            x = (job.worm_xs * job.geomat[1]) + extentPadded[2][0]
-            y = (job.worm_ys * job.geomat[5]) + extentPadded[2][1]
-            vals = job.worm_vals
-
-            # Combine into a single array
-            points = np.column_stack(
-                (
-                    y[: len(job.worm_ys)],
-                    x[: len(job.worm_ys)],
-                    z[: len(job.worm_ys)],
-                    vals[: len(job.worm_ys)],
-                )
-            )
-            extent2 = [
-                min(extent[0], extent[0] + (image.shape[1] * job.geomat[1])),
-                max(extent[0], extent[0] + (image.shape[1] * job.geomat[1])),
-                min(extent[3], extent[3] + (image.shape[0] * job.geomat[5])),
-                max(extent[3], extent[3] + (image.shape[0] * job.geomat[5])),
-            ]
-
-            # Apply the filter conditions
-            mask = (
-                (points[:, 1] >= extent2[0])
-                & (points[:, 1] <= extent2[1])  # extent[1]>= y >= extent[0]
-                & (points[:, 0] >= extent2[2])
-                & (points[:, 0] <= extent2[3])  # extent[3]>= x >= extent[4]
-            )
-
-            filtered_points = points[mask]
+            filtered_points = self.worm_level_points(
+                job, job.geomat, pad_y, pad_x, image.shape, dzm)
 
             if os.path.exists(wormsPath) and not header_written:
                 os.remove(wormsPath)
@@ -1794,6 +1783,56 @@ class GeophysicalProcessor:
 
         return new_lines
 
+    def points_to_polylines(self, data, max_distance, callback=None):
+        """Polylines, as (shapely LineString, z) pairs, through the (x, y, z) rows
+        of data, made level by level as xyz_to_polylines describes."""
+        from sklearn.cluster import DBSCAN
+        from shapely.geometry import LineString
+
+        unique_z = np.unique(data[:, 2])
+        results = []
+
+        for zi, z in enumerate(unique_z):
+
+            mask = data[:, 2] == z
+            points = data[mask][:, :2]
+            if len(points) < 2 or z < 1.0:
+                continue
+
+            logger.debug(f"Processing Z-bin: {z}, Number of points: {len(points)}")
+
+            try:
+                clustering = DBSCAN(eps=max_distance, min_samples=1).fit(points)
+            except Exception as e:
+                logger.warning(f"Error in DBSCAN at Z-bin {z}: {e}")
+                continue
+
+            labels = clustering.labels_
+            unique_labels = np.unique(labels)
+            unique_labels = unique_labels[unique_labels != -1]
+
+            for ci, label in enumerate(unique_labels):
+                if callback is not None:
+                    callback((zi + ci / len(unique_labels)) / len(unique_z))
+                cluster_points = points[labels == label]
+                if len(cluster_points) > 1:
+                    try:
+                        result = self.process_cluster(
+                            cluster_points, z, max_distance, callback=callback)
+                        if result:
+                            results.extend(result)
+                    except OperationCancelled:
+                        raise
+                    except Exception as e:
+                        logger.warning(f"Error processing cluster at Z-bin {z}: {e}")
+
+        results = [item for item in results if isinstance(item[0], LineString)]
+        if not results:
+            raise ValueError(
+                "No valid LineStrings were created. Check your input data or parameters."
+            )
+        return results
+
     def xyz_to_polylines(self, csv_file, output_shapefile, max_distance, crs, callback=None):
         """
         Converts XYZ points from a CSV file into polylines and saves them as a shapefile.
@@ -1817,63 +1856,17 @@ class GeophysicalProcessor:
         >>> processor = GeophysicalProcessor()
         >>> processor.xyz_to_polylines("input.csv", "output.shp", 10.0, 4326)
         """
-        from sklearn.cluster import DBSCAN
-        from shapely.geometry import Point, LineString
-
         with open(csv_file, "r") as f:
             reader = csv.DictReader(f)
             data = [
                 (float(row["x"]), float(row["y"]), float(row["z"])) for row in reader
             ]
 
-        data = np.array(data)
-        unique_z = np.unique(data[:, 2])
-        results = []
+        results = self.points_to_polylines(np.array(data), max_distance, callback)
+        polylines = [item[0] for item in results]
+        z_values = [item[1] for item in results]
 
-        for zi, z in enumerate(unique_z):
-
-            mask = data[:, 2] == z
-            points = data[mask][:, :2]
-            if len(points) < 2 or z < 1.0:
-                continue
-
-            print(f"Processing Z-bin: {z}, Number of points: {len(points)}")
-
-            try:
-                clustering = DBSCAN(eps=max_distance, min_samples=1).fit(points)
-            except Exception as e:
-                print(f"Error in DBSCAN at Z-bin {z}: {e}")
-                continue
-
-            labels = clustering.labels_
-            unique_labels = np.unique(labels)
-            unique_labels = unique_labels[unique_labels != -1]
-
-            for ci, label in enumerate(unique_labels):
-                if callback is not None:
-                    callback((zi + ci / len(unique_labels)) / len(unique_z))
-                cluster_points = points[labels == label]
-                if len(cluster_points) > 1:
-                    try:
-                        result = self.process_cluster(
-                            cluster_points, z, max_distance, callback=callback)
-                        if result:
-                            results.extend(result)
-                    except OperationCancelled:
-                        raise
-                    except Exception as e:
-                        print(f"Error processing cluster at Z-bin {z}: {e}")
-
-        # Collect all polylines and corresponding Z values
-        polylines = [item[0] for item in results if isinstance(item[0], LineString)]
-        z_values = [item[1] for item in results if isinstance(item[0], LineString)]
-
-        if not polylines:
-            raise ValueError(
-                "No valid LineStrings were created. Check your input data or parameters."
-            )
-
-        print("Processing complete. Saving to shapefile...")
+        logger.debug("Processing complete. Saving to shapefile...")
 
         # Save all results in a single shapefile
         driver = ogr.GetDriverByName("ESRI Shapefile")
@@ -1897,7 +1890,7 @@ class GeophysicalProcessor:
             feature = None
 
         ds = None  # Close and save the shapefile
-        print(f"Shapefile saved to {output_shapefile}")
+        logger.debug(f"Shapefile saved to {output_shapefile}")
 
     def remove_2o_gradient(self, data, mask):
         """Fit a second-order polynomial surface to the raster data and remove it."""
@@ -1908,7 +1901,7 @@ class GeophysicalProcessor:
 
         x, y, z = X[~mask], Y[~mask], data[~mask]
         if len(z) == 0:
-            print("Warning: No valid data for gradient removal.")
+            logger.warning("Warning: No valid data for gradient removal.")
             return data
 
         def poly2d(params, x, y):
@@ -1933,7 +1926,7 @@ class GeophysicalProcessor:
 
         x, y, z = X[~mask], Y[~mask], data[~mask]
         if len(z) == 0:
-            print("Warning: No valid data for gradient removal.")
+            logger.warning("Warning: No valid data for gradient removal.")
             return data
 
         def plane(params, x, y):
@@ -1955,6 +1948,25 @@ class GeophysicalProcessor:
         data[data < -1e38] = safe_nodata_value
         return data, safe_nodata_value
 
+    def normalise_array(self, data, mask, order, reference_std=None):
+        """Remove the gradient of a grid (order True: first, False: second) and scale
+        it to mean 0 and the standard deviation reference_std (None: its own).
+        mask: True where there is no data. Returns (grid, reference_std), the grid
+        None if there is nothing to scale."""
+        detrended_data = (
+            self.remove_gradient(data, mask) if order else self.remove_2o_gradient(data, mask)
+        )
+        valid_data = detrended_data[~mask]
+        valid_std = np.nanstd(valid_data) if valid_data.size else 0
+        if valid_std == 0:
+            return None, reference_std
+        if reference_std is None:
+            reference_std = valid_std
+        return (
+            reference_std * (detrended_data - np.nanmean(valid_data)) / valid_std,
+            reference_std,
+        )
+
     def normalise_geotiffs(self, input_folder, output_folder, order, callback=None):
         """
         Process multiple GeoTIFF files by normalizing them using parameters from the first GeoTIFF.
@@ -1975,10 +1987,10 @@ class GeophysicalProcessor:
         """
         tiff_files = sorted(glob.glob(os.path.join(input_folder, "*.tif")))
         if not tiff_files:
-            print("No GeoTIFF files found.")
+            logger.warning("No GeoTIFF files found.")
             return
 
-        first = True
+        reference_std = None  # of the first grid
         for file_index, tiff_file in enumerate(tiff_files):
             if callback is not None:
                 # may raise calcs.sgt_cancel.OperationCancelled to stop
@@ -1994,35 +2006,11 @@ class GeophysicalProcessor:
             data = data.astype(np.float32)
             mask = (data == nodata_value) | np.isnan(data)
 
-            if order:
-                detrended_data = self.remove_gradient(data, mask)
-            else:
-                detrended_data = self.remove_2o_gradient(data, mask)
-
-            valid_data = detrended_data[~mask]
-
-            # Check for empty valid_data
-            if valid_data.size == 0:
-                print("Warning: No valid data found in", tiff_file)
+            normalized_data, reference_std = self.normalise_array(
+                data, mask, order, reference_std)
+            if normalized_data is None:
+                logger.warning("%s %s", "Warning: no valid data, or no variation, in", tiff_file)
                 continue
-
-            # Check for zero standard deviation
-            valid_std = np.nanstd(valid_data)
-            if valid_std == 0:
-                print(
-                    "Warning: Standard deviation is zero, skipping normalization for",
-                    tiff_file,
-                )
-                continue
-
-            if first:
-                first = False
-                reference_std = valid_std  # Use the non-zero std
-
-            normalized_data = (
-                reference_std * (detrended_data - np.nanmean(valid_data)) / valid_std
-            )
-
             normalized_data[mask] = nodata_value
 
             driver = gdal.GetDriverByName("GTiff")
@@ -2037,11 +2025,11 @@ class GeophysicalProcessor:
             out_band.SetNoDataValue(nodata_value)
             out_band.FlushCache()
 
-            print(f"Saved: {output_path}")
+            logger.debug(f"Saved: {output_path}")
 
 
 if __name__ == "__main__":
-    # import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt
 
     # Create synthetic data
     nx, ny = 100, 100

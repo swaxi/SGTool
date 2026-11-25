@@ -23,6 +23,7 @@ swallows errors and returns None instead. No QGIS calls here; GDAL is only
 imported (lazily) to embed in / read GeoTIFFs.
 """
 
+import logging
 import os
 import html
 import datetime
@@ -32,6 +33,8 @@ try:  # hardened parser if available (not bundled with QGIS)
     from defusedxml import ElementTree as _SafeET
 except ImportError:
     _SafeET = None
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -137,8 +140,12 @@ def _is_geotiff(path):
     if not str(path).lower().endswith((".tif", ".tiff")):
         return False
     try:
-        from osgeo import gdal
+        try:
+            from osgeo import gdal
+        except ImportError:  # pysgtool without GDAL
+            from .raster_io import is_geotiff
 
+            return is_geotiff(path)
         ds = gdal.Open(str(path))
         ok = ds is not None and ds.GetDriver().ShortName == "GTiff"
         ds = None
@@ -150,8 +157,13 @@ def _is_geotiff(path):
 def _read_embedded(path):
     """SGTool provenance embedded in a GeoTIFF, or None."""
     try:
-        from osgeo import gdal
+        try:
+            from osgeo import gdal
+        except ImportError:  # pysgtool without GDAL
+            from .raster_io import get_tag
 
+            text = get_tag(path, GDAL_DOMAIN, GDAL_ITEM)
+            return _safe_fromstring(text) if text else None
         ds = gdal.Open(str(path))
         text = ds.GetMetadataItem(GDAL_ITEM, GDAL_DOMAIN) if ds is not None else None
         ds = None
@@ -220,7 +232,7 @@ def _embed_xml_file(parent, kind, file_path):
         pass
 
 
-def _add_source(parent, index, source_path):
+def _add_source(parent, index, source_path, provenance=None):
     src = ET.SubElement(parent, "source", {"index": str(index)})
     path = _clean_path(source_path)
     ET.SubElement(src, "path").text = path
@@ -228,8 +240,11 @@ def _add_source(parent, index, source_path):
 
     meta = ET.SubElement(src, "metadata")
     # the source's own SGTool provenance: this is what chains the steps
-    provenance, origin = _read_with_origin(path)
-    if provenance is not None:
+    in_memory = provenance is not None
+    origin = "memory"
+    if not in_memory:
+        provenance, origin = _read_with_origin(path)
+    if ET.iselement(provenance):
         node = ET.SubElement(
             meta, "sourceXml", {"type": "sgtool", "origin": origin, "file": path}
         )
@@ -241,14 +256,15 @@ def _add_source(parent, index, source_path):
         ("sidecar", path + ".xml"),  # e.g. ArcGIS / ISO metadata, .grd.xml
         ("sidecar", base + ".xml"),
     ):
-        if candidate not in seen:
+        if candidate not in seen and not in_memory:
             seen.add(candidate)
             _embed_xml_file(meta, kind, candidate)
     if len(meta) == 0:
         src.remove(meta)  # nothing to record
 
 
-def _build(output_path, source_path, operation, parameters, software_version, file_stats, software_name=None):
+def _build(output_path, source_path, operation, parameters, software_version, file_stats,
+           software_name=None, source_provenance=None):
     root = ET.Element("SGToolMetadata", {"schema": SCHEMA_VERSION})
     ET.SubElement(root, "created").text = (
         datetime.datetime.now().astimezone().isoformat(timespec="seconds")
@@ -283,16 +299,28 @@ def _build(output_path, source_path, operation, parameters, software_version, fi
             else [source_path]
         )
         for i, s in enumerate(paths):
-            _add_source(sources, i, s)
+            _add_source(sources, i, s, (source_provenance or {}).get(str(s)))
     return root
 
 
 def _embed_in_geotiff(path, root):
     """Store the provenance in the GeoTIFF's own metadata. True on success."""
     try:
-        from osgeo import gdal
-
         text = _to_text(root)
+        try:
+            from osgeo import gdal
+        except ImportError:  # pysgtool without GDAL
+            from .raster_io import set_tags
+
+            set_tags(path, {
+                GDAL_DOMAIN: {GDAL_ITEM: text},
+                "": {
+                    "SGTOOL_OPERATION": root.findtext("operation") or "",
+                    "SGTOOL_CREATED": root.findtext("created") or "",
+                    "SGTOOL_VERSION": root.find("software").get("version", ""),
+                },
+            })
+            return _read_embedded(path) is not None
         ds = gdal.Open(str(path), gdal.GA_Update)
         if ds is None:
             return False
@@ -318,6 +346,7 @@ def write_sgt_metadata(
     parameters=None,
     software_version=None,
     software_name=None,
+    source_provenance=None,
 ):
     """Record provenance for output_path; returns where it was stored (the
     output path when embedded in a GeoTIFF, else the sidecar path), or None.
@@ -336,12 +365,16 @@ def write_sgt_metadata(
         SGTool version string.
     software_name : str, optional
         Name of the program writing the file (default: this module's SOFTWARE_NAME).
+    source_provenance : dict, optional
+        For sources that are not files, by source path: their provenance (XML
+        element), or False if they have none. Nothing is then looked for on disk.
     """
     try:
         if _is_geotiff(output_path):
             root = _build(
                 output_path, source_path, operation, parameters,
                 software_version, file_stats=False, software_name=software_name,
+                source_provenance=source_provenance,
             )
             if _embed_in_geotiff(output_path, root):
                 remove_sgt_metadata(output_path)  # drop any old-style sidecar
@@ -350,6 +383,7 @@ def write_sgt_metadata(
         root = _build(
             output_path, source_path, operation, parameters,
             software_version, file_stats=True, software_name=software_name,
+            source_provenance=source_provenance,
         )
         path = sidecar_path(output_path)
         if hasattr(ET, "indent"):
@@ -357,7 +391,7 @@ def write_sgt_metadata(
         ET.ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
         return path
     except Exception as e:  # never let provenance break processing
-        print(f"SGTool: could not write metadata for {output_path}: {e}")
+        logger.warning(f"SGTool: could not write metadata for {output_path}: {e}")
         return None
 
 

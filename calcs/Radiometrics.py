@@ -13,8 +13,12 @@ raster or from separate rasters on different grids.
 """
 
 import numpy as np
-from osgeo import gdal
 from scipy.ndimage import distance_transform_edt, sobel
+
+try:
+    from osgeo import gdal
+except ImportError:  # array calculations only
+    from .no_gdal import gdal
 
 
 # ---------------------------------------------------------------- reading

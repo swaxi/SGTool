@@ -1,22 +1,17 @@
+import os
+
 import numpy as np
-from osgeo import gdalnumeric
-from osgeo import gdal
-from osgeo import gdalconst
+
+try:
+    from osgeo import gdal, gdalconst, gdalnumeric
+except ImportError:  # array calculations only
+    from ..no_gdal import gdal, gdalconst, gdalnumeric
+
 from .FourierDomainGrid import FourierDomainGrid as GRID
 from .FourierDomainOps import FourierDomainOps as FDO
 from scipy import spatial
-import networkx as nx
 from .Utility import writeGDALRasterFromNumpyArray  # , writeVtkWormLevels
 from .FftUtils import mk_apod_mask, embed_data
-from osgeo.gdal import GCP, GCPsToGeoTransform
-from .geometry import (
-    MapToPixel,
-    PixelToMap,
-    CellSize,
-    ExtentToGCPs,
-    GeoTransformToGCPs,
-)
-import os
 
 
 class Wormer(object):
@@ -100,6 +95,9 @@ class Wormer(object):
         )
 
     def buildGraph(self, seg, vals, geotransform, dz):
+        import networkx as nx
+        from .geometry import PixelToMap
+
         self.G[dz] = nx.Graph()
         tree = spatial.KDTree(seg)
         for i, s in enumerate(seg):
@@ -122,6 +120,8 @@ class Wormer(object):
         dz=None,
         from_image=True,
     ):
+        import networkx as nx
+
         if clipped:
             if not from_image:
                 # self.worm_points[0] contains the (fractional pixel) y coordinates
@@ -365,6 +365,9 @@ class Wormer(object):
 
     def _georeferencePaddedGrid(self):
         """Builds a spatial reference system appropriate for a padded grid."""
+        from osgeo.gdal import GCP, GCPsToGeoTransform
+        from .geometry import GeoTransformToGCPs
+
         ypix_max, xpix_max = self.base_grid.shape
         gcps = GeoTransformToGCPs(self.geomat, xpix_max, ypix_max)
         padded_gcps = []
@@ -398,6 +401,8 @@ class Wormer(object):
         """Import a GDAL raster of the externally padded image
         (e.g. by preprocessing with Oasis Montaj) into a numpy array stashed away as an attribute.
         """
+        from .geometry import GeoTransformToGCPs, MapToPixel
+
         self.gdal_external_padded_filename = gdal_filename
         self.padded_grid = np.array(
             gdalnumeric.LoadFile(self.gdal_external_padded_filename)

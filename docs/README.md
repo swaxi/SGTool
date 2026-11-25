@@ -15,4 +15,5 @@
   - [ArcGIS Pro: differences from the QGIS version](reference.md#arcgis-pro)
   - [References](reference.md#references)
 - [Installation](installation.md): QGIS and ArcGIS Pro, and the extra Python packages some tools need
+- [pysgtool](pysgtool.md): the calculations as a Python package, without QGIS or ArcGIS
 - [Changelog](changelog.md)

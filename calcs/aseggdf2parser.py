@@ -1,13 +1,21 @@
+import logging
 import os
 import re
-from osgeo import ogr, osr
 from collections import defaultdict
+
+try:
+    from osgeo import ogr, osr
+except ImportError:  # array calculations only
+    from .no_gdal import ogr, osr
+
+logger = logging.getLogger(__name__)
 
 
 # GDAL/OGR type constants to replace QGIS QVariant
-OFTString = ogr.OFTString
-OFTInteger = ogr.OFTInteger
-OFTReal = ogr.OFTReal
+# (the values OGR gives them, so that files can be parsed without it)
+OFTInteger = 0
+OFTReal = 2
+OFTString = 4
 
 
 class AsegGdf2Parser:
@@ -30,7 +38,7 @@ class AsegGdf2Parser:
         Returns:
             tuple: (header_list, field_defs, epsg)
         """
-        print(f"Parsing DFN file: {dfn_file_path}")
+        logger.debug(f"Parsing DFN file: {dfn_file_path}")
         header_list = []
         field_defs = {}  # Will store field name, type, null value, etc.
         epsg = None
@@ -39,7 +47,7 @@ class AsegGdf2Parser:
             with open(dfn_file_path, "r") as f:
                 lines = f.readlines()
         except Exception as e:
-            print(f"Error reading DFN file: {str(e)}")
+            logger.warning(f"Error reading DFN file: {str(e)}")
             return [], {}, None
 
         # Process all DEFN lines
@@ -93,7 +101,7 @@ class AsegGdf2Parser:
                             if (
                                 count > 20
                             ):  # Consider arrays with more than 20 elements as "large"
-                                print(
+                                logger.debug(
                                     f"Found large array field: {display_name} with {count} elements"
                                 )
 
@@ -150,9 +158,9 @@ class AsegGdf2Parser:
                                     # Extract field type from format
                                     field_type = OFTString
                                     if base_format.startswith("I"):
-                                        field_type = ogr.OFTInteger
+                                        field_type = OFTInteger
                                     elif base_format.startswith(("F", "E", "D")):
-                                        field_type = ogr.OFTReal
+                                        field_type = OFTReal
 
                                     field_defs[array_field_name] = {
                                         "type": field_type,
@@ -165,16 +173,16 @@ class AsegGdf2Parser:
                         else:
                             # Regular single field
                             header_list.append(display_name)
-                            print(
+                            logger.debug(
                                 f"Added field to header list: {display_name} (original: {field_name})"
                             )
 
                             # Extract field type from format
                             field_type = OFTString
                             if field_format.startswith("I"):
-                                field_type = ogr.OFTInteger
+                                field_type = OFTInteger
                             elif field_format.startswith(("F", "E", "D")):
-                                field_type = ogr.OFTReal
+                                field_type = OFTReal
                             elif field_format.startswith("A"):
                                 field_type = OFTString
 
@@ -205,7 +213,7 @@ class AsegGdf2Parser:
                                 "y",
                             ]:
                                 epsg = epsg_match.group(1)
-                                print(
+                                logger.debug(
                                     f"Found EPSG code {epsg} for field {display_name}"
                                 )
 
@@ -224,13 +232,13 @@ class AsegGdf2Parser:
 
         # Check if we found fields
         if header_list:
-            print(f"Found {len(header_list)} fields in DFN file:")
+            logger.debug(f"Found {len(header_list)} fields in DFN file:")
             for i, field in enumerate(header_list[:20]):  # Show first 20 fields
                 field_def = field_defs.get(field, {})
                 field_type = "String"
-                if field_def.get("type") == ogr.OFTInteger:
+                if field_def.get("type") == OFTInteger:
                     field_type = "Integer"
-                elif field_def.get("type") == ogr.OFTReal:
+                elif field_def.get("type") == OFTReal:
                     field_type = "Double"
 
                 # Show if it's an array field
@@ -238,11 +246,11 @@ class AsegGdf2Parser:
                     array_count = field_def.get("array_count", 0)
                     field_type = f"{field_type} Array[{array_count}]"
 
-                print(f"  {i+1}. {field} ({field_type})")
+                logger.debug(f"  {i+1}. {field} ({field_type})")
             if len(header_list) > 20:
-                print(f"  ... and {len(header_list) - 20} more fields")
+                logger.debug(f"  ... and {len(header_list) - 20} more fields")
         else:
-            print("No fields found in DFN file")
+            logger.debug("No fields found in DFN file")
 
         return header_list, field_defs, epsg
 
@@ -258,14 +266,14 @@ class AsegGdf2Parser:
         Returns:
             list: List of dictionaries, one per row
         """
-        print(f"Parsing DAT file: {dat_file_path}")
+        logger.debug(f"Parsing DAT file: {dat_file_path}")
         data = []
 
         try:
             with open(dat_file_path, "r") as f:
                 lines = f.readlines()
         except Exception as e:
-            print(f"Error reading DAT file: {str(e)}")
+            logger.warning(f"Error reading DAT file: {str(e)}")
             return []
 
         # Track stats for reporting
@@ -285,7 +293,7 @@ class AsegGdf2Parser:
                     "count": field_def.get("array_count", 0),
                     "base_format": field_def.get("array_base_format", ""),
                 }
-                print(
+                logger.debug(
                     f"Found array field {field_name} with {field_def.get('array_count', 0)} elements"
                 )
 
@@ -328,17 +336,17 @@ class AsegGdf2Parser:
                 elif has_comments_field and not has_trailing_asterisk:
                     expected_count += 1  # One column for COMMENTS field
 
-                print(
+                logger.debug(
                     f"Header has {len(working_header_list)} fields (expecting {expected_count} columns), data has {most_common_count} fields"
                 )
 
                 # Data format determination
                 if has_trailing_asterisk:
-                    print(f"Detected trailing asterisk (*) at the end of each line")
+                    logger.debug(f"Detected trailing asterisk (*) at the end of each line")
 
                     # If there's no COMMENTS field but we need one for the asterisk
                     if not has_comments_field:
-                        print(
+                        logger.debug(
                             f"Adding COMMENTS field to header list for trailing asterisk"
                         )
                         working_header_list.append("COMMENTS")
@@ -355,7 +363,7 @@ class AsegGdf2Parser:
                     if working_header_list[-1] != "COMMENTS":
                         working_header_list.remove("COMMENTS")
                         working_header_list.append("COMMENTS")
-                        print(f"Moved COMMENTS field to the end of header list")
+                        logger.debug(f"Moved COMMENTS field to the end of header list")
 
                 # Missing COMMENTS field in data
                 elif has_comments_field and most_common_count < expected_count:
@@ -365,7 +373,7 @@ class AsegGdf2Parser:
                         and "COMMENTS" not in array_fields
                     ):
                         working_header_list.remove("COMMENTS")
-                        print(
+                        logger.debug(
                             f"Removed COMMENTS field from header list as it's not in the data"
                         )
                         has_comments_field = False
@@ -414,7 +422,7 @@ class AsegGdf2Parser:
                             current_field_index += array_count
                         else:
                             # Not enough fields for this array
-                            print(
+                            logger.warning(
                                 f"Warning: Line {line_num+1} doesn't have enough fields for array {field_name}"
                             )
                             if current_field_index < len(fields):
@@ -433,12 +441,12 @@ class AsegGdf2Parser:
                             # Convert to appropriate type based on field definition
                             if field_def.get("null") and value == field_def.get("null"):
                                 row[field_name] = None
-                            elif field_def.get("type") == ogr.OFTInteger:
+                            elif field_def.get("type") == OFTInteger:
                                 try:
                                     row[field_name] = int(float(value))
                                 except ValueError:
                                     row[field_name] = value
-                            elif field_def.get("type") == ogr.OFTReal:
+                            elif field_def.get("type") == OFTReal:
                                 try:
                                     row[field_name] = float(value)
                                 except ValueError:
@@ -466,14 +474,14 @@ class AsegGdf2Parser:
                                 else:
                                     value = "[Empty array]"
                             field_samples.append(f"{field_name}={value}")
-                    print(f"Row {processed_lines}: {', '.join(field_samples)}...")
+                    logger.debug(f"Row {processed_lines}: {', '.join(field_samples)}...")
 
             except Exception as e:
-                print(f"Error parsing line {line_num+1}: {str(e)}")
-                print(f"Line content: {line[:100]}...")
+                logger.warning(f"Error parsing line {line_num+1}: {str(e)}")
+                logger.debug(f"Line content: {line[:100]}...")
                 skipped_lines += 1
 
-        print(
+        logger.debug(
             f"Parsed {len(data)} rows from DAT file (Processed: {processed_lines}, Skipped: {skipped_lines})"
         )
 
@@ -495,7 +503,7 @@ class AsegGdf2Parser:
             x_field, y_field (str,str): coordinate fields
             epsg_code (str): EPSG code for the coordinate system (e.g., "4326", "28356")
         """
-        print(f"Exporting to shapefile: {output_path}")
+        logger.debug(f"Exporting to shapefile: {output_path}")
 
         # Remove existing file if it exists
         if os.path.exists(output_path):
@@ -508,7 +516,7 @@ class AsegGdf2Parser:
                     if os.path.exists(file_path):
                         os.remove(file_path)
             except Exception as e:
-                print(f"Failed to delete existing files: {str(e)}")
+                logger.warning(f"Failed to delete existing files: {str(e)}")
 
         # Ensure data is a list of dictionaries
         if not data or not isinstance(data[0], dict):
@@ -520,7 +528,7 @@ class AsegGdf2Parser:
         # Check if coordinate fields exist in data
         first_row = data[0]
         if x_field not in first_row or y_field not in first_row:
-            print(f"Available fields in data: {list(first_row.keys())}")
+            logger.debug(f"Available fields in data: {list(first_row.keys())}")
             raise ValueError(
                 f"Coordinate fields '{x_field}' and/or '{y_field}' not found in data"
             )
@@ -531,20 +539,20 @@ class AsegGdf2Parser:
             try:
                 srs.ImportFromEPSG(int(epsg_code))
                 if not srs.IsProjected() and not srs.IsGeographic():
-                    print(
+                    logger.warning(
                         f"Warning: Invalid EPSG code {epsg_code}. Using default WGS84."
                     )
                     srs.ImportFromEPSG(4326)
             except Exception as e:
-                print(
+                logger.warning(
                     f"Warning: Error with EPSG code {epsg_code}: {str(e)}. Using default WGS84."
                 )
                 srs.ImportFromEPSG(4326)
         else:
-            print("No EPSG code provided. Using default WGS84.")
+            logger.debug("No EPSG code provided. Using default WGS84.")
             srs.ImportFromEPSG(4326)
 
-        print(f"Using CRS: EPSG:{srs.GetAuthorityCode(None) or 'Unknown'}")
+        logger.debug(f"Using CRS: EPSG:{srs.GetAuthorityCode(None) or 'Unknown'}")
 
         # Create the output driver - replace QgsVectorFileWriter with ogr
         driver = ogr.GetDriverByName("ESRI Shapefile")
@@ -623,11 +631,11 @@ class AsegGdf2Parser:
                         point.AddPoint(x_coord, y_coord)
                         feature.SetGeometry(point)
                     except (ValueError, TypeError) as e:
-                        print(f"Row {row_num}: Invalid coordinates: {x_val}, {y_val}")
+                        logger.debug(f"Row {row_num}: Invalid coordinates: {x_val}, {y_val}")
                         errors += 1
                         continue
                 else:
-                    print(f"Row {row_num}: Missing coordinates")
+                    logger.debug(f"Row {row_num}: Missing coordinates")
                     errors += 1
                     continue
 
@@ -660,13 +668,13 @@ class AsegGdf2Parser:
                 features_written += 1
 
             except Exception as e:
-                print(f"Error writing row {row_num}: {str(e)}")
+                logger.warning(f"Error writing row {row_num}: {str(e)}")
                 errors += 1
 
         # Clean up
         data_source = None
 
-        print(
+        logger.debug(
             f"Shapefile export complete: {features_written} features written, {errors} errors"
         )
 
@@ -687,11 +695,11 @@ class AsegGdf2Parser:
             prj_file_path = base_name + ".prj"
 
         if not os.path.exists(dat_file_path):
-            print("DAT/dat file not found")
+            logger.warning("DAT/dat file not found")
             return None, None, None, None
 
         if not os.path.exists(dfn_file_path):
-            print("DFN/dfn file not found")
+            logger.warning("DFN/dfn file not found")
             return None, None, None, None
 
         # Parse the DFN file to get field definitions
@@ -799,8 +807,8 @@ class AsegGdf2Parser:
             field.get("name", f"Field_{i}") for i, field in enumerate(field_defs)
         ]
 
-        print(f"Found {len(header_list)} fields: {header_list}")
-        print(f"Data format type: {data_format_type}")
+        logger.debug(f"Found {len(header_list)} fields: {header_list}")
+        logger.debug(f"Data format type: {data_format_type}")
 
         # Determine EPSG code from projection info
         epsg = None
@@ -817,7 +825,7 @@ class AsegGdf2Parser:
                         zone = int("".join(c for c in zone_text if c.isdigit()))
                         if 49 <= zone <= 56:  # Australian zones
                             epsg = 28300 + zone
-                            print(f"Found EPSG from PRJ file: {epsg}")
+                            logger.debug(f"Found EPSG from PRJ file: {epsg}")
                     except (IndexError, ValueError):
                         pass
                 elif "WGS84" in prj_content:
@@ -834,13 +842,13 @@ class AsegGdf2Parser:
                     zone = int("".join(c for c in zone_text if c.isdigit()))
                     if 49 <= zone <= 56:  # Australian zones
                         epsg = 28300 + zone
-                        print(f"Found EPSG from DFN content: {epsg}")
+                        logger.debug(f"Found EPSG from DFN content: {epsg}")
                 except (IndexError, ValueError):
                     pass
             elif "WGS84" in dfn_content_str:
                 epsg = 4326
 
-        print(f"Final EPSG: {epsg}")
+        logger.debug(f"Final EPSG: {epsg}")
         return header_list, field_defs, epsg, data_format_type
 
     def parse_legacy_data(
@@ -861,7 +869,7 @@ class AsegGdf2Parser:
 
                 # Skip if not enough values
                 if len(values) < len(header_list):
-                    print(
+                    logger.warning(
                         f"Warning: Line {line_num} has fewer values ({len(values)}) than fields ({len(header_list)})"
                     )
                     continue
@@ -876,7 +884,7 @@ class AsegGdf2Parser:
 
                     # If we have fewer values than fields, skip this row
                     if len(field_values) < len(header_list):
-                        print(
+                        logger.warning(
                             f"Warning: Line {line_num} has fewer values ({len(field_values)}) than fields ({len(header_list)}) after removing DATA"
                         )
                         continue
@@ -937,12 +945,12 @@ class AsegGdf2Parser:
 
                 # Print sample row for debugging
                 if line_num < 2:
-                    print(
+                    logger.debug(
                         f"Sample row {line_num}: First 5 items = {list(row_data.items())[:5]}"
                     )
-                    print(f"Original line: {original_line}")
-                    print(f"Processed values: {values[:10]}")  # Show first 10 values
+                    logger.debug(f"Original line: {original_line}")
+                    logger.debug(f"Processed values: {values[:10]}")  # Show first 10 values
 
-        print(f"Processed {len(data)} data rows")
+        logger.debug(f"Processed {len(data)} data rows")
 
         return data

@@ -31,7 +31,7 @@ For each method, *Reference* gives the primary published source (listed in full 
 
 The examples use `ogrm_usgs_mag_tmi.tif`, an aeromagnetic total magnetic intensity grid of part of Mauritania (courtesy of the Mauritanian Government (OMRG) and the USGS), linked from the plugin's Help tab: 924 x 629 cells of 175 m, WGS 84 / UTM zone 29N, -1410 to 5005 nT. See [The example data](user-guide.md#1-the-example-data) in the user guide.
 
-- Each figure shows the input on the left and the result on the right, with the settings in the title. The results were calculated with SGTool's own filter code (`sgt_filters.py`, also used by the dialog and the Processing algorithms).
+- Each figure shows the input on the left and the result on the right, with the settings in the title. The results were calculated with SGTool's own filter code (`calcs/filter_table.py`, also used by the dialog and the Processing algorithms).
 - Magnetic reductions use the IGRF field for the dialog's default date, 1 January 2000, at the grid centre: inclination 29.0°, declination -5.4°, total field 36,621 nT (the figures were made with the slightly different values SGTool gave before its IGRF calculation was corrected in 0.4.5: 29.2°, -5.4°, 36,751 nT).
 - Unless stated otherwise, filters are applied to the RTP grid, `ogrm_usgs_mag_tmi_RTP`, and window statistics to its first vertical derivative.
 - Figures marked *zoomed* show the 38 x 56 km area outlined below, where the effect of filters that act over a few cells can be seen.

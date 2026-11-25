@@ -1,8 +1,12 @@
-import numpy as np
-from collections import defaultdict
-from osgeo import gdal, ogr, osr
 import os
 from collections import defaultdict
+
+import numpy as np
+
+try:
+    from osgeo import gdal, ogr, osr
+except ImportError:  # array calculations only
+    from .no_gdal import gdal, ogr, osr
 
 
 class SG_Util:
@@ -42,43 +46,11 @@ class SG_Util:
 
         return grid2
 
-    def create_data_boundary_lines(
-        self, input_raster_path, output_path=None, band_number=1
-    ):
-        """
-        Creates a polygon layer that traces the boundaries between data and NaN regions
-        in the specified raster file, handling holes as interior rings.
-
-        Args:
-            input_raster_path (str): Path to the input raster file
-            output_path (str, optional): Path for output shapefile
-            band_number (int): Band number to process (default: 1)
-
-        Returns:
-            str: Path to the created shapefile (if output_path provided)
-        """
-
-        # Open the raster dataset
-        dataset = gdal.Open(input_raster_path, gdal.GA_ReadOnly)
-        if not dataset:
-            raise ValueError(f"Could not open raster file: {input_raster_path}")
-
-        # Get raster information
-        band = dataset.GetRasterBand(band_number)
-        cols = dataset.RasterXSize
-        rows = dataset.RasterYSize
-        geotransform = dataset.GetGeoTransform()
-        projection = dataset.GetProjection()
-
-        # Read the raster data
-        data = band.ReadAsArray()
-        nodata_value = band.GetNoDataValue()
-
-        # Create binary mask (1 for data, 0 for NaN or NoData)
-        if nodata_value is not None:
-            mask = np.where(np.logical_or(np.isnan(data), data == nodata_value), 0, 1)
-        else:
-            mask = np.where(np.isnan(data), 0, 1)
+    def boundary_rings(self, mask, geotransform):
+        """Outlines of the data of a grid: mask is 1 where there is data, 0 elsewhere.
+        Returns (rings, exteriors, holes): lists of (x, y) vertices, the index of each
+        outer ring, and (index of a hole, index of the ring it is in) pairs."""
+        rows, cols = mask.shape
 
         def pixel_to_map_coords(row, col):
             """Convert raster coordinates to map coordinates using geotransform"""
@@ -183,15 +155,6 @@ class SG_Util:
 
             return points
 
-        def is_clockwise(points):
-            """Check if a polygon is clockwise"""
-            area = 0
-            for i in range(len(points) - 1):
-                area += (points[i + 1][0] - points[i][0]) * (
-                    points[i + 1][1] + points[i][1]
-                )
-            return area > 0
-
         def identify_holes(rings):
             """Identify which rings are holes in other rings"""
             # shapely is only needed here, so it is imported here: the rest of SG_Util
@@ -237,6 +200,57 @@ class SG_Util:
 
         # Identify holes and exterior rings
         exteriors, holes = identify_holes(rings)
+
+        return rings, exteriors, holes
+
+    def create_data_boundary_lines(
+        self, input_raster_path, output_path=None, band_number=1
+    ):
+        """
+        Creates a polygon layer that traces the boundaries between data and NaN regions
+        in the specified raster file, handling holes as interior rings.
+
+        Args:
+            input_raster_path (str): Path to the input raster file
+            output_path (str, optional): Path for output shapefile
+            band_number (int): Band number to process (default: 1)
+
+        Returns:
+            str: Path to the created shapefile (if output_path provided)
+        """
+
+        # Open the raster dataset
+        dataset = gdal.Open(input_raster_path, gdal.GA_ReadOnly)
+        if not dataset:
+            raise ValueError(f"Could not open raster file: {input_raster_path}")
+
+        # Get raster information
+        band = dataset.GetRasterBand(band_number)
+        cols = dataset.RasterXSize
+        rows = dataset.RasterYSize
+        geotransform = dataset.GetGeoTransform()
+        projection = dataset.GetProjection()
+
+        # Read the raster data
+        data = band.ReadAsArray()
+        nodata_value = band.GetNoDataValue()
+
+        # Create binary mask (1 for data, 0 for NaN or NoData)
+        if nodata_value is not None:
+            mask = np.where(np.logical_or(np.isnan(data), data == nodata_value), 0, 1)
+        else:
+            mask = np.where(np.isnan(data), 0, 1)
+
+        rings, exteriors, holes = self.boundary_rings(mask, geotransform)
+
+        def is_clockwise(points):
+            """Check if a polygon is clockwise"""
+            area = 0
+            for i in range(len(points) - 1):
+                area += (points[i + 1][0] - points[i][0]) * (
+                    points[i + 1][1] + points[i][1]
+                )
+            return area > 0
 
         # Create output shapefile if path provided
         if output_path:

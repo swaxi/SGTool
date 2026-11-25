@@ -1,0 +1,4 @@
+include metadata.txt LICENSE docs/pysgtool.md
+recursive-include calcs *.py *.SHC *.txt *.md
+recursive-include pysgtool *.py
+recursive-include tests *.py

@@ -12,8 +12,11 @@ authors: Felipe F. Melo and Valeria C.F. Barbosa, 2019 (original)
 Enhanced with window-based analysis
 """
 
+import logging
 import numpy as np
 import os
+
+logger = logging.getLogger(__name__)
 
 
 def classic(est_classic, area_plt, SI_vet, name, path):
@@ -122,8 +125,8 @@ def window_stats(
     window_size_x = x_range / n_windows_x
     window_size_y = y_range / n_windows_y
 
-    print(f"Grid analysis: {n_windows_y} x {n_windows_x} windows")
-    print(f"Window size: {window_size_x:.2f} x {window_size_y:.2f} coordinate units")
+    logger.debug(f"Grid analysis: {n_windows_y} x {n_windows_x} windows")
+    logger.debug(f"Window size: {window_size_x:.2f} x {window_size_y:.2f} coordinate units")
 
     # Process each SI
     all_results = {}
@@ -213,7 +216,7 @@ def window_stats(
             delimiter=",",
         )
 
-        print(f"Saved window statistics for SI={SI} to {output_filename}")
+        logger.debug(f"Saved window statistics for SI={SI} to {output_filename}")
 
     # Create summary file with statistics across all windows
     summary_results = []
@@ -253,7 +256,7 @@ def window_stats(
         delimiter=",",
     )
 
-    print(f"Saved window summary to {summary_filename}")
+    logger.debug(f"Saved window summary to {summary_filename}")
     return all_results
 
 
@@ -273,15 +276,15 @@ def enhanced_analysis(
     * window_size: size of analysis windows
     """
 
-    print("=== Enhanced Euler Deconvolution Analysis ===")
+    logger.debug("=== Enhanced Euler Deconvolution Analysis ===")
 
     # Run original global analysis
-    print("\n1. Computing global statistics...")
+    logger.debug("\n1. Computing global statistics...")
     classic(est_classic, area_plt, SI_vet, name, path)
-    print("Global statistics saved.")
+    logger.debug("Global statistics saved.")
 
     # Run new window-based analysis
-    print("\n2. Computing window-based statistics...")
+    logger.debug("\n2. Computing window-based statistics...")
     window_results = window_stats(
         est_classic,
         area_plt,
@@ -293,11 +296,11 @@ def enhanced_analysis(
         detailed_stats=True,
     )
 
-    print("\n=== Analysis Complete ===")
-    print(f"Results saved to: {path}")
-    print(f"Files created:")
-    print(f"  - {name}.txt (global statistics)")
-    print(f"  - {name}_window_stats_SI_*.txt (window statistics for each SI)")
-    print(f"  - {name}_window_summary.txt (summary across all windows)")
+    logger.debug("\n=== Analysis Complete ===")
+    logger.debug(f"Results saved to: {path}")
+    logger.debug(f"Files created:")
+    logger.debug(f"  - {name}.txt (global statistics)")
+    logger.debug(f"  - {name}_window_stats_SI_*.txt (window statistics for each SI)")
+    logger.debug(f"  - {name}_window_summary.txt (summary across all windows)")
 
     return window_results

@@ -7,7 +7,11 @@ with no QGIS dependency.
 import math
 
 import numpy as np
-from osgeo import gdal, ogr, osr
+
+try:
+    from osgeo import gdal, ogr, osr
+except ImportError:  # array calculations only
+    from .no_gdal import gdal, ogr, osr
 
 # Colour map for the heat maps (viridis: its changing hue shows the variation
 # in the densest part more clearly than a one-hue ramp), and the fixed

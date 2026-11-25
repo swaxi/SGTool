@@ -25,6 +25,7 @@ SGTool works in both **QGIS** and **ArcGIS Pro**: the calculations are shared, a
 - [User guide](docs/user-guide.md): step-by-step guides to each kind of processing, worked on an example magnetic grid
 - [Reference](docs/reference.md): every tab, control and filter, with screenshots, defaults, output names, equations, published references and before/after examples. It also covers the live preview, background calculations, provenance metadata and replay, the QGIS Processing algorithms and the differences in ArcGIS Pro
 - [Installation](docs/installation.md): QGIS and ArcGIS Pro, and the extra Python packages some tools need
+- [pysgtool](docs/pysgtool.md): the calculations as a Python package, without QGIS or ArcGIS
 - [Changelog](docs/changelog.md) (also in `metadata.txt`)
 
 # Inputs   

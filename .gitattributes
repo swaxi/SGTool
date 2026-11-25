@@ -9,3 +9,7 @@ plugins.xml export-ignore
 docs export-ignore
 ARCGIS export-ignore
 repository.xml export-ignore
+pysgtool export-ignore
+tests export-ignore
+setup.py export-ignore
+MANIFEST.in export-ignore

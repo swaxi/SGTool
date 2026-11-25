@@ -10,10 +10,12 @@ Run with QGIS Python 3.12 (has scipy + GDAL):
   "<QGIS>\apps\Python312\python.exe" Cooper_Cowan_rtpvariable.py
 """
 
+import logging
+
 import numpy as np
-import matplotlib.pyplot as plt
-from osgeo import gdal, osr
 from scipy.fft import fft2, ifft2
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -104,23 +106,23 @@ def rtpvariable(magc, nr, nc, inc_corners, dec_corners, incv=None, decv=None,
                             [1, 1,  nc, 1  * nc]], dtype=float)
 
     if incv is None:
-        print('Generating grid of inclination data from values at grid corners')
+        logger.debug('Generating grid of inclination data from values at grid corners')
         p = np.linalg.solve(corner_mat, np.array(inc_corners, dtype=float))
         incv = p[0] + p[1] * yi + p[2] * xi + p[3] * yi * xi
         if inc_center is not None:
             bilinear_at_centre = p[0] + p[1]*r_mid + p[2]*c_mid + p[3]*r_mid*c_mid
             delta_inc = inc_center - bilinear_at_centre
-            print(f'  inc bilinear at centre: {bilinear_at_centre:.2f}°, IGRF centre: {inc_center:.2f}°, delta: {delta_inc:.2f}°')
+            logger.debug(f'  inc bilinear at centre: {bilinear_at_centre:.2f}°, IGRF centre: {inc_center:.2f}°, delta: {delta_inc:.2f}°')
             incv = incv + delta_inc * bump
 
     if decv is None:
-        print('Generating grid of declination data from values at grid corners')
+        logger.debug('Generating grid of declination data from values at grid corners')
         p = np.linalg.solve(corner_mat, np.array(dec_corners, dtype=float))
         decv = p[0] + p[1] * yi + p[2] * xi + p[3] * yi * xi
         if dec_center is not None:
             bilinear_at_centre = p[0] + p[1]*r_mid + p[2]*c_mid + p[3]*r_mid*c_mid
             delta_dec = dec_center - bilinear_at_centre
-            print(f'  dec bilinear at centre: {bilinear_at_centre:.2f}°, IGRF centre: {dec_center:.2f}°, delta: {delta_dec:.2f}°')
+            logger.debug(f'  dec bilinear at centre: {bilinear_at_centre:.2f}°, IGRF centre: {dec_center:.2f}°, delta: {delta_dec:.2f}°')
             decv = decv + delta_dec * bump
 
     incv_deg = incv.copy()   # preserve degrees for optional export
@@ -130,7 +132,7 @@ def rtpvariable(magc, nr, nc, inc_corners, dec_corners, incv=None, decv=None,
 
     nmax = max([nr, nc]);  npts = 2 ** int(np.ceil(np.log2(nmax)))
     cdiff = int(np.floor((npts - nc) / 2));  rdiff = int(np.floor((npts - nr) / 2))
-    print('Computing rtp')
+    logger.debug('Computing rtp')
     rtpdata = rtp(magc, npts, nr, nc, rdiff, cdiff, azimuth, inc)
     incv = incv - inc
     decv = decv - azimuth
@@ -140,23 +142,23 @@ def rtpvariable(magc, nr, nc, inc_corners, dec_corners, incv=None, decv=None,
     deriv_rtp = rtp(magc_deriv, npts, nr, nc, rdiff, cdiff, azimuth, inc,
                     spectrum=deriv_spectrum)
 
-    print('Computing inc dx1')
+    logger.debug('Computing inc dx1')
     drtp1_inc = taylortp1(magc_deriv, npts, nr, nc, rdiff, cdiff, azimuth, inc,
                           spectrum=deriv_spectrum, base=deriv_rtp)
-    print('Computing inc dx2')
+    logger.debug('Computing inc dx2')
     drtp2_inc = taylortp1(drtp1_inc, npts, nr, nc, rdiff, cdiff, azimuth, inc)
-    print('Computing inc dx3')
+    logger.debug('Computing inc dx3')
     drtp3_inc = taylortp1(drtp2_inc, npts, nr, nc, rdiff, cdiff, azimuth, inc)
 
-    print('Computing dec dx1')
+    logger.debug('Computing dec dx1')
     drtp1_dec = taylordec1(magc_deriv, npts, nr, nc, rdiff, cdiff, azimuth, inc,
                            spectrum=deriv_spectrum, base=deriv_rtp)
-    print('Computing dec dx2')
+    logger.debug('Computing dec dx2')
     drtp2_dec = taylordec1(drtp1_dec, npts, nr, nc, rdiff, cdiff, azimuth, inc)
-    print('Computing dec dx3')
+    logger.debug('Computing dec dx3')
     drtp3_dec = taylordec1(drtp2_dec, npts, nr, nc, rdiff, cdiff, azimuth, inc)
 
-    print('Computing rtpvar')
+    logger.debug('Computing rtpvar')
     varrtp = (rtpdata
               + drtp1_inc * incv + 0.5 * drtp2_inc * incv ** 2 + 0.1666666 * drtp3_inc * incv ** 3
               + drtp1_dec * decv + 0.5 * drtp2_dec * decv ** 2 + 0.1666666 * drtp3_dec * decv ** 3)
@@ -306,6 +308,8 @@ def save_geotiff(data, output_path, lat_top=-30.0, lat_bottom=-90.0,
     data rows: row 0 = geographic south (MATLAB row 1, 'axis xy' bottom).
     GeoTIFF rows: row 0 = geographic north. Array is flipped vertically on write.
     """
+    from osgeo import gdal, osr
+
     nr, nc = data.shape
     if lon_right is None:
         lat_span = lat_top - lat_bottom           # degrees (positive)

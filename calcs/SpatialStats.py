@@ -1,8 +1,11 @@
+import logging
 import numpy as np
 
 from scipy.ndimage import gaussian_filter, sobel, uniform_filter
 
 from .window_ops import iter_windows, masked_stat
+
+logger = logging.getLogger(__name__)
 
 class SpatialStats:
     def __init__(self, grid):
@@ -198,12 +201,12 @@ class SpatialStats:
         if np.sum(cliff_mask) == 0:
             # Fall back to basic slope threshold if no linear cliffs detected
             cliff_mask = basic_cliff_mask
-            print(f"No linear cliffs found. Falling back to basic slope threshold.")
-            print(
+            logger.debug(f"No linear cliffs found. Falling back to basic slope threshold.")
+            logger.debug(
                 f"Basic slope threshold found {np.sum(basic_cliff_mask)} cliff cells."
             )
         else:
-            print(f"Found {np.sum(cliff_mask)} linear cliff cells.")
+            logger.debug(f"Found {np.sum(cliff_mask)} linear cliff cells.")
 
         classified[cliff_mask] = 2  # Cliffs
 
@@ -225,11 +228,11 @@ class SpatialStats:
         classified[flat_mask] = 0  # Flat areas explicitly set
 
         # Add debug info
-        print(f"Curvature range: {np.min(profile_curv)} to {np.max(profile_curv)}")
-        print(f"Number of concave cells: {np.sum(concave_mask)}")
-        print(f"Number of convex cells: {np.sum(convex_mask)}")
-        print(f"Number of flat cells: {np.sum(flat_mask)}")
-        print(f"Number of cliff cells: {np.sum(cliff_mask)}")
+        logger.debug(f"Curvature range: {np.min(profile_curv)} to {np.max(profile_curv)}")
+        logger.debug(f"Number of concave cells: {np.sum(concave_mask)}")
+        logger.debug(f"Number of convex cells: {np.sum(convex_mask)}")
+        logger.debug(f"Number of flat cells: {np.sum(flat_mask)}")
+        logger.debug(f"Number of cliff cells: {np.sum(cliff_mask)}")
 
         classified[nan_mask] = -15
         return classified
@@ -267,14 +270,14 @@ class SpatialStats:
 
             # Check if we have any steep slopes at all
             if np.sum(steep_mask) == 0:
-                print(f"No steep slopes found above threshold {slope_threshold}°")
+                logger.debug(f"No steep slopes found above threshold {slope_threshold}°")
                 return np.zeros_like(slope_array, dtype=np.int8)
 
             # Find connected components - connectivity must be either 1 or 2 for 2D images
             labeled = measure.label(steep_mask, connectivity=connectivity)
             num_features = np.max(labeled)
 
-            print(f"Found {num_features} connected steep regions")
+            logger.debug(f"Found {num_features} connected steep regions")
 
             # If no regions found, return empty array
             if num_features == 0:
@@ -312,14 +315,14 @@ class SpatialStats:
                     linear_cliffs[labeled == prop.label] = 1
                     linear_count += 1
 
-            print(
+            logger.debug(
                 f"Found {linear_count} linear features out of {num_features} steep regions"
             )
             return linear_cliffs
 
         except Exception as e:
             # Print the error for debugging
-            print(f"Error in detect_linear_cliffs: {str(e)}")
+            logger.warning(f"Error in detect_linear_cliffs: {str(e)}")
             # Fall back to simple slope-based detection
             return (slope_array >= slope_threshold).astype(np.int8)
 
@@ -357,7 +360,7 @@ class SpatialStats:
 
             # Check if we have any steep slopes at all
             if np.sum(steep_mask) == 0:
-                print(f"No steep slopes found above threshold {slope_threshold}°")
+                logger.debug(f"No steep slopes found above threshold {slope_threshold}°")
                 return np.zeros_like(slope_array, dtype=np.int8)
 
             # Define structure for connectivity - 4-connectivity or 8-connectivity
@@ -371,7 +374,7 @@ class SpatialStats:
             # Find connected components
             labeled, num_features = ndimage.label(steep_mask, structure=structure)
 
-            print(f"Found {num_features} connected steep regions")
+            logger.debug(f"Found {num_features} connected steep regions")
 
             # If no regions found, return empty array
             if num_features == 0:
@@ -444,14 +447,14 @@ class SpatialStats:
                     # If eigenvalue calculation fails, skip this region
                     continue
 
-            print(
+            logger.debug(
                 f"Found {linear_count} linear features out of {num_features} steep regions"
             )
             return linear_cliffs
 
         except Exception as e:
             # Print the error for debugging
-            print(f"Error in detect_linear_cliffs: {str(e)}")
+            logger.warning(f"Error in detect_linear_cliffs: {str(e)}")
             # Fall back to simple slope-based detection
             return (slope_array >= slope_threshold).astype(np.int8)
 

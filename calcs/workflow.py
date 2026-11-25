@@ -4,7 +4,7 @@ The processing history of a grid, read from its SGTool provenance.
 Every grid SGTool saves records the operation and parameters that made it and
 embeds the provenance of the grid it was made from, so the whole chain of steps
 is there. history_steps() unrolls that chain, oldest step first, so it can be
-turned into a recipe and replayed on another grid (see sgt_workflow.py).
+turned into a recipe and replayed on another grid (see replay.py).
 
 Pure Python (no QGIS), so it can be tested on its own.
 """

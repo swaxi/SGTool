@@ -74,7 +74,7 @@ The dashed box marks the 38 x 56 km area that the zoomed examples show. Filters 
 
 **Magnetic field at the example grid.** Pressing **Centroid IGRF** with the dialog's default survey date (1 January 2000) gives an inclination of 29.0°, a declination of -5.4° and a field strength of 36,621 nT at the centre of the grid. The examples were made with the values SGTool gave before its IGRF calculation was corrected in 0.4.5 (29.2°, -5.4°, 36,751 nT), which look the same. With your own data, set the date the survey was flown.
 
-**How the example figures were made.** Each figure shows the input on the left and the result on the right, at the same scale. Every result was calculated with SGTool's own code (`sgt_filters.py`, the same code the dialog, the Processing algorithms and the ArcGIS Pro version call) on the example grid, with the settings given in the figure title. Grids such as TMI and RTP are drawn with a histogram-equalised colour scale, and derivatives and other zero-centred results with a blue-white-red scale centred on zero.
+**How the example figures were made.** Each figure shows the input on the left and the result on the right, at the same scale. Every result was calculated with SGTool's own code (`calcs/filter_table.py`, the same code the dialog, the Processing algorithms and the ArcGIS Pro version call) on the example grid, with the settings given in the figure title. Grids such as TMI and RTP are drawn with a histogram-equalised colour scale, and derivatives and other zero-centred results with a blue-white-red scale centred on zero.
 
 ---
 

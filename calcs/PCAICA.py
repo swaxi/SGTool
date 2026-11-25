@@ -1,6 +1,14 @@
-import numpy as np
-from osgeo import gdal
+import logging
 import os
+
+import numpy as np
+
+try:
+    from osgeo import gdal
+except ImportError:  # array calculations only
+    from .no_gdal import gdal
+
+logger = logging.getLogger(__name__)
 
 
 def read_bands_with_nan(ds):
@@ -103,7 +111,7 @@ class PCAICA:
         height = ds.RasterYSize
         bands = ds.RasterCount
         if bands == 1:
-            print("Only one band found, PCA not possible")
+            logger.warning("Only one band found, PCA not possible")
             return None, None
 
         # If n_components is not specified, use all possible components
@@ -111,7 +119,7 @@ class PCAICA:
             n_components = bands
         elif n_components > bands:
             n_components = bands
-            print(
+            logger.warning(
                 f"Warning: Requested {n_components} components but only {bands} bands available. Using {bands} components."
             )
 
@@ -204,13 +212,13 @@ class PCAICA:
         ds = None
 
         # Print information about the PCA
-        print("PCA Summary:")
-        print(f"Input: {input_raster_path} ({bands} bands)")
-        print(f"Output: {output_raster_path} ({n_components} components)")
-        print("\nExplained variance ratio by component:")
+        logger.debug("PCA Summary:")
+        logger.debug(f"Input: {input_raster_path} ({bands} bands)")
+        logger.debug(f"Output: {output_raster_path} ({n_components} components)")
+        logger.debug("\nExplained variance ratio by component:")
         for i, var in enumerate(pca.explained_variance_ratio_):
-            print(f"PC{i+1}: {var:.4f} ({var*100:.2f}%)")
-        print(
+            logger.debug(f"PC{i+1}: {var:.4f} ({var*100:.2f}%)")
+        logger.debug(
             f"\nCumulative explained variance: {np.sum(pca.explained_variance_ratio_)*100:.2f}%"
         )
 
@@ -249,7 +257,7 @@ class PCAICA:
         height = ds.RasterYSize
         bands = ds.RasterCount
         if bands == 1:
-            print("Only one band found, PCA not possible")
+            logger.warning("Only one band found, PCA not possible")
             return None, None
 
         # If n_components is not specified, use all possible components
@@ -257,7 +265,7 @@ class PCAICA:
             n_components = bands
         elif n_components > bands:
             n_components = bands
-            print(
+            logger.warning(
                 f"Warning: Requested {n_components} components but only {bands} bands available. Using {bands} components."
             )
 
@@ -348,10 +356,10 @@ class PCAICA:
         ds = None
 
         # Print information about the ICA
-        print("ICA Summary:")
-        print(f"Input: {input_raster_path} ({bands} bands)")
-        print(f"Output: {output_raster_path} ({n_components} components)")
-        print("\nIndependent components have been extracted.")
-        print("Note: Unlike PCA, ICA components are not ordered by importance.")
+        logger.debug("ICA Summary:")
+        logger.debug(f"Input: {input_raster_path} ({bands} bands)")
+        logger.debug(f"Output: {output_raster_path} ({n_components} components)")
+        logger.debug("\nIndependent components have been extracted.")
+        logger.debug("Note: Unlike PCA, ICA components are not ordered by importance.")
 
         return ica.mixing_, ica.components_

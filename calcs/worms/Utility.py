@@ -1,10 +1,19 @@
-import numpy as np
-from matplotlib import pyplot as plt
+import logging
 import os
-from osgeo import gdal, osr
+
+import numpy as np
+
+try:
+    from osgeo import gdal, osr
+except ImportError:  # array calculations only
+    from ..no_gdal import gdal, osr
+
+logger = logging.getLogger(__name__)
 
 
 def viewRaster(numpy_grid):
+    from matplotlib import pyplot as plt
+
     plt.imshow(numpy_grid)
     plt.show()
 
@@ -293,7 +302,7 @@ def numpy_array_to_raster(
         try:
             os.remove(raster_path)
         except:
-            print(
+            logger.warning(
                 "Couldn't delete layer, may be open in another program? On windows files on non-C: drive may be hard to delete"
             )
             return -1

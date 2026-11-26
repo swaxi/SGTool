@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 Stand-ins for the osgeo modules where GDAL is not installed (pysgtool from pip).
 

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 Radiometric (gamma-ray spectrometry) ratios and transforms, no QGIS dependency.
 

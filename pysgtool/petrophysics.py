@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 Henkel plots and other scatter plots, heat maps and histograms (need matplotlib).
 

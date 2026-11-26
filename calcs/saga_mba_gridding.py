@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Translated from SAGA GIS (Gridding_Spline_MBA.cpp), Copyright (C) 2006 Olaf Conrad,
+# which is under the GNU General Public License, version 2 or later.
+# Python translation Copyright (C) 2026 Mark Jessell
 """
 Standalone Python / NumPy translation of SAGA's Multilevel B-Spline (MBA)
 gridding algorithm, as implemented in Gridding_Spline_MBA.cpp

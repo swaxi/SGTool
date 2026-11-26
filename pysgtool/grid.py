@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 Grid and Stack: a raster in memory, with every SGTool calculation as a method.
 

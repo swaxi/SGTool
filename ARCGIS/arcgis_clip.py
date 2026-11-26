@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 Clip every layer of an ArcGIS Pro map to a polygon, and save a copy of the project that uses the
 clipped layers (the ArcGIS Pro counterpart of the QGIS plugin's Clip All Layers).

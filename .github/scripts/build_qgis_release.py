@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """Build a QGIS plugin zip and a plugins.xml for a custom plugin repository.
 
 Used by .github/workflows/qgis-plugin-release.yml when a GitHub release is

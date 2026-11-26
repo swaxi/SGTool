@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 Links to sections of the SGTool reference (docs/reference.md) on GitHub, for the
 Ctrl+click help of the QGIS dialog (sgt_help.py) and the ArcGIS Pro GUI.

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 pysgtool: the SGTool potential field and radiometric processing, without QGIS or ArcGIS.
 

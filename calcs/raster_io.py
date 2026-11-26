@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 Grid and vector files for the pysgtool package, with GDAL (osgeo) where it is
 installed, as in QGIS, ArcGIS Pro and conda, or else with rasterio and pyogrio, which

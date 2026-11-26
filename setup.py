@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 The pysgtool package: SGTool without QGIS or ArcGIS.
 
@@ -62,6 +64,7 @@ setup(
         "pysgtool.calcs.euler": ["*.md"],
         "pysgtool.calcs.worms": ["*.txt"],
     },
+    license="GPL-2.0-or-later",
     license_files=["LICENSE"],
     python_requires=">=3.9",
     install_requires=["numpy", "scipy"],

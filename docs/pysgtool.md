@@ -131,6 +131,10 @@ sg.replay("mag_RTP_d1z.tif", "other.tif", date="2018-03-01")
 
 `sg.igrf(lat, lon, date)` gives the IGRF at any position.
 
+## Licence
+
+GPL version 2 or later, like SGTool (see the [LICENSE](../LICENSE) file).
+
 ## Not in pysgtool yet
 
 IDW and spline gridding, and clipping. The live preview, layer styling and project clipping belong to the GUIs.

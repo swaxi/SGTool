@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 Henkel plots (density against log susceptibility) and other scatter plots, heat
 maps and histograms for apparent petrophysics grids and measured point data,

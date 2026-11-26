@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 import numpy as np
 
 # longest side, in cells, of the grid drawn beside the spectrum: a bigger grid is

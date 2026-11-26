@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 The "Apply the same steps to another grid" dialog: shows the steps found in a
 grid's history, lets the user choose which to repeat and which grid to apply

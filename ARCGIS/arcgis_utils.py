@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 arcgis_utils.py  –  Shared raster I/O and path helpers for SGTool ArcGIS.
 

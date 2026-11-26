@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Translated from SAGA GIS (mrvbf.cpp), Copyright (C) 2006 Olaf Conrad,
+# which is under the GNU General Public License, version 2 or later.
+# Python translation Copyright (C) 2026 Mark Jessell
 """
 Standalone Python / NumPy translation of SAGA's Multiresolution Index of
 Valley Bottom Flatness tool (mrvbf.cpp, CMRVBF; ta_morphometry / tool id 8;

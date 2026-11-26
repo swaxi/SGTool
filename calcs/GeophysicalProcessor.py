@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 import logging
 import numpy as np
 from numpy.polynomial.polynomial import polyval2d

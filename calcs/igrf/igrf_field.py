@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 Geomagnetic field (IGRF) values for a grid, with no QGIS dependency, so they
 can be worked out in a background task or a Processing algorithm.

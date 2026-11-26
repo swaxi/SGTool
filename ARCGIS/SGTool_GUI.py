@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 SGTool_GUI.py  –  Standalone multi-tab GUI for SGTool (ArcGIS Pro / standalone).
 

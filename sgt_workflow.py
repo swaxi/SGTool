@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 The replay of a processing history is calcs/replay.py, so that it is part of the pysgtool package too.
 This module keeps the name the QGIS plugin and the ArcGIS Pro tools import it by.

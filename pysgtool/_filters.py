@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 The filters of calcs/filter_table.py as methods of Grid, made from that table: a filter
 added to it is here too, with the same name, settings and result as in QGIS.

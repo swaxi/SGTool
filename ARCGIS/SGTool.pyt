@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 SGTool.pyt  –  ArcGIS Pro Python Toolbox
 Full-feature geophysical processing toolbox mirroring the SGTool QGIS plugin.

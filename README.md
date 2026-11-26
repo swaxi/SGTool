@@ -74,6 +74,9 @@ There are several excellent Open Source or at least free alternatives to this pl
 - GammaSpec https://www.gammaspec.com.au/ 
 - TerraWorkBench https://github.com/jordan-zav/TerraWorkBench
 
+# Licence
+SGTool is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 2 of the License, or (at your option) any later version (see [LICENSE](LICENSE)). Some files keep their own licences, which are compatible with it: the Euler deconvolution and BSDWorms code (BSD), the IGRF code (MIT, from pyIGRF) and the Geosoft grid reader (BSD, from Harmonica).
+
 # Code development
 - Calcs ChatGPT, Claude and Mark Jessell
 - Plugin construction - Mark Jessell using QGIS Plugin Builder Plugin https://g-sherman.github.io/Qgis-Plugin-Builder/    

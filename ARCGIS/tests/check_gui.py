@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 Checks of the ArcGIS Pro GUI (SGTool_GUI.py), with the real tkinter main loop.
 

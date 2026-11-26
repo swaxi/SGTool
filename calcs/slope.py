@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """Slope of a grid, as QGIS's Slope algorithm (native:slope) gives it (numpy only)."""
 
 import numpy as np

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 import numpy as np
 
 from .window_ops import iter_windows, nanmedian_last

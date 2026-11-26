@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 Calculations on several grids, on profiles, and the processing history: radiometric
 ratios, IGRF values, the 1-D wavelet transform (WTMM) and replay.

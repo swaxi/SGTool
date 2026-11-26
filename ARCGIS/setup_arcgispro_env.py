@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """Create an ArcGIS Pro Python environment for SGTool, Tomofast-x and GeoSubSampler.
 
 The same script is in the ARCGIS folder of all three repositories

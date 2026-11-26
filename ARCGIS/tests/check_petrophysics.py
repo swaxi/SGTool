@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 Checks of the Petrophys tab of the ArcGIS Pro GUI (SGTool_GUI.py) and the petrophysics
 toolbox tools, with the real tkinter main loop.

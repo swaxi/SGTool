@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 Reading line (XYZ) data, delimited text points and Noddy grids, and profiles
 along a line: shared by the QGIS plugin and pysgtool (numpy and scipy only).

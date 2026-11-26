@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Copyright (C) 2024-2026 Mark Jessell
 """
 Clip every layer of the current QGIS project to a polygon, and save a copy of the project that
 loads the clipped layers.

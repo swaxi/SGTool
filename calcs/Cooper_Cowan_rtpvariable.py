@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Translated from rtpvariable.m, Copyright (C) 2002 G.R.J. Cooper (University of
+# the Witwatersrand), used under the GNU General Public License, version 2 or
+# later, with his permission. Python translation Copyright (C) 2026 Mark Jessell
 r"""
 RTP with variable geomagnetic parameters
 Uses a Taylor series expansion in the space domain

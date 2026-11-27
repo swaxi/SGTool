@@ -63,7 +63,7 @@ The **Petrophys** tab (QGIS and ArcGIS Pro) estimates rock properties from poten
 See the [Petrophys tab](docs/reference.md#petrophys-tab) in the reference for the formulas and the settings, and the [user guide](docs/user-guide.md#10-apparent-susceptibility-density-and-henkel-plots) for the workflow.
 
 # Alternatives   
-There are several excellent Open Source or at least free alternatives to this plugin if you don't want to use QGIS or ArcGIS Pro, or want to do things this plugin can't:   
+There are several excellent Open Source or at least free alternatives to this plugin if you want to do things this plugin can't:   
 - Fatiando Harmonica https://www.fatiando.org/harmonica/
 - GravMagSuite https://github.com/fcastro25/GravMagSuite
 - GSSH https://cires1.colorado.edu/people/jones.craig/GSSH/index.html

@@ -52,7 +52,14 @@ Fourier filters can also differ slightly between numpy / scipy versions, because
 
 ## Filters
 
-The methods below have the names and settings of the QGIS Processing algorithms, which the [reference](reference.md) describes. `sg.filters()` lists them with their defaults, and `help(sg.Grid.band_pass)` shows one. Lengths are in map units.
+The methods below have the names and settings of the QGIS Processing algorithms, which the [reference](reference.md) describes. `sg.filters()` returns them as a dictionary, without printing anything: `{name: {"group", "help", "settings": {setting: default}}}`, where a default of `None` is taken from the IGRF when `date=` is given. To list them:
+
+```python
+for name, f in sg.filters().items():
+    print(name, f["settings"])
+```
+
+`help(sg.Grid.band_pass)` describes one filter and all its settings. Lengths are in map units.
 
 | Group | Methods |
 |---|---|

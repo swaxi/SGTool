@@ -4,6 +4,9 @@
 
 The changelog is also in `metadata.txt`, which QGIS shows in the Plugin Manager.   
 
+## 0.4.10
+      * [Bug Fix] BSD worms failed with a ValueError since the 0.4.9 code reorganisation (also pysgtool's worm_points); worms are again identical to 0.4.8
+
 ## 0.4.9
       * [New Feature] pysgtool: SGTool's calculations as a Python package installed with pip, run without QGIS or ArcGIS (see docs/pysgtool.md)
       * [Bug Fix] FFT filters: the regional plane removed before filtering is now fitted to convergence, so results no longer vary slightly with the numpy version (values change slightly from 0.4.8)

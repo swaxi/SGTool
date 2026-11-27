@@ -45,12 +45,15 @@ SGTool works in both **QGIS** and **ArcGIS Pro**: the calculations are shared, a
 - Length units are defined by grid properties except for Up/Down Continuation (so Lat/Long wavelengths should be defined in degrees!)
 3) If multiple processing steps are required, first apply one process, select the result and then apply subsequent steps.
 
-# Edge detection, domains and radiometrics
-- **Edge detectors** (FFT Filters+ tab): normalised standard deviation (NSTD) and NAV-Edge, balanced edge detectors for gravity and RTP magnetic grids
-- **Domain detection** (Conv + Stats tab): symmetric nearest neighbour and Kuwahara edge-preserving smoothers, which flatten noise inside domains while keeping the steps between them
+# Classical grav/mag filters
+- **Grav/Mag filters** (FFT Filters+ tab): RTP/RTE, Continuation, gradients, dEuler deconvolution, wavelet transforms, frequency filters...   
 - **Multiband** tab: Efimov F-parameter, Kd / Ud (thorium-normalised K and U) and ternary gradient from K, eU and eTh, CLR / ILR log-ratio transforms, and PCA / ICA, with live preview (PCA and ICA as an RGB of components 1 to 3)
 
-See the [Multiband tab](docs/reference.md#multiband-tab) and [Edge Detectors](docs/reference.md#edge-detectors) in the reference.
+See the [Multiband tab](docs/reference.md#multiband-tab) and [Edge Detectors](docs/reference.md#edge-detectors) in the reference.   
+
+# Edge detection, domains and radiometrics
+- **Edge detectors** (FFT Filters+ tab): normalised standard deviation (NSTD) and NAV-Edge, balanced edge detectors for gravity and RTP magnetic grids
+- **Domain detection** (Conv + Stats tab): symmetric nearest neighbour and Kuwahara edge-preserving smoothers, which flatten noise inside domains while keeping the steps between them   
 
 # Petrophysics
 The **Petrophys** tab (QGIS and ArcGIS Pro) estimates rock properties from potential field grids and compares them with measured samples:

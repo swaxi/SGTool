@@ -119,7 +119,10 @@ for _spec in FILTER_SPECS:
 
 
 def filters():
-    """{name: {"group", "help", "settings": {name: default}}} of every filter method."""
+    """
+    {name: {"group", "help", "settings": {name: default}, "choices": {name: [options]}}}
+    of every filter method; "choices" has the settings that take one of a fixed list.
+    """
     out = {}
     for spec in FILTER_SPECS:
         from_field = _FROM_FIELD.get(spec["id"], ())
@@ -128,5 +131,7 @@ def filters():
             "help": spec["help"],
             "settings": {p["name"].lower(): None if p["name"] in from_field else _default(p)
                          for p in spec["params"]},
+            "choices": {p["name"].lower(): list(p["options"])
+                        for p in spec["params"] if p["kind"] == "enum"},
         }
     return out

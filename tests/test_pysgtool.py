@@ -91,6 +91,11 @@ def test_filter_list():
     f = sg.filters()
     assert set(f) == {s["id"] for s in FILTER_SPECS}
     assert f["reduction_to_pole"]["settings"]["inclination"] is None
+    assert f["local_anisotropy"]["choices"]["output_type"] == ["Magnitude", "Orientation"]
+    assert f["reduction_to_pole"]["choices"] == {}
+    for info in f.values():
+        for name, options in info["choices"].items():
+            assert info["settings"][name] in options
     assert "direction" in str(sg.Grid.derivative.__signature__)
 
 

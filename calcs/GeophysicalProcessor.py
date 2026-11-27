@@ -1556,9 +1556,12 @@ class GeophysicalProcessor:
         job.wormLevelAsPoints(dz=dzm)
         xmin_padded = geomat[0] - (pad_x * geomat[1])
         ymax_padded = geomat[3] - (pad_y * geomat[5])
-        x = (job.worm_xs * geomat[1]) + xmin_padded
-        y = (job.worm_ys * geomat[5]) + ymax_padded
-        points = np.column_stack((y, x, [dzm] * len(job.worm_ys), job.worm_vals))
+        # CannyEdgeDetect can return a few more xs and values than ys: keep the
+        # first len(ys) of each, as bsdwormer always has
+        n = len(job.worm_ys)
+        x = (np.asarray(job.worm_xs)[:n] * geomat[1]) + xmin_padded
+        y = (np.asarray(job.worm_ys) * geomat[5]) + ymax_padded
+        points = np.column_stack((y, x, [dzm] * n, np.asarray(job.worm_vals)[:n]))
         x_edges = (geomat[0], geomat[0] + shape[1] * geomat[1])
         y_edges = (geomat[3], geomat[3] + shape[0] * geomat[5])
         mask = (
